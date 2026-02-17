@@ -1,6 +1,7 @@
 import { Env, AudioJob } from "./types";
 import { transcribeWithFallback } from "./whisper";
 import { sendMessageSafe } from "./meta";
+import { sendWhatsAppMessageSafe } from "./whatsapp";
 import { splitLongText } from "./text";
 
 export default {
@@ -9,7 +10,7 @@ export default {
     env: Env
   ): Promise<void> {
     for (const msg of batch.messages) {
-      const { senderId, audioUrl } = msg.body;
+      const { senderId, audioUrl, platform } = msg.body;
 
       const start = Date.now();
 
@@ -28,8 +29,14 @@ export default {
         // Chunk long text and send
         const parts = splitLongText(finalText);
 
-        for (const part of parts) {
-          await sendMessageSafe(senderId, part, env);
+        if (platform === "whatsapp") {
+          for (const part of parts) {
+            await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, senderId, part, env);
+          }
+        } else {
+          for (const part of parts) {
+            await sendMessageSafe(senderId, part, env);
+          }
         }
 
         msg.ack();

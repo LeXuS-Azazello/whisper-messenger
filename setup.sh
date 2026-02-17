@@ -47,6 +47,7 @@ fi
 
 echo ""
 echo "=== Next Steps ==="
-echo "1. Configure Meta Webhook URL to: https://whisper-messenger.YOUR_SUBDOMAIN.workers.dev"
-echo "2. Set VERIFY_TOKEN in Meta Developer Portal matching your input"
-echo "3. Subscribe to 'messages' webhook event"
+echo "1. Add custom domain 'whisper.debug.org.ua' in Cloudflare Dashboard"
+echo "2. Configure Meta Webhook URL to: https://whisper.debug.org.ua"
+echo "3. Set VERIFY_TOKEN in Meta Developer Portal matching your input"
+echo "4. Subscribe to 'messages' webhook event"

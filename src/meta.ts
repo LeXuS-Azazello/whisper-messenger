@@ -36,6 +36,7 @@ export async function sendMessageSafe(
 }
 
 async function fetchGraph(body: unknown, env: Env): Promise<Response> {
+  // Instagram Messaging API uses the same Graph API endpoint
   const url = `https://graph.facebook.com/${env.META_API_VERSION}/me/messages`;
 
   return fetch(url, {
