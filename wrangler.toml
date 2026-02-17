@@ -1,0 +1,19 @@
+name = "whisper-messenger"
+main = "src/index.ts"
+compatibility_date = "2026-02-13"
+
+[ai]
+binding = "AI"
+
+[[queues.producers]]
+binding = "AUDIO_QUEUE"
+queue = "audio-jobs"
+
+[[queues.consumers]]
+queue = "audio-jobs"
+max_batch_size = 1
+max_retries = 5
+
+[vars]
+VERIFY_TOKEN = "CHANGE_ME"
+META_API_VERSION = "v19.0"
