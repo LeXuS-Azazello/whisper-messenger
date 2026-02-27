@@ -9,15 +9,13 @@ describe('WhatsApp Webhook Body Types', () => {
       entry: [{
         changes: [{
           value: {
-            messaging: [{
+            messages: [{
               from: '1234567890',
               id: 'msg123',
               timestamp: '1234567890',
-              message: {
-                audio: {
-                  id: 'audio_id_123',
-                  mime_type: 'audio/ogg'
-                }
+              audio: {
+                id: 'audio_id_123',
+                mime_type: 'audio/ogg'
               }
             }]
           }
@@ -27,7 +25,7 @@ describe('WhatsApp Webhook Body Types', () => {
 
     // Verify structure
     expect(webhookBody.object).toBe('whatsapp_business_account');
-    expect(webhookBody.entry?.[0]?.changes?.[0]?.value?.messaging?.[0]?.message?.audio?.id).toBe('audio_id_123');
+    expect(webhookBody.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.audio?.id).toBe('audio_id_123');
   });
 
   it('should correctly type Messenger webhook structure', () => {
@@ -75,6 +73,17 @@ describe('AudioJob Type', () => {
     expect(job.platform).toBe('whatsapp');
     expect(job.senderId).toBe('user123');
   });
+
+  it('should support instagram platform', () => {
+    const job = {
+      senderId: 'user123',
+      audioUrl: 'https://example.com/audio.ogg',
+      platform: 'instagram' as const
+    };
+    
+    expect(job.platform).toBe('instagram');
+    expect(job.senderId).toBe('user123');
+  });
 });
 
 describe('Platform Detection Logic', () => {
@@ -83,7 +92,7 @@ describe('Platform Detection Logic', () => {
       object: 'whatsapp_business_account',
       entry: [{
         changes: [{
-          value: { messaging: [] }
+          value: { messages: [] }
         }]
       }]
     };

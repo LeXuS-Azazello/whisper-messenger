@@ -17,12 +17,18 @@ export async function transcribeWithFallback(
     audio: [...new Uint8Array(audio)],
   };
 
+  console.log(`[whisper] Audio size: ${audio.byteLength} bytes, array length: ${input.audio.length}`);
+
   let lastError: unknown;
 
   for (const model of MODELS) {
     try {
-      return await env.AI.run(model as any, input) as WhisperResponse;
+      console.log(`[whisper] Trying model: ${model}`);
+      const result = await env.AI.run(model as any, input) as WhisperResponse;
+      console.log(`[whisper] Model ${model} succeeded: text="${result.text?.substring(0, 100)}"`);
+      return result;
     } catch (e) {
+      console.error(`[whisper] Model ${model} failed: ${e}`);
       lastError = e;
     }
   }

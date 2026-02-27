@@ -1,6 +1,11 @@
 name = "whisper-messenger"
 main = "src/index.ts"
 compatibility_date = "2026-02-13"
+workers_dev = false
+preview_urls = false
+routes = [
+  { pattern = "whisper.debug.org.ua/*", zone_name = "debug.org.ua" }
+]
 
 [ai]
 binding = "AI"
@@ -15,10 +20,20 @@ max_batch_size = 1
 max_retries = 5
 
 [vars]
-SECRET_APPLICATION="9e08cc9b3cd558c36e29127a22f789e2"
-VERIFY_TOKEN = "HKnc7fxYvzASGf7cbHpQOhPYvBpqdjghPCpSTW9d"
 META_API_VERSION = "v19.0"
 WHATSAPP_PHONE_NUMBER_ID = "956619407541550"
-WHATSAPP_TOKEN = "EAANHgZB5ANpMBQhwlOUEeVd7JekBcOI4fJAJY7n9CLyfzifmb8WDMZCMJxOHaItrMwZAVelYmtlTJCNr77w0lBDZAnxk7YqufM98OEtcoNS1hNXfTgHtZBAwo9nUFbESf79xDlJ0GE8jFPZCEov2LxZA66S9WWCij4xe9Exh3ZCrnA1L7QBe0RGyzHODu4wIlu01eQmVDaTCM9KZBixhCVcaSrsVE3yZBtJ3XeTBCQ9wvHMfYgPk7IMeaNZCRsrXg7c4dI2dZBHcvwNnwMfS4xfnPI9OhYuTtaTij0pHZACQ8JOZBm"
-secret_application = "EAANHgZB5ANpMBQurQ85fUIGmFzh6BgFeuSB3uIgYwOoUaAYb6ZBFuZBxdeHqgi2ZBJnS5lw6TI4tDNmNzqGni7K4G6hDW9r9VOWYZAWMP7nZBO5S72ge1cGAZBiQlNpP1qtnJnOPBCSmt9WR48J2ZAXw1YccKmQUZAQFGG8Hki7bmzwd98bnj6N5LkxUFpoyktEkQur2K9pVKUOKT274KgxV5Wgrjfsvwd1szbZASwjIdvgx1OFld58AFm"
-USER_TOCKEN="EAANHgZB5ANpMBQv1LLbXWgUHuL8enrjGJJy3X9y4M20eZCOCxb4cJq1OxF3l6hrawiLu2nwaEvOP78oqvRseWCJLNTryNU0EmIfNJYZAHMzloQ62ezPZBUe3ZAyUQkRbbM0n9rSswMeUWBt0ubjotbM0ZCuDZC9EAtdd4HZBY6slMid03FQYLTKC0IxmCpHeIrxp4OpL2W7Mqv0TdaAShMELUzlA5IZBZAKYJx9ZC6sEd0M8DzszeGe7yZAq9i7GEWyZArBf2gU0cEs5B43rpfWMldKSRpZBIZCFaKj"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
+persist = true
+head_sampling_rate = 1

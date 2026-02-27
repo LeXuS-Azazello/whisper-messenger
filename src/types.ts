@@ -4,6 +4,7 @@ export interface Env {
   VERIFY_TOKEN: string;
   META_API_VERSION: string;
   META_PAGE_TOKEN: string;
+  META_APP_SECRET: string;
   WHATSAPP_PHONE_NUMBER_ID: string;
   WHATSAPP_TOKEN: string;
 }
@@ -11,7 +12,7 @@ export interface Env {
 export interface AudioJob {
   senderId: string;
   audioUrl: string;
-  platform: "messenger" | "whatsapp";
+  platform: "messenger" | "instagram" | "whatsapp";
 }
 
 export interface MetaMessage {
@@ -29,7 +30,7 @@ export interface MetaMessage {
 }
 
 export interface MetaWebhookBody {
-  object: string;
+  object: "page" | "instagram" | string;
   entry?: Array<{
     messaging?: MetaMessage[];
   }>;
@@ -40,7 +41,7 @@ export interface WhatsAppWebhookBody {
   entry?: Array<{
     changes?: Array<{
       value: {
-        messaging?: WhatsAppMessage[];
+        messages?: WhatsAppMessage[];
       };
     }>;
   }>;
@@ -50,10 +51,9 @@ export interface WhatsAppMessage {
   from: string;
   id: string;
   timestamp: string;
-  message?: {
-    audio?: {
-      id: string;
-      mime_type: string;
-    };
+  type?: string;
+  audio?: {
+    id: string;
+    mime_type: string;
   };
 }

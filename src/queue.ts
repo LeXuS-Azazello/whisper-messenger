@@ -1,49 +1,79 @@
 import { Env, AudioJob } from "./types";
 import { transcribeWithFallback } from "./whisper";
-import { sendMessageSafe } from "./meta";
+import { sendMessageSafe, MetaNonRetryableError } from "./meta";
 import { sendWhatsAppMessageSafe } from "./whatsapp";
 import { splitLongText } from "./text";
 
-export default {
-  async queue(
-    batch: MessageBatch<AudioJob>,
-    env: Env
-  ): Promise<void> {
-    for (const msg of batch.messages) {
-      const { senderId, audioUrl, platform } = msg.body;
+export default async function queue(
+  batch: MessageBatch<AudioJob>,
+  env: Env
+): Promise<void> {
+  for (const msg of batch.messages) {
+    const { senderId, audioUrl, platform } = msg.body;
 
-      const start = Date.now();
+    console.log(`[queue] Processing job: platform=${platform} senderId=${senderId} audioUrl=${audioUrl.substring(0, 80)}...`);
 
-      try {
-        // Download audio
-        const audioRes = await fetch(audioUrl);
-        const audioBuffer = await audioRes.arrayBuffer();
+    const start = Date.now();
 
-        // Transcribe with Whisper
-        const result = await transcribeWithFallback(audioBuffer, env);
-
-        const sec = ((Date.now() - start) / 1000).toFixed(1);
-
-        const finalText = `*${result.text}*\n\ngen. time: ${sec} sec`;
-
-        // Chunk long text and send
-        const parts = splitLongText(finalText);
-
-        if (platform === "whatsapp") {
-          for (const part of parts) {
-            await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, senderId, part, env);
+    try {
+      // WhatsApp media URLs require bearer auth for download.
+      // Meta (Messenger/Instagram) attachment URLs are CDN links that don't need auth.
+      const fetchOptions: RequestInit | undefined = platform === "whatsapp"
+        ? {
+            headers: {
+              Authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
+            },
           }
-        } else {
-          for (const part of parts) {
-            await sendMessageSafe(senderId, part, env);
-          }
-        }
+        : undefined;
 
-        msg.ack();
-      } catch (e) {
-        // Retry - Cloudflare Queues will handle retries
-        msg.retry();
+      console.log(`[queue] Downloading audio (platform=${platform}, withAuth=${platform === "whatsapp"})...`);
+      const audioRes = await fetch(audioUrl, fetchOptions);
+
+      if (!audioRes.ok) {
+        const errorBody = await audioRes.text();
+        console.error(`[queue] Audio download failed: status=${audioRes.status} body=${errorBody}`);
+        throw new Error(`Audio download failed: ${audioRes.status} ${errorBody}`);
       }
+
+      const audioBuffer = await audioRes.arrayBuffer();
+      const contentType = audioRes.headers.get("content-type") ?? "unknown";
+      console.log(`[queue] Audio downloaded: ${audioBuffer.byteLength} bytes, content-type=${contentType}`);
+
+      // Transcribe with Whisper
+      console.log(`[queue] Starting Whisper transcription...`);
+      const result = await transcribeWithFallback(audioBuffer, env);
+      console.log(`[queue] Transcription result: "${result.text.substring(0, 100)}..."`);
+
+      const sec = ((Date.now() - start) / 1000).toFixed(1);
+
+      const finalText = `${result.text}\n\n⏱ ${sec}s`;
+
+      // Chunk long text and send
+      const parts = splitLongText(finalText);
+
+      if (platform === "whatsapp") {
+        for (const part of parts) {
+          await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, senderId, part, env);
+        }
+      } else {
+        for (const part of parts) {
+          await sendMessageSafe(senderId, part, env);
+        }
+      }
+
+      console.log(`[queue] Job completed successfully: platform=${platform} senderId=${senderId}`);
+      msg.ack();
+    } catch (e) {
+      // Non-retryable: user can't be messaged (blocked, window expired, etc.)
+      if (e instanceof MetaNonRetryableError) {
+        console.warn(`[queue] Non-retryable error, acking job: platform=${platform} senderId=${senderId} subcode=${e.errorSubcode} message=${e.message}`);
+        msg.ack();
+        continue;
+      }
+
+      console.error(`[queue] Job failed: platform=${platform} senderId=${senderId} error=${e}`);
+      // Retry - Cloudflare Queues will handle retries
+      msg.retry();
     }
-  },
-};
+  }
+}
