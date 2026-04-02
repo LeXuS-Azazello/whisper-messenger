@@ -4,6 +4,7 @@ import { sendMessageSafe, MetaNonRetryableError } from "./meta";
 import { sendWhatsAppMessageSafe } from "./whatsapp";
 import { sendTelegramMessage } from "./telegram";
 import { splitLongText } from "./text";
+import { logError } from "./logger";
 
 export default async function queue(
   batch: MessageBatch<AudioJob>,
@@ -88,6 +89,10 @@ export default async function queue(
       }
 
       console.error(`[queue] Job failed: platform=${platform} senderId=${senderId} error=${e}`);
+      
+      // Log error to KV
+      await logError(platform, String(e), env);
+
       // Retry - Cloudflare Queues will handle retries
       msg.retry();
     }

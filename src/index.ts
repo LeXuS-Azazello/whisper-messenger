@@ -5,6 +5,7 @@ import { sendMessageSafe, sendTypingOn, MetaNonRetryableError } from "./meta";
 import { sendWhatsAppMessageSafe, sendWhatsAppTypingOn, getWhatsAppAudioUrl } from "./whatsapp";
 import { sendTelegramMessage, sendTelegramTypingOn, getTelegramFileUrl, TelegramWebhookUpdate } from "./telegram";
 import { verifyWebhook } from "./verify";
+import { logError, getErrors } from "./logger";
 import queue from "./queue";
 
 export default {
@@ -182,7 +183,8 @@ async function handleAdmin(env: Env, req: Request): Promise<Response> {
 
   const checks = getHealthChecks(env);
   const stats = await getStats(env);
-  return new Response(renderAdminDashboard(checks, env, url.origin, stats), {
+  const errors = await getErrors(env);
+  return new Response(renderAdminDashboard(checks, env, url.origin, stats, errors), {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 }
@@ -322,7 +324,9 @@ async function handleWhatsApp(body: WhatsAppWebhookBody, env: Env): Promise<Resp
         console.log(`[whatsapp] audioUrl for id=${audio.id}: ${audioUrl?.substring(0, 80) ?? 'null'}`);
 
         if (!audioUrl) {
-          await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, from, "❌ Could not fetch audio", env);
+          const errorMsg = `Could not fetch audio URL for WhatsApp ID: ${audio.id}`;
+          await logError("whatsapp", errorMsg, env);
+          await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, from, `❌ ${errorMsg}`, env);
           continue;
         }
 
@@ -356,7 +360,9 @@ async function handleTelegram(update: TelegramWebhookUpdate, env: Env): Promise<
 
     const audioUrl = await getTelegramFileUrl(voice.file_id, env);
     if (!audioUrl) {
-      await sendTelegramMessage(chatId, "❌ Could not fetch audio from Telegram", env);
+      const errorMsg = "Could not fetch audio URL from Telegram";
+      await logError("telegram", errorMsg, env);
+      await sendTelegramMessage(chatId, `❌ ${errorMsg}`, env);
       return new Response("ok");
     }
 

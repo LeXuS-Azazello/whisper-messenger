@@ -1,6 +1,7 @@
 /** @jsxImportSource preact */
 import { render } from 'preact-render-to-string';
 import { Env } from './types';
+import { ErrorLog } from './logger';
 
 import adminCss from './admin.css';
 
@@ -26,7 +27,17 @@ const ConfigItem = ({ label, active }: { label: string; active: boolean }) => (
     </div>
 );
 
-export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: string, stats: any) => {
+const ErrorLogItem = ({ error }: { error: ErrorLog }) => (
+    <div class="error-log-item">
+        <div class="error-log-meta">
+            <span class={`platform-tag ${error.platform}`}>{error.platform.toUpperCase()}</span>
+            <span class="error-log-time">{new Date(error.timestamp).toLocaleString()}</span>
+        </div>
+        <div class="error-log-message">{error.message}</div>
+    </div>
+);
+
+export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: string, stats: any, errors: ErrorLog[]) => {
     return "<!DOCTYPE html>" + render(
         <html lang="en">
             <head>
@@ -182,6 +193,22 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                     </div>
                                 ) : (
                                     <p style={{ fontSize: '14px', color: '#888', marginBottom: '20px' }}>Provide WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID in secrets to test.</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div class="card error-logs-card" style={{ gridColumn: '1 / -1' }}>
+                            <div class="card-header">
+                                <h3 class="card-title">System Error Logs</h3>
+                                <div style={{ fontSize: '12px', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '2px 8px', borderRadius: '4px' }}>
+                                    Recent Issues
+                                </div>
+                            </div>
+                            <div class="error-list">
+                                {errors.length > 0 ? (
+                                    errors.map((err, i) => <ErrorLogItem key={i} error={err} />)
+                                ) : (
+                                    <div class="no-errors">No recent errors detected. System is healthy.</div>
                                 )}
                             </div>
                         </div>

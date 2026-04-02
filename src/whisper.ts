@@ -1,10 +1,6 @@
 import { Env } from "./types";
 
-const MODELS = [
-  "@cf/openai/whisper-tiny-en",
-  "@cf/openai/whisper-large-v3-turbo",
-  "@cf/openai/whisper",
-];
+const MODEL = "@cf/openai/whisper-tiny-en";
 
 interface WhisperResponse {
   text: string;
@@ -21,26 +17,19 @@ export async function transcribeWithFallback(
 
   console.log(`[whisper] Audio size: ${audio.byteLength} bytes, array length: ${input.audio.length}`);
 
-  let lastError: unknown;
+  try {
+    console.log(`[whisper] Trying model: ${MODEL}`);
+    // @ts-ignore - Cloudflare Workers AI types can be tricky
+    const result = await env.AI.run(MODEL, input) as WhisperResponse;
 
-  for (const model of MODELS) {
-    try {
-      console.log(`[whisper] Trying model: ${model}`);
-      // @ts-ignore - Cloudflare Workers AI types can be tricky
-      const result = await env.AI.run(model, input) as WhisperResponse;
-
-      if (!result || !result.text) {
-        console.warn(`[whisper] Model ${model} returned empty/invalid result`);
-        continue;
-      }
-
-      console.log(`[whisper] Model ${model} succeeded: text="${result.text?.substring(0, 100)}"`);
-      return result;
-    } catch (e) {
-      console.error(`[whisper] Model ${model} failed: ${e}`);
-      lastError = e;
+    if (!result || !result.text) {
+      throw new Error(`Model ${MODEL} returned empty/invalid result`);
     }
-  }
 
-  throw lastError || new Error("All whisper models failed");
+    console.log(`[whisper] Model ${MODEL} succeeded: text="${result.text?.substring(0, 100)}"`);
+    return result;
+  } catch (e) {
+    console.error(`[whisper] Model ${MODEL} failed: ${e}`);
+    throw e;
+  }
 }
