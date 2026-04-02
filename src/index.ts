@@ -1,6 +1,9 @@
 import { Env, AudioJob, MetaWebhookBody, WhatsAppWebhookBody } from "./types";
+import { renderAdminDashboard, renderAdminLogin } from "./admin_ui";
+
 import { sendMessageSafe, sendTypingOn, MetaNonRetryableError } from "./meta";
 import { sendWhatsAppMessageSafe, sendWhatsAppTypingOn, getWhatsAppAudioUrl } from "./whatsapp";
+import { sendTelegramMessage, sendTelegramTypingOn, getTelegramFileUrl, TelegramWebhookUpdate } from "./telegram";
 import { verifyWebhook } from "./verify";
 import queue from "./queue";
 
@@ -9,7 +12,11 @@ export default {
     const url = new URL(req.url);
 
     if (req.method === "GET" && url.pathname === "/health") {
-      return this.health(env);
+      return health(env, req);
+    }
+
+    if (url.pathname.startsWith("/admin")) {
+      return handleAdmin(env, req);
     }
 
     // Webhook verification (shared by all Meta platforms)
@@ -28,12 +35,6 @@ export default {
       const rawBody = await req.text();
       console.log(`[webhook] POST raw body: ${rawBody}`);
 
-      // Verify webhook authenticity (mTLS + X-Hub-Signature-256)
-      const verifyError = await verifyWebhook(req, rawBody, env);
-      if (verifyError) {
-        return verifyError;
-      }
-
       let body: Record<string, unknown>;
       try {
         body = JSON.parse(rawBody);
@@ -43,15 +44,27 @@ export default {
       }
 
       const webhookObject = (body as { object?: string }).object;
-      console.log(`[webhook] object="${webhookObject}"`);
+      const isTelegram = !!(body as any).update_id;
+      console.log(`[webhook] object="${webhookObject}" isTelegram=${isTelegram}`);
+
+      // Telegram doesn't use X-Hub-Signature-256
+      if (isTelegram) {
+        return handleTelegram(body as unknown as TelegramWebhookUpdate, env);
+      }
+
+      // Meta (Messenger/Instagram/WhatsApp) verification
+      const verifyError = await verifyWebhook(req, rawBody, env);
+      if (verifyError) {
+        return verifyError;
+      }
 
       if (webhookObject === "whatsapp_business_account") {
-        return this.handleWhatsApp(body as unknown as WhatsAppWebhookBody, env);
+        return handleWhatsApp(body as unknown as WhatsAppWebhookBody, env);
       }
 
       // "page" = Facebook Messenger, "instagram" = Instagram DMs
       if (webhookObject === "page" || webhookObject === "instagram") {
-        return this.handleMetaMessaging(body as unknown as MetaWebhookBody, env);
+        return handleMetaMessaging(body as unknown as MetaWebhookBody, env);
       }
 
       console.warn(`[webhook] Unknown webhook object: "${webhookObject}"`);
@@ -61,144 +74,254 @@ export default {
     return new Response("404");
   },
 
-  health(env: Env): Response {
-    const checks = {
-      VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
-      META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
-      META_APP_SECRET: Boolean(env.META_APP_SECRET),
-      WHATSAPP_TOKEN: Boolean(env.WHATSAPP_TOKEN),
-      META_API_VERSION: Boolean(env.META_API_VERSION),
-      WHATSAPP_PHONE_NUMBER_ID: Boolean(env.WHATSAPP_PHONE_NUMBER_ID),
-      AUDIO_QUEUE: Boolean(env.AUDIO_QUEUE),
-      AI: Boolean(env.AI),
-    };
+  queue,
+} satisfies ExportedHandler<Env, AudioJob>;
 
-    const ok = Object.values(checks).every(Boolean);
+async function handleAdmin(env: Env, req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  const cookieMatch = req.headers.get("Cookie")?.match(/(?:^| )auth=([^;]+)/);
+  const cookieAuth = cookieMatch ? cookieMatch[1] : null;
 
-    return Response.json(
-      {
-        ok,
-        service: "whisper-messenger",
-        checks,
-      },
-      { status: ok ? 200 : 500 }
-    );
-  },
+  if (req.method === "POST" && url.pathname === "/admin/logout") {
+    return new Response("Logged out", {
+      status: 200,
+      headers: { "Set-Cookie": "auth=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/" }
+    });
+  }
 
-  async handleMetaMessaging(body: MetaWebhookBody, env: Env): Promise<Response> {
-    const platform: AudioJob["platform"] = body.object === "instagram" ? "instagram" : "messenger";
-    console.log(`[meta] handleMetaMessaging platform="${platform}" entries=${body.entry?.length ?? 0}`);
+  if (req.method === "POST" && url.pathname === "/admin/login") {
+    const formData = await req.formData();
+    const password = formData.get("password")?.toString();
+    
+    if (env.ADMIN_SECRET && password === env.ADMIN_SECRET) {
+      return new Response("Redirecting...", {
+        status: 302,
+        headers: { 
+          "Location": "/admin",
+          "Set-Cookie": `auth=${password}; HttpOnly; Secure; SameSite=Strict; Max-Age=86400; Path=/` 
+        }
+      });
+    }
+    
+    return new Response(renderAdminLogin("Invalid password"), {
+      status: 401,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }
 
-    for (const entry of body.entry ?? []) {
-      console.log(`[meta] entry id=${(entry as any).id} messaging count=${entry.messaging?.length ?? 0}`);
+  if (!env.ADMIN_SECRET || cookieAuth !== env.ADMIN_SECRET) {
+    return new Response(renderAdminLogin(), {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }
 
-      for (const msg of entry.messaging ?? []) {
-        const senderId = msg.sender?.id;
-        const messageObj = msg.message;
-        const att = messageObj?.attachments?.[0];
+  if (req.method === "POST" && url.pathname === "/admin/setup-telegram") {
+    if (!env.TELEGRAM_BOT_TOKEN) {
+      return Response.json({ ok: false, description: "Missing TELEGRAM_BOT_TOKEN" }, { status: 400 });
+    }
+    const workerUrl = url.origin;
+    const telegramUrl = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/setWebhook?url=${workerUrl}`;
+    try {
+      const res = await fetch(telegramUrl);
+      const data = await res.json();
+      return Response.json(data);
+    } catch (err: any) {
+      return Response.json({ ok: false, description: err.message }, { status: 500 });
+    }
+  }
 
-        console.log(`[meta] message from senderId="${senderId}" hasMessage=${!!messageObj} attachments=${messageObj?.attachments?.length ?? 0}`);
+  if (req.method === "POST" && url.pathname === "/admin/setup-meta") {
+    if (!env.META_PAGE_TOKEN || !env.META_API_VERSION) {
+      return Response.json({ ok: false, description: "Missing META_PAGE_TOKEN or META_API_VERSION" }, { status: 400 });
+    }
+    const metaUrl = `https://graph.facebook.com/${env.META_API_VERSION}/me/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins&access_token=${env.META_PAGE_TOKEN}`;
+    try {
+      const res = await fetch(metaUrl, { method: 'POST' });
+      const data = await res.json();
+      return Response.json(data);
+    } catch (err: any) {
+      return Response.json({ ok: false, description: err.message }, { status: 500 });
+    }
+  }
 
-        if (!senderId) {
-          console.warn(`[meta] Skipping: no senderId`);
+  const checks = getHealthChecks(env);
+  return new Response(renderAdminDashboard(checks, env, url.origin), {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
+
+function getHealthChecks(env: Env) {
+  return {
+    VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
+    META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
+    META_APP_SECRET: Boolean(env.META_APP_SECRET),
+    WHATSAPP_TOKEN: Boolean(env.WHATSAPP_TOKEN),
+    META_API_VERSION: Boolean(env.META_API_VERSION),
+    WHATSAPP_PHONE_NUMBER_ID: Boolean(env.WHATSAPP_PHONE_NUMBER_ID),
+    TELEGRAM_BOT_TOKEN: Boolean(env.TELEGRAM_BOT_TOKEN),
+    AUDIO_QUEUE: Boolean(env.AUDIO_QUEUE),
+    AI: Boolean(env.AI),
+  };
+}
+
+function health(env: Env, req?: Request): Response {
+  const checks = getHealthChecks(env);
+  const ok = Object.values(checks).every(Boolean);
+
+  return Response.json(
+    {
+      ok,
+      service: "whisper-messenger",
+      checks,
+    },
+    { status: ok ? 200 : 500 }
+  );
+}
+
+async function handleMetaMessaging(body: MetaWebhookBody, env: Env): Promise<Response> {
+  const platform: AudioJob["platform"] = body.object === "instagram" ? "instagram" : "messenger";
+  console.log(`[meta] handleMetaMessaging platform="${platform}" entries=${body.entry?.length ?? 0}`);
+
+  for (const entry of body.entry ?? []) {
+    console.log(`[meta] entry id=${(entry as any).id} messaging count=${entry.messaging?.length ?? 0}`);
+
+    for (const msg of entry.messaging ?? []) {
+      const senderId = msg.sender?.id;
+      const messageObj = msg.message;
+      const att = messageObj?.attachments?.[0];
+
+      console.log(`[meta] message from senderId="${senderId}" hasMessage=${!!messageObj} attachments=${messageObj?.attachments?.length ?? 0}`);
+
+      if (!senderId) {
+        console.warn(`[meta] Skipping: no senderId`);
+        continue;
+      }
+
+      if (!messageObj) {
+        console.log(`[meta] Skipping: no message object (could be delivery/read receipt)`);
+        continue;
+      }
+
+      if (!att) {
+        console.log(`[meta] Skipping: no attachments`);
+        continue;
+      }
+
+      console.log(`[meta] attachment type="${att.type}" url="${att.payload?.url?.substring(0, 80)}..."`);
+
+      if (att.type !== "audio") {
+        console.log(`[meta] Skipping: attachment type is "${att.type}", not audio`);
+        continue;
+      }
+
+      if (!att.payload?.url) {
+        console.warn(`[meta] Skipping: audio attachment has no URL`);
+        continue;
+      }
+
+      // Try to notify the user; if they can't be messaged, skip the job entirely
+      try {
+        await sendTypingOn(senderId, env);
+        await sendMessageSafe(senderId, "⏳ Transcribing your voice message...", env);
+      } catch (e) {
+        if (e instanceof MetaNonRetryableError) {
+          console.warn(`[meta] Cannot message user ${senderId} (subcode=${e.errorSubcode}), skipping job`);
+          continue;
+        }
+        throw e; // re-throw unexpected errors
+      }
+
+      const job: AudioJob = {
+        senderId,
+        audioUrl: att.payload.url,
+        platform,
+      };
+
+      console.log(`[meta] Enqueuing job: platform=${platform} senderId=${senderId}`);
+      await env.AUDIO_QUEUE.send(job);
+    }
+  }
+
+  return new Response("ok");
+}
+
+async function handleWhatsApp(body: WhatsAppWebhookBody, env: Env): Promise<Response> {
+  console.log(`[whatsapp] handleWhatsApp entries=${body.entry?.length ?? 0}`);
+
+  for (const entry of body.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      const messages = change.value.messages ?? [];
+      const statuses = (change.value as any).statuses;
+
+      console.log(`[whatsapp] change: messages=${messages.length} statuses=${statuses?.length ?? 0}`);
+
+      for (const msg of messages) {
+        const from = msg.from;
+        const audio = msg.audio;
+
+        console.log(`[whatsapp] message from="${from}" type="${msg.type ?? 'unknown'}" hasAudio=${!!audio}`);
+
+        if (!from || !audio) {
+          console.log(`[whatsapp] Skipping: no from or no audio`);
           continue;
         }
 
-        if (!messageObj) {
-          console.log(`[meta] Skipping: no message object (could be delivery/read receipt)`);
+        await sendWhatsAppTypingOn(env.WHATSAPP_PHONE_NUMBER_ID, from, env);
+        await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, from, "⏳ Transcribing your voice message...", env);
+
+        // Get audio URL from WhatsApp
+        const audioUrl = await getWhatsAppAudioUrl(audio.id, env);
+        console.log(`[whatsapp] audioUrl for id=${audio.id}: ${audioUrl?.substring(0, 80) ?? 'null'}`);
+
+        if (!audioUrl) {
+          await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, from, "❌ Could not fetch audio", env);
           continue;
-        }
-
-        if (!att) {
-          console.log(`[meta] Skipping: no attachments`);
-          continue;
-        }
-
-        console.log(`[meta] attachment type="${att.type}" url="${att.payload?.url?.substring(0, 80)}..."`);
-
-        if (att.type !== "audio") {
-          console.log(`[meta] Skipping: attachment type is "${att.type}", not audio`);
-          continue;
-        }
-
-        if (!att.payload?.url) {
-          console.warn(`[meta] Skipping: audio attachment has no URL`);
-          continue;
-        }
-
-        // Try to notify the user; if they can't be messaged, skip the job entirely
-        try {
-          await sendTypingOn(senderId, env);
-          await sendMessageSafe(senderId, "⏳ Transcribing your voice message...", env);
-        } catch (e) {
-          if (e instanceof MetaNonRetryableError) {
-            console.warn(`[meta] Cannot message user ${senderId} (subcode=${e.errorSubcode}), skipping job`);
-            continue;
-          }
-          throw e; // re-throw unexpected errors
         }
 
         const job: AudioJob = {
-          senderId,
-          audioUrl: att.payload.url,
-          platform,
+          senderId: from,
+          audioUrl,
+          platform: "whatsapp",
         };
 
-        console.log(`[meta] Enqueuing job: platform=${platform} senderId=${senderId}`);
+        console.log(`[whatsapp] Enqueuing job: from=${from}`);
         await env.AUDIO_QUEUE.send(job);
       }
     }
+  }
 
-    return new Response("ok");
-  },
+  return new Response("ok");
+}
 
-  async handleWhatsApp(body: WhatsAppWebhookBody, env: Env): Promise<Response> {
-    console.log(`[whatsapp] handleWhatsApp entries=${body.entry?.length ?? 0}`);
+async function handleTelegram(update: TelegramWebhookUpdate, env: Env): Promise<Response> {
+  const msg = update.message;
+  if (!msg) return new Response("ok");
 
-    for (const entry of body.entry ?? []) {
-      for (const change of entry.changes ?? []) {
-        const messages = change.value.messages ?? [];
-        const statuses = (change.value as any).statuses;
+  const chatId = msg.chat.id;
+  const voice = msg.voice || msg.audio;
 
-        console.log(`[whatsapp] change: messages=${messages.length} statuses=${statuses?.length ?? 0}`);
+  console.log(`[telegram] message from chat "${chatId}" hasVoice=${!!voice}`);
 
-        for (const msg of messages) {
-          const from = msg.from;
-          const audio = msg.audio;
+  if (voice) {
+    await sendTelegramTypingOn(chatId, env);
+    await sendTelegramMessage(chatId, "⏳ Transcribing your voice message...", env);
 
-          console.log(`[whatsapp] message from="${from}" type="${msg.type ?? 'unknown'}" hasAudio=${!!audio}`);
-
-          if (!from || !audio) {
-            console.log(`[whatsapp] Skipping: no from or no audio`);
-            continue;
-          }
-
-          await sendWhatsAppTypingOn(env.WHATSAPP_PHONE_NUMBER_ID, from, env);
-          await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, from, "⏳ Transcribing your voice message...", env);
-
-          // Get audio URL from WhatsApp
-          const audioUrl = await getWhatsAppAudioUrl(audio.id, env);
-          console.log(`[whatsapp] audioUrl for id=${audio.id}: ${audioUrl?.substring(0, 80) ?? 'null'}`);
-
-          if (!audioUrl) {
-            await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, from, "❌ Could not fetch audio", env);
-            continue;
-          }
-
-          const job: AudioJob = {
-            senderId: from,
-            audioUrl,
-            platform: "whatsapp",
-          };
-
-          console.log(`[whatsapp] Enqueuing job: from=${from}`);
-          await env.AUDIO_QUEUE.send(job);
-        }
-      }
+    const audioUrl = await getTelegramFileUrl(voice.file_id, env);
+    if (!audioUrl) {
+      await sendTelegramMessage(chatId, "❌ Could not fetch audio from Telegram", env);
+      return new Response("ok");
     }
 
-    return new Response("ok");
-  },
+    const job: AudioJob = {
+      senderId: String(chatId),
+      audioUrl,
+      platform: "telegram",
+    };
 
-  queue,
-};
+    console.log(`[telegram] Enqueuing job: chatId=${chatId}`);
+    await env.AUDIO_QUEUE.send(job);
+  }
+
+  return new Response("ok");
+}
+

@@ -1,6 +1,7 @@
 import { Env } from "./types";
 
 const MODELS = [
+  "@cf/openai/whisper-tiny-en",
   "@cf/openai/whisper-large-v3-turbo",
   "@cf/openai/whisper",
 ];
@@ -13,8 +14,9 @@ export async function transcribeWithFallback(
   audio: ArrayBuffer,
   env: Env
 ): Promise<WhisperResponse> {
+  const audioArray = Array.from(new Uint8Array(audio));
   const input = {
-    audio: [...new Uint8Array(audio)],
+    audio: audioArray,
   };
 
   console.log(`[whisper] Audio size: ${audio.byteLength} bytes, array length: ${input.audio.length}`);
@@ -24,7 +26,14 @@ export async function transcribeWithFallback(
   for (const model of MODELS) {
     try {
       console.log(`[whisper] Trying model: ${model}`);
-      const result = await env.AI.run(model as any, input) as WhisperResponse;
+      // @ts-ignore - Cloudflare Workers AI types can be tricky
+      const result = await env.AI.run(model, input) as WhisperResponse;
+
+      if (!result || !result.text) {
+        console.warn(`[whisper] Model ${model} returned empty/invalid result`);
+        continue;
+      }
+
       console.log(`[whisper] Model ${model} succeeded: text="${result.text?.substring(0, 100)}"`);
       return result;
     } catch (e) {
@@ -33,5 +42,5 @@ export async function transcribeWithFallback(
     }
   }
 
-  throw lastError;
+  throw lastError || new Error("All whisper models failed");
 }

@@ -84,6 +84,17 @@ describe('AudioJob Type', () => {
     expect(job.platform).toBe('instagram');
     expect(job.senderId).toBe('user123');
   });
+
+  it('should support telegram platform', () => {
+    const job = {
+      senderId: '123456789',
+      audioUrl: 'https://api.telegram.org/file/bot123/file_1.ogg',
+      platform: 'telegram' as const
+    };
+    
+    expect(job.platform).toBe('telegram');
+    expect(job.senderId).toBe('123456789');
+  });
 });
 
 describe('Platform Detection Logic', () => {
@@ -113,6 +124,19 @@ describe('Platform Detection Logic', () => {
     // Messenger has "messaging" array directly
     const isMessenger = 'messaging' in (messengerBody.entry?.[0] || {});
     expect(isMessenger).toBe(true);
+  });
+
+  it('should detect Telegram webhook by presence of update_id', () => {
+    const telegramBody = {
+      update_id: 123456789,
+      message: {
+        chat: { id: 123 },
+        voice: { file_id: 'voice123' }
+      }
+    };
+
+    const isTelegram = !!telegramBody.update_id;
+    expect(isTelegram).toBe(true);
   });
 });
 
@@ -162,11 +186,13 @@ describe('Env Type', () => {
       META_PAGE_TOKEN: 'page_token',
       WHATSAPP_PHONE_NUMBER_ID: 'phone_id',
       WHATSAPP_TOKEN: 'whatsapp_token',
+      TELEGRAM_BOT_TOKEN: 'telegram_token',
     };
 
     expect(env.VERIFY_TOKEN).toBeDefined();
     expect(env.META_PAGE_TOKEN).toBeDefined();
     expect(env.WHATSAPP_PHONE_NUMBER_ID).toBeDefined();
     expect(env.WHATSAPP_TOKEN).toBeDefined();
+    expect(env.TELEGRAM_BOT_TOKEN).toBeDefined();
   });
 });

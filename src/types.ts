@@ -1,3 +1,5 @@
+/// <reference types="@cloudflare/workers-types/2023-07-01" />
+
 export interface Env {
   AI: Ai;
   AUDIO_QUEUE: Queue;
@@ -7,12 +9,14 @@ export interface Env {
   META_APP_SECRET: string;
   WHATSAPP_PHONE_NUMBER_ID: string;
   WHATSAPP_TOKEN: string;
+  TELEGRAM_BOT_TOKEN: string;
+  ADMIN_SECRET: string;
 }
 
 export interface AudioJob {
   senderId: string;
   audioUrl: string;
-  platform: "messenger" | "instagram" | "whatsapp";
+  platform: "messenger" | "instagram" | "whatsapp" | "telegram";
 }
 
 export interface MetaMessage {

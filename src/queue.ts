@@ -2,6 +2,7 @@ import { Env, AudioJob } from "./types";
 import { transcribeWithFallback } from "./whisper";
 import { sendMessageSafe, MetaNonRetryableError } from "./meta";
 import { sendWhatsAppMessageSafe } from "./whatsapp";
+import { sendTelegramMessage } from "./telegram";
 import { splitLongText } from "./text";
 
 export default async function queue(
@@ -54,6 +55,10 @@ export default async function queue(
       if (platform === "whatsapp") {
         for (const part of parts) {
           await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, senderId, part, env);
+        }
+      } else if (platform === "telegram") {
+        for (const part of parts) {
+          await sendTelegramMessage(senderId, part, env);
         }
       } else {
         for (const part of parts) {

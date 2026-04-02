@@ -11,7 +11,8 @@ export async function sendWhatsAppTypingOn(
   to: string,
   env: Env
 ): Promise<void> {
-  const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  const version = env.META_API_VERSION || "v21.0";
+  const url = `https://graph.facebook.com/${version}/${phoneNumberId}/messages`;
 
   await fetch(url, {
     method: "POST",
@@ -36,7 +37,8 @@ export async function sendWhatsAppMessageSafe(
 ): Promise<void> {
   await sleep(DELAY);
 
-  const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  const version = env.META_API_VERSION || "v21.0";
+  const url = `https://graph.facebook.com/${version}/${phoneNumberId}/messages`;
 
   await fetch(url, {
     method: "POST",
@@ -57,7 +59,8 @@ export async function getWhatsAppAudioUrl(
   audioId: string,
   env: Env
 ): Promise<string | null> {
-  const url = `https://graph.facebook.com/v21.0/${audioId}`;
+  const version = env.META_API_VERSION || "v21.0";
+  const url = `https://graph.facebook.com/${version}/${audioId}`;
 
   const response = await fetch(url, {
     method: "GET",
