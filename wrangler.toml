@@ -14,6 +14,10 @@ binding = "AI"
 binding = "AUDIO_QUEUE"
 queue = "audio-jobs"
 
+[[kv_namespaces]]
+binding = "STATS"
+id = "f4b04260ccfa4f1ea34c4fab2d53ed1d"
+
 [[queues.consumers]]
 queue = "audio-jobs"
 max_batch_size = 1

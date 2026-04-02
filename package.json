@@ -4,6 +4,7 @@
   "description": "Cloudflare Worker for Meta voice message transcription using Whisper",
   "main": "src/index.ts",
   "scripts": {
+    "build": "wrangler deploy --dry-run",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "test": "vitest run",

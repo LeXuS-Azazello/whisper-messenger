@@ -25,7 +25,7 @@ const ConfigItem = ({ label, active }: { label: string; active: boolean }) => (
     </div>
 );
 
-export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: string) => {
+export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: string, stats: any) => {
     return "<!DOCTYPE html>" + render(
         <html lang="en">
             <head>
@@ -84,7 +84,34 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 <ConfigItem label="AI_MODEL" active={checks.AI} />
                                 <ConfigItem label="QUEUE" active={checks.AUDIO_QUEUE} />
                             </div>
-                            <button class="btn" id="refresh-btn">Refresh Health</button>
+                            <button class="btn" id="refresh-btn">Refresh Stats</button>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Transcription Stats</h3>
+                                <div style={{ fontSize: '12px', background: 'var(--primary)', padding: '2px 8px', borderRadius: '4px' }}>
+                                    Total: {Object.values(stats).reduce((a: any, b: any) => a + b, 0)}
+                                </div>
+                            </div>
+                            <div class="stats-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                <div class="stat-box" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '12px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '4px' }}>MESSENGER</div>
+                                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#00B2FF' }}>{stats.messenger}</div>
+                                </div>
+                                <div class="stat-box" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '12px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '4px' }}>INSTAGRAM</div>
+                                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#FF0072' }}>{stats.instagram}</div>
+                                </div>
+                                <div class="stat-box" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '12px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '4px' }}>WHATSAPP</div>
+                                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#25D366' }}>{stats.whatsapp}</div>
+                                </div>
+                                <div class="stat-box" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '12px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '4px' }}>TELEGRAM</div>
+                                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#24A1DE' }}>{stats.telegram}</div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="card" style={{ gridColumn: '1 / -1' }}>
@@ -103,22 +130,58 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 </p>
                                 
                                 <h4 style={{ marginTop: '10px', marginBottom: '8px' }}>1. Telegram Setup</h4>
+                                <div style={{ fontSize: '14px', marginBottom: '10px', lineHeight: '1.5', background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                    <strong>Get Keys:</strong> Open Telegram, search for <code>@BotFather</code>. Send <code>/newbot</code>, follow the steps, and copy the generated HTTP API token into the <code>TELEGRAM_BOT_TOKEN</code> secret.
+                                </div>
                                 {checks.TELEGRAM_BOT_TOKEN ? (
-                                    <button class="btn" id="setup-telegram-btn" style={{ marginBottom: '20px', width: 'auto' }}>Set Telegram Webhook Automatically</button>
+                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <button class="btn" id="setup-telegram-btn" style={{ margin: 0, width: 'auto' }}>Set Webhook</button>
+                                        <input type="text" id="test-telegram-id" class="input-field" placeholder="Chat ID" style={{ width: '150px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
+                                        <button class="btn" id="test-telegram-btn" style={{ margin: 0, width: 'auto', background: '#3B82F6' }}>Test Msg</button>
+                                    </div>
                                 ) : (
                                     <p style={{ fontSize: '14px', color: '#888', marginBottom: '20px' }}>Provide TELEGRAM_BOT_TOKEN in secrets to setup.</p>
                                 )}
 
                                 <h4 style={{ marginBottom: '8px' }}>2. Instagram & Messenger Setup</h4>
-                                <p style={{ fontSize: '14px', marginBottom: '10px', lineHeight: '1.5' }}>First, configure the Webhook Callback URL and Verify Token (above) in your Meta App Dashboard. Then, click below to subscribe your page automatically via Graph API.</p>
+                                <div style={{ fontSize: '14px', marginBottom: '10px', lineHeight: '1.5', background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                    <div style={{ marginBottom: '8px' }}><strong>Get Keys:</strong></div>
+                                    <ul style={{ margin: '0 0 10px 0', paddingLeft: '20px' }}>
+                                        <li>Go to Meta App Dashboard &gt; Add Messenger and/or Instagram product.</li>
+                                        <li>Generate a Page Access Token and save it as <code>META_PAGE_TOKEN</code> secret.</li>
+                                        <li>Get your App Secret from App Settings &gt; Basic and save as <code>META_APP_SECRET</code>.</li>
+                                        <li>Set a custom verify token string in <code>VERIFY_TOKEN</code>.</li>
+                                    </ul>
+                                    <strong>Webhook Setup:</strong> Configure Webhook in Meta App using the Callback URL and Verify Token (above). Subscribe to "messages" and "messaging_postbacks". Then click below to link your page.
+                                </div>
                                 {checks.META_PAGE_TOKEN ? (
-                                    <button class="btn" id="setup-meta-btn" style={{ marginBottom: '20px', width: 'auto' }}>Subscribe Page to App (Meta API)</button>
+                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <button class="btn" id="setup-meta-btn" style={{ margin: 0, width: 'auto' }}>Subscribe Page</button>
+                                        <input type="text" id="test-meta-id" class="input-field" placeholder="PSID/IGSID" style={{ width: '150px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
+                                        <button class="btn" id="test-meta-btn" style={{ margin: 0, width: 'auto', background: '#3B82F6' }}>Test Msg</button>
+                                    </div>
                                 ) : (
                                     <p style={{ fontSize: '14px', color: '#888', marginBottom: '20px' }}>Provide META_PAGE_TOKEN in secrets to subscribe.</p>
                                 )}
 
                                 <h4 style={{ marginBottom: '8px' }}>3. WhatsApp Setup</h4>
-                                <p style={{ fontSize: '14px', marginBottom: '10px', lineHeight: '1.5' }}>In the Meta App Dashboard, navigate to WhatsApp &gt; Configuration. Edit the Webhook and paste the Callback URL and Verify Token from the section above. Finally, manage the "messages" subscription item.</p>
+                                <div style={{ fontSize: '14px', marginBottom: '10px', lineHeight: '1.5', background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                    <div style={{ marginBottom: '8px' }}><strong>Get Keys:</strong></div>
+                                    <ul style={{ margin: '0 0 10px 0', paddingLeft: '20px' }}>
+                                        <li>In Meta App Dashboard, add WhatsApp product &gt; API Setup.</li>
+                                        <li>Copy the Phone Number ID into <code>WHATSAPP_PHONE_NUMBER_ID</code>.</li>
+                                        <li>Create a System User in Meta Business Settings, assign your app and WhatsApp assets, and generate a permanent token for <code>WHATSAPP_TOKEN</code>.</li>
+                                    </ul>
+                                    <strong>Webhook Setup:</strong> Navigate to WhatsApp &gt; Configuration. Edit the Webhook and paste the Callback URL and Verify Token. Manage webhook fields and subscribe to "messages".
+                                </div>
+                                {checks.WHATSAPP_TOKEN && checks.WHATSAPP_PHONE_NUMBER_ID ? (
+                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <input type="text" id="test-whatsapp-id" class="input-field" placeholder="Phone Number (e.g. 15551234567)" style={{ width: '250px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
+                                        <button class="btn" id="test-whatsapp-btn" style={{ margin: 0, width: 'auto', background: '#3B82F6' }}>Test Msg</button>
+                                    </div>
+                                ) : (
+                                    <p style={{ fontSize: '14px', color: '#888', marginBottom: '20px' }}>Provide WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID in secrets to test.</p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -159,10 +222,38 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 })
                                 .catch(function(err) { 
                                     alert('Error: ' + err); 
-                                    metaBtn.innerText = 'Subscribe Page to App (Meta API)'; 
+                                    metaBtn.innerText = 'Subscribe Page'; 
                                 });
                         });
-                    }`
+                    }
+                    function createTestHandler(btnId, inputId, endpoint) {
+                        var btn = document.getElementById(btnId);
+                        if (btn) {
+                            btn.addEventListener('click', function() {
+                                var id = document.getElementById(inputId).value;
+                                if (!id) return alert('Please enter an ID first.');
+                                btn.innerText = 'Sending...';
+                                fetch(endpoint, { 
+                                    method: 'POST', 
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ recipientId: id })
+                                })
+                                .then(function(res) { return res.json(); })
+                                .then(function(data) {
+                                    alert('Status: ' + (data.success ? 'Success' : 'Error: ' + JSON.stringify(data)));
+                                    btn.innerText = 'Test Msg';
+                                })
+                                .catch(function(err) {
+                                    alert('Error: ' + err);
+                                    btn.innerText = 'Test Msg';
+                                });
+                            });
+                        }
+                    }
+                    createTestHandler('test-telegram-btn', 'test-telegram-id', '/admin/test-telegram');
+                    createTestHandler('test-meta-btn', 'test-meta-id', '/admin/test-meta');
+                    createTestHandler('test-whatsapp-btn', 'test-whatsapp-id', '/admin/test-whatsapp');
+                    `
                 }} />
             </body>
         </html>

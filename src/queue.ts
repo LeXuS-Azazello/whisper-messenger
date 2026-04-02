@@ -67,6 +67,17 @@ export default async function queue(
       }
 
       console.log(`[queue] Job completed successfully: platform=${platform} senderId=${senderId}`);
+      
+      // Increment stats
+      try {
+        const statsKey = `stats_${platform}`;
+        const currentStr = await env.STATS.get(statsKey);
+        const current = parseInt(currentStr || "0", 10);
+        await env.STATS.put(statsKey, (current + 1).toString());
+      } catch (statsErr) {
+        console.error(`[queue] Failed to update stats: ${statsErr}`);
+      }
+
       msg.ack();
     } catch (e) {
       // Non-retryable: user can't be messaged (blocked, window expired, etc.)

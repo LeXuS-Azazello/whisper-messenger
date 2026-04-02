@@ -11,6 +11,14 @@ export interface Env {
   WHATSAPP_TOKEN: string;
   TELEGRAM_BOT_TOKEN: string;
   ADMIN_SECRET: string;
+  STATS: KVNamespace;
+}
+
+export interface PlatformStats {
+  messenger: number;
+  instagram: number;
+  whatsapp: number;
+  telegram: number;
 }
 
 export interface AudioJob {

@@ -144,10 +144,57 @@ async function handleAdmin(env: Env, req: Request): Promise<Response> {
     }
   }
 
+  if (req.method === "POST" && url.pathname === "/admin/test-telegram") {
+    try {
+      const data: any = await req.json();
+      const recipientId = data.recipientId;
+      if (!env.TELEGRAM_BOT_TOKEN || !recipientId) return Response.json({ success: false, description: "Missing token or ID" }, { status: 400 });
+      await sendTelegramMessage(recipientId, "🚀 Whisper Bot: Telegram Test Message", env);
+      return Response.json({ success: true });
+    } catch(err: any) {
+      return Response.json({ success: false, description: err.message }, { status: 500 });
+    }
+  }
+
+  if (req.method === "POST" && url.pathname === "/admin/test-meta") {
+    try {
+      const data: any = await req.json();
+      const recipientId = data.recipientId;
+      if (!env.META_PAGE_TOKEN || !recipientId) return Response.json({ success: false, description: "Missing token or ID" }, { status: 400 });
+      await sendMessageSafe(recipientId, "🚀 Whisper Bot: Meta Test Message", env);
+      return Response.json({ success: true });
+    } catch(err: any) {
+      return Response.json({ success: false, description: err.message }, { status: 500 });
+    }
+  }
+
+  if (req.method === "POST" && url.pathname === "/admin/test-whatsapp") {
+    try {
+      const data: any = await req.json();
+      const recipientId = data.recipientId;
+      if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID || !recipientId) return Response.json({ success: false, description: "Missing token or ID" }, { status: 400 });
+      await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, recipientId, "🚀 Whisper Bot: WhatsApp Test Message", env);
+      return Response.json({ success: true });
+    } catch(err: any) {
+      return Response.json({ success: false, description: err.message }, { status: 500 });
+    }
+  }
+
   const checks = getHealthChecks(env);
-  return new Response(renderAdminDashboard(checks, env, url.origin), {
+  const stats = await getStats(env);
+  return new Response(renderAdminDashboard(checks, env, url.origin, stats), {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
+}
+
+async function getStats(env: Env) {
+  const p = ["messenger", "instagram", "whatsapp", "telegram"];
+  const res: any = {};
+  for (const platform of p) {
+    const val = await env.STATS.get(`stats_${platform}`);
+    res[platform] = parseInt(val || "0", 10);
+  }
+  return res;
 }
 
 function getHealthChecks(env: Env) {
