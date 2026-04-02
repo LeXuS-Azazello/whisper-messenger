@@ -10,6 +10,7 @@ export interface Env {
   WHATSAPP_PHONE_NUMBER_ID: string;
   WHATSAPP_TOKEN: string;
   TELEGRAM_BOT_TOKEN: string;
+  TELEGRAM_CHAT_ID: string;
   ADMIN_SECRET: string;
   STATS: KVNamespace;
 }

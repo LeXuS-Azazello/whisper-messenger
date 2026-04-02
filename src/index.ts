@@ -206,6 +206,7 @@ function getHealthChecks(env: Env) {
     META_API_VERSION: Boolean(env.META_API_VERSION),
     WHATSAPP_PHONE_NUMBER_ID: Boolean(env.WHATSAPP_PHONE_NUMBER_ID),
     TELEGRAM_BOT_TOKEN: Boolean(env.TELEGRAM_BOT_TOKEN),
+    TELEGRAM_CHAT_ID: Boolean(env.TELEGRAM_CHAT_ID),
     AUDIO_QUEUE: Boolean(env.AUDIO_QUEUE),
     AI: Boolean(env.AI),
   };

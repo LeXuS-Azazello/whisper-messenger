@@ -12,6 +12,7 @@ type HealthChecks = {
     META_API_VERSION: boolean;
     WHATSAPP_PHONE_NUMBER_ID: boolean;
     TELEGRAM_BOT_TOKEN: boolean;
+    TELEGRAM_CHAT_ID: boolean;
     AUDIO_QUEUE: boolean;
     AI: boolean;
 };
@@ -136,7 +137,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 {checks.TELEGRAM_BOT_TOKEN ? (
                                     <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
                                         <button class="btn" id="setup-telegram-btn" style={{ margin: 0, width: 'auto' }}>Set Webhook</button>
-                                        <input type="text" id="test-telegram-id" class="input-field" placeholder="Chat ID" style={{ width: '150px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
+                                        <input type="text" id="test-telegram-id" class="input-field" placeholder="Chat ID" value={env.TELEGRAM_CHAT_ID || ''} style={{ width: '150px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
                                         <button class="btn" id="test-telegram-btn" style={{ margin: 0, width: 'auto', background: '#3B82F6' }}>Test Msg</button>
                                     </div>
                                 ) : (
