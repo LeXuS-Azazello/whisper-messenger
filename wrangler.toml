@@ -4,7 +4,8 @@ compatibility_date = "2026-02-13"
 workers_dev = false
 preview_urls = false
 routes = [
-  { pattern = "whisper.debug.org.ua/*", zone_name = "debug.org.ua" }
+  { pattern = "whisper.debug.org.ua/*", zone_name = "debug.org.ua" },
+  { pattern = "whisper.debug.org.ua/tg-ws-api/*", zone_name = "debug.org.ua" }
 ]
 
 [ai]
@@ -24,8 +25,12 @@ max_batch_size = 1
 max_retries = 5
 
 [vars]
+VERIFY_TOKEN = "your_verify_token_here"
 META_API_VERSION = "v19.0"
 WHATSAPP_PHONE_NUMBER_ID = "956619407541550"
+BRIDGE_URL = "https://mtproto.debug.org.ua"
+BRIDGE_SECRET = "changeme"
+WORKER_URL = "https://whisper.debug.org.ua"
 
 [observability]
 enabled = true

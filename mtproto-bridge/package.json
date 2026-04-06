@@ -1,0 +1,20 @@
+{
+  "name": "mtproto-bridge",
+  "version": "1.0.0",
+  "description": "MTProto bridge for Telegram personal account access",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "telegram": "^2.26.22",
+    "input": "^1.0.1",
+    "sherpa-onnx-node": "^1.10.0",
+    "@kubernetes/client-node": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

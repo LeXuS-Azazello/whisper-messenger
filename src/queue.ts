@@ -3,15 +3,16 @@ import { transcribeWithFallback } from "./whisper";
 import { sendMessageSafe, MetaNonRetryableError } from "./meta";
 import { sendWhatsAppMessageSafe } from "./whatsapp";
 import { sendTelegramMessage } from "./telegram";
+import { sendViaPersonalAccount } from "./tg_personal";
 import { splitLongText } from "./text";
 import { logError } from "./logger";
 
 export default async function queue(
-  batch: MessageBatch<AudioJob>,
+  batch: MessageBatch<any>,
   env: Env
 ): Promise<void> {
   for (const msg of batch.messages) {
-    const { senderId, audioUrl, platform } = msg.body;
+    const { senderId, audioUrl, platform } = msg.body as AudioJob;
 
     console.log(`[queue] Processing job: platform=${platform} senderId=${senderId} audioUrl=${audioUrl.substring(0, 80)}...`);
 
@@ -58,8 +59,19 @@ export default async function queue(
           await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, senderId, part, env);
         }
       } else if (platform === "telegram") {
-        for (const part of parts) {
-          await sendTelegramMessage(senderId, part, env);
+        const sessionStr = await env.STATS.get("tg_personal_session");
+        if (sessionStr) {
+          for (const part of parts) {
+            const success = await sendViaPersonalAccount(senderId, part, env);
+            if (!success) {
+              console.warn("[queue] Personal account send failed, falling back to bot API");
+              await sendTelegramMessage(senderId, part, env);
+            }
+          }
+        } else {
+          for (const part of parts) {
+            await sendTelegramMessage(senderId, part, env);
+          }
         }
       } else {
         for (const part of parts) {

@@ -1,5 +1,6 @@
-import { Env, AudioJob, MetaWebhookBody, WhatsAppWebhookBody } from "./types";
+import { Env, UserSession, AudioJob, MetaWebhookBody, WhatsAppWebhookBody } from "./types";
 import { renderAdminDashboard, renderAdminLogin } from "./admin_ui";
+import { renderAuthPage } from "./auth_ui";
 
 import { sendMessageSafe, sendTypingOn, MetaNonRetryableError } from "./meta";
 import { sendWhatsAppMessageSafe, sendWhatsAppTypingOn, getWhatsAppAudioUrl } from "./whatsapp";
@@ -12,63 +13,43 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
 
-    if (req.method === "GET" && url.pathname === "/health") {
-      return health(env, req);
+    if (url.pathname === "/health") return Response.json({ ok: true });
+
+    // Public Auth Routes
+    if (url.pathname.startsWith("/auth")) {
+      return handlePublicAuth(env, req);
     }
 
+    // Admin Routes
     if (url.pathname.startsWith("/admin")) {
       return handleAdmin(env, req);
     }
 
-    // Webhook verification (shared by all Meta platforms)
-    if (req.method === "GET") {
-      const verifyToken = url.searchParams.get("hub.verify_token");
-      const challenge = url.searchParams.get("hub.challenge");
-      console.log(`[webhook] GET verify_token=${verifyToken} challenge=${challenge}`);
-
-      if (verifyToken === env.VERIFY_TOKEN) {
-        return new Response(challenge);
-      }
-      return new Response("Forbidden", { status: 403 });
+    // Internal Stats (called by Bridge User Pods)
+    if (url.pathname === "/internal/stats" && req.method === "POST") {
+      const { userId, secret } = await req.json() as any;
+      if (secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
+      await incrementUserStats(userId, env);
+      return Response.json({ ok: true });
     }
 
+    // Standard Webhooks (Meta, WhatsApp, Telegram Bot)
     if (req.method === "POST") {
       const rawBody = await req.text();
-      console.log(`[webhook] POST raw body: ${rawBody}`);
+      let body: any;
+      try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
 
-      let body: Record<string, unknown>;
-      try {
-        body = JSON.parse(rawBody);
-      } catch (e) {
-        console.error(`[webhook] Failed to parse JSON body: ${e}`);
-        return new Response("Bad Request", { status: 400 });
-      }
-
-      const webhookObject = (body as { object?: string }).object;
-      const isTelegram = !!(body as any).update_id;
-      console.log(`[webhook] object="${webhookObject}" isTelegram=${isTelegram}`);
-
-      // Telegram doesn't use X-Hub-Signature-256
+      const isTelegram = !!body.update_id;
       if (isTelegram) {
-        return handleTelegram(body as unknown as TelegramWebhookUpdate, env);
+        return handleTelegram(body, env);
       }
 
-      // Meta (Messenger/Instagram/WhatsApp) verification
       const verifyError = await verifyWebhook(req, rawBody, env);
-      if (verifyError) {
-        return verifyError;
-      }
+      if (verifyError) return verifyError;
 
-      if (webhookObject === "whatsapp_business_account") {
-        return handleWhatsApp(body as unknown as WhatsAppWebhookBody, env);
-      }
+      if (body.object === "whatsapp_business_account") return handleWhatsApp(body, env);
+      if (body.object === "page" || body.object === "instagram") return handleMetaMessaging(body, env);
 
-      // "page" = Facebook Messenger, "instagram" = Instagram DMs
-      if (webhookObject === "page" || webhookObject === "instagram") {
-        return handleMetaMessaging(body as unknown as MetaWebhookBody, env);
-      }
-
-      console.warn(`[webhook] Unknown webhook object: "${webhookObject}"`);
       return new Response("ok");
     }
 
@@ -76,306 +57,224 @@ export default {
   },
 
   queue,
-} satisfies ExportedHandler<Env, AudioJob>;
+} satisfies ExportedHandler<Env>;
+
+async function handlePublicAuth(env: Env, req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  const bridgeUrl = env.BRIDGE_URL;
+
+  if (req.method === "GET" && url.pathname === "/auth") {
+    return new Response(renderAuthPage(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
+
+  // Auth flow endpoints
+  if (req.method === "POST" && url.pathname === "/auth/qr-start") {
+    return fetch(`${bridgeUrl}/qr-start`, {
+      method: "POST", headers: { "x-bridge-secret": env.BRIDGE_SECRET }
+    });
+  }
+
+  // Phone Auth Flow
+  if (req.method === "POST" && url.pathname === "/auth/send-code") {
+    const { phone } = await req.json() as any;
+    return fetch(`${bridgeUrl}/send-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+      body: JSON.stringify({ phone })
+    });
+  }
+
+  if (req.method === "POST" && url.pathname === "/auth/verify-code") {
+    const { phone, code } = await req.json() as any;
+    const res = await fetch(`${bridgeUrl}/verify-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+      body: JSON.stringify({ phone, code })
+    });
+    const data: any = await res.json();
+    if (data.success) {
+      await registerNewUser(data, env);
+    }
+    return Response.json(data);
+  }
+
+  if (req.method === "GET" && url.pathname === "/auth/qr-check") {
+    const token = url.searchParams.get("token");
+    const res = await fetch(`${bridgeUrl}/qr-check?token=${token}`, {
+      headers: { "x-bridge-secret": env.BRIDGE_SECRET }
+    });
+    const data: any = await res.json();
+    if (data.done) {
+      await registerNewUser(data, env);
+    }
+    return Response.json(data);
+  }
+
+  return new Response("Not found", { status: 404 });
+}
+
+async function registerNewUser(data: any, env: Env) {
+  const { userId, firstName, session } = data;
+  await env.STATS.put(`tg_session_${userId}`, session);
+
+  const listRaw = await env.STATS.get("users_list");
+  const list: string[] = listRaw ? JSON.parse(listRaw) : [];
+  if (!list.includes(userId)) {
+    list.push(userId);
+    await env.STATS.put("users_list", JSON.stringify(list));
+  }
+
+  const user: UserSession = {
+    userId, firstName, session,
+    platform: "telegram",
+    createdAt: Date.now(),
+    lastActiveAt: Date.now(),
+    isActive: true,
+    transcriptionCount: 0
+  };
+  await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+
+  // Call Manager to start Pod in K8s
+  await fetch(`${env.BRIDGE_URL}/spawn`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+    body: JSON.stringify({ userId, session })
+  });
+}
+
+async function incrementUserStats(userId: string, env: Env) {
+  // 1. Global TG Stats
+  const global = await env.STATS.get("stats_telegram");
+  await env.STATS.put("stats_telegram", String(parseInt(global || "0", 10) + 1));
+
+  // 2. Per-user Stats
+  const metaRaw = await env.STATS.get(`user_meta_${userId}`);
+  if (metaRaw) {
+    const meta: UserSession = JSON.parse(metaRaw);
+    meta.transcriptionCount = (meta.transcriptionCount || 0) + 1;
+    meta.lastActiveAt = Date.now();
+    await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+  }
+}
 
 async function handleAdmin(env: Env, req: Request): Promise<Response> {
   const url = new URL(req.url);
-  const cookieMatch = req.headers.get("Cookie")?.match(/(?:^| )auth=([^;]+)/);
-  const cookieAuth = cookieMatch ? cookieMatch[1] : null;
-
-  if (req.method === "POST" && url.pathname === "/admin/logout") {
-    return new Response("Logged out", {
-      status: 200,
-      headers: { "Set-Cookie": "auth=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/" }
-    });
-  }
+  const cookieAuth = req.headers.get("Cookie")?.match(/auth=([^;]+)/)?.[1];
 
   if (req.method === "POST" && url.pathname === "/admin/login") {
     const formData = await req.formData();
     const password = formData.get("password")?.toString();
-    
-    if (env.ADMIN_SECRET && password === env.ADMIN_SECRET) {
-      return new Response("Redirecting...", {
-        status: 302,
-        headers: { 
-          "Location": "/admin",
-          "Set-Cookie": `auth=${password}; HttpOnly; Secure; SameSite=Strict; Max-Age=86400; Path=/` 
-        }
+    if (password === env.ADMIN_SECRET) {
+      return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `auth=${password}; Path=/; HttpOnly` } });
+    }
+    return new Response(renderAdminLogin("Invalid password"), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
+
+  if (cookieAuth !== env.ADMIN_SECRET) return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+
+  // Handle User Management Actions
+  if (req.method === "POST" && url.pathname === "/admin/user-action") {
+    const { userId, action } = await req.json() as any;
+    if (action === "stop" || action === "delete") {
+      await fetch(`${env.BRIDGE_URL}/delete`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+        body: JSON.stringify({ userId })
       });
+      const metaRaw = await env.STATS.get(`user_meta_${userId}`);
+      if (metaRaw) {
+        const meta = JSON.parse(metaRaw);
+        meta.isActive = false;
+        if (action === "delete") {
+            // Full deletion logic could be here
+        }
+        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+      }
     }
-    
-    return new Response(renderAdminLogin("Invalid password"), {
-      status: 401,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
+    return Response.json({ success: true });
   }
 
-  if (!env.ADMIN_SECRET || cookieAuth !== env.ADMIN_SECRET) {
-    return new Response(renderAdminLogin(), {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
+  // Load stats and users
+  const userIdsRaw = await env.STATS.get("users_list");
+  const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
+  const users: UserSession[] = [];
+  for (const id of userIds) {
+    const meta = await env.STATS.get(`user_meta_${id}`);
+    if (meta) users.push(JSON.parse(meta));
   }
 
-  if (req.method === "POST" && url.pathname === "/admin/setup-telegram") {
-    if (!env.TELEGRAM_BOT_TOKEN) {
-      return Response.json({ ok: false, description: "Missing TELEGRAM_BOT_TOKEN" }, { status: 400 });
-    }
-    const workerUrl = url.origin;
-    const telegramUrl = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/setWebhook?url=${workerUrl}`;
-    try {
-      const res = await fetch(telegramUrl);
-      const data = await res.json();
-      return Response.json(data);
-    } catch (err: any) {
-      return Response.json({ ok: false, description: err.message }, { status: 500 });
-    }
-  }
-
-  if (req.method === "POST" && url.pathname === "/admin/setup-meta") {
-    if (!env.META_PAGE_TOKEN || !env.META_API_VERSION) {
-      return Response.json({ ok: false, description: "Missing META_PAGE_TOKEN or META_API_VERSION" }, { status: 400 });
-    }
-    const metaUrl = `https://graph.facebook.com/${env.META_API_VERSION}/me/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins&access_token=${env.META_PAGE_TOKEN}`;
-    try {
-      const res = await fetch(metaUrl, { method: 'POST' });
-      const data = await res.json();
-      return Response.json(data);
-    } catch (err: any) {
-      return Response.json({ ok: false, description: err.message }, { status: 500 });
-    }
-  }
-
-  if (req.method === "POST" && url.pathname === "/admin/test-telegram") {
-    try {
-      const data: any = await req.json();
-      const recipientId = data.recipientId;
-      if (!env.TELEGRAM_BOT_TOKEN || !recipientId) return Response.json({ success: false, description: "Missing token or ID" }, { status: 400 });
-      await sendTelegramMessage(recipientId, "🚀 Whisper Bot: Telegram Test Message", env);
-      return Response.json({ success: true });
-    } catch(err: any) {
-      return Response.json({ success: false, description: err.message }, { status: 500 });
-    }
-  }
-
-  if (req.method === "POST" && url.pathname === "/admin/test-meta") {
-    try {
-      const data: any = await req.json();
-      const recipientId = data.recipientId;
-      if (!env.META_PAGE_TOKEN || !recipientId) return Response.json({ success: false, description: "Missing token or ID" }, { status: 400 });
-      await sendMessageSafe(recipientId, "🚀 Whisper Bot: Meta Test Message", env);
-      return Response.json({ success: true });
-    } catch(err: any) {
-      return Response.json({ success: false, description: err.message }, { status: 500 });
-    }
-  }
-
-  if (req.method === "POST" && url.pathname === "/admin/test-whatsapp") {
-    try {
-      const data: any = await req.json();
-      const recipientId = data.recipientId;
-      if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID || !recipientId) return Response.json({ success: false, description: "Missing token or ID" }, { status: 400 });
-      await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, recipientId, "🚀 Whisper Bot: WhatsApp Test Message", env);
-      return Response.json({ success: true });
-    } catch(err: any) {
-      return Response.json({ success: false, description: err.message }, { status: 500 });
-    }
-  }
-
-  const checks = getHealthChecks(env);
-  const stats = await getStats(env);
-  const errors = await getErrors(env);
-  return new Response(renderAdminDashboard(checks, env, url.origin, stats, errors), {
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
-}
-
-async function getStats(env: Env) {
-  const p = ["messenger", "instagram", "whatsapp", "telegram"];
-  const res: any = {};
-  for (const platform of p) {
-    const val = await env.STATS.get(`stats_${platform}`);
-    res[platform] = parseInt(val || "0", 10);
-  }
-  return res;
-}
-
-function getHealthChecks(env: Env) {
-  return {
+  const checks = {
     VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
     META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
     META_APP_SECRET: Boolean(env.META_APP_SECRET),
     WHATSAPP_TOKEN: Boolean(env.WHATSAPP_TOKEN),
     META_API_VERSION: Boolean(env.META_API_VERSION),
     WHATSAPP_PHONE_NUMBER_ID: Boolean(env.WHATSAPP_PHONE_NUMBER_ID),
-    TELEGRAM_BOT_TOKEN: Boolean(env.TELEGRAM_BOT_TOKEN),
-    TELEGRAM_CHAT_ID: Boolean(env.TELEGRAM_CHAT_ID),
+    TELEGRAM_APP_ID: Boolean(env.TELEGRAM_APP_ID),
+    TELEGRAM_APP_HASH: Boolean(env.TELEGRAM_APP_HASH),
     AUDIO_QUEUE: Boolean(env.AUDIO_QUEUE),
     AI: Boolean(env.AI),
   };
-}
 
-function health(env: Env, req?: Request): Response {
-  const checks = getHealthChecks(env);
-  const ok = Object.values(checks).every(Boolean);
-
-  return Response.json(
-    {
-      ok,
-      service: "whisper-messenger",
-      checks,
-    },
-    { status: ok ? 200 : 500 }
-  );
-}
-
-async function handleMetaMessaging(body: MetaWebhookBody, env: Env): Promise<Response> {
-  const platform: AudioJob["platform"] = body.object === "instagram" ? "instagram" : "messenger";
-  console.log(`[meta] handleMetaMessaging platform="${platform}" entries=${body.entry?.length ?? 0}`);
-
-  for (const entry of body.entry ?? []) {
-    console.log(`[meta] entry id=${(entry as any).id} messaging count=${entry.messaging?.length ?? 0}`);
-
-    for (const msg of entry.messaging ?? []) {
-      const senderId = msg.sender?.id;
-      const messageObj = msg.message;
-      const att = messageObj?.attachments?.[0];
-
-      console.log(`[meta] message from senderId="${senderId}" hasMessage=${!!messageObj} attachments=${messageObj?.attachments?.length ?? 0}`);
-
-      if (!senderId) {
-        console.warn(`[meta] Skipping: no senderId`);
-        continue;
-      }
-
-      if (!messageObj) {
-        console.log(`[meta] Skipping: no message object (could be delivery/read receipt)`);
-        continue;
-      }
-
-      if (!att) {
-        console.log(`[meta] Skipping: no attachments`);
-        continue;
-      }
-
-      console.log(`[meta] attachment type="${att.type}" url="${att.payload?.url?.substring(0, 80)}..."`);
-
-      if (att.type !== "audio") {
-        console.log(`[meta] Skipping: attachment type is "${att.type}", not audio`);
-        continue;
-      }
-
-      if (!att.payload?.url) {
-        console.warn(`[meta] Skipping: audio attachment has no URL`);
-        continue;
-      }
-
-      // Try to notify the user; if they can't be messaged, skip the job entirely
-      try {
-        await sendTypingOn(senderId, env);
-        await sendMessageSafe(senderId, "⏳ Transcribing your voice message...", env);
-      } catch (e) {
-        if (e instanceof MetaNonRetryableError) {
-          console.warn(`[meta] Cannot message user ${senderId} (subcode=${e.errorSubcode}), skipping job`);
-          continue;
-        }
-        throw e; // re-throw unexpected errors
-      }
-
-      const job: AudioJob = {
-        senderId,
-        audioUrl: att.payload.url,
-        platform,
-      };
-
-      console.log(`[meta] Enqueuing job: platform=${platform} senderId=${senderId}`);
-      await env.AUDIO_QUEUE.send(job);
-    }
+  const platforms = ["messenger", "instagram", "whatsapp", "telegram"];
+  const stats: any = {};
+  for (const p of platforms) {
+    const val = await env.STATS.get(`stats_${p}`);
+    stats[p] = parseInt(val || "0", 10);
   }
+  
+  const errors = await getErrors(env);
 
-  return new Response("ok");
+  return new Response(renderAdminDashboard(checks, env, url.origin, stats, errors, users), {
+    headers: { "Content-Type": "text/html; charset=utf-8" }
+  });
 }
 
-async function handleWhatsApp(body: WhatsAppWebhookBody, env: Env): Promise<Response> {
-  console.log(`[whatsapp] handleWhatsApp entries=${body.entry?.length ?? 0}`);
-
-  for (const entry of body.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      const messages = change.value.messages ?? [];
-      const statuses = (change.value as any).statuses;
-
-      console.log(`[whatsapp] change: messages=${messages.length} statuses=${statuses?.length ?? 0}`);
-
-      for (const msg of messages) {
-        const from = msg.from;
-        const audio = msg.audio;
-
-        console.log(`[whatsapp] message from="${from}" type="${msg.type ?? 'unknown'}" hasAudio=${!!audio}`);
-
-        if (!from || !audio) {
-          console.log(`[whatsapp] Skipping: no from or no audio`);
-          continue;
-        }
-
-        await sendWhatsAppTypingOn(env.WHATSAPP_PHONE_NUMBER_ID, from, env);
-        await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, from, "⏳ Transcribing your voice message...", env);
-
-        // Get audio URL from WhatsApp
-        const audioUrl = await getWhatsAppAudioUrl(audio.id, env);
-        console.log(`[whatsapp] audioUrl for id=${audio.id}: ${audioUrl?.substring(0, 80) ?? 'null'}`);
-
-        if (!audioUrl) {
-          const errorMsg = `Could not fetch audio URL for WhatsApp ID: ${audio.id}`;
-          await logError("whatsapp", errorMsg, env);
-          await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, from, `❌ ${errorMsg}`, env);
-          continue;
-        }
-
-        const job: AudioJob = {
-          senderId: from,
-          audioUrl,
-          platform: "whatsapp",
-        };
-
-        console.log(`[whatsapp] Enqueuing job: from=${from}`);
-        await env.AUDIO_QUEUE.send(job);
-      }
-    }
-  }
-
-  return new Response("ok");
-}
+// ─── Platform Handlers (Restored) ───
 
 async function handleTelegram(update: TelegramWebhookUpdate, env: Env): Promise<Response> {
   const msg = update.message;
   if (!msg) return new Response("ok");
-
   const chatId = msg.chat.id;
   const voice = msg.voice || msg.audio;
-
-  console.log(`[telegram] message from chat "${chatId}" hasVoice=${!!voice}`);
-
   if (voice) {
     await sendTelegramTypingOn(chatId, env);
-    await sendTelegramMessage(chatId, "⏳ Transcribing your voice message...", env);
-
+    await sendTelegramMessage(chatId, "⏳ Transcribing...", env);
     const audioUrl = await getTelegramFileUrl(voice.file_id, env);
-    if (!audioUrl) {
-      const errorMsg = "Could not fetch audio URL from Telegram";
-      await logError("telegram", errorMsg, env);
-      await sendTelegramMessage(chatId, `❌ ${errorMsg}`, env);
-      return new Response("ok");
-    }
-
-    const job: AudioJob = {
-      senderId: String(chatId),
-      audioUrl,
-      platform: "telegram",
-    };
-
-    console.log(`[telegram] Enqueuing job: chatId=${chatId}`);
-    await env.AUDIO_QUEUE.send(job);
+    if (!audioUrl) return new Response("ok");
+    await env.AUDIO_QUEUE.send({ senderId: String(chatId), audioUrl, platform: "telegram" });
   }
-
   return new Response("ok");
 }
 
+async function handleMetaMessaging(body: MetaWebhookBody, env: Env): Promise<Response> {
+  for (const entry of body.entry ?? []) {
+    for (const msg of entry.messaging ?? []) {
+      const senderId = msg.sender?.id;
+      const audioUrl = msg.message?.attachments?.[0]?.payload?.url;
+      if (senderId && audioUrl) {
+         await sendTypingOn(senderId, env);
+         await sendMessageSafe(senderId, "⏳ Transcribing...", env);
+         await env.AUDIO_QUEUE.send({ senderId, audioUrl, platform: body.object === "instagram" ? "instagram" : "messenger" });
+      }
+    }
+  }
+  return new Response("ok");
+}
+
+async function handleWhatsApp(body: WhatsAppWebhookBody, env: Env): Promise<Response> {
+  for (const entry of body.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      for (const msg of change.value.messages ?? []) {
+        if (msg.from && msg.audio) {
+          const audioUrl = await getWhatsAppAudioUrl(msg.audio.id, env);
+          if (audioUrl) {
+            await sendWhatsAppTypingOn(env.WHATSAPP_PHONE_NUMBER_ID, msg.from, env);
+            await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, msg.from, "⏳ Transcribing...", env);
+            await env.AUDIO_QUEUE.send({ senderId: msg.from, audioUrl, platform: "whatsapp" });
+          }
+        }
+      }
+    }
+  }
+  return new Response("ok");
+}

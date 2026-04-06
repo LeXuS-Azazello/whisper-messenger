@@ -9,8 +9,11 @@ export interface Env {
   META_APP_SECRET: string;
   WHATSAPP_PHONE_NUMBER_ID: string;
   WHATSAPP_TOKEN: string;
-  TELEGRAM_BOT_TOKEN: string;
-  TELEGRAM_CHAT_ID: string;
+  TELEGRAM_APP_ID: string;
+  TELEGRAM_APP_HASH: string;
+  BRIDGE_URL: string;
+  BRIDGE_SECRET: string;
+  WORKER_URL: string;
   ADMIN_SECRET: string;
   STATS: KVNamespace;
 }
@@ -69,4 +72,16 @@ export interface WhatsAppMessage {
     id: string;
     mime_type: string;
   };
+}
+export interface UserSession {
+  userId: string;
+  firstName: string;
+  username?: string;
+  phone?: string;
+  session: string;
+  platform: "telegram";
+  createdAt: number;
+  lastActiveAt: number;
+  isActive: boolean;
+  transcriptionCount: number;
 }

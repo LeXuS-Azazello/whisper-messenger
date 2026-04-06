@@ -176,8 +176,27 @@ describe('Text Splitting', () => {
   });
 });
 
-describe('Env Type', () => {
-  it('should have all required environment variables', () => {
+describe('UserSession Type', () => {
+  it('should support the new user session structure', () => {
+    const session: any = {
+      userId: '12345',
+      firstName: 'Test',
+      session: 'string_session_here',
+      platform: 'telegram',
+      createdAt: 1234567890,
+      lastActiveAt: 1234567890,
+      isActive: true,
+      transcriptionCount: 5
+    };
+    
+    expect(session.userId).toBe('12345');
+    expect(session.isActive).toBe(true);
+    expect(session.transcriptionCount).toBe(5);
+  });
+});
+
+describe('Env Type with Multiuser Bridge', () => {
+  it('should have all required environment variables for the bridge', () => {
     const env = {
       AI: {} as any,
       AUDIO_QUEUE: {} as any,
@@ -186,13 +205,14 @@ describe('Env Type', () => {
       META_PAGE_TOKEN: 'page_token',
       WHATSAPP_PHONE_NUMBER_ID: 'phone_id',
       WHATSAPP_TOKEN: 'whatsapp_token',
-      TELEGRAM_BOT_TOKEN: 'telegram_token',
+      BRIDGE_URL: 'https://mtproto.debug.org.ua',
+      BRIDGE_SECRET: 'changeme',
+      WORKER_URL: 'https://whisper.debug.org.ua',
+      ADMIN_SECRET: 'admin_pass'
     };
 
-    expect(env.VERIFY_TOKEN).toBeDefined();
-    expect(env.META_PAGE_TOKEN).toBeDefined();
-    expect(env.WHATSAPP_PHONE_NUMBER_ID).toBeDefined();
-    expect(env.WHATSAPP_TOKEN).toBeDefined();
-    expect(env.TELEGRAM_BOT_TOKEN).toBeDefined();
+    expect(env.BRIDGE_URL).toBe('https://mtproto.debug.org.ua');
+    expect(env.BRIDGE_SECRET).toBe('changeme');
+    expect(env.ADMIN_SECRET).toBe('admin_pass');
   });
 });
