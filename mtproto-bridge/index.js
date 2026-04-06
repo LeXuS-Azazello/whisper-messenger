@@ -5,7 +5,7 @@
 'use strict';
 
 const express = require('express');
-const { TelegramClient } = require('telegram');
+const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const k8s = require('@kubernetes/client-node');
 
@@ -69,18 +69,18 @@ app.post('/verify-code', auth, async (req, res) => {
         return res.status(404).json({ error: 'Session not found' });
     }
     try {
-        const user = await s.client.signInUser({ apiId: API_ID, apiHash: API_HASH }, {
+        const result = await s.client.invoke(new Api.auth.SignIn({
             phoneNumber: phone,
             phoneCodeHash: s.phoneCodeHash,
-            code: async () => code,
-            onError: (err) => { console.error('Sign in internal error:', err); return true; }
-        });
+            phoneCode: String(code)
+        }));
+        const user = result.user;
         const sessionStr = s.session.save();
         authSessions.delete(phone);
-        console.log(`[/verify-code] SUCCESS! Welcome ${user.firstName} (${user.id})`);
+        console.log(`[/verify-code] SUCCESS! Welcome ${user.firstName} (ID: ${user.id})`);
         res.json({ success: true, session: sessionStr, userId: user.id.toString(), firstName: user.firstName });
     } catch (e) {
-        console.error(`[/verify-code] Telegram rejected the code:`, e.message);
+        console.error(`[/verify-code] Telegram error:`, e);
         res.status(500).json({ error: e.message });
     }
 });
@@ -116,6 +116,21 @@ app.get('/qr-check', auth, (req, res) => {
         return res.json(resp);
     }
     res.json({ done: false });
+});
+
+app.post('/test-tg', auth, async (req, res) => {
+    const { userId } = req.body;
+    const s = await k8sApi.readNamespacedPod(`tg-user-${userId}`, process.env.POD_NAMESPACE || 'debugging-whispermsg');
+    // For simplicity, manager can't easily find the pod's IP if strictly using K8s without Service for each pod.
+    // Instead, I'll just use the session to send one message from the manager temporarily if pod is active.
+    const metaRaw = await fetch(`${WORKER_URL}/internal/user-meta?userId=${userId}&secret=${SECRET}`).then(r => r.json()).catch(() => null);
+    if (!metaRaw || !metaRaw.session) return res.status(404).send('Session not found');
+    
+    const client = new TelegramClient(new StringSession(metaRaw.session), API_ID, API_HASH, { connectionRetries: 3 });
+    await client.connect();
+    await client.sendMessage('me', { message: 'Whisper Messenger: Telegram Test Success! ✅' });
+    await client.disconnect();
+    res.json({ success: true });
 });
 
 app.post('/spawn', auth, async (req, res) => {

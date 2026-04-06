@@ -31,6 +31,8 @@ WHATSAPP_PHONE_NUMBER_ID = "956619407541550"
 BRIDGE_URL = "https://mtproto.debug.org.ua"
 BRIDGE_SECRET = "changeme"
 WORKER_URL = "https://whisper.debug.org.ua"
+GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID_HERE"
+GOOGLE_CLIENT_SECRET = "YOUR_GOOGLE_CLIENT_SECRET_HERE"
 
 [observability]
 enabled = true

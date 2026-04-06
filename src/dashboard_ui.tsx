@@ -1,0 +1,227 @@
+/** @jsxImportSource preact */
+import { render } from 'preact-render-to-string';
+import { UserSession } from './types';
+import adminCss from './admin.css';
+
+export const renderDashboard = (user: UserSession) => {
+    const isTgConnected = !!user.session;
+
+    return "<!DOCTYPE html>" + render(
+        <html lang="en">
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>My Dashboard - Whisper Messenger</title>
+                <link rel="preconnect" href="https://fonts.googleapis.com" />
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+                <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet" />
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+                <style dangerouslySetInnerHTML={{ __html: adminCss }} />
+            </head>
+            <body class="dashboard-page">
+                <div class="container">
+                    <header>
+                        <div class="logo">
+                            <div class="logo-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+                                </svg>
+                            </div>
+                            WHISPER DASHBOARD
+                        </div>
+                        <div class="user-greeting" style={{ fontSize: '14px', color: 'var(--text-dim)' }}>
+                            Welcome, <span style={{ color: 'white', fontWeight: '600' }}>{user.firstName}</span>
+                            <button id="logout-btn" style={{ marginLeft: '15px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }}>Logout</button>
+                        </div>
+                    </header>
+
+                    <div class="grid">
+                        {/* Telegram Control */}
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><span style={{ color: '#24A1DE' }}>✦</span> Telegram</h3>
+                                <span class={`status-tag ${isTgConnected ? 'active' : 'inactive'}`}>
+                                    {isTgConnected ? 'CONNECTED' : 'NOT SETUP'}
+                                </span>
+                            </div>
+                            
+                            <div id="tg-status-container" style={{ display: isTgConnected ? 'block' : 'none', marginTop: '15px' }}>
+                                <p style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Your personal Telegram account is bridged and ready to transcribe.</p>
+                                <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+                                    <button class="btn btn-sm" id="test-tg-btn" style={{ background: '#3B82F6', margin: 0 }}>Send Test Message</button>
+                                    <button class="btn btn-sm" id="disconnect-tg-btn" style={{ background: '#ef4444', margin: 0 }}>Disconnect</button>
+                                </div>
+                            </div>
+
+                            <div id="tg-auth-container" style={{ display: isTgConnected ? 'none' : 'block', marginTop: '15px' }}>
+                                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <input type="tel" id="tg-phone-input" class="input-field" placeholder="+1234567890" style={{ width: '180px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
+                                    <button class="btn btn-sm" id="tg-send-code-btn" style={{ margin: 0, width: 'auto', background: '#8B5CF6' }}>Send Code</button>
+                                </div>
+                                <div id="tg-code-section" style={{ display: 'none', marginTop: '10px' }}>
+                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <input type="text" id="tg-code-input" class="input-field" placeholder="Enter code" style={{ width: '130px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
+                                        <button class="btn btn-sm" id="tg-verify-btn" style={{ margin: 0, width: 'auto', background: '#22c55e' }}>Verify</button>
+                                    </div>
+                                </div>
+                                <div style={{ marginTop: '10px' }}>
+                                    <button class="btn btn-sm" id="tg-show-qr-btn" style={{ margin: 0, width: 'auto', background: '#6B7280', fontSize: '11px', padding: '5px 10px' }}>QR Code Login</button>
+                                </div>
+                                <div id="tg-qr-section" style={{ display: 'none', marginTop: '10px', textAlign: 'center' }}>
+                                    <div id="qr-code-container" style={{ background: 'white', padding: '10px', borderRadius: '8px', display: 'inline-block', marginBottom: '8px' }}></div>
+                                    <p id="qr-status" style={{ fontSize: '11px', color: '#8B5CF6' }}>Scan from Telegram App</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Meta Integration */}
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><span style={{ color: '#0081FB' }}>◉</span> Messenger / Instagram</h3>
+                                <span class={`status-tag ${user.metaToken ? 'active' : 'inactive'}`}>
+                                    {user.metaToken ? 'SETUP' : 'NOT SETUP'}
+                                </span>
+                            </div>
+                            <div class="input-group" style={{ marginTop: '15px' }}>
+                                <label class="input-label">Page Access Token</label>
+                                <input type="password" id="meta-token" class="input-field" value={user.metaToken || ''} placeholder="EAANH..." />
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Messenger ID (optional for test)</label>
+                                <input type="text" id="meta-psid" class="input-field" placeholder="User PSID" />
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                                <button class="btn btn-sm" id="save-meta-btn" style={{ background: '#8B5CF6', margin: 0 }}>Save Settings</button>
+                                {user.metaToken && <button class="btn btn-sm" id="test-meta-btn" style={{ background: '#3B82F6', margin: 0 }}>Test</button>}
+                            </div>
+                        </div>
+
+                        {/* WhatsApp Integration */}
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><span style={{ color: '#25D366' }}>◉</span> WhatsApp</h3>
+                                <span class={`status-tag ${user.whatsappToken ? 'active' : 'inactive'}`}>
+                                    {user.whatsappToken ? 'SETUP' : 'NOT SETUP'}
+                                </span>
+                            </div>
+                            <div class="input-group" style={{ marginTop: '15px' }}>
+                                <label class="input-label">Phone Number ID</label>
+                                <input type="text" id="wa-phone-id" class="input-field" value={user.whatsappPhoneId || ''} placeholder="1029384..." />
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Access Token</label>
+                                <input type="password" id="wa-token" class="input-field" value={user.whatsappToken || ''} placeholder="EAANH..." />
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Test Recipient (Phone)</label>
+                                <input type="text" id="wa-test-num" class="input-field" placeholder="15551234567" />
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                                <button class="btn btn-sm" id="save-wa-btn" style={{ background: '#8B5CF6', margin: 0 }}>Save Settings</button>
+                                {user.whatsappToken && <button class="btn btn-sm" id="test-wa-btn" style={{ background: '#3B82F6', margin: 0 }}>Test</button>}
+                            </div>
+                        </div>
+
+                        {/* Stats Box */}
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">My Stats</h3>
+                            </div>
+                            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                                <div style={{ fontSize: '48px', fontWeight: '800', color: '#22c55e' }}>{user.transcriptionCount || 0}</div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1px' }}>Voice Messages Transcribed</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <script dangerouslySetInnerHTML={{
+                    __html: `
+                    document.getElementById('logout-btn').addEventListener('click', () => {
+                        document.cookie = 'user_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+                        location.href = '/';
+                    });
+
+                    // Telegram Auth JS
+                    var tgPhoneInput = document.getElementById('tg-phone-input');
+                    var tgCodeInput = document.getElementById('tg-code-input');
+                    var tgSendCodeBtn = document.getElementById('tg-send-code-btn');
+                    var tgVerifyBtn = document.getElementById('tg-verify-btn');
+                    var tgCodeSection = document.getElementById('tg-code-section');
+                    var tgShowQrBtn = document.getElementById('tg-show-qr-btn');
+                    var tgQrSection = document.getElementById('tg-qr-section');
+                    var qrCodeContainer = document.getElementById('qr-code-container');
+                    var currentPhone = '';
+
+                    tgSendCodeBtn.addEventListener('click', function() {
+                        var phone = tgPhoneInput.value.trim();
+                        if (!phone) return alert('Enter phone');
+                        fetch('/auth/send-code', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ phone: phone })
+                        }).then(r => r.json()).then(data => {
+                            if (data.success) {
+                                currentPhone = phone;
+                                tgCodeSection.style.display = 'block';
+                                alert('Code sent!');
+                            } else { alert('Error: ' + data.error); }
+                        });
+                    });
+
+                    tgVerifyBtn.addEventListener('click', function() {
+                        var code = tgCodeInput.value.trim();
+                        fetch('/auth/verify-code', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ phone: currentPhone, code: code })
+                        }).then(r => r.json()).then(data => {
+                            if (data.success) { location.reload(); } else { alert('Error: ' + data.error); }
+                        });
+                    });
+
+                    tgShowQrBtn.addEventListener('click', function() {
+                        tgQrSection.style.display = 'block';
+                        tgShowQrBtn.style.display = 'none';
+                        fetch('/auth/qr-start', { method: 'POST' }).then(r => r.json()).then(data => {
+                            if (data.token) {
+                                qrCodeContainer.innerHTML = '';
+                                new QRCode(qrCodeContainer, { text: data.qrUrl, width: 180, height: 180 });
+                                var interval = setInterval(() => {
+                                    fetch('/auth/qr-check?token=' + data.token).then(r => r.json()).then(s => {
+                                        if (s.done) { clearInterval(interval); location.reload(); }
+                                    });
+                                }, 2500);
+                            }
+                        });
+                    });
+
+                    document.getElementById('disconnect-tg-btn')?.addEventListener('click', () => {
+                        if(!confirm('Disconnect Telegram?')) return;
+                        fetch('/dashboard/disconnect-tg', { method: 'POST' }).then(() => location.reload());
+                    });
+
+                    document.getElementById('test-tg-btn')?.addEventListener('click', () => {
+                        fetch('/dashboard/test-tg', { method: 'POST' })
+                            .then(r => r.json())
+                            .then(d => alert(d.success ? 'Success!' : 'Error'));
+                    });
+
+                    // Meta / WA hooks
+                    document.getElementById('save-meta-btn').addEventListener('click', () => {
+                        fetch('/dashboard/save-meta', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ metaToken: document.getElementById('meta-token').value })
+                        }).then(() => location.reload());
+                    });
+
+                    document.getElementById('save-wa-btn').addEventListener('click', () => {
+                        fetch('/dashboard/save-wa', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ whatsappToken: document.getElementById('wa-token').value, whatsappPhoneId: document.getElementById('wa-phone-id').value })
+                        }).then(() => location.reload());
+                    });
+                    `
+                }} />
+            </body>
+        </html>
+    );
+};

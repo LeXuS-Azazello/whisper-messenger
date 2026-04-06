@@ -15,6 +15,8 @@ export interface Env {
   BRIDGE_SECRET: string;
   WORKER_URL: string;
   ADMIN_SECRET: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
   STATS: KVNamespace;
 }
 
@@ -84,4 +86,8 @@ export interface UserSession {
   lastActiveAt: number;
   isActive: boolean;
   transcriptionCount: number;
+  metaToken?: string;
+  instagramId?: string;
+  whatsappToken?: string;
+  whatsappPhoneId?: string;
 }
