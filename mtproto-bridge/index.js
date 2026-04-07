@@ -321,9 +321,9 @@ async function handleNewMessage(event) {
             action: new Api.SendMessageRecordAudioAction()
         })).catch(() => {});
         
-        const statusMsg = await userClient.sendMessage(targetPeer, { 
+        const statusMsg = await userClient.sendMessage(senderId, { 
             message: "⏳ Transcribing...", 
-            replyTo: isSameChat ? msg.id : undefined 
+            replyTo: isSameChat ? msg.senderId : undefined 
         });
 
         const buffer = await userClient.downloadMedia(msg.media, { workers: 1 });
@@ -337,9 +337,9 @@ async function handleNewMessage(event) {
             const chunks = splitLongText(finalText);
             
             for (const chunk of chunks) {
-                await userClient.sendMessage(targetPeer, { 
+                await userClient.sendMessage(senderId, { 
                     message: chunk, 
-                    replyTo: isSameChat ? msg.id : undefined 
+                    replyTo: isSameChat ? senderId : undefined 
                 });
             }
         }

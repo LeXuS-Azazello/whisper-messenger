@@ -21,7 +21,6 @@ declare namespace Cloudflare {
 		META_SYSTEM_USER_TOKEN: string;
 		META_SYSTEM_USER_ID: string;
 		META_SYSTEM_USER_NAME: string;
-		TELEGRAM_CHAT_ID: string;
 		TELEGRAM_APP_ID: string;
 		TELEGRAM_APP_HASH: string;
 		TURNSTILE_KEY: string;
