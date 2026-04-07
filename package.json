@@ -1,6 +1,6 @@
 {
   "name": "whisper-messenger",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Cloudflare Worker for Meta voice message transcription using Whisper",
   "main": "src/index.ts",
   "scripts": {
