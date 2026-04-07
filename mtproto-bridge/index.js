@@ -286,8 +286,11 @@ function splitLongText(text, maxLength = 4000) {
 let userClient = null;
 async function handleNewMessage(event) {
     const msg = event.message;
-    if (!msg) return;
-    console.log(`[user] New message in chat ${msg.chatId}: ${msg.message?.slice(0, 50)}...`);
+    if (!msg || !msg.isPrivate) {
+        if (msg && !msg.isPrivate) console.log(`[user] Ignoring message in non-private chat ${msg.chatId}.`);
+        return;
+    }
+    console.log(`[user] New private message from ${msg.chatId}: ${msg.message?.slice(0, 50)}...`);
     const media = msg.voice || msg.audio || msg.videoNote;
     if (!media) {
         console.log(`[user] No supported media found in message.`);
@@ -296,15 +299,19 @@ async function handleNewMessage(event) {
     console.log(`[user] Supported media found, starting transcription...`);
     
     try {
+        const senderId = msg.senderId;
+        const targetPeer = senderId || msg.chatId;
+        const isSameChat = senderId && msg.chatId && senderId.toString() === msg.chatId.toString();
+
         // Set typing status and send notification
         await userClient.invoke(new Api.messages.SetTyping({
-            peer: msg.chatId,
+            peer: targetPeer,
             action: new Api.SendMessageRecordAudioAction()
         })).catch(() => {});
         
-        const statusMsg = await userClient.sendMessage(msg.chatId, { 
+        const statusMsg = await userClient.sendMessage(targetPeer, { 
             message: "⏳ Transcribing...", 
-            replyTo: msg.id 
+            replyTo: isSameChat ? msg.id : undefined 
         });
 
         const buffer = await userClient.downloadMedia(msg.media, { workers: 1 });
@@ -318,9 +325,9 @@ async function handleNewMessage(event) {
             const chunks = splitLongText(finalText);
             
             for (const chunk of chunks) {
-                await userClient.sendMessage(msg.chatId, { 
+                await userClient.sendMessage(targetPeer, { 
                     message: chunk, 
-                    replyTo: msg.id 
+                    replyTo: isSameChat ? msg.id : undefined 
                 });
             }
         }
@@ -343,7 +350,7 @@ async function startUserClient() {
     if (!TG_SESSION) return console.error('[user] No TG_SESSION provided!');
     userClient = new TelegramClient(new StringSession(TG_SESSION), API_ID, API_HASH, { connectionRetries: 5 });
     await userClient.connect();
-    userClient.addEventHandler(handleNewMessage, new (require('telegram/events').NewMessage)({ incoming: true, outgoing: true }));
+    userClient.addEventHandler(handleNewMessage, new (require('telegram/events').NewMessage)({ incoming: true, outgoing: false }));
     console.log(`[user] Online.`);
 }
 

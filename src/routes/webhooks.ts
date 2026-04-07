@@ -5,13 +5,14 @@ import { sendWhatsAppTypingOn, sendWhatsAppMessageSafe, getWhatsAppAudioUrl } fr
 
 export async function handleTelegram(update: TelegramWebhookUpdate, env: Env): Promise<Response> {
   const msg = update.message;
-  if (!msg) return new Response("ok");
+  if (!msg || msg.chat.type !== "private") return new Response("ok");
   const media = msg.voice || msg.audio || msg.video_note;
-  if (media) {
-    await sendTelegramTypingOn(msg.chat.id, env);
-    await sendTelegramMessage(msg.chat.id, "⏳ Transcribing...", env);
+  if (media && msg.from) {
+    const targetId = msg.from.id;
+    await sendTelegramTypingOn(targetId, env);
+    await sendTelegramMessage(targetId, "⏳ Transcribing...", env);
     const audioUrl = await getTelegramFileUrl(media.file_id, env);
-    if (audioUrl) await env.AUDIO_QUEUE.send({ senderId: String(msg.chat.id), audioUrl, platform: "telegram" });
+    if (audioUrl) await env.AUDIO_QUEUE.send({ senderId: String(targetId), audioUrl, platform: "telegram" });
   }
   return new Response("ok");
 }
