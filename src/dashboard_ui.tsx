@@ -168,8 +168,7 @@ export const renderDashboard = (user: UserSession) => {
                 <script dangerouslySetInnerHTML={{
                     __html: `
                     document.getElementById('logout-btn').addEventListener('click', () => {
-                        document.cookie = 'user_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-                        location.href = '/';
+                        location.href = '/auth/logout';
                     });
 
                     // Telegram Auth JS
@@ -232,7 +231,7 @@ export const renderDashboard = (user: UserSession) => {
                     document.getElementById('test-tg-btn')?.addEventListener('click', () => {
                         fetch('/dashboard/test-tg', { method: 'POST' })
                             .then(r => r.json())
-                            .then(d => alert(d.success ? 'Success!' : 'Error'));
+                            .then(d => alert(d.success ? 'Success! Check your Telegram' : 'Error: ' + (d.error || 'Failed to send test message')));
                     });
 
                     // Meta / WA hooks

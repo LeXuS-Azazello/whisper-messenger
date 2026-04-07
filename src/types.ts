@@ -11,6 +11,7 @@ export interface Env {
   WHATSAPP_TOKEN: string;
   TELEGRAM_APP_ID: string;
   TELEGRAM_APP_HASH: string;
+  TELEGRAM_BOT_TOKEN: string;
   BRIDGE_URL: string;
   BRIDGE_SECRET: string;
   WORKER_URL: string;

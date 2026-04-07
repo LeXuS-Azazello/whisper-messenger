@@ -5,3 +5,7 @@ dist/
 *.log
 tsconfig.tsbuildinfo
 .playwright-mcp/
+
+models/
+whisper-server/venv/
+audio_test.ogg

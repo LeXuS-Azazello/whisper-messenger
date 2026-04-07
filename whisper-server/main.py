@@ -17,18 +17,34 @@ SECRET = os.getenv("WHISPER_SECRET", "changeme")
 # Initialize recognizer
 def create_recognizer():
     # Find the model files
-    encoder = ""
-    decoder = ""
+    int8_encoder = None
+    int8_decoder = None
+    fp32_encoder = None
+    fp32_decoder = None
     tokens = ""
     
     for f in os.listdir(MODEL_DIR):
-        if f.endswith("encoder.int8.onnx") or f.endswith("encoder.onnx"):
-            encoder = os.path.join(MODEL_DIR, f)
-        elif f.endswith("decoder.int8.onnx") or f.endswith("decoder.onnx"):
-            decoder = os.path.join(MODEL_DIR, f)
+        if f.endswith("encoder.int8.onnx"):
+            int8_encoder = os.path.join(MODEL_DIR, f)
+        elif f.endswith("encoder.onnx") and not f.endswith(".int8.onnx"):
+            fp32_encoder = os.path.join(MODEL_DIR, f)
+        elif f.endswith("decoder.int8.onnx"):
+            int8_decoder = os.path.join(MODEL_DIR, f)
+        elif f.endswith("decoder.onnx") and not f.endswith(".int8.onnx"):
+            fp32_decoder = os.path.join(MODEL_DIR, f)
         elif f.endswith("tokens.txt"):
             tokens = os.path.join(MODEL_DIR, f)
             
+    if int8_encoder and int8_decoder:
+        encoder = int8_encoder
+        decoder = int8_decoder
+    elif fp32_encoder and fp32_decoder:
+        encoder = fp32_encoder
+        decoder = fp32_decoder
+    else:
+        encoder = None
+        decoder = None
+
     if not encoder or not decoder or not tokens:
         print(f"Directory {MODEL_DIR} contains: {os.listdir(MODEL_DIR)}")
         raise RuntimeError(f"Missing model files in {MODEL_DIR}")
@@ -70,7 +86,7 @@ async def transcribe(
     
     stream = recognizer.create_stream()
     stream.accept_waveform(16000, samples)
-    recognizer.decode(stream)
+    recognizer.decode_stream(stream)
     
     return {"text": stream.result.text}
 

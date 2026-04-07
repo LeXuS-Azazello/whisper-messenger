@@ -11,6 +11,10 @@ const k8s = require('@kubernetes/client-node');
 const { transcribe } = require('./transcribe');
 
 const app = express();
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+});
 app.use(express.json());
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -120,52 +124,105 @@ app.get('/qr-check', auth, (req, res) => {
 });
 
 app.post('/test-tg', auth, async (req, res) => {
-    const { userId } = req.body;
-    const s = await k8sApi.readNamespacedPod(`tg-user-${userId}`, process.env.POD_NAMESPACE || 'debugging-whispermsg');
-    // For simplicity, manager can't easily find the pod's IP if strictly using K8s without Service for each pod.
-    // Instead, I'll just use the session to send one message from the manager temporarily if pod is active.
-    const metaRaw = await fetch(`${WORKER_URL}/internal/user-meta?userId=${userId}&secret=${SECRET}`).then(r => r.json()).catch(() => null);
-    if (!metaRaw || !metaRaw.session) return res.status(404).send('Session not found');
-    
-    const client = new TelegramClient(new StringSession(metaRaw.session), API_ID, API_HASH, { connectionRetries: 3 });
-    await client.connect();
-    await client.sendMessage('me', { message: 'Whisper Messenger: Telegram Test Success! ✅' });
-    await client.disconnect();
-    res.json({ success: true });
+    try {
+        const sessionToUse = req.body.session || TG_SESSION;
+        if (!sessionToUse) {
+            return res.status(400).json({ success: false, error: 'No TG_SESSION configured or provided' });
+        }
+        const client = new TelegramClient(new StringSession(sessionToUse), API_ID, API_HASH, { connectionRetries: 3 });
+        await client.connect();
+        await client.sendMessage('me', { message: '🧪 Bridge test‑tg: message to self ✅' });
+        await client.disconnect();
+        return res.json({ success: true });
+    } catch (e) {
+        console.error('[test-tg] error:', e);
+        return res.status(500).json({ success: false, error: e.message });
+    }
 });
 
 app.post('/spawn', auth, async (req, res) => {
     const { userId, session } = req.body;
-    const podName = `tg-user-${userId}`;
+    const safeUserId = String(userId);
+    const sanitizedId = safeUserId.toLowerCase().replace(/_/g, '-');
     const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
-    const podManifest = {
-        metadata: { name: podName, labels: { app: 'tg-user-bridge', userId: userId } },
-        spec: {
-            containers: [{
-                name: 'bridge',
-                image: process.env.BRIDGE_IMAGE || 'azazellosaraksh/debugging-mtproto-bridge:latest',
-                env: [
-                    { name: 'MODE', value: 'USER' },
-                    { name: 'TARGET_USER_ID', value: userId },
-                    { name: 'TG_SESSION', value: session },
-                    { name: 'TG_API_ID', value: String(API_ID) },
-                    { name: 'TG_API_HASH', value: API_HASH },
-                    { name: 'BRIDGE_SECRET', value: SECRET },
-                    { name: 'WORKER_URL', value: WORKER_URL },
-                    { name: 'WHISPER_SERVER_URL', value: process.env.WHISPER_SERVER_URL || '' },
-                    { name: 'WHISPER_SECRET', value: process.env.WHISPER_SECRET || '' }
-                ],
-                resources: { requests: { memory: '512Mi' }, limits: { memory: '1Gi' } }
-            }]
+
+    try {
+        // Find and delete any existing pods for this user
+        try {
+            const existing = await k8sApi.listNamespacedPod({
+                namespace,
+                labelSelector: `userId=${safeUserId}`
+            });
+            if (existing && existing.items) {
+                for (const p of existing.items) {
+                    await k8sApi.deleteNamespacedPod({
+                        name: p.metadata.name,
+                        namespace
+                    }).catch(() => {});
+                }
+            }
+        } catch (listErr) {
+            console.error('[/spawn] Error listing existing pods:', listErr.message || listErr);
         }
-    };
-    try { await k8sApi.createNamespacedPod(namespace, podManifest); res.json({ success: true }); }
-    catch (err) { res.status(500).json({ error: err.body?.message || err.message }); }
+
+        const podName = `tg-user-${sanitizedId}-${Date.now().toString().slice(-6)}`;
+        const podManifest = {
+            metadata: { name: podName, labels: { app: 'tg-user-bridge', userId: safeUserId } },
+            spec: {
+                containers: [{
+                    name: 'bridge',
+                    image: process.env.BRIDGE_IMAGE || 'azazellosaraksh/debugging-mtproto-bridge:latest',
+                    env: [
+                        { name: 'MODE', value: 'USER' },
+                        { name: 'TARGET_USER_ID', value: safeUserId },
+                        { name: 'TG_SESSION', value: session },
+                        { name: 'TG_API_ID', value: String(API_ID) },
+                        { name: 'TG_API_HASH', value: API_HASH },
+                        { name: 'BRIDGE_SECRET', value: SECRET },
+                        { name: 'WORKER_URL', value: WORKER_URL },
+                        { name: 'WHISPER_SERVER_URL', value: process.env.WHISPER_SERVER_URL || '' },
+                        { name: 'WHISPER_SECRET', value: process.env.WHISPER_SECRET || '' }
+                    ],
+                    resources: { requests: { memory: '512Mi' }, limits: { memory: '1Gi' } }
+                }]
+            }
+        };
+
+        await k8sApi.createNamespacedPod({
+            namespace,
+            body: podManifest
+        }); 
+        res.json({ success: true, podName }); 
+    }
+    catch (err) { 
+        res.status(500).json({ error: err.body?.message || err.message }); 
+    }
 });
 
 app.post('/delete', auth, async (req, res) => {
-    try { await k8sApi.deleteNamespacedPod(`tg-user-${req.body.userId}`, process.env.POD_NAMESPACE || 'debugging-whispermsg'); res.json({ success: true }); }
-    catch (e) { res.status(500).send(e.message); }
+    try {
+        const safeUserId = String(req.body.userId);
+        const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
+        
+        const existing = await k8sApi.listNamespacedPod({
+            namespace,
+            labelSelector: `userId=${safeUserId}`
+        });
+        
+        if (existing && existing.items && existing.items.length > 0) {
+            for (const p of existing.items) {
+                await k8sApi.deleteNamespacedPod({
+                    name: p.metadata.name,
+                    namespace
+                }).catch(() => {});
+            }
+        }
+        res.json({ success: true });
+    }
+    catch (e) { 
+        console.error(`[/delete] K8s error:`, e.body || e);
+        res.status(500).json({ error: e.message }); 
+    }
 });
 
 // ─── USER MODE Logic ─────────────────────────────────────────────────────────

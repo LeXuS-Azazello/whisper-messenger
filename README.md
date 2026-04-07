@@ -54,6 +54,8 @@ The system consists of three primary components:
 
 ## 🛠️ Deployment (Redeploying to a new Host)
 
+> **Note on AI Models:** The Whisper and Paraformer ONNX models are **not** stored in this repository and are **not** baked into the Docker images to keep the images lightweight and CI/CD fast. The models will be automatically downloaded by the `entrypoint.sh` scripts into the `/app/models` directories when the pods first start up.
+
 ### 1. Cloudflare Worker
 ```bash
 npm install
@@ -85,30 +87,6 @@ kubectl apply -f k8s.yaml
 2.  Add Public Hostnames in Cloudflare Zero Trust Dashboard:
     *   `mtproto.your-domain.com` -> `http://mtproto-bridge-manager:3000`
     *   `whisper-onnx.your-domain.com` -> `http://whisper-onnx:8000`
-
----
-
-## 🛠️ Deployment
-
-### 1. Cloudflare Worker
-```bash
-# Install dependencies
-npm install
-
-# Deploy to Cloudflare
-npx wrangler deploy
-```
-
-### 2. MTProto Bridge (Kubernetes)
-```bash
-# Build and push the Docker image
-cd mtproto-bridge
-docker build -t your-repo/whisper-bridge:latest .
-docker push your-repo/whisper-bridge:latest
-
-# Update deployment (example)
-kubectl rollout restart deployment mtproto-bridge-manager -n your-namespace
-```
 
 ---
 

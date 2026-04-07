@@ -17,8 +17,15 @@ export default {
 
     if (url.pathname === "/health") return Response.json({ ok: true });
     
+    const userCookie = req.headers.get('Cookie')?.match(/user_id=([^;]+)/)?.[1];
+
     if (url.pathname === "/") {
+        if (userCookie) return Response.redirect(`${url.origin}/dashboard`);
         return new Response(renderHome(env.GOOGLE_CLIENT_ID), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    }
+
+    if (url.pathname === "/auth" && userCookie) {
+        return Response.redirect(`${url.origin}/dashboard`);
     }
 
     // Public Auth Routes
@@ -50,6 +57,33 @@ export default {
       if (secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
       const data = await env.STATS.get(`user_meta_${userId}`);
       return new Response(data, { headers: { "Content-Type": "application/json" } });
+    }
+
+    if (url.pathname === "/test-whisper" && req.method === "POST") {
+        const provider = url.searchParams.get("provider") as "cloudflare" | "local" || "cloudflare";
+        const formData = await req.formData();
+        const file = formData.get("file") as File;
+        if (!file) return new Response("Missing file", { status: 400 });
+        
+        try {
+            const buffer = await file.arrayBuffer();
+            
+            // Temporary override just for this test
+            const originalProvider = await env.STATS.get("config_whisper_provider");
+            await env.STATS.put("config_whisper_provider", provider);
+            
+            const start = Date.now();
+            const { transcribeWithFallback } = await import("./whisper");
+            const result = await transcribeWithFallback(buffer, env);
+            const elapsed = (Date.now() - start) / 1000;
+            
+            // Restore provider
+            if (originalProvider) await env.STATS.put("config_whisper_provider", originalProvider);
+            
+            return Response.json({ success: true, provider, elapsed, text: result.text });
+        } catch (e) {
+            return Response.json({ success: false, error: (e as Error).message }, { status: 500 });
+        }
     }
 
     // Standard Webhooks (Meta, WhatsApp, Telegram Bot)
@@ -115,7 +149,12 @@ async function handlePublicAuth(env: Env, req: Request): Promise<Response> {
     });
     const data: any = await res.json();
     if (data.success) {
-      await registerNewUser(data, env, userCookie);
+      const registeredUserId = await registerNewUser(data, env, userCookie);
+      return Response.json(data, {
+        headers: {
+          "Set-Cookie": `user_id=${registeredUserId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
+        }
+      });
     }
     return Response.json(data);
   }
@@ -128,7 +167,12 @@ async function handlePublicAuth(env: Env, req: Request): Promise<Response> {
     });
     const data: any = await res.json();
     if (data.done) {
-      await registerNewUser(data, env, userCookie);
+      const registeredUserId = await registerNewUser(data, env, userCookie);
+      return Response.json(data, {
+        headers: {
+          "Set-Cookie": `user_id=${registeredUserId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
+        }
+      });
     }
     return Response.json(data);
   }
@@ -325,10 +369,14 @@ async function handlePublicAuth(env: Env, req: Request): Promise<Response> {
       return Response.redirect(`${url.origin}/dashboard`, 302);
   }
 
+  if (url.pathname === "/auth/logout") {
+    return new Response("Redirect", { status: 302, headers: { "Location": "/", "Set-Cookie": `user_id=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
+  }
+
   return new Response("Not found", { status: 404 });
 }
 
-async function registerNewUser(data: any, env: Env, existingUserId?: string) {
+async function registerNewUser(data: any, env: Env, existingUserId?: string): Promise<string> {
   const { userId: tgUserId, firstName, session } = data;
   const targetUserId = existingUserId || tgUserId;
   const existingRaw = await env.STATS.get(`user_meta_${targetUserId}`);
@@ -365,6 +413,8 @@ async function registerNewUser(data: any, env: Env, existingUserId?: string) {
     const err = await spawnRes.text();
     await logError("bridge", `Failed to spawn pod for ${targetUserId}: ${err}`, env);
   }
+
+  return targetUserId;
 }
 
 async function handleUserDashboard(env: Env, req: Request): Promise<Response> {
@@ -408,11 +458,20 @@ async function handleUserDashboard(env: Env, req: Request): Promise<Response> {
       return Response.json({ success: true });
     }
     if (url.pathname === "/dashboard/test-tg") {
-      const res = await fetch(`${env.BRIDGE_URL}/test-tg`, {
-        method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-        body: JSON.stringify({ userId })
-      });
-      return Response.json({ success: res.ok });
+      try {
+        const session = await env.STATS.get(`tg_session_${userId}`);
+        const res = await fetch(`${env.BRIDGE_URL}/test-tg`, {
+          method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+          body: JSON.stringify({ userId, session })
+        });
+        if (!res.ok) {
+           const text = await res.text();
+           return Response.json({ success: false, error: `Bridge error ${res.status}: ${text}` });
+        }
+        return Response.json({ success: true });
+      } catch (e) {
+        return Response.json({ success: false, error: (e as Error).message });
+      }
     }
     if (url.pathname === "/dashboard/disconnect-tg") {
       await fetch(`${env.BRIDGE_URL}/delete`, {
@@ -472,7 +531,95 @@ async function handleAdmin(env: Env, req: Request): Promise<Response> {
     }
   }
   
+  if (url.pathname === "/admin/logout") {
+    return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
+  }
+  
   if (cookieAuth !== env.ADMIN_SECRET) return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+
+  // --- Admin Telegram Proxy Routes ---
+  if (url.pathname === "/admin/ping-bridge") {
+    try {
+      const res = await fetch(`${env.BRIDGE_URL}/health`, { headers: { 'x-bridge-secret': env.BRIDGE_SECRET }});
+      const text = await res.text();
+      return new Response(`Bridge: ${res.status} ${text}`);
+    } catch (e) {
+      return new Response(`Worker Error: ${(e as Error).message}`, { status: 500 });
+    }
+  }
+
+  if (url.pathname === "/admin/tg-status") {
+    const userId = await env.STATS.get("admin_tg_userId");
+    const session = await env.STATS.get("admin_tg_session");
+    const hasPod = userId ? await fetch(`${env.BRIDGE_URL}/health`).then(r => r.ok).catch(() => false) : false;
+    return Response.json({ authenticated: !!session, userId, bridgeAlive: hasPod });
+  }
+
+  if (url.pathname === "/admin/tg-send-code" && req.method === "POST") {
+    const { phoneNumber } = await req.json() as any;
+    return fetch(`${env.BRIDGE_URL}/send-code`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+      body: JSON.stringify({ phone: phoneNumber })
+    });
+  }
+
+  if (url.pathname === "/admin/tg-verify-code" && req.method === "POST") {
+    const { phoneNumber, code } = await req.json() as any;
+    const res = await fetch(`${env.BRIDGE_URL}/verify-code`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+      body: JSON.stringify({ phone: phoneNumber, code })
+    });
+    const data: any = await res.json();
+    if (data.success) {
+      await env.STATS.put("admin_tg_userId", data.userId);
+      await env.STATS.put("admin_tg_session", data.session);
+    }
+    return Response.json(data);
+  }
+
+  if (url.pathname === "/admin/tg-qr-login" && req.method === "POST") {
+    return fetch(`${env.BRIDGE_URL}/qr-start`, {
+      method: "POST", headers: { "x-bridge-secret": env.BRIDGE_SECRET }
+    });
+  }
+
+  if (url.pathname === "/admin/tg-qr-check") {
+    const token = url.searchParams.get("token");
+    const res = await fetch(`${env.BRIDGE_URL}/qr-check?token=${token}`, {
+      headers: { "x-bridge-secret": env.BRIDGE_SECRET }
+    });
+    const data: any = await res.json();
+    if (data.done) {
+      await env.STATS.put("admin_tg_userId", data.userId);
+      await env.STATS.put("admin_tg_session", data.session);
+    }
+    return Response.json(data);
+  }
+
+  if (url.pathname === "/admin/tg-logout" && req.method === "POST") {
+    await env.STATS.delete("admin_tg_userId");
+    await env.STATS.delete("admin_tg_session");
+    return Response.json({ success: true });
+  }
+
+  if (url.pathname === "/admin/tg-test-msg" && req.method === "POST") {
+    const userId = await env.STATS.get("admin_tg_userId");
+    const session = await env.STATS.get("admin_tg_session");
+    if (!userId || !session) return Response.json({ error: "Not logged in" }, { status: 400 });
+    try {
+      const res = await fetch(`${env.BRIDGE_URL}/test-tg`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+        body: JSON.stringify({ userId, session })
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        return Response.json({ error: `Bridge returned ${res.status}: ${text}` }, { status: res.status });
+      }
+      return res;
+    } catch (e) {
+      return Response.json({ error: `Fetch failed: ${(e as Error).message}` }, { status: 500 });
+    }
+  }
 
   const userIdsRaw = await env.STATS.get("users_list");
   const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
@@ -527,6 +674,8 @@ async function handleAdmin(env: Env, req: Request): Promise<Response> {
         method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
         body: JSON.stringify({ userId })
       });
+      // Even if res fails with error, we might want to allow forcing the state to 'inactive' if user clicks again?
+      // For now, only if res is ok
       if (res.ok) {
         const u = await env.STATS.get(`user_meta_${userId}`);
         if(u) {
@@ -536,8 +685,14 @@ async function handleAdmin(env: Env, req: Request): Promise<Response> {
         }
       }
     } else if (action === "delete") {
-       // Deep delete
+       // Deep delete: remove from bridge, KV meta, and user list
+       await fetch(`${env.BRIDGE_URL}/delete`, {
+         method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+         body: JSON.stringify({ userId })
+       }).catch(() => null); 
+
        await env.STATS.delete(`user_meta_${userId}`);
+       await env.STATS.delete(`tg_session_${userId}`);
        const listRaw = await env.STATS.get("users_list") || "[]";
        const list = JSON.parse(listRaw).filter((id: string) => id !== userId);
        await env.STATS.put("users_list", JSON.stringify(list));
