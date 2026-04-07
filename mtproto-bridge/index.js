@@ -323,7 +323,7 @@ async function handleNewMessage(event) {
         
         const statusMsg = await userClient.sendMessage(senderId, { 
             message: "⏳ Transcribing...", 
-            replyTo: isSameChat ? msg.senderId : undefined 
+            replyTo: msg.senderId
         });
 
         const buffer = await userClient.downloadMedia(msg.media, { workers: 1 });
@@ -339,7 +339,7 @@ async function handleNewMessage(event) {
             for (const chunk of chunks) {
                 await userClient.sendMessage(senderId, { 
                     message: chunk, 
-                    replyTo: isSameChat ? senderId : undefined 
+                    replyTo: senderId 
                 });
             }
         }
