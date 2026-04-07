@@ -125,6 +125,25 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     }
   }
 
+  if (url.pathname === "/admin/tg-test-voice" && req.method === "POST") {
+    const userId = await env.STATS.get("admin_tg_userId");
+    const session = await env.STATS.get("admin_tg_session");
+    if (!userId || !session) return Response.json({ error: "Not logged in" }, { status: 400 });
+    try {
+      const res = await fetch(`${env.BRIDGE_URL}/test-voice`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+        body: JSON.stringify({ userId, session })
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        return Response.json({ error: `Bridge returned ${res.status}: ${text}` }, { status: res.status });
+      }
+      return res;
+    } catch (e) {
+      return Response.json({ error: `Fetch failed: ${(e as Error).message}` }, { status: 500 });
+    }
+  }
+
   const userIdsRaw = await env.STATS.get("users_list");
   const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
   const users: UserSession[] = [];

@@ -96,7 +96,8 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                             <div id="tg-auth-details" style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}></div>
                                         </div>
                                         <div style={{ display: 'flex', gap: '8px' }}>
-                                            <button class="btn" id="tg-test-btn" style={{ margin: 0, width: 'auto', background: '#3B82F6', fontSize: '12px', padding: '6px 12px' }}>Test</button>
+                                            <button class="btn" id="tg-test-btn" title="Send simple text" style={{ margin: 0, width: 'auto', background: '#3B82F6', fontSize: '12px', padding: '6px 12px' }}>Test</button>
+                                            <button class="btn" id="tg-test-voice-btn" title="Send sample voice msg" style={{ margin: 0, width: 'auto', background: '#F59E0B', fontSize: '12px', padding: '6px 12px' }}>Test Voice</button>
                                             <button class="btn" id="tg-logout-btn" style={{ margin: 0, width: 'auto', background: '#ef4444', fontSize: '12px', padding: '6px 12px' }}>Disconnect</button>
                                         </div>
                                     </div>
@@ -372,6 +373,20 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                         fetch('/admin/tg-test-msg', { method: 'POST' })
                             .then(r => r.json())
                             .then(d => alert(d.success ? 'Success! Check your Telegram' : 'Error: ' + d.error));
+                    });
+
+                    var tgTestVoiceBtn = document.getElementById('tg-test-voice-btn');
+                    tgTestVoiceBtn.addEventListener('click', function() {
+                        const originalText = tgTestVoiceBtn.innerText;
+                        tgTestVoiceBtn.innerText = 'Sending Voice...';
+                        tgTestVoiceBtn.disabled = true;
+                        fetch('/admin/tg-test-voice', { method: 'POST' })
+                            .then(r => r.json())
+                            .then(d => alert(d.success ? 'Success! Voice message sent to yourself. Check your Telegram for the transcription.' : 'Error: ' + d.error))
+                            .finally(() => { 
+                                tgTestVoiceBtn.innerText = originalText;
+                                tgTestVoiceBtn.disabled = false;
+                            });
                     });
 
                     document.querySelectorAll('.deactivate-btn').forEach(btn => {

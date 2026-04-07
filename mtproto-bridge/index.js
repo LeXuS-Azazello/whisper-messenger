@@ -9,6 +9,8 @@ const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const k8s = require('@kubernetes/client-node');
 const { transcribe } = require('./transcribe');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use((req, res, next) => {
@@ -148,6 +150,33 @@ app.post('/test-tg', auth, async (req, res) => {
     }
 });
 
+app.post('/test-voice', auth, async (req, res) => {
+    try {
+        const sessionToUse = req.body.session || TG_SESSION;
+        if (!sessionToUse) {
+            return res.status(400).json({ success: false, error: 'No TG_SESSION' });
+        }
+        const client = new TelegramClient(new StringSession(sessionToUse), API_ID, API_HASH, { connectionRetries: 3 });
+        await client.connect();
+        const audioPath = path.join(__dirname, 'test.ogg');
+        if (!fs.existsSync(audioPath)) {
+            return res.status(404).json({ error: 'test.ogg not found' });
+        }
+        const buffer = fs.readFileSync(audioPath);
+        const toMe = await client.getMe();
+        await client.sendFile(toMe.id, {
+            file: buffer,
+            voice: true,
+            attributes: [new Api.DocumentAttributeAudio({ voice: true, duration: 2, title: 'Test Voice', performer: 'Bridge' })]
+        });
+        await client.disconnect();
+        return res.json({ success: true });
+    } catch (e) {
+        console.error('[test-voice] error:', e);
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.post('/spawn', auth, async (req, res) => {
     const { userId, session } = req.body;
     const safeUserId = String(userId);
@@ -258,8 +287,13 @@ let userClient = null;
 async function handleNewMessage(event) {
     const msg = event.message;
     if (!msg) return;
+    console.log(`[user] New message in chat ${msg.chatId}: ${msg.message?.slice(0, 50)}...`);
     const media = msg.voice || msg.audio || msg.videoNote;
-    if (!media) return;
+    if (!media) {
+        console.log(`[user] No supported media found in message.`);
+        return;
+    }
+    console.log(`[user] Supported media found, starting transcription...`);
     
     try {
         // Set typing status and send notification
@@ -309,7 +343,7 @@ async function startUserClient() {
     if (!TG_SESSION) return console.error('[user] No TG_SESSION provided!');
     userClient = new TelegramClient(new StringSession(TG_SESSION), API_ID, API_HASH, { connectionRetries: 5 });
     await userClient.connect();
-    userClient.addEventHandler(handleNewMessage, new (require('telegram/events').NewMessage)({}));
+    userClient.addEventHandler(handleNewMessage, new (require('telegram/events').NewMessage)({ incoming: true, outgoing: true }));
     console.log(`[user] Online.`);
 }
 
