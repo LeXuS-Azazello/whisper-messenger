@@ -90,6 +90,25 @@ kubectl apply -f k8s.yaml
 
 ---
 
+## 🛡️ Infrastructure Management (Kube-DC)
+
+The cluster and resource management are handled via **Kube-DC** CLI.
+
+### Authentication
+```bash
+kube-dc login --domain kube-dc.cloud --org debugging
+```
+
+### Resource Optimization
+To manage costs, the worker pool is manually scaled as needed:
+- **Scaling Workers**:
+  ```bash
+  kubectl patch md whispermsg-workers -n debugging-whispermsg --type='merge' -p '{"spec":{"replicas":1}}'
+  ```
+- **IP Cleanup**: Orphan Floating IPs (FIPs) from terminated VMs should be removed manually to free up Public IPs.
+
+---
+
 ## 🔐 Security
 
 *   Internal communication between Worker and Bridge is protected by a shared `BRIDGE_SECRET`.
