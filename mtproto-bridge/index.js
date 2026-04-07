@@ -146,24 +146,28 @@ app.post('/spawn', auth, async (req, res) => {
     const sanitizedId = safeUserId.toLowerCase().replace(/_/g, '-');
     const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
 
+    console.log(`[/spawn] Spawning pod for user ${safeUserId}`);
+
     try {
-        // Find and delete any existing pods for this user
+        // Find and delete any existing pods for this user (with timeout)
         try {
-            const existing = await k8sApi.listNamespacedPod({
+            const existing = await withTimeout(k8sApi.listNamespacedPod({
                 namespace,
                 labelSelector: `userId=${safeUserId}`
-            });
-            const items = existing?.body?.items || existing?.items;
-            if (items && items.length > 0) {
+            }), 3000);
+            
+            const items = existing?.body?.items || existing?.items || [];
+            if (items.length > 0) {
+                console.log(`[/spawn] Found ${items.length} existing pods for ${safeUserId}, deleting...`);
                 for (const p of items) {
-                    await k8sApi.deleteNamespacedPod({
+                    await withTimeout(k8sApi.deleteNamespacedPod({
                         name: p.metadata.name,
                         namespace
-                    }).catch(() => {});
+                    }), 2000).catch(e => console.error(`[/spawn] Failed to delete ${p.metadata.name}:`, e.message));
                 }
             }
         } catch (listErr) {
-            console.error('[/spawn] Error listing existing pods:', listErr.message || listErr);
+            console.warn(`[/spawn] Could not list/delete existing pods for ${safeUserId} (skipping cleanup):`, listErr.message);
         }
 
         const podName = `tg-user-${sanitizedId}-${Date.now().toString().slice(-6)}`;
@@ -189,13 +193,17 @@ app.post('/spawn', auth, async (req, res) => {
             }
         };
 
-        await k8sApi.createNamespacedPod({
+        console.log(`[/spawn] Creating new pod ${podName}`);
+        await withTimeout(k8sApi.createNamespacedPod({
             namespace,
             body: podManifest
-        }); 
+        }), 5000); 
+
+        console.log(`[/spawn] Successfully spawned ${podName}`);
         res.json({ success: true, podName }); 
     }
     catch (err) { 
+        console.error(`[/spawn] Critical error:`, err.message);
         res.status(500).json({ error: err.body?.message || err.message }); 
     }
 });
@@ -205,18 +213,19 @@ app.post('/delete', auth, async (req, res) => {
         const safeUserId = String(req.body.userId);
         const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
         
-        const existing = await k8sApi.listNamespacedPod({
+        console.log(`[/delete] Deleting pods for user ${safeUserId}`);
+        const existing = await withTimeout(k8sApi.listNamespacedPod({
             namespace,
             labelSelector: `userId=${safeUserId}`
-        });
+        }), 3000);
         
-        const items = existing?.body?.items || existing?.items;
-        if (items && items.length > 0) {
+        const items = existing?.body?.items || existing?.items || [];
+        if (items.length > 0) {
             for (const p of items) {
-                await k8sApi.deleteNamespacedPod({
+                await withTimeout(k8sApi.deleteNamespacedPod({
                     name: p.metadata.name,
                     namespace
-                }).catch(() => {});
+                }), 2000).catch(() => {});
             }
         }
         res.json({ success: true });
