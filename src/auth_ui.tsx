@@ -8,7 +8,7 @@ export const renderAuthPage = (error?: string) => {
             <head>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>Connect Telegram - Whisper Messenger</title>
+                <title>Connect Telegram - Echo Messenger</title>
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
                 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet" />
@@ -24,7 +24,7 @@ export const renderAuthPage = (error?: string) => {
                                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
                                 </svg>
                             </div>
-                            WHISPER
+                            ECHO
                         </div>
                         
                         <h2 style={{ textAlign: 'center', marginBottom: '10px' }}>Connect Your account</h2>

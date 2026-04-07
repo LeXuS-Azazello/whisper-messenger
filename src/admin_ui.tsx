@@ -13,6 +13,20 @@ const ConfigItem = ({ label, active }: { label: string; active: boolean }) => (
     </div>
 );
 
+const formatUptime = (startedAt?: number) => {
+    if (!startedAt) return '-';
+    const seconds = Math.floor((Date.now() - startedAt) / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    if (hours < 24) return `${hours}h ${remainingMinutes}m`;
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    return `${days}d ${remainingHours}h`;
+};
+
 const UserRow = ({ user }: { user: UserSession }) => (
     <tr class="user-row">
         <td>
@@ -26,9 +40,15 @@ const UserRow = ({ user }: { user: UserSession }) => (
                 {user.isActive ? 'RUNNING' : 'STOPPED'}
             </span>
         </td>
+        <td style={{ textAlign: 'center' }}>{formatUptime(user.lastStartedAt)}</td>
         <td style={{ textAlign: 'center', fontWeight: '700', color: '#24A1DE' }}>{user.transcriptionCount || 0}</td>
         <td>{new Date(user.createdAt).toLocaleDateString()}</td>
         <td style={{ textAlign: 'right' }}>
+            {user.isActive && (
+                <button class="btn btn-sm restart-btn" data-userid={user.userId} style={{ padding: '4px 8px', fontSize: '10px', margin: '0 4px 0 0', background: '#F59E0B', color: '#000' }}>
+                    Restart Pod
+                </button>
+            )}
             <button class="btn btn-sm btn-danger deactivate-btn" data-userid={user.userId} style={{ padding: '4px 8px', fontSize: '10px', margin: 0, background: user.isActive ? '#ef4444' : '#6B7280' }}>
                 {user.isActive ? 'Stop Pod' : 'Delete'}
             </button>
@@ -52,7 +72,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
             <head>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>Whisper Messenger Admin</title>
+                <title>Echo Messenger Admin</title>
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
                 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
@@ -69,7 +89,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
                                 </svg>
                             </div>
-                            WHISPER ADMIN
+                            ECHO ADMIN
                         </div>
                         <div class="status-badge" title="Click to logout" dangerouslySetInnerHTML={{ __html: `<div class="status-dot"></div>SYSTEM ONLINE (LOGOUT)` }} />
                     </header>
@@ -176,7 +196,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">
-                                    <span style={{ color: '#8B5CF6' }}>✦</span> Whisper AI Provider
+                                    <span style={{ color: '#8B5CF6' }}>✦</span> Echo AI Provider
                                 </h3>
                                 <span id="whisper-status-tag" class="status-tag active">LOADING...</span>
                             </div>
@@ -237,6 +257,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                             <th style={{ padding: '10px 5px' }}>UID</th>
                                             <th style={{ padding: '10px 5px' }}>Phone</th>
                                             <th style={{ padding: '10px 5px', textAlign: 'center' }}>Pod Status</th>
+                                            <th style={{ padding: '10px 5px', textAlign: 'center' }}>Uptime</th>
                                             <th style={{ padding: '10px 5px', textAlign: 'center' }}>Voice Stats</th>
                                             <th style={{ padding: '10px 5px' }}>Joined</th>
                                             <th style={{ padding: '10px 5px', textAlign: 'right' }}>Actions</th>

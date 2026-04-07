@@ -33,7 +33,7 @@ export const renderHome = (googleClientId: string) => {
             <head>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>Whisper Messenger - Multi-Platform Voice Transcripts</title>
+                <title>Echo Messenger - Multi-Platform Voice Transcripts</title>
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
                 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
@@ -75,7 +75,7 @@ export const renderHome = (googleClientId: string) => {
                             <div class="logo-icon">
                                 <SparklesIcon size={32} color="white" strokeWidth={2.5} />
                             </div>
-                            <h1 class="title">Whisper Messenger</h1>
+                            <h1 class="title">Echo Messenger</h1>
                             <p class="subtitle">Personalized voice message transcription for Telegram, WhatsApp & Meta.</p>
                         </div>
 

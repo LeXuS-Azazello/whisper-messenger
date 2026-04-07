@@ -121,6 +121,13 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
   if (url.pathname === "/admin/tg-test-msg" && req.method === "POST") {
     const userId = await env.STATS.get("admin_tg_userId");
     const session = await env.STATS.get("admin_tg_session");
+    const userMetaRaw = userId ? await env.STATS.get(`user_meta_${userId}`) : null;
+    if (userMetaRaw) {
+      const userMeta = JSON.parse(userMetaRaw);
+      if (!userMeta.isActive) {
+        return Response.json({ error: "Pod is not running. Please restart the pod first." }, { status: 400 });
+      }
+    }
     if (!userId || !session) return Response.json({ error: "Not logged in" }, { status: 400 });
     try {
       const res = await fetch(`${env.BRIDGE_URL}/test-tg`, {
@@ -217,6 +224,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
       if(u) {
         const meta = JSON.parse(u);
         meta.isActive = false;
+        meta.lastStoppedAt = Date.now();
         await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
       }
     } else if (action === "delete") {
@@ -236,6 +244,49 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
        const listRaw = await env.STATS.get("users_list") || "[]";
        const list = JSON.parse(listRaw).filter((id: string) => id !== userId);
        await env.STATS.put("users_list", JSON.stringify(list));
+    } else if (action === "restart") {
+       const u = await env.STATS.get(`user_meta_${userId}`);
+       if(u) {
+         const meta = JSON.parse(u);
+         const sessionKey = `tg_session_${userId}`;
+         const sessionRaw = await env.STATS.get(sessionKey);
+         
+         try {
+           const res = await fetch(`${env.BRIDGE_URL}/delete`, {
+             method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+             body: JSON.stringify({ userId })
+           });
+           if (!res.ok) {
+             await logError("bridge", `/admin/user-action 'restart' (stop): bridge responded ${res.status}`, env);
+           }
+         } catch (e: any) {
+           await logError("bridge", `/admin/user-action 'restart' (stop) failed: ${e.message}`, env);
+         }
+         
+          if(sessionRaw) {
+            await new Promise(r => setTimeout(r, 1000));
+            try {
+              const res = await fetch(`${env.BRIDGE_URL}/spawn`, {
+                method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+                body: JSON.stringify({ userId, session: sessionRaw })
+              });
+              if (!res.ok) {
+                await logError("bridge", `/admin/user-action 'restart' (spawn): bridge responded ${res.status}`, env);
+                meta.isActive = false;
+              } else {
+                meta.isActive = true;
+                meta.lastStartedAt = Date.now();
+                delete meta.lastStoppedAt;
+              }
+            } catch (e: any) {
+              await logError("bridge", `/admin/user-action 'restart' (spawn) failed: ${e.message}`, env);
+              meta.isActive = false;
+            }
+          } else {
+            meta.isActive = false;
+          }
+          await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+       }
     }
     return Response.json({ success: true });
   }

@@ -322,7 +322,8 @@ async function handleNewMessage(event) {
         })).catch(() => {});
         
         const statusMsg = await userClient.sendMessage(targetPeer, { 
-            message: "⏳ Transcribing..." 
+            message: "⏳ Transcribing..." ,
+            replyTo: msg.senderId
             
         });
 
@@ -339,7 +340,7 @@ async function handleNewMessage(event) {
             for (const chunk of chunks) {
                 await userClient.sendMessage(targetPeer, { 
                     message: chunk, 
-                    replyTo: msg.id
+                    replyTo: msg.senderId
                 });
             }
         }
@@ -362,7 +363,7 @@ async function startUserClient() {
     if (!TG_SESSION) return console.error('[user] No TG_SESSION provided!');
     userClient = new TelegramClient(new StringSession(TG_SESSION), API_ID, API_HASH, { connectionRetries: 5 });
     await userClient.connect();
-    userClient.addEventHandler(handleNewMessage, new (require('telegram/events').NewMessage)({ incoming: true, outgoing: false }));
+        userClient.addEventHandler(handleNewMessage, new (require('telegram/events').NewMessage)({ incoming: true, outgoing: false }));
     console.log(`[user] Online.`);
 }
 

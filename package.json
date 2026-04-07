@@ -1,7 +1,7 @@
 {
-  "name": "whisper-messenger",
+  "name": "echo-messenger",
   "version": "1.0.8",
-  "description": "Cloudflare Worker for Meta voice message transcription using Whisper",
+  "description": "Cloudflare Worker for Meta voice message transcription using Whisper (Echo)",
   "main": "src/index.ts",
   "scripts": {
     "build": "npx wrangler deploy --dry-run",

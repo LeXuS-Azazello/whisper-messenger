@@ -121,6 +121,8 @@ export interface UserSession {
   createdAt: number;
   lastActiveAt: number;
   isActive: boolean;
+  lastStartedAt?: number;
+  lastStoppedAt?: number;
   transcriptionCount: number;
   metaToken?: string;
   instagramId?: string;

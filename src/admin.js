@@ -165,6 +165,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    document.querySelectorAll('.restart-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            var uid = btn.dataset.userid;
+            if(!confirm('Restart this pod? This will stop and restart the session without deleting data.')) return;
+            fetch('/admin/user-action', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: uid, action: 'restart' })
+            }).then(() => location.reload());
+        });
+    });
+
     // Whisper Config Logic
     function loadWhisperConfig() {
         fetch('/admin/whisper-config').then(r => r.json()).then(data => {

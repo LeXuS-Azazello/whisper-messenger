@@ -122,8 +122,8 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     await env.STATS.put(`email_verify_${token}`, email, { expirationTtl: 900 });
     
     const magicLink = `${url.origin}/auth/email/verify?token=${token}`;
-    const ok = await sendEmail(email, "Sign in to Whisper Messenger", `
-      <h1>Whisper Messenger</h1>
+    const ok = await sendEmail(email, "Sign in to Echo Messenger", `
+      <h1>Echo Messenger</h1>
       <p>Click the link below to sign in to your personal dashboard:</p>
       <a href="${magicLink}" style="padding:10px 20px;background:#8B5CF6;color:white;border-radius:8px;text-decoration:none;">Login Now</a>
       <p>If you didn't request this, you can ignore this email.</p>
@@ -316,7 +316,7 @@ export async function registerNewUser(data: any, env: Env, existingUserId?: stri
 export async function sendEmail(to: string, subject: string, body: string, env: Env) {
   const mailReq = {
     personalizations: [{ to: [{ email: to }] }],
-    from: { email: env.EMAIL_FROM || "no-reply@debug.org.ua", name: "Whisper Messenger" },
+    from: { email: env.EMAIL_FROM || "no-reply@debug.org.ua", name: "Echo Messenger" },
     subject: subject,
     content: [{ type: "text/html", value: body }]
   };
