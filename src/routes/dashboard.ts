@@ -1,0 +1,100 @@
+import { Env, UserSession } from "../types";
+import { renderDashboard } from "../dashboard_ui";
+import { logError } from "../logger";
+
+export async function handleUserDashboard(env: Env, req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  const userId = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1];
+
+  if (!userId) return new Response(null, { status: 302, headers: { "Location": "/" } });
+
+  const userStats = await env.STATS.get(`user_meta_${userId}`);
+  if (!userStats) {
+    return new Response("<html><body>Session expired or user deleted. <a href='/'>Click here to login again</a>.</body></html>", {
+      status: 401,
+      headers: { 
+        "Content-Type": "text/html; charset=utf-8",
+        "Set-Cookie": `user_id=deleted; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
+      }
+    });
+  }
+  const user: UserSession = JSON.parse(userStats);
+
+  if (req.method === "POST") {
+    if (url.pathname === "/dashboard/save-meta") {
+      const { metaToken } = await req.json() as any;
+      if (metaToken) {
+        // Fetch Page ID from Meta
+        const res = await fetch(`https://graph.facebook.com/${env.META_API_VERSION}/me?fields=id,name&access_token=${metaToken}`);
+        if (res.ok) {
+          const data: any = await res.json();
+          const pageId = data.id;
+          await env.STATS.put(`meta_page_owner_${pageId}`, userId);
+          user.metaToken = metaToken;
+          await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+          return Response.json({ success: true, pageId, name: data.name });
+        }
+        return Response.json({ error: "Invalid token" }, { status: 400 });
+      }
+      user.metaToken = "";
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+      return Response.json({ success: true });
+    }
+    if (url.pathname === "/dashboard/save-wa") {
+      const { whatsappToken, whatsappPhoneId } = await req.json() as any;
+      user.whatsappToken = whatsappToken;
+      user.whatsappPhoneId = whatsappPhoneId;
+      if (whatsappPhoneId) {
+        await env.STATS.put(`wa_phone_owner_${whatsappPhoneId}`, userId);
+      }
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+      return Response.json({ success: true });
+    }
+    if (url.pathname === "/dashboard/test-tg") {
+      try {
+        const session = await env.STATS.get(`tg_session_${userId}`);
+        const res = await fetch(`${env.BRIDGE_URL}/test-tg`, {
+          method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+          body: JSON.stringify({ userId, session })
+        });
+        if (!res.ok) {
+           const text = await res.text();
+           return Response.json({ success: false, error: `Bridge error ${res.status}: ${text}` });
+        }
+        return Response.json({ success: true });
+      } catch (e) {
+        return Response.json({ success: false, error: (e as Error).message });
+      }
+    }
+    if (url.pathname === "/dashboard/disconnect-tg") {
+      try {
+        const res = await fetch(`${env.BRIDGE_URL}/delete`, {
+          method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+          body: JSON.stringify({ userId })
+        });
+        if (!res.ok) await logError("bridge", `/dashboard/disconnect-tg: bridge responded ${res.status}`, env);
+      } catch (e: any) {
+        await logError("bridge", `/dashboard/disconnect-tg failed: ${e.message}`, env);
+      }
+      user.session = "";
+      user.isActive = false;
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+      await env.STATS.delete(`tg_session_${userId}`);
+      return Response.json({ success: true });
+    }
+  }
+
+  return new Response(renderDashboard(user), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+}
+
+export async function incrementUserStats(userId: string, env: Env) {
+  const global = await env.STATS.get("stats_telegram");
+  await env.STATS.put("stats_telegram", String(parseInt(global || "0", 10) + 1));
+  const metaRaw = await env.STATS.get(`user_meta_${userId}`);
+  if (metaRaw) {
+    const meta: UserSession = JSON.parse(metaRaw);
+    meta.transcriptionCount = (meta.transcriptionCount || 0) + 1;
+    meta.lastActiveAt = Date.now();
+    await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+  }
+}

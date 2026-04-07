@@ -153,8 +153,9 @@ app.post('/spawn', auth, async (req, res) => {
                 namespace,
                 labelSelector: `userId=${safeUserId}`
             });
-            if (existing && existing.items) {
-                for (const p of existing.items) {
+            const items = existing?.body?.items || existing?.items;
+            if (items && items.length > 0) {
+                for (const p of items) {
                     await k8sApi.deleteNamespacedPod({
                         name: p.metadata.name,
                         namespace
@@ -209,8 +210,9 @@ app.post('/delete', auth, async (req, res) => {
             labelSelector: `userId=${safeUserId}`
         });
         
-        if (existing && existing.items && existing.items.length > 0) {
-            for (const p of existing.items) {
+        const items = existing?.body?.items || existing?.items;
+        if (items && items.length > 0) {
+            for (const p of items) {
                 await k8sApi.deleteNamespacedPod({
                     name: p.metadata.name,
                     namespace
