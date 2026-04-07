@@ -230,12 +230,13 @@ app.post('/delete', auth, async (req, res) => {
 let userClient = null;
 async function handleNewMessage(event) {
     const msg = event.message;
-    if (!msg || (!msg.voice && !msg.audio)) return;
+    if (!msg || (!msg.voice && !msg.audio && !msg.videoNote && !msg.roundMessage)) return;
     try {
         const buffer = await userClient.downloadMedia(msg.media, { workers: 1 });
-        const { text, duration } = await transcribe(Buffer.from(buffer), msg.voice?.mimeType || 'audio/ogg');
+        const { text, duration } = await transcribe(Buffer.from(buffer), msg.voice?.mimeType || msg.videoNote?.mimeType || 'audio/ogg');
         if (text) {
-            await userClient.sendMessage(msg.chatId, { message: `📝 ${text}\n\n⏱ ${duration}s` });
+            const timeStr = typeof duration === 'number' ? duration.toFixed(1) : duration;
+            await userClient.sendMessage(msg.chatId, { message: `📝 ${text}\n\n⏱ ${timeStr}s`, replyTo: msg.id });
             if (WORKER_URL) {
                 await fetch(`${WORKER_URL}/internal/stats`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
