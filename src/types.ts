@@ -60,6 +60,7 @@ export interface AudioJob {
   senderId: string;
   audioUrl: string;
   platform: "messenger" | "instagram" | "whatsapp" | "telegram" | "threads";
+  replyToMsgId?: number;
 }
 
 export interface MetaMessage {

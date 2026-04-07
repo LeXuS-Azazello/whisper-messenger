@@ -339,7 +339,7 @@ async function handleNewMessage(event) {
             for (const chunk of chunks) {
                 await userClient.sendMessage(targetPeer, { 
                     message: chunk, 
-                    
+                    replyTo: msg.id
                 });
             }
         }

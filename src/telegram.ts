@@ -51,15 +51,19 @@ export interface TelegramWebhookUpdate {
   };
 }
 
-export async function sendTelegramMessage(chatId: string | number, text: string, env: Env): Promise<void> {
+export async function sendTelegramMessage(chatId: string | number, text: string, env: Env, replyToMsgId?: number): Promise<void> {
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const body: any = {
+    chat_id: chatId,
+    text: text,
+  };
+  if (replyToMsgId) {
+    body.reply_to_message_id = replyToMsgId;
+  }
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: text,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {

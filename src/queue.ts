@@ -7,7 +7,7 @@ import { logError } from "./logger";
 
 export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
   for (const message of batch.messages) {
-    const { userId, senderId, audioUrl, platform } = message.body;
+    const { userId, senderId, audioUrl, platform, replyToMsgId } = message.body;
     const start = Date.now();
 
     try {
@@ -74,7 +74,7 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
         }
       } else if (platform === "telegram") {
         for (const part of parts) {
-          await sendTelegramMessage(Number(senderId), part, env);
+          await sendTelegramMessage(Number(senderId), part, env, replyToMsgId);
         }
       } else {
         for (const part of parts) {

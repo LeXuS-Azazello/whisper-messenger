@@ -12,7 +12,7 @@ export async function handleTelegram(update: TelegramWebhookUpdate, env: Env): P
     await sendTelegramTypingOn(targetId, env);
     await sendTelegramMessage(targetId, "⏳ Transcribing...", env);
     const audioUrl = await getTelegramFileUrl(media.file_id, env);
-    if (audioUrl) await env.AUDIO_QUEUE.send({ senderId: String(targetId), audioUrl, platform: "telegram" });
+    if (audioUrl) await env.AUDIO_QUEUE.send({ senderId: String(targetId), audioUrl, platform: "telegram", replyToMsgId: msg.message_id });
   }
   return new Response("ok");
 }
