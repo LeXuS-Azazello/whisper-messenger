@@ -1,4 +1,3 @@
-import { sampleAudioBase64 } from './sample_audio';
 /** @jsxImportSource preact */
 import { render } from 'preact-render-to-string';
 import { Env, UserSession, HealthChecks } from './types';
@@ -61,6 +60,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                 <style dangerouslySetInnerHTML={{ __html: adminCss }} />
             </head>
             <body>
+                <div id="progress-bar"></div>
                 <div class="container">
                     <header>
                         <div class="logo">
@@ -271,194 +271,12 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                         </div>
                     </div>
                 </div>
-                <script dangerouslySetInnerHTML={{
-                    __html: `
-                    var tgPhoneInput = document.getElementById('tg-phone-input');
-                    var tgCodeInput = document.getElementById('tg-code-input');
-                    var tgSendCodeBtn = document.getElementById('tg-send-code-btn');
-                    var tgVerifyBtn = document.getElementById('tg-verify-btn');
-                    var tgCodeSection = document.getElementById('tg-code-section');
-                    var tgQrSection = document.getElementById('tg-qr-section');
-                    var tgShowQrBtn = document.getElementById('tg-show-qr-btn');
-                    var tgAuthMessage = document.getElementById('tg-auth-message');
-                    var tgAuthForm = document.getElementById('tg-auth-form');
-                    var tgAuthStatusContainer = document.getElementById('tg-auth-status-container');
-                    var tgAuthDetails = document.getElementById('tg-auth-details');
-                    var qrCodeContainer = document.getElementById('qr-code-container');
-                    var qrStatus = document.getElementById('qr-status');
-                    var currentPhone = '';
-                    var qrPollInterval = null;
-
-                    function checkTgStatus() {
-                        fetch('/admin/tg-status').then(r => r.json()).then(data => {
-                            if (data.authenticated) {
-                                tgAuthForm.style.display = 'none';
-                                tgAuthStatusContainer.style.display = 'block';
-                                tgAuthDetails.innerText = 'Connected as User ID: ' + data.userId;
-                            } else {
-                                tgAuthForm.style.display = 'block';
-                                tgAuthStatusContainer.style.display = 'none';
-                            }
-                        });
-                    }
-                    checkTgStatus();
-
-                    function showTgStatus(msg, isError) {
-                        tgAuthMessage.innerText = msg;
-                        tgAuthMessage.style.color = isError ? '#ef4444' : '#22c55e';
-                    }
-
-                    tgSendCodeBtn.addEventListener('click', function() {
-                        var phone = tgPhoneInput.value.trim();
-                        if (!phone) return alert('Enter phone');
-                        tgSendCodeBtn.innerText = 'Sending...';
-                        fetch('/admin/tg-send-code', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ phoneNumber: phone })
-                        })
-                        .then(r => r.json())
-                        .then(data => {
-                            if (data.success) {
-                                currentPhone = phone;
-                                tgCodeSection.style.display = 'block';
-                                showTgStatus('Code sent to Telegram', false);
-                            } else { alert('Error: ' + data.error); }
-                            tgSendCodeBtn.innerText = 'Send Code';
-                        });
-                    });
-
-                    tgVerifyBtn.addEventListener('click', function() {
-                        var code = tgCodeInput.value.trim();
-                        if (!code) return alert('Enter code');
-                        tgVerifyBtn.innerText = 'Verifying...';
-                        fetch('/admin/tg-verify-code', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ phoneNumber: currentPhone, code: code })
-                        })
-                        .then(r => r.json())
-                        .then(data => {
-                            if (data.success) { checkTgStatus(); location.reload(); }
-                            else { alert('Error: ' + data.error); }
-                            tgVerifyBtn.innerText = 'Verify';
-                        });
-                    });
-
-                    tgShowQrBtn.addEventListener('click', function() {
-                        tgQrSection.style.display = 'block';
-                        tgShowQrBtn.style.display = 'none';
-                        fetch('/admin/tg-qr-login', { method: 'POST' })
-                        .then(r => r.json())
-                        .then(data => {
-                            if (data.token) {
-                                qrCodeContainer.innerHTML = '';
-                                new QRCode(qrCodeContainer, { text: data.qrUrl, width: 180, height: 180 });
-                                qrStatus.innerText = 'Scan now...';
-                                qrPollInterval = setInterval(() => {
-                                    fetch('/admin/tg-qr-check?token=' + data.token)
-                                    .then(r => r.json())
-                                    .then(status => {
-                                        if (status.authenticated) { clearInterval(qrPollInterval); checkTgStatus(); location.reload(); }
-                                    });
-                                }, 2500);
-                            }
-                        });
-                    });
-
-                    document.getElementById('tg-logout-btn').addEventListener('click', function() {
-                        if(!confirm('Disconnect Telegram?')) return;
-                        fetch('/admin/tg-logout', { method: 'POST' }).then(() => { checkTgStatus(); location.reload(); });
-                    });
-
-                    document.getElementById('tg-test-btn').addEventListener('click', function() {
-                        fetch('/admin/tg-test-msg', { method: 'POST' })
-                            .then(r => r.json())
-                            .then(d => alert(d.success ? 'Success! Check your Telegram' : 'Error: ' + d.error));
-                    });
-
-                    var tgTestVoiceBtn = document.getElementById('tg-test-voice-btn');
-                    tgTestVoiceBtn.addEventListener('click', function() {
-                        const originalText = tgTestVoiceBtn.innerText;
-                        tgTestVoiceBtn.innerText = 'Sending Voice...';
-                        tgTestVoiceBtn.disabled = true;
-                        fetch('/admin/tg-test-voice', { method: 'POST' })
-                            .then(r => r.json())
-                            .then(d => alert(d.success ? 'Success! Voice message sent to yourself. Check your Telegram for the transcription.' : 'Error: ' + d.error))
-                            .finally(() => { 
-                                tgTestVoiceBtn.innerText = originalText;
-                                tgTestVoiceBtn.disabled = false;
-                            });
-                    });
-
-                    document.querySelectorAll('.deactivate-btn').forEach(btn => {
-                        btn.addEventListener('click', () => {
-                            var uid = btn.dataset.userid;
-                            var action = btn.innerText.includes('Stop') ? 'stop' : 'delete';
-                            if(!confirm('Are you sure?')) return;
-                            fetch('/admin/user-action', {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ userId: uid, action: action })
-                            }).then(() => location.reload());
-                        });
-                    });
-
-                    // Whisper Config Logic
-                    function loadWhisperConfig() {
-                        fetch('/admin/whisper-config').then(r => r.json()).then(data => {
-                            if (data.provider === 'local') {
-                                document.getElementById('provider-local').checked = true;
-                            } else {
-                                document.getElementById('provider-cf').checked = true;
-                            }
-                            document.getElementById('whisper-status-tag').innerText = data.provider.toUpperCase();
-                        });
-                    }
-                    loadWhisperConfig();
-
-                    document.getElementById('save-whisper-btn').addEventListener('click', () => {
-                        const provider = document.querySelector('input[name="whisper_provider"]:checked').value;
-                        
-                        document.getElementById('save-whisper-btn').innerText = 'Saving...';
-                        fetch('/admin/whisper-config', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ provider })
-                        }).then(r => r.json()).then(d => {
-                            alert(d.success ? 'Whisper config saved' : 'Error: ' + d.error);
-                            document.getElementById('save-whisper-btn').innerText = 'Save Whisper Config';
-                            loadWhisperConfig();
-                        });
-                    });
-
-                    // Test Speech2Text button handler
-                    document.getElementById('test-s2t-btn').addEventListener('click', () => {
-                        const provider = document.querySelector('input[name="whisper_provider"]:checked').value;
-                        const sampleUrl = '${sampleAudioBase64}';
-                        fetch(sampleUrl)
-                            .then(r => r.blob())
-                            .then(blob => {
-                                const form = new FormData();
-                                form.append('file', blob, 'sample.wav');
-                                return fetch('/test-whisper?provider=' + provider, {
-                                    method: 'POST',
-                                    body: form
-                                });
-                            })
-                            .then(r => r.json())
-                            .then(data => {
-                                alert(data.success ? '✅ ' + provider + ' transcription: ' + data.text : '❌ Error: ' + data.error);
-                            })
-                            .catch(e => alert('Fetch error: ' + e));
-                    });
-
-                    document.querySelector('.status-badge').addEventListener('click', () => {
-                        location.href = '/admin/logout';
-                    });
-                    `
-                }} />
+                <script src="/admin/js"></script>
             </body>
         </html>
     );
 };
+
 
 export const renderAdminLogin = (error?: string) => {
     return "<!DOCTYPE html>" + render(

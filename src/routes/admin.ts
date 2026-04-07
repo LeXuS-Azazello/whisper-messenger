@@ -2,6 +2,9 @@ import { Env, UserSession, HealthChecks } from "../types";
 import { ErrorLog, getErrors, logError } from "../logger";
 import { renderAdminDashboard, renderAdminLogin } from "../admin_ui";
 import { createSignedSession, verifySession } from "../session";
+import { sampleAudioBase64 } from "../sample_audio";
+// @ts-ignore
+import ADMIN_JS_CONTENT from "../admin.js";
 
 export async function handleAdmin(env: Env, req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -23,11 +26,20 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
   
   if (adminId !== "admin") return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
 
-  // Basic CSRF check for POST actions
   if (req.method === "POST" && !req.headers.get("Origin")?.includes(url.hostname)) {
       if (req.headers.get("Origin")) { // allow no origin for some tools, but check if present
           return new Response("CSRF block", { status: 403 });
       }
+  }
+
+  // --- Static Assets Routes ---
+  if (url.pathname === "/admin/js") {
+    // @ts-ignore - imported via wrangler rules as text
+    return new Response(ADMIN_JS_CONTENT, { headers: { "Content-Type": "application/javascript" } });
+  }
+
+  if (url.pathname === "/admin/sample-audio") {
+    return Response.json({ url: sampleAudioBase64 });
   }
 
   // --- Admin Telegram Proxy Routes ---

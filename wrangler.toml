@@ -56,5 +56,5 @@ head_sampling_rate = 1
 
 [[rules]]
 type = "Text"
-globs = ["**/*.css"]
+globs = ["**/*.css", "**/*.js"]
 fallthrough = true

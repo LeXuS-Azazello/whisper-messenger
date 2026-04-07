@@ -62,7 +62,9 @@ function getRecognizer() {
 async function convertAudioToPcm(inputBuffer, mimeType) {
   ensureTempDir();
 
-  const inputExt = mimeType.includes('mp3') ? 'mp3' : 'ogg';
+  let inputExt = 'ogg';
+  if (mimeType.includes('mp3')) inputExt = 'mp3';
+  else if (mimeType.includes('mp4') || mimeType.includes('video')) inputExt = 'mp4';
   const inputPath = path.join(TEMP_DIR, `input_${Date.now()}.${inputExt}`);
   const outputPath = path.join(TEMP_DIR, `output_${Date.now()}.wav`);
 
