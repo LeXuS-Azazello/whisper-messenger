@@ -21,6 +21,10 @@ export interface Env {
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   STATS: KVNamespace;
+  // Whisper Config
+  WHISPER_PROVIDER?: "cloudflare" | "local";
+  LOCAL_WHISPER_URL?: string;
+  LOCAL_WHISPER_SECRET?: string;
   
   // SMTP Config
   EMAIL_FROM?: string;

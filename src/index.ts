@@ -75,7 +75,9 @@ export default {
     return new Response("404");
   },
 
-  queue,
+  async queue(batch: MessageBatch<any>, env: Env) {
+    return queue(batch, env);
+  },
 } satisfies ExportedHandler<Env>;
 
 async function handlePublicAuth(env: Env, req: Request): Promise<Response> {
@@ -501,6 +503,48 @@ async function handleAdmin(env: Env, req: Request): Promise<Response> {
   }
   
   const errors = await getErrors(env);
+
+  if (url.pathname === "/admin/whisper-config") {
+    if (req.method === "GET") {
+      const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || "cloudflare";
+      const urlText = await env.STATS.get("config_local_whisper_url") || env.LOCAL_WHISPER_URL || "";
+      const secretToken = await env.STATS.get("config_local_whisper_secret") || env.LOCAL_WHISPER_SECRET || "";
+      return Response.json({ provider, url: urlText, secret: secretToken });
+    }
+    if (req.method === "POST") {
+      const { provider, url: urlText, secret } = await req.json() as any;
+      await env.STATS.put("config_whisper_provider", provider);
+      await env.STATS.put("config_local_whisper_url", urlText);
+      await env.STATS.put("config_local_whisper_secret", secret);
+      return Response.json({ success: true });
+    }
+  }
+
+  if (url.pathname === "/admin/user-action" && req.method === "POST") {
+    const { userId, action } = await req.json() as any;
+    if (action === "stop") {
+      const res = await fetch(`${env.BRIDGE_URL}/delete`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+        body: JSON.stringify({ userId })
+      });
+      if (res.ok) {
+        const u = await env.STATS.get(`user_meta_${userId}`);
+        if(u) {
+          const meta = JSON.parse(u);
+          meta.isActive = false;
+          await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+        }
+      }
+    } else if (action === "delete") {
+       // Deep delete
+       await env.STATS.delete(`user_meta_${userId}`);
+       const listRaw = await env.STATS.get("users_list") || "[]";
+       const list = JSON.parse(listRaw).filter((id: string) => id !== userId);
+       await env.STATS.put("users_list", JSON.stringify(list));
+    }
+    return Response.json({ success: true });
+  }
+
   return new Response(renderAdminDashboard(checks, env, url.origin, stats, errors, users), {
     headers: { "Content-Type": "text/html; charset=utf-8" }
   });

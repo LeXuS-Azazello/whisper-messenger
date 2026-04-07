@@ -173,6 +173,38 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
 
                         <div class="card">
                             <div class="card-header">
+                                <h3 class="card-title">
+                                    <span style={{ color: '#8B5CF6' }}>✦</span> Whisper AI Provider
+                                </h3>
+                                <span id="whisper-status-tag" class="status-tag active">LOADING...</span>
+                            </div>
+                            <div style={{ marginTop: '10px' }}>
+                                <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                        <input type="radio" name="whisper_provider" value="cloudflare" id="provider-cf" /> 
+                                        <span style={{ fontSize: '14px' }}>Cloudflare AI</span>
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                        <input type="radio" name="whisper_provider" value="local" id="provider-local" />
+                                        <span style={{ fontSize: '14px' }}>Local Sherpa ONNX</span>
+                                    </label>
+                                </div>
+                                <div id="local-config-fields" style={{ display: 'none' }}>
+                                    <div class="input-group" style={{ marginBottom: '10px' }}>
+                                        <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>LOCAL_WHISPER_URL</label>
+                                        <input type="text" id="whisper-url-input" class="input-field" placeholder="https://whisper.example.com" style={{ width: '100%', padding: '0.6rem', margin: 0, borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white' }} />
+                                    </div>
+                                    <div class="input-group">
+                                        <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>LOCAL_WHISPER_SECRET</label>
+                                        <input type="password" id="whisper-secret-input" class="input-field" placeholder="Secret key" style={{ width: '100%', padding: '0.6rem', margin: 0, borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white' }} />
+                                    </div>
+                                </div>
+                                <button class="btn" id="save-whisper-btn" style={{ marginTop: '15px', background: '#8B5CF6', width: '100%', borderRadius: '12px', padding: '10px', fontWeight: '600' }}>Save Whisper Config</button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
                                 <h3 class="card-title">Transcription Stats</h3>
                                 <div style={{ fontSize: '12px', background: 'var(--primary)', padding: '2px 8px', borderRadius: '4px' }}>
                                     Total: {Object.values(stats).reduce((a: any, b: any) => a + b, 0)}
@@ -360,6 +392,46 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                             }).then(() => location.reload());
                         });
                     });
+
+                    // Whisper Config Logic
+                    function loadWhisperConfig() {
+                        fetch('/admin/whisper-config').then(r => r.json()).then(data => {
+                            if (data.provider === 'local') {
+                                document.getElementById('provider-local').checked = true;
+                                document.getElementById('local-config-fields').style.display = 'block';
+                            } else {
+                                document.getElementById('provider-cf').checked = true;
+                            }
+                            document.getElementById('whisper-url-input').value = data.url || '';
+                            document.getElementById('whisper-secret-input').value = data.secret || '';
+                            document.getElementById('whisper-status-tag').innerText = data.provider.toUpperCase();
+                        });
+                    }
+                    loadWhisperConfig();
+
+                    document.getElementsByName('whisper_provider').forEach(radio => {
+                        radio.addEventListener('change', (e) => {
+                            document.getElementById('local-config-fields').style.display = e.target.value === 'local' ? 'block' : 'none';
+                        });
+                    });
+
+                    document.getElementById('save-whisper-btn').addEventListener('click', () => {
+                        const provider = document.querySelector('input[name="whisper_provider"]:checked').value;
+                        const url = document.getElementById('whisper-url-input').value;
+                        const secret = document.getElementById('whisper-secret-input').value;
+                        
+                        document.getElementById('save-whisper-btn').innerText = 'Saving...';
+                        fetch('/admin/whisper-config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ provider, url, secret })
+                        }).then(r => r.json()).then(d => {
+                            alert(d.success ? 'Whisper config saved' : 'Error: ' + d.error);
+                            document.getElementById('save-whisper-btn').innerText = 'Save Whisper Config';
+                            loadWhisperConfig();
+                        });
+                    });
+
                     document.querySelector('.status-badge').addEventListener('click', () => {
                         document.cookie = 'auth=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
                         location.reload();

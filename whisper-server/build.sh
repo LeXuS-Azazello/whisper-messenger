@@ -1,9 +1,9 @@
 #!/bin/bash
-# Build and push mtproto-bridge image to Docker Hub
+# Build and push whisper-onnx image to Docker Hub
 
 set -e
 
-IMAGE_NAME="azazellosaraksh/debugging-mtproto-bridge:latest"
+IMAGE_NAME="azazellosaraksh/debugging-whisper-onnx:latest"
 
 echo "Building Docker image: $IMAGE_NAME"
 

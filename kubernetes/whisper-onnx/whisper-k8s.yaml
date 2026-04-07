@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whisper-onnx
+  namespace: debugging-whispermsg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whisper-onnx
+  template:
+    metadata:
+      labels:
+        app: whisper-onnx
+    spec:
+      containers:
+      - name: whisper
+        image: azazellosaraksh/debugging-whisper-onnx:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: WHISPER_SECRET
+          value: "whisper-sh-secret-2026"
+        resources:
+          requests:
+            cpu: "0.5"
+            memory: "1Gi"
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whisper-onnx
+  namespace: debugging-whispermsg
+spec:
+  selector:
+    app: whisper-onnx
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP

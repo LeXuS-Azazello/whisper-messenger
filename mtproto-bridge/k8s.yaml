@@ -66,6 +66,10 @@ spec:
           value: "f4b04260ccfa4f1ea34c4fab2d53ed1d"
         - name: CF_API_TOKEN
           value: "5-iiz7W_m1F166Lw6GzF6e18LHe_3EAn0C84U5Yj"
+        - name: WHISPER_SERVER_URL
+          value: "http://whisper-onnx:8000"
+        - name: WHISPER_SECRET
+          value: "whisper-sh-secret-2026"
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:

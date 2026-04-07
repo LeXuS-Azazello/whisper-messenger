@@ -151,7 +151,9 @@ app.post('/spawn', auth, async (req, res) => {
                     { name: 'TG_API_ID', value: String(API_ID) },
                     { name: 'TG_API_HASH', value: API_HASH },
                     { name: 'BRIDGE_SECRET', value: SECRET },
-                    { name: 'WORKER_URL', value: WORKER_URL }
+                    { name: 'WORKER_URL', value: WORKER_URL },
+                    { name: 'WHISPER_SERVER_URL', value: process.env.WHISPER_SERVER_URL || '' },
+                    { name: 'WHISPER_SECRET', value: process.env.WHISPER_SECRET || '' }
                 ],
                 resources: { requests: { memory: '512Mi' }, limits: { memory: '1Gi' } }
             }]
