@@ -1,8 +1,8 @@
 import { renderAdminDashboard, renderAdminLogin } from "./admin_ui";
 import { renderAuthPage } from "./auth_ui";
 import { renderDashboard } from "./dashboard_ui";
-import { renderHomePage } from "./home_ui";
-import { Env, UserSession, AudioJob, MetaWebhookBody, WhatsAppWebhookBody } from "./types";
+import { renderHome } from "./home_ui";
+import { Env, UserSession, AudioJob, MetaWebhookBody, WhatsAppWebhookBody, HealthChecks } from "./types";
 
 import { sendMessageSafe, sendTypingOn, MetaNonRetryableError } from "./meta";
 import { sendWhatsAppMessageSafe, sendWhatsAppTypingOn, getWhatsAppAudioUrl } from "./whatsapp";
@@ -18,7 +18,7 @@ export default {
     if (url.pathname === "/health") return Response.json({ ok: true });
     
     if (url.pathname === "/") {
-        return new Response(renderHomePage(env.GOOGLE_CLIENT_ID), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+        return new Response(renderHome(env.GOOGLE_CLIENT_ID), { headers: { "Content-Type": "text/html; charset=utf-8" } });
     }
 
     // Public Auth Routes
@@ -67,7 +67,7 @@ export default {
       if (verifyError) return verifyError;
 
       if (body.object === "whatsapp_business_account") return handleWhatsApp(body, env);
-      if (body.object === "page" || body.object === "instagram") return handleMetaMessaging(body, env);
+      if (body.object === "page" || body.object === "instagram" || body.object === "threads") return handleMetaMessaging(body, env);
 
       return new Response("ok");
     }
@@ -136,12 +136,13 @@ async function handlePublicAuth(env: Env, req: Request): Promise<Response> {
     const idToken = formData.get("credential")?.toString();
     if (!idToken) return new Response("Missing credential", { status: 400 });
 
-    // Decode JWT from Google (base64 part 1=header, 2=payload)
     try {
       const payloadBase64 = idToken.split(".")[1];
       const payload = JSON.parse(atob(payloadBase64));
       
-      // In prod, check audience: if (payload.aud !== env.GOOGLE_CLIENT_ID) throw new Error("Invalid aud");
+      if (payload.aud !== env.GOOGLE_CLIENT_ID) {
+          throw new Error("Invalid Google Client ID (audience mismatch)");
+      }
       
       const userId = `google_${payload.sub}`;
       const existingRaw = await env.STATS.get(`user_meta_${userId}`);
@@ -172,6 +173,156 @@ async function handlePublicAuth(env: Env, req: Request): Promise<Response> {
     }
   }
 
+  if (req.method === "POST" && url.pathname === "/auth/email/send") {
+    const { email } = await req.json() as any;
+    if (!email || !email.includes("@")) return Response.json({ error: "Invalid email" }, { status: 400 });
+    
+    const token = crypto.randomUUID();
+    await env.STATS.put(`email_verify_${token}`, email, { expirationTtl: 900 });
+    
+    const magicLink = `${url.origin}/auth/email/verify?token=${token}`;
+    const ok = await sendEmail(email, "Sign in to Whisper Messenger", `
+      <h1>Whisper Messenger</h1>
+      <p>Click the link below to sign in to your personal dashboard:</p>
+      <a href="${magicLink}" style="padding:10px 20px;background:#8B5CF6;color:white;border-radius:8px;text-decoration:none;">Login Now</a>
+      <p>If you didn't request this, you can ignore this email.</p>
+      <br><small>Link expires in 15 minutes.</small>
+    `, env);
+    
+    return Response.json({ success: ok });
+  }
+
+  if (req.method === "GET" && url.pathname === "/auth/email/verify") {
+    const token = url.searchParams.get("token");
+    if (!token) return new Response("Missing token", { status: 400 });
+    
+    const email = await env.STATS.get(`email_verify_${token}`);
+    if (!email) return new Response("Invalid or expired link", { status: 400 });
+    
+    await env.STATS.delete(`email_verify_${token}`);
+    const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    
+    const existingRaw = await env.STATS.get(`user_meta_${userId}`);
+    if (!existingRaw) {
+        const user: UserSession = {
+            userId, firstName: email.split("@")[0],
+            session: "", platform: "telegram", transcriptionCount: 0,
+            isActive: false, createdAt: Date.now(), lastActiveAt: Date.now()
+        };
+        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+        const listRaw = await env.STATS.get("users_list") || "[]";
+        const list = JSON.parse(listRaw);
+        if (!list.includes(userId)) {
+          list.push(userId);
+          await env.STATS.put("users_list", JSON.stringify(list));
+        }
+    }
+
+    return new Response("Redirecting...", {
+      status: 302, headers: { 
+          "Location": "/dashboard",
+          "Set-Cookie": `user_id=${userId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000` 
+      }
+    });
+  }
+
+  if (req.method === "GET" && url.pathname === "/auth/meta/login") {
+      const redirectUri = encodeURIComponent(`${url.origin}/auth/meta/callback`);
+      const fbUrl = `https://www.facebook.com/${env.META_API_VERSION}/dialog/oauth?client_id=${env.META_APP_ID}&redirect_uri=${redirectUri}&scope=pages_messaging,instagram_manage_messages,pages_show_list,instagram_basic,instagram_manage_comments`;
+      return Response.redirect(fbUrl, 302);
+  }
+
+  if (req.method === "GET" && url.pathname === "/auth/meta/callback") {
+      const code = url.searchParams.get("code");
+      const userId = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1];
+      if (!code || !userId) return new Response("Missing parameters", { status: 400 });
+
+      // 1. Exchange code for user access token
+      const redirectUri = `${url.origin}/auth/meta/callback`;
+      const tokenRes = await fetch(`https://graph.facebook.com/${env.META_API_VERSION}/oauth/access_token?client_id=${env.META_APP_ID}&redirect_uri=${redirectUri}&client_secret=${env.META_APP_SECRET}&code=${code}`);
+      const tokenData: any = await tokenRes.json();
+      if (!tokenRes.ok) return new Response(`FB Error: ${JSON.stringify(tokenData)}`, { status: 400 });
+
+      const userToken = tokenData.access_token;
+      
+      // 2. Search for Pages connected to this user
+      const pagesRes = await fetch(`https://graph.facebook.com/${env.META_API_VERSION}/me/accounts?access_token=${userToken}`);
+      const pagesData: any = await pagesRes.json();
+      if (!pagesRes.ok || !pagesData.data) return new Response("Failed to fetch pages", { status: 400 });
+
+      // Automatically pick first page for simplicity or show picker (simplicity first)
+      const page = pagesData.data[0];
+      if (!page) return new Response("No pages found", { status: 400 });
+
+      const pageId = page.id;
+      const pageToken = page.access_token;
+      
+      // 3. Optional: Check for Instagram ID
+      const igRes = await fetch(`https://graph.facebook.com/${env.META_API_VERSION}/${pageId}?fields=instagram_business_account&access_token=${pageToken}`);
+      const igData: any = await igRes.json();
+      const instagramId = igData.instagram_business_account?.id;
+
+      // 4. Subscribe the Page to Webhooks
+      await fetch(`https://graph.facebook.com/${env.META_API_VERSION}/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks&access_token=${pageToken}`, {
+          method: "POST"
+      });
+
+      // 5. Save mapping and token
+      await env.STATS.put(`meta_page_owner_${pageId}`, userId);
+      if (instagramId) {
+          await env.STATS.put(`meta_page_owner_${instagramId}`, userId);
+      }
+      
+      const userData = await env.STATS.get(`user_meta_${userId}`);
+      if (userData) {
+          const user: UserSession = JSON.parse(userData);
+          user.metaToken = pageToken;
+          if (instagramId) user.instagramId = instagramId;
+          await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+      }
+
+      return Response.redirect(`${url.origin}/dashboard`, 302);
+  }
+
+  // Threads OAuth
+  if (req.method === "GET" && url.pathname === "/auth/threads/login") {
+      const redirectUri = encodeURIComponent(`${url.origin}/auth/threads/callback`);
+      const threadsUrl = `https://www.threads.net/oauth/authorize?client_id=${env.META_THREADS_APP_ID}&redirect_uri=${redirectUri}&scope=threads_basic,threads_publish&response_type=code`;
+      return Response.redirect(threadsUrl, 302);
+  }
+
+  if (req.method === "GET" && url.pathname === "/auth/threads/callback") {
+      const code = url.searchParams.get("code");
+      const userId = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1];
+      if (!code || !userId) return new Response("Missing parameters", { status: 400 });
+
+      // 1. Exchange code for short-lived token
+      const redirectUri = `${url.origin}/auth/threads/callback`;
+      const tokenRes = await fetch(`https://graph.threads.net/oauth/access_token?client_id=${env.META_THREADS_APP_ID}&client_secret=${env.META_THREADS_APP_SECRET}&grant_type=authorization_code&redirect_uri=${redirectUri}&code=${code}`);
+      const tokenData: any = await tokenRes.json();
+      if (!tokenRes.ok) return new Response(`Threads Error: ${JSON.stringify(tokenData)}`, { status: 400 });
+
+      const threadsUserId = tokenData.user_id;
+      const shortToken = tokenData.access_token;
+
+      // 2. Exchange for long-lived token
+      const longRes = await fetch(`https://graph.threads.net/access_token?grant_type=th_exchange_token&client_secret=${env.META_THREADS_APP_SECRET}&access_token=${shortToken}`);
+      const longData: any = await longRes.json();
+      const longToken = longData.access_token;
+
+      // 3. Save to KV
+      await env.STATS.put(`threads_owner_${threadsUserId}`, userId);
+      const userData = await env.STATS.get(`user_meta_${userId}`);
+      if (userData) {
+          const user: UserSession = JSON.parse(userData);
+          user.threadsToken = longToken;
+          user.threadsUserId = threadsUserId;
+          await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+      }
+
+      return Response.redirect(`${url.origin}/dashboard`, 302);
+  }
+
   return new Response("Not found", { status: 404 });
 }
 
@@ -184,7 +335,6 @@ async function registerNewUser(data: any, env: Env, existingUserId?: string) {
   if (existingRaw) {
     user = JSON.parse(existingRaw);
     user.session = session;
-    // user.firstName = firstName; // Keep existing name if google
     user.lastActiveAt = Date.now();
     user.isActive = true;
   } else {
@@ -204,30 +354,44 @@ async function registerNewUser(data: any, env: Env, existingUserId?: string) {
   await env.STATS.put(`user_meta_${targetUserId}`, JSON.stringify(user));
   await env.STATS.put(`tg_session_${targetUserId}`, session);
 
-  await fetch(`${env.BRIDGE_URL}/spawn`, {
+  const spawnRes = await fetch(`${env.BRIDGE_URL}/spawn`, {
     method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
     body: JSON.stringify({ userId: targetUserId, session })
-  }).catch(() => {});
+  });
+  
+  if (!spawnRes.ok) {
+    const err = await spawnRes.text();
+    await logError("bridge", `Failed to spawn pod for ${targetUserId}: ${err}`, env);
+  }
 }
 
 async function handleUserDashboard(env: Env, req: Request): Promise<Response> {
   const url = new URL(req.url);
   const userId = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1];
 
-  if (!userId) {
-    return new Response(null, { status: 302, headers: { "Location": "/auth" } });
-  }
+  if (!userId) return new Response(null, { status: 302, headers: { "Location": "/" } });
 
   const userData = await env.STATS.get(`user_meta_${userId}`);
-  if (!userData) {
-    return new Response(null, { status: 302, headers: { "Location": "/auth" } });
-  }
+  if (!userData) return new Response(null, { status: 302, headers: { "Location": "/" } });
   const user: UserSession = JSON.parse(userData);
 
   if (req.method === "POST") {
     if (url.pathname === "/dashboard/save-meta") {
       const { metaToken } = await req.json() as any;
-      user.metaToken = metaToken;
+      if (metaToken) {
+        // Fetch Page ID from Meta
+        const res = await fetch(`https://graph.facebook.com/${env.META_API_VERSION}/me?fields=id,name&access_token=${metaToken}`);
+        if (res.ok) {
+          const data: any = await res.json();
+          const pageId = data.id;
+          await env.STATS.put(`meta_page_owner_${pageId}`, userId);
+          user.metaToken = metaToken;
+          await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+          return Response.json({ success: true, pageId, name: data.name });
+        }
+        return Response.json({ error: "Invalid token" }, { status: 400 });
+      }
+      user.metaToken = "";
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
       return Response.json({ success: true });
     }
@@ -235,6 +399,9 @@ async function handleUserDashboard(env: Env, req: Request): Promise<Response> {
       const { whatsappToken, whatsappPhoneId } = await req.json() as any;
       user.whatsappToken = whatsappToken;
       user.whatsappPhoneId = whatsappPhoneId;
+      if (whatsappPhoneId) {
+        await env.STATS.put(`wa_phone_owner_${whatsappPhoneId}`, userId);
+      }
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
       return Response.json({ success: true });
     }
@@ -242,24 +409,6 @@ async function handleUserDashboard(env: Env, req: Request): Promise<Response> {
       const res = await fetch(`${env.BRIDGE_URL}/test-tg`, {
         method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
         body: JSON.stringify({ userId })
-      });
-      return Response.json({ success: res.ok });
-    }
-    if (url.pathname === "/dashboard/test-meta") {
-      const { recipientId } = await req.json() as any;
-      if (!user.metaToken) return Response.json({ error: "No token" }, { status: 400 });
-      const res = await fetch(`https://graph.facebook.com/${env.META_API_VERSION}/me/messages?access_token=${user.metaToken}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipient: { id: recipientId }, message: { text: "Whisper Test ✅" } })
-      });
-      return Response.json({ success: res.ok });
-    }
-    if (url.pathname === "/dashboard/test-wa") {
-      const { recipientId } = await req.json() as any;
-      if (!user.whatsappToken || !user.whatsappPhoneId) return Response.json({ error: "Missing config" }, { status: 400 });
-      const res = await fetch(`https://graph.facebook.com/${env.META_API_VERSION}/${user.whatsappPhoneId}/messages`, {
-        method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user.whatsappToken}` },
-        body: JSON.stringify({ messaging_product: "whatsapp", to: recipientId, type: "text", text: { body: "Whisper Test ✅" } })
       });
       return Response.json({ success: res.ok });
     }
@@ -280,11 +429,8 @@ async function handleUserDashboard(env: Env, req: Request): Promise<Response> {
 }
 
 async function incrementUserStats(userId: string, env: Env) {
-  // 1. Global TG Stats
   const global = await env.STATS.get("stats_telegram");
   await env.STATS.put("stats_telegram", String(parseInt(global || "0", 10) + 1));
-
-  // 2. Per-user Stats
   const metaRaw = await env.STATS.get(`user_meta_${userId}`);
   if (metaRaw) {
     const meta: UserSession = JSON.parse(metaRaw);
@@ -294,115 +440,38 @@ async function incrementUserStats(userId: string, env: Env) {
   }
 }
 
+async function sendEmail(to: string, subject: string, body: string, env: Env) {
+  const mailReq = {
+    personalizations: [{ to: [{ email: to }] }],
+    from: { email: env.EMAIL_FROM || "no-reply@debug.org.ua", name: "Whisper Messenger" },
+    subject: subject,
+    content: [{ type: "text/html", value: body }]
+  };
+  const res = await fetch("https://api.mailchannels.net/tx/v1/send", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(mailReq)
+  });
+  if (!res.ok) {
+    console.error("MailChannels error:", await res.text());
+    return false;
+  }
+  return true;
+}
+
 async function handleAdmin(env: Env, req: Request): Promise<Response> {
   const url = new URL(req.url);
   const cookieAuth = req.headers.get("Cookie")?.match(/auth=([^;]+)/)?.[1];
-
+  
   if (req.method === "POST" && url.pathname === "/admin/login") {
     const formData = await req.formData();
     const password = formData.get("password")?.toString();
     if (password === env.ADMIN_SECRET) {
-      return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `auth=${password}; Path=/; HttpOnly` } });
+      return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `auth=${env.ADMIN_SECRET}; Path=/; HttpOnly; SameSite=Lax` } });
     }
-    return new Response(renderAdminLogin("Invalid password"), { headers: { "Content-Type": "text/html; charset=utf-8" } });
   }
-
+  
   if (cookieAuth !== env.ADMIN_SECRET) return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
 
-  const bridgeUrl = env.BRIDGE_URL;
-
-  // Admin Telegram Status
-  if (req.method === "GET" && url.pathname === "/admin/tg-status") {
-    const adminSession = await env.STATS.get("admin_tg_session");
-    if (!adminSession) return Response.json({ authenticated: false });
-    // Try to get user info if session exists
-    const adminUserId = await env.STATS.get("admin_tg_user_id");
-    return Response.json({ authenticated: true, userId: adminUserId });
-  }
-
-  if (req.method === "POST" && url.pathname === "/admin/tg-logout") {
-    const adminUserId = await env.STATS.get("admin_tg_user_id");
-    if (adminUserId) {
-        await fetch(`${bridgeUrl}/delete`, {
-            method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-            body: JSON.stringify({ userId: adminUserId })
-        });
-    }
-    await env.STATS.delete("admin_tg_session");
-    await env.STATS.delete("admin_tg_user_id");
-    return Response.json({ success: true });
-  }
-
-  // Admin Telegram Auth Proxy
-  if (req.method === "POST" && url.pathname === "/admin/tg-qr-login") {
-    return fetch(`${bridgeUrl}/qr-start`, { method: "POST", headers: { "x-bridge-secret": env.BRIDGE_SECRET } });
-  }
-  if (req.method === "GET" && url.pathname === "/admin/tg-qr-check") {
-    const token = url.searchParams.get("token");
-    const res = await fetch(`${bridgeUrl}/qr-check?token=${token}`, { headers: { "x-bridge-secret": env.BRIDGE_SECRET } });
-    const data: any = await res.json();
-    if (data.done) {
-        await registerNewUser(data, env);
-        await env.STATS.put("admin_tg_session", data.session);
-        await env.STATS.put("admin_tg_user_id", data.userId);
-    }
-    return Response.json({ authenticated: data.done });
-  }
-  if (req.method === "POST" && url.pathname === "/admin/tg-send-code") {
-    const { phoneNumber } = await req.json() as any;
-    const res = await fetch(`${bridgeUrl}/send-code`, {
-      method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-      body: JSON.stringify({ phone: phoneNumber })
-    });
-    return Response.json({ success: res.ok });
-  }
-  if (req.method === "POST" && url.pathname === "/admin/tg-verify-code") {
-    const { phoneNumber, code } = await req.json() as any;
-    const res = await fetch(`${bridgeUrl}/verify-code`, {
-      method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-      body: JSON.stringify({ phone: phoneNumber, code })
-    });
-    const data: any = await res.json();
-    if (data.success) {
-        await registerNewUser(data, env);
-        await env.STATS.put("admin_tg_session", data.session);
-        await env.STATS.put("admin_tg_user_id", data.userId);
-    }
-    return Response.json(data);
-  }
-
-  if (req.method === "POST" && url.pathname === "/admin/tg-test-msg") {
-    const adminUserId = await env.STATS.get("admin_tg_user_id");
-    if (!adminUserId) return Response.json({ error: "Not auth" }, { status: 400 });
-    const res = await fetch(`${env.BRIDGE_URL}/test-tg`, {
-        method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-        body: JSON.stringify({ userId: adminUserId })
-    });
-    return Response.json({ success: res.ok });
-  }
-
-  // Handle User Management Actions
-  if (req.method === "POST" && url.pathname === "/admin/user-action") {
-    const { userId, action } = await req.json() as any;
-    if (action === "stop" || action === "delete") {
-      await fetch(`${env.BRIDGE_URL}/delete`, {
-        method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-        body: JSON.stringify({ userId })
-      });
-      const metaRaw = await env.STATS.get(`user_meta_${userId}`);
-      if (metaRaw) {
-        const meta = JSON.parse(metaRaw);
-        meta.isActive = false;
-        if (action === "delete") {
-            // Full deletion logic could be here
-        }
-        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
-      }
-    }
-    return Response.json({ success: true });
-  }
-
-  // Load stats and users
   const userIdsRaw = await env.STATS.get("users_list");
   const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
   const users: UserSession[] = [];
@@ -411,7 +480,7 @@ async function handleAdmin(env: Env, req: Request): Promise<Response> {
     if (meta) users.push(JSON.parse(meta));
   }
 
-  const checks = {
+  const checks: HealthChecks = {
     VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
     META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
     META_APP_SECRET: Boolean(env.META_APP_SECRET),
@@ -432,38 +501,55 @@ async function handleAdmin(env: Env, req: Request): Promise<Response> {
   }
   
   const errors = await getErrors(env);
-
   return new Response(renderAdminDashboard(checks, env, url.origin, stats, errors, users), {
     headers: { "Content-Type": "text/html; charset=utf-8" }
   });
 }
 
-// ─── Platform Handlers (Restored) ───
-
 async function handleTelegram(update: TelegramWebhookUpdate, env: Env): Promise<Response> {
   const msg = update.message;
   if (!msg) return new Response("ok");
-  const chatId = msg.chat.id;
   const voice = msg.voice || msg.audio;
   if (voice) {
-    await sendTelegramTypingOn(chatId, env);
-    await sendTelegramMessage(chatId, "⏳ Transcribing...", env);
+    await sendTelegramTypingOn(msg.chat.id, env);
+    await sendTelegramMessage(msg.chat.id, "⏳ Transcribing...", env);
     const audioUrl = await getTelegramFileUrl(voice.file_id, env);
-    if (!audioUrl) return new Response("ok");
-    await env.AUDIO_QUEUE.send({ senderId: String(chatId), audioUrl, platform: "telegram" });
+    if (audioUrl) await env.AUDIO_QUEUE.send({ senderId: String(msg.chat.id), audioUrl, platform: "telegram" });
   }
   return new Response("ok");
 }
 
 async function handleMetaMessaging(body: MetaWebhookBody, env: Env): Promise<Response> {
+  const isThreads = body.object === "threads";
   for (const entry of body.entry ?? []) {
+    const pageId = entry.id;
+    const ownerId = await env.STATS.get(`meta_page_owner_${pageId}`);
+    let token = isThreads ? "" : (env.META_PAGE_TOKEN || ""); 
+
+    if (ownerId) {
+      const userData = await env.STATS.get(`user_meta_${ownerId}`);
+      if (userData) {
+        const u: UserSession = JSON.parse(userData);
+        if (isThreads && u.threadsToken) token = u.threadsToken;
+        else if (!isThreads && u.metaToken) token = u.metaToken;
+      }
+    }
+    
+    // Safety check: if no token found and it's a tenant message, skip
+    if (!token && ownerId) continue;
+
     for (const msg of entry.messaging ?? []) {
-      const senderId = msg.sender?.id;
+      const senderId = msg.sender?.id || "";
       const audioUrl = msg.message?.attachments?.[0]?.payload?.url;
       if (senderId && audioUrl) {
-         await sendTypingOn(senderId, env);
-         await sendMessageSafe(senderId, "⏳ Transcribing...", env);
-         await env.AUDIO_QUEUE.send({ senderId, audioUrl, platform: body.object === "instagram" ? "instagram" : "messenger" });
+         if (token) {
+             await sendTypingOn(senderId, token, env);
+             await sendMessageSafe(senderId, "⏳ Transcribing...", token, env);
+         }
+         let platform = body.object === "instagram" ? "instagram" : "messenger";
+         if (isThreads) platform = "threads" as any;
+
+         await env.AUDIO_QUEUE.send({ userId: ownerId || undefined, senderId, audioUrl, platform });
       }
     }
   }
@@ -473,13 +559,25 @@ async function handleMetaMessaging(body: MetaWebhookBody, env: Env): Promise<Res
 async function handleWhatsApp(body: WhatsAppWebhookBody, env: Env): Promise<Response> {
   for (const entry of body.entry ?? []) {
     for (const change of entry.changes ?? []) {
+      const phoneId = change.value.metadata?.phone_number_id || "";
+      const ownerId = await env.STATS.get(`wa_phone_owner_${phoneId}`);
+      let token = env.WHATSAPP_TOKEN || "";
+
+      if (ownerId) {
+        const userData = await env.STATS.get(`user_meta_${ownerId}`);
+        if (userData) {
+          const u: UserSession = JSON.parse(userData);
+          if (u.whatsappToken) token = u.whatsappToken;
+        }
+      }
+
       for (const msg of change.value.messages ?? []) {
         if (msg.from && msg.audio) {
-          const audioUrl = await getWhatsAppAudioUrl(msg.audio.id, env);
+          const audioUrl = await getWhatsAppAudioUrl(msg.audio.id, token, env);
           if (audioUrl) {
-            await sendWhatsAppTypingOn(env.WHATSAPP_PHONE_NUMBER_ID, msg.from, env);
-            await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, msg.from, "⏳ Transcribing...", env);
-            await env.AUDIO_QUEUE.send({ senderId: msg.from, audioUrl, platform: "whatsapp" });
+            await sendWhatsAppTypingOn(phoneId, msg.from, token, env);
+            await sendWhatsAppMessageSafe(phoneId, msg.from, "⏳ Transcribing...", token, env);
+            await env.AUDIO_QUEUE.send({ userId: ownerId || undefined, senderId: msg.from, audioUrl, platform: "whatsapp" });
           }
         }
       }

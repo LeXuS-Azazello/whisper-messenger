@@ -1,112 +1,99 @@
-import { Env, AudioJob } from "./types";
+import { Env, AudioJob, UserSession } from "./types";
+import { sendMessageSafe, sendTypingOn, MetaNonRetryableError } from "./meta";
+import { sendWhatsAppMessageSafe, sendWhatsAppTypingOn } from "./whatsapp";
+import { sendTelegramMessage, sendTelegramTypingOn } from "./telegram";
 import { transcribeWithFallback } from "./whisper";
-import { sendMessageSafe, MetaNonRetryableError } from "./meta";
-import { sendWhatsAppMessageSafe } from "./whatsapp";
-import { sendTelegramMessage } from "./telegram";
-import { sendViaPersonalAccount } from "./tg_personal";
-import { splitLongText } from "./text";
 import { logError } from "./logger";
 
-export default async function queue(
-  batch: MessageBatch<any>,
-  env: Env
-): Promise<void> {
-  for (const msg of batch.messages) {
-    const { senderId, audioUrl, platform } = msg.body as AudioJob;
-
-    console.log(`[queue] Processing job: platform=${platform} senderId=${senderId} audioUrl=${audioUrl.substring(0, 80)}...`);
-
+export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
+  for (const message of batch.messages) {
+    const { userId, senderId, audioUrl, platform } = message.body;
     const start = Date.now();
 
     try {
-      // WhatsApp media URLs require bearer auth for download.
-      // Meta (Messenger/Instagram) attachment URLs are CDN links that don't need auth.
-      const fetchOptions: RequestInit | undefined = platform === "whatsapp"
-        ? {
-            headers: {
-              Authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
-            },
+      // 1. Resolve Tokens for this user
+      let token = "";
+      let whatsappPhoneId = env.WHATSAPP_PHONE_NUMBER_ID || "";
+      const isThreads = platform === "threads";
+
+      if (userId) {
+        const userData = await env.STATS.get(`user_meta_${userId}`);
+        if (userData) {
+          const u: UserSession = JSON.parse(userData);
+          if (platform === "whatsapp") {
+              token = u.whatsappToken || "";
+              whatsappPhoneId = u.whatsappPhoneId || whatsappPhoneId;
+          } else if (isThreads) {
+              token = u.threadsToken || "";
+          } else {
+              token = u.metaToken || "";
           }
-        : undefined;
-
-      console.log(`[queue] Downloading audio (platform=${platform}, withAuth=${platform === "whatsapp"})...`);
-      const audioRes = await fetch(audioUrl, fetchOptions);
-
-      if (!audioRes.ok) {
-        const errorBody = await audioRes.text();
-        console.error(`[queue] Audio download failed: status=${audioRes.status} body=${errorBody}`);
-        throw new Error(`Audio download failed: ${audioRes.status} ${errorBody}`);
+        }
       }
 
+      // Default tokens from env if not set for tenant
+      if (!token) {
+        if (platform === "whatsapp") token = env.WHATSAPP_TOKEN || "";
+        else if (isThreads) token = ""; // Threads MUST have a user token
+        else token = env.META_PAGE_TOKEN || "";
+      }
+
+      if (!token) throw new Error(`Permission denied: No token for ${platform} / ${userId}`);
+
+      // 2. Notification (Typing...)
+      if (platform === "whatsapp") {
+        await sendWhatsAppTypingOn(whatsappPhoneId, senderId, token, env);
+        await sendWhatsAppMessageSafe(whatsappPhoneId, senderId, "⏳ Transcribing...", token, env);
+      } else if (platform === "telegram") {
+        await sendTelegramTypingOn(Number(senderId), env);
+        await sendTelegramMessage(Number(senderId), "⏳ Transcribing...", env);
+      } else {
+        await sendTypingOn(senderId, token, env, isThreads);
+        await sendMessageSafe(senderId, "⏳ Transcribing...", token, env, isThreads);
+      }
+
+      // 3. Download Audio
+      const fetchOptions: RequestInit | undefined = platform === "whatsapp"
+        ? { headers: { Authorization: `Bearer ${token}` } }
+        : undefined;
+
+      const audioRes = await fetch(audioUrl, fetchOptions);
+      if (!audioRes.ok) throw new Error(`Audio download failed: ${audioRes.status}`);
       const audioBuffer = await audioRes.arrayBuffer();
-      const contentType = audioRes.headers.get("content-type") ?? "unknown";
-      console.log(`[queue] Audio downloaded: ${audioBuffer.byteLength} bytes, content-type=${contentType}`);
 
-      // Transcribe with Whisper
-      console.log(`[queue] Starting Whisper transcription...`);
+      // 4. Transcribe
       const result = await transcribeWithFallback(audioBuffer, env);
-      console.log(`[queue] Transcription result: "${result.text.substring(0, 100)}..."`);
-
       const sec = ((Date.now() - start) / 1000).toFixed(1);
-
       const finalText = `${result.text}\n\n⏱ ${sec}s`;
-
-      // Chunk long text and send
       const parts = splitLongText(finalText);
 
+      // 5. Send Results
       if (platform === "whatsapp") {
         for (const part of parts) {
-          await sendWhatsAppMessageSafe(env.WHATSAPP_PHONE_NUMBER_ID, senderId, part, env);
+          await sendWhatsAppMessageSafe(whatsappPhoneId, senderId, part, token, env);
         }
       } else if (platform === "telegram") {
-        const sessionStr = await env.STATS.get("tg_personal_session");
-        if (sessionStr) {
-          for (const part of parts) {
-            const success = await sendViaPersonalAccount(senderId, part, env);
-            if (!success) {
-              console.warn("[queue] Personal account send failed, falling back to bot API");
-              await sendTelegramMessage(senderId, part, env);
-            }
-          }
-        } else {
-          for (const part of parts) {
-            await sendTelegramMessage(senderId, part, env);
-          }
+        for (const part of parts) {
+          await sendTelegramMessage(Number(senderId), part, env);
         }
       } else {
         for (const part of parts) {
-          await sendMessageSafe(senderId, part, env);
+          await sendMessageSafe(senderId, part, token, env, isThreads);
         }
       }
 
-      console.log(`[queue] Job completed successfully: platform=${platform} senderId=${senderId}`);
-      
-      // Increment stats
-      try {
-        const statsKey = `stats_${platform}`;
-        const currentStr = await env.STATS.get(statsKey);
-        const current = parseInt(currentStr || "0", 10);
-        await env.STATS.put(statsKey, (current + 1).toString());
-      } catch (statsErr) {
-        console.error(`[queue] Failed to update stats: ${statsErr}`);
-      }
-
-      msg.ack();
     } catch (e) {
-      // Non-retryable: user can't be messaged (blocked, window expired, etc.)
-      if (e instanceof MetaNonRetryableError) {
-        console.warn(`[queue] Non-retryable error, acking job: platform=${platform} senderId=${senderId} subcode=${e.errorSubcode} message=${e.message}`);
-        msg.ack();
-        continue;
-      }
-
-      console.error(`[queue] Job failed: platform=${platform} senderId=${senderId} error=${e}`);
-      
-      // Log error to KV
-      await logError(platform, String(e), env);
-
-      // Retry - Cloudflare Queues will handle retries
-      msg.retry();
+      const isRetryable = !(e instanceof MetaNonRetryableError);
+      await logError(`queue_${platform}`, (e as Error).message, env);
+      if (isRetryable) throw e;
     }
   }
+}
+
+function splitLongText(text: string, maxLength: number = 2000): string[] {
+  const parts: string[] = [];
+  for (let i = 0; i < text.length; i += maxLength) {
+    parts.push(text.slice(i, i + maxLength));
+  }
+  return parts;
 }

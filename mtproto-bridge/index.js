@@ -8,6 +8,7 @@ const express = require('express');
 const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const k8s = require('@kubernetes/client-node');
+const { transcribe } = require('./transcribe');
 
 const app = express();
 app.use(express.json());
@@ -173,10 +174,9 @@ async function handleNewMessage(event) {
     if (!msg || (!msg.voice && !msg.audio)) return;
     try {
         const buffer = await userClient.downloadMedia(msg.media, { workers: 1 });
-        const { transcribe } = require('./transcribe');
-        const text = await transcribe(Buffer.from(buffer), msg.voice?.mimeType || 'audio/ogg');
+        const { text, duration } = await transcribe(Buffer.from(buffer), msg.voice?.mimeType || 'audio/ogg');
         if (text) {
-            await userClient.sendMessage(msg.chatId, { message: `📝 ${text}` });
+            await userClient.sendMessage(msg.chatId, { message: `📝 ${text}\n\n⏱ ${duration}s` });
             if (WORKER_URL) {
                 await fetch(`${WORKER_URL}/internal/stats`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },

@@ -1,22 +1,8 @@
 /** @jsxImportSource preact */
 import { render } from 'preact-render-to-string';
-import { Env, UserSession } from './types';
+import { Env, UserSession, HealthChecks } from './types';
 import { ErrorLog } from './logger';
-
 import adminCss from './admin.css';
-
-type HealthChecks = {
-    VERIFY_TOKEN: boolean;
-    META_PAGE_TOKEN: boolean;
-    META_APP_SECRET: boolean;
-    WHATSAPP_TOKEN: boolean;
-    META_API_VERSION: boolean;
-    WHATSAPP_PHONE_NUMBER_ID: boolean;
-    TELEGRAM_APP_ID: boolean;
-    TELEGRAM_APP_HASH: boolean;
-    AUDIO_QUEUE: boolean;
-    AI: boolean;
-};
 
 const ConfigItem = ({ label, active }: { label: string; active: boolean }) => (
     <div class="config-item">

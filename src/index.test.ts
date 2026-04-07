@@ -95,6 +95,17 @@ describe('AudioJob Type', () => {
     expect(job.platform).toBe('telegram');
     expect(job.senderId).toBe('123456789');
   });
+
+  it('should support threads platform', () => {
+    const job = {
+      senderId: 'threads123',
+      audioUrl: 'https://example.com/threads.ogg',
+      platform: 'threads' as const
+    };
+    
+    expect(job.platform).toBe('threads');
+    expect(job.senderId).toBe('threads123');
+  });
 });
 
 describe('Platform Detection Logic', () => {
@@ -214,5 +225,85 @@ describe('Env Type with Multiuser Bridge', () => {
     expect(env.BRIDGE_URL).toBe('https://mtproto.debug.org.ua');
     expect(env.BRIDGE_SECRET).toBe('changeme');
     expect(env.ADMIN_SECRET).toBe('admin_pass');
+  });
+});
+describe('Email Magic Link Auth', () => {
+  it('should generate a valid magic link structure', () => {
+    const email = 'test@example.com';
+    const token = '123e4567-e89b-12d3-a456-426614174000';
+    const origin = 'https://whisper.debug.org.ua';
+    
+    const magicLink = `${origin}/auth/email/verify?token=${token}`;
+    const url = new URL(magicLink);
+    
+    expect(url.pathname).toBe('/auth/email/verify');
+    expect(url.searchParams.get('token')).toBe(token);
+  });
+
+  it('should correctly map email to userId', () => {
+    const email = 'user.name+test@gmail.com';
+    const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    
+    // Check that it's a URL-safe or KV-safe ID
+    expect(userId).toBe('email_user_name_test_gmail_com');
+  });
+
+  it('should correctly structure MailChannels request', () => {
+    const to = 'user@example.com';
+    const subject = 'Test Subject';
+    const body = '<h1>Hello</h1>';
+    
+    const mailReq = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: 'no-reply@debug.org.ua', name: 'Whisper Messenger' },
+      subject: subject,
+      content: [{ type: 'text/html', value: body }]
+    };
+    
+    expect(mailReq.personalizations[0].to[0].email).toBe(to);
+    expect(mailReq.from.email).toBe('no-reply@debug.org.ua');
+    expect(mailReq.content[0].type).toBe('text/html');
+  });
+});
+describe('Meta OAuth Flow', () => {
+  it('should construct a valid Facebook login URL', () => {
+    const apiVersion = 'v19.0';
+    const appId = '963855642778608';
+    const origin = 'https://whisper.debug.org.ua';
+    const redirectUri = encodeURIComponent(`${origin}/auth/meta/callback`);
+    
+    const fbUrl = `https://www.facebook.com/${apiVersion}/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&scope=pages_messaging,instagram_manage_messages,pages_show_list,instagram_basic,instagram_manage_comments`;
+    
+    expect(fbUrl).toContain(`client_id=${appId}`);
+    expect(fbUrl).toContain(`redirect_uri=${redirectUri}`);
+    expect(fbUrl).toContain('scope=pages_messaging');
+  });
+
+  it('should correctly handle Meta OAuth callback exchange structure', () => {
+    const mockTokenData = {
+      access_token: 'user_token_123',
+      token_type: 'bearer',
+      expires_in: 5184000
+    };
+    
+    expect(mockTokenData.access_token).toBe('user_token_123');
+    expect(mockTokenData.expires_in).toBeGreaterThan(0);
+  });
+});
+
+describe('Threads Integration', () => {
+  it('should detect Threads webhook structure', () => {
+    const threadsBody = {
+      object: 'threads',
+      entry: [{
+        messaging: [{
+          sender: { id: 'threads_user_1' },
+          message: { text: 'Hello from Threads' }
+        }]
+      }]
+    };
+    
+    expect(threadsBody.object).toBe('threads');
+    expect(threadsBody.entry[0].messaging[0].sender.id).toBe('threads_user_1');
   });
 });

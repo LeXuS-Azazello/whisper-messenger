@@ -79,20 +79,22 @@ export const renderDashboard = (user: UserSession) => {
                             <div class="card-header">
                                 <h3 class="card-title"><span style={{ color: '#0081FB' }}>◉</span> Messenger / Instagram</h3>
                                 <span class={`status-tag ${user.metaToken ? 'active' : 'inactive'}`}>
-                                    {user.metaToken ? 'SETUP' : 'NOT SETUP'}
+                                    {user.metaToken ? 'CONNECTED' : 'NOT SETUP'}
                                 </span>
                             </div>
-                            <div class="input-group" style={{ marginTop: '15px' }}>
-                                <label class="input-label">Page Access Token</label>
-                                <input type="password" id="meta-token" class="input-field" value={user.metaToken || ''} placeholder="EAANH..." />
-                            </div>
-                            <div class="input-group">
-                                <label class="input-label">Messenger ID (optional for test)</label>
-                                <input type="text" id="meta-psid" class="input-field" placeholder="User PSID" />
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                                <button class="btn btn-sm" id="save-meta-btn" style={{ background: '#8B5CF6', margin: 0 }}>Save Settings</button>
-                                {user.metaToken && <button class="btn btn-sm" id="test-meta-btn" style={{ background: '#3B82F6', margin: 0 }}>Test</button>}
+                            <div style={{ marginTop: '15px' }}>
+                                <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '15px' }}>
+                                    Connect your Facebook Page or Instagram Business account to transcribe incoming voice messages automatically.
+                                </p>
+                                <button class="btn" id="connect-meta-btn" style={{ background: '#1877F2', margin: 0, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                    Connect with Facebook
+                                </button>
+                                {user.metaToken && (
+                                    <div style={{ marginTop: '15px', color: '#22c55e', fontSize: '12px', fontWeight: 'bold' }}>
+                                        ✓ Linked to active Page
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -104,7 +106,12 @@ export const renderDashboard = (user: UserSession) => {
                                     {user.whatsappToken ? 'SETUP' : 'NOT SETUP'}
                                 </span>
                             </div>
-                            <div class="input-group" style={{ marginTop: '15px' }}>
+                            <div style={{ marginTop: '10px', marginBottom: '15px' }}>
+                                <a href="https://business.facebook.com/wa/manage/phone-numbers/" target="_blank" style={{ fontSize: '11px', color: '#8B5CF6', textDecoration: 'none' }}>
+                                    👉 Find your WhatsApp IDs here
+                                </a>
+                            </div>
+                            <div class="input-group">
                                 <label class="input-label">Phone Number ID</label>
                                 <input type="text" id="wa-phone-id" class="input-field" value={user.whatsappPhoneId || ''} placeholder="1029384..." />
                             </div>
@@ -130,6 +137,29 @@ export const renderDashboard = (user: UserSession) => {
                             <div style={{ textAlign: 'center', padding: '20px 0' }}>
                                 <div style={{ fontSize: '48px', fontWeight: '800', color: '#22c55e' }}>{user.transcriptionCount || 0}</div>
                                 <div style={{ fontSize: '12px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1px' }}>Voice Messages Transcribed</div>
+                            </div>
+                        </div>
+                        
+                        {/* Threads Integration */}
+                        <div class="card" style={{ borderLeft: '4px solid #000' }}>
+                            <div class="card-header">
+                                <h3 class="card-title">@ Threads</h3>
+                                <span class={`status-tag ${user.threadsToken ? 'active' : 'inactive'}`}>
+                                    {user.threadsToken ? 'CONNECTED' : 'NOT SETUP'}
+                                </span>
+                            </div>
+                            <div style={{ marginTop: '15px' }}>
+                                <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '15px' }}>
+                                    Transcribe voice messages and replies from your personal Threads account.
+                                </p>
+                                <button class="btn" id="connect-threads-btn" style={{ background: '#000', margin: 0, width: '100%' }}>
+                                    Connect with Threads
+                                </button>
+                                {user.threadsToken && (
+                                    <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                                        User ID: {user.threadsUserId}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -206,11 +236,12 @@ export const renderDashboard = (user: UserSession) => {
                     });
 
                     // Meta / WA hooks
-                    document.getElementById('save-meta-btn').addEventListener('click', () => {
-                        fetch('/dashboard/save-meta', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ metaToken: document.getElementById('meta-token').value })
-                        }).then(() => location.reload());
+                    document.getElementById('connect-meta-btn').addEventListener('click', () => {
+                        location.href = '/auth/meta/login';
+                    });
+
+                    document.getElementById('connect-threads-btn').addEventListener('click', () => {
+                        location.href = '/auth/threads/login';
                     });
 
                     document.getElementById('save-wa-btn').addEventListener('click', () => {

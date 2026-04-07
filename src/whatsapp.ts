@@ -9,6 +9,7 @@ function sleep(ms: number): Promise<void> {
 export async function sendWhatsAppTypingOn(
   phoneNumberId: string,
   to: string,
+  token: string,
   env: Env
 ): Promise<void> {
   const version = env.META_API_VERSION || "v21.0";
@@ -18,7 +19,7 @@ export async function sendWhatsAppTypingOn(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
       messaging_product: "whatsapp",
@@ -33,6 +34,7 @@ export async function sendWhatsAppMessageSafe(
   phoneNumberId: string,
   to: string,
   text: string,
+  token: string,
   env: Env
 ): Promise<void> {
   await sleep(DELAY);
@@ -44,7 +46,7 @@ export async function sendWhatsAppMessageSafe(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
       messaging_product: "whatsapp",
@@ -57,6 +59,7 @@ export async function sendWhatsAppMessageSafe(
 
 export async function getWhatsAppAudioUrl(
   audioId: string,
+  token: string,
   env: Env
 ): Promise<string | null> {
   const version = env.META_API_VERSION || "v21.0";
@@ -65,7 +68,7 @@ export async function getWhatsAppAudioUrl(
   const response = await fetch(url, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
+      Authorization: `Bearer ${token}`,
     },
   });
 

@@ -107,10 +107,10 @@ async function transcribe(audioBuffer, mimeType) {
   r.decode(stream);
   const result = r.getResult(stream);
 
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log(`[transcribe] Done in ${elapsed}s: "${result.text?.substring(0, 100)}..."`);
-
-  return result.text || '';
+  return { 
+    text: result.text || '', 
+    duration: elapsed 
+  };
 }
 
 function isInitialized() {

@@ -1,38 +1,35 @@
 import { Env } from "./types";
 
-interface TgSession {
-  phone: string;
-  session: any;
-  userId: number;
-  firstName: string;
-  authenticatedAt: number;
-}
-
 export async function sendViaPersonalAccount(
+  userId: string,
   chatId: string,
   text: string,
   env: Env
 ): Promise<boolean> {
   try {
-    const sessionStr = await env.STATS.get("tg_personal_session");
+    // 1. Try user-specific session, then fallback to global admin session
+    const sessionStr = (userId ? await env.STATS.get(`tg_session_${userId}`) : null) 
+                    || await env.STATS.get("admin_tg_session")
+                    || await env.STATS.get("tg_personal_session");
+                    
     if (!sessionStr) {
-      console.warn("[tg_personal] No session found");
+      console.warn(`[tg_personal] No session found for user=${userId} or admin`);
       return false;
     }
 
-    const session: TgSession = JSON.parse(sessionStr);
-    const bridgeUrl = env.BRIDGE_URL || "https://tg-ws-api.lexus-ffa.workers.dev";
+    const bridgeUrl = env.BRIDGE_URL;
 
     const res = await fetch(`${bridgeUrl}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-bridge-secret": env.BRIDGE_SECRET || "",
+        "x-bridge-secret": env.BRIDGE_SECRET,
       },
       body: JSON.stringify({
+        userId: userId || "admin", // Tell bridge which pod to use
         chatId: parseInt(chatId),
         text: text,
-        session: session.session,
+        session: sessionStr // Pass session just in case bridge needs to resume
       }),
     });
 
@@ -43,7 +40,6 @@ export async function sendViaPersonalAccount(
     }
 
     const data: any = await res.json();
-    console.log(`[tg_personal] Message sent successfully to ${chatId}`);
     return data.success || true;
   } catch (err: any) {
     console.error(`[tg_personal] Error: ${err.message}`);

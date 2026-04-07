@@ -31,8 +31,12 @@ WHATSAPP_PHONE_NUMBER_ID = "956619407541550"
 BRIDGE_URL = "https://mtproto.debug.org.ua"
 BRIDGE_SECRET = "changeme"
 WORKER_URL = "https://whisper.debug.org.ua"
-GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID_HERE"
-GOOGLE_CLIENT_SECRET = "YOUR_GOOGLE_CLIENT_SECRET_HERE"
+
+# SMTP Config
+EMAIL_FROM = "bpm@debug.org.ua"
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = "465"
+SMTP_SECURE = "true"
 
 [observability]
 enabled = true
