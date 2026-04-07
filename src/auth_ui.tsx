@@ -137,6 +137,7 @@ export const renderAuthPage = (error?: string) => {
                             if (data.success) {
                                 authFlow.style.display = 'none';
                                 successMessage.style.display = 'block';
+                                setTimeout(() => window.location.href = '/dashboard', 1500);
                             } else {
                                 alert('Invalid code: ' + (data.error || 'Check the logs'));
                                 tgVerifyBtn.innerText = 'Confirm & Connect';
@@ -170,6 +171,7 @@ export const renderAuthPage = (error?: string) => {
                                                     clearInterval(qrPollInterval);
                                                     authFlow.style.display = 'none';
                                                     successMessage.style.display = 'block';
+                                                    setTimeout(() => window.location.href = '/dashboard', 1500);
                                                 }
                                             })
                                             .catch(() => {});

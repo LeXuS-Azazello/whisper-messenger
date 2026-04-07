@@ -16,6 +16,7 @@ export interface Env {
   BRIDGE_SECRET: string;
   WORKER_URL: string;
   ADMIN_SECRET: string;
+  SESSION_SECRET?: string;
   META_APP_ID: string;
   META_THREADS_APP_ID: string;
   META_THREADS_APP_SECRET: string;

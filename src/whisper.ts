@@ -32,9 +32,8 @@ async function transcribeCloudflare(
   fallbackUrl?: string,
   fallbackSecret?: string
 ): Promise<WhisperResponse> {
-  const audioArray = Array.from(new Uint8Array(audio));
   const input = {
-    audio: audioArray,
+    audio: new Uint8Array(audio),
   };
 
   console.log(`[whisper] Cloudflare: Audio size ${audio.byteLength} bytes`);

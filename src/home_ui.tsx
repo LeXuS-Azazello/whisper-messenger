@@ -56,16 +56,16 @@ export const renderHome = (googleClientId: string) => {
                         </div>
 
                         <div class="auth-section">
-                            <div class="email-input-wrapper">
+                            <div class="email-input-wrapper" style={{ display: 'none' }}>
                                 <Mail size={18} class="email-icon" />
                                 <input type="email" id="email-input" class="styled-input" placeholder="name@company.com" />
                             </div>
-                            <button class="btn-primary" id="send-link-btn">
+                            <button class="btn-primary" id="send-link-btn" style={{ display: 'none' }}>
                                 Send Magic Link
                             </button>
                             <div id="status-msg" class="status-msg"></div>
 
-                            <div class="divider">
+                            <div class="divider" style={{ display: 'none' }}>
                                 <span>OR CONTINUE WITH</span>
                             </div>
 

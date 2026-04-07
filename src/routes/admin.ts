@@ -1,24 +1,34 @@
 import { Env, UserSession, HealthChecks } from "../types";
 import { ErrorLog, getErrors, logError } from "../logger";
 import { renderAdminDashboard, renderAdminLogin } from "../admin_ui";
+import { createSignedSession, verifySession } from "../session";
 
 export async function handleAdmin(env: Env, req: Request): Promise<Response> {
   const url = new URL(req.url);
-  const cookieAuth = req.headers.get("Cookie")?.match(/auth=([^;]+)/)?.[1];
+  const cookieAuth = req.headers.get("Cookie")?.match(/admin_session=([^;]+)/)?.[1];
+  const adminId = cookieAuth ? await verifySession(cookieAuth, env.ADMIN_SECRET) : null;
   
   if (req.method === "POST" && url.pathname === "/admin/login") {
     const formData = await req.formData();
     const password = formData.get("password")?.toString();
     if (password === env.ADMIN_SECRET) {
-      return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `auth=${env.ADMIN_SECRET}; Path=/; HttpOnly; SameSite=Lax` } });
+      const signedAdminSession = await createSignedSession("admin", env.ADMIN_SECRET);
+      return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=${signedAdminSession}; Path=/; HttpOnly; SameSite=Lax` } });
     }
   }
   
   if (url.pathname === "/admin/logout") {
-    return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
+    return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
   }
   
-  if (cookieAuth !== env.ADMIN_SECRET) return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  if (adminId !== "admin") return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+
+  // Basic CSRF check for POST actions
+  if (req.method === "POST" && !req.headers.get("Origin")?.includes(url.hostname)) {
+      if (req.headers.get("Origin")) { // allow no origin for some tools, but check if present
+          return new Response("CSRF block", { status: 403 });
+      }
+  }
 
   // --- Admin Telegram Proxy Routes ---
   if (url.pathname === "/admin/ping-bridge") {

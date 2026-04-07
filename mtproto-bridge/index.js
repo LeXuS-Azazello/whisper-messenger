@@ -44,6 +44,14 @@ function auth(req, res, next) {
 
 const authSessions = new Map();
 
+function withTimeout(promise, ms) {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+}
+
 // ─── Manager Routes ─────────────────────────────────────────────────────────
 
 app.get('/health', (req, res) => res.json({ mode: MODE, alive: true }));
@@ -143,7 +151,8 @@ app.post('/test-tg', auth, async (req, res) => {
 app.post('/spawn', auth, async (req, res) => {
     const { userId, session } = req.body;
     const safeUserId = String(userId);
-    const sanitizedId = safeUserId.toLowerCase().replace(/_/g, '-');
+    // Kubernetes names must be lowercase alphanumeric or '-', and starts/ends with alphanumeric.
+    const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
     const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
 
     console.log(`[/spawn] Spawning pod for user ${safeUserId}`);
@@ -237,25 +246,63 @@ app.post('/delete', auth, async (req, res) => {
 });
 
 // ─── USER MODE Logic ─────────────────────────────────────────────────────────
+function splitLongText(text, maxLength = 4000) {
+    const parts = [];
+    for (let i = 0; i < text.length; i += maxLength) {
+        parts.push(text.slice(i, i + maxLength));
+    }
+    return parts;
+}
 
 let userClient = null;
 async function handleNewMessage(event) {
     const msg = event.message;
-    if (!msg || (!msg.voice && !msg.audio && !msg.videoNote && !msg.roundMessage)) return;
+    if (!msg) return;
+    const media = msg.voice || msg.audio || msg.videoNote;
+    if (!media) return;
+    
     try {
+        // Set typing status and send notification
+        await userClient.invoke(new Api.messages.SetTyping({
+            peer: msg.chatId,
+            action: new Api.SendMessageRecordAudioAction()
+        })).catch(() => {});
+        
+        const statusMsg = await userClient.sendMessage(msg.chatId, { 
+            message: "⏳ Transcribing...", 
+            replyTo: msg.id 
+        });
+
         const buffer = await userClient.downloadMedia(msg.media, { workers: 1 });
-        const { text, duration } = await transcribe(Buffer.from(buffer), msg.voice?.mimeType || msg.videoNote?.mimeType || 'audio/ogg');
+        const mimeType = msg.media?.document?.mimeType || (msg.voice ? 'audio/ogg' : 'video/mp4');
+        
+        const { text, duration } = await transcribe(Buffer.from(buffer), mimeType);
+        
         if (text) {
             const timeStr = typeof duration === 'number' ? duration.toFixed(1) : duration;
-            await userClient.sendMessage(msg.chatId, { message: `📝 ${text}\n\n⏱ ${timeStr}s`, replyTo: msg.id });
-            if (WORKER_URL) {
-                await fetch(`${WORKER_URL}/internal/stats`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET })
-                }).catch(e => console.error('[user] Stats notify failed:', e));
+            const finalText = `📝 ${text}\n\n⏱ ${timeStr}s`;
+            const chunks = splitLongText(finalText);
+            
+            for (const chunk of chunks) {
+                await userClient.sendMessage(msg.chatId, { 
+                    message: chunk, 
+                    replyTo: msg.id 
+                });
             }
         }
-    } catch (e) { console.error('[user] Error:', e); }
+        
+        // Remove status message
+        await statusMsg.delete().catch(() => {});
+        
+        if (text && WORKER_URL) {
+            await fetch(`${WORKER_URL}/internal/stats`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET })
+            }).catch(e => console.error('[user] Stats notify failed:', e));
+        }
+    } catch (e) { 
+        console.error('[user] Error:', e); 
+    }
 }
 
 async function startUserClient() {

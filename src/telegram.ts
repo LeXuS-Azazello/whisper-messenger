@@ -33,6 +33,21 @@ export interface TelegramWebhookUpdate {
       title?: string;
       performer?: string;
     };
+    video_note?: {
+      file_id: string;
+      file_unique_id: string;
+      duration: number;
+      length: number;
+    };
+    video?: {
+      file_id: string;
+      file_unique_id: string;
+      width: number;
+      height: number;
+      duration: number;
+      mime_type?: string;
+      file_size?: number;
+    };
   };
 }
 

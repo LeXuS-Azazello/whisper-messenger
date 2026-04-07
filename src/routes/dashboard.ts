@@ -1,12 +1,17 @@
 import { Env, UserSession } from "../types";
 import { renderDashboard } from "../dashboard_ui";
 import { logError } from "../logger";
+import { verifySession } from "../session";
 
-export async function handleUserDashboard(env: Env, req: Request): Promise<Response> {
+export async function handleUserDashboard(env: Env, req: Request, userId: string | null): Promise<Response> {
   const url = new URL(req.url);
-  const userId = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1];
 
-  if (!userId) return new Response(null, { status: 302, headers: { "Location": "/" } });
+  if (!userId) {
+    return new Response(null, { status: 302, headers: { 
+        "Location": "/",
+        "Set-Cookie": "session=deleted; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+    } });
+  }
 
   const userStats = await env.STATS.get(`user_meta_${userId}`);
   if (!userStats) {
@@ -14,7 +19,7 @@ export async function handleUserDashboard(env: Env, req: Request): Promise<Respo
       status: 401,
       headers: { 
         "Content-Type": "text/html; charset=utf-8",
-        "Set-Cookie": `user_id=deleted; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
+        "Set-Cookie": `session=deleted; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
       }
     });
   }

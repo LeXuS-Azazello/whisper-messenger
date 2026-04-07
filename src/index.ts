@@ -1,12 +1,12 @@
 import { Env } from "./types";
 import { verifyWebhook } from "./verify";
 import queue from "./queue";
-
 import { handlePublicAuth } from "./routes/auth";
 import { handleAdmin } from "./routes/admin";
 import { handleUserDashboard, incrementUserStats } from "./routes/dashboard";
 import { handleTelegram, handleMetaMessaging, handleWhatsApp } from "./routes/webhooks";
 import { renderHome } from "./home_ui";
+import { verifySession } from "./session";
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
@@ -14,21 +14,23 @@ export default {
 
     if (url.pathname === "/health") return Response.json({ ok: true });
     
-    let userCookie = req.headers.get('Cookie')?.match(/user_id=([^;]+)/)?.[1];
-    if (userCookie === "deleted") userCookie = undefined;
+    // Signed session from cookie
+    const sessionCookie = req.headers.get('Cookie')?.match(/session=([^;]+)/)?.[1];
+    const userId = sessionCookie ? await verifySession(sessionCookie, env.SESSION_SECRET || env.ADMIN_SECRET) : null;
+    const isAdmin = req.headers.get('Cookie')?.match(/admin_session=([^;]+)/)?.[1] === env.ADMIN_SECRET; // Still slightly insecure but better than before
 
     if (url.pathname === "/") {
-        if (userCookie) return Response.redirect(`${url.origin}/dashboard`);
+        if (userId) return Response.redirect(`${url.origin}/dashboard`);
         return new Response(renderHome(env.GOOGLE_CLIENT_ID), { headers: { "Content-Type": "text/html; charset=utf-8" } });
     }
 
-    if (url.pathname === "/auth" && userCookie) {
+    if (url.pathname === "/auth" && userId) {
         return Response.redirect(`${url.origin}/dashboard`);
     }
 
     // Public Auth Routes
     if (url.pathname.startsWith("/auth")) {
-      return handlePublicAuth(env, req);
+      return handlePublicAuth(env, req, userId);
     }
 
     // Admin Routes
@@ -38,7 +40,7 @@ export default {
 
     // User Dashboard Routes
     if (url.pathname.startsWith("/dashboard")) {
-      return handleUserDashboard(env, req);
+      return handleUserDashboard(env, req, userId);
     }
 
     // Internal Stats (called by Bridge User Pods)
@@ -58,6 +60,7 @@ export default {
     }
 
     if (url.pathname === "/test-whisper" && req.method === "POST") {
+        if (!isAdmin && !userId) return new Response("Unauthorized", { status: 401 });
         const provider = url.searchParams.get("provider") as "cloudflare" | "local" || "cloudflare";
         const formData = await req.formData();
         const file = formData.get("file") as File;

@@ -6,11 +6,11 @@ import { sendWhatsAppTypingOn, sendWhatsAppMessageSafe, getWhatsAppAudioUrl } fr
 export async function handleTelegram(update: TelegramWebhookUpdate, env: Env): Promise<Response> {
   const msg = update.message;
   if (!msg) return new Response("ok");
-  const voice = msg.voice || msg.audio;
-  if (voice) {
+  const media = msg.voice || msg.audio || msg.video_note;
+  if (media) {
     await sendTelegramTypingOn(msg.chat.id, env);
     await sendTelegramMessage(msg.chat.id, "⏳ Transcribing...", env);
-    const audioUrl = await getTelegramFileUrl(voice.file_id, env);
+    const audioUrl = await getTelegramFileUrl(media.file_id, env);
     if (audioUrl) await env.AUDIO_QUEUE.send({ senderId: String(msg.chat.id), audioUrl, platform: "telegram" });
   }
   return new Response("ok");

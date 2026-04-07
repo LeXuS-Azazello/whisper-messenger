@@ -1,8 +1,9 @@
 import { Env, UserSession } from "../types";
 import { renderAuthPage } from "../auth_ui";
 import { logError } from "../logger";
+import { createSignedSession } from "../session";
 
-export async function handlePublicAuth(env: Env, req: Request): Promise<Response> {
+export async function handlePublicAuth(env: Env, req: Request, currentUserId: string | null): Promise<Response> {
   const url = new URL(req.url);
   const bridgeUrl = env.BRIDGE_URL;
 
@@ -37,10 +38,11 @@ export async function handlePublicAuth(env: Env, req: Request): Promise<Response
     });
     const data: any = await res.json();
     if (data.success) {
-      const registeredUserId = await registerNewUser(data, env, userCookie);
+      const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie);
+      const signedSession = await createSignedSession(registeredUserId, env.SESSION_SECRET || env.ADMIN_SECRET);
       return Response.json(data, {
         headers: {
-          "Set-Cookie": `user_id=${registeredUserId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
+          "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
         }
       });
     }
@@ -55,10 +57,11 @@ export async function handlePublicAuth(env: Env, req: Request): Promise<Response
     });
     const data: any = await res.json();
     if (data.done) {
-      const registeredUserId = await registerNewUser(data, env, userCookie);
+      const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie);
+      const signedSession = await createSignedSession(registeredUserId, env.SESSION_SECRET || env.ADMIN_SECRET);
       return Response.json(data, {
         headers: {
-          "Set-Cookie": `user_id=${registeredUserId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
+          "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
         }
       });
     }
@@ -79,6 +82,9 @@ export async function handlePublicAuth(env: Env, req: Request): Promise<Response
       }
       
       const userId = `google_${payload.sub}`;
+      // TODO: IMPLEMENT CRYPTOGRAPHIC VERIFICATION OF payload signature
+      // For now, checking the audience is a minimal check, but we need full JWT verify.
+      
       const existingRaw = await env.STATS.get(`user_meta_${userId}`);
       if (!existingRaw) {
           const user: UserSession = {
@@ -96,10 +102,11 @@ export async function handlePublicAuth(env: Env, req: Request): Promise<Response
           }
       }
       
+      const signedSession = await createSignedSession(userId, env.SESSION_SECRET || env.ADMIN_SECRET || "fallback_secret");
       return new Response("Redirecting...", {
         status: 302, headers: { 
             "Location": "/dashboard",
-            "Set-Cookie": `user_id=${userId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000` 
+            "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000` 
         }
       });
     } catch (e) {
@@ -152,10 +159,11 @@ export async function handlePublicAuth(env: Env, req: Request): Promise<Response
         }
     }
 
+    const signedSession = await createSignedSession(userId, env.SESSION_SECRET || env.ADMIN_SECRET || "fallback_secret");
     return new Response("Redirecting...", {
       status: 302, headers: { 
           "Location": "/dashboard",
-          "Set-Cookie": `user_id=${userId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000` 
+          "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000` 
       }
     });
   }
@@ -168,7 +176,7 @@ export async function handlePublicAuth(env: Env, req: Request): Promise<Response
 
   if (req.method === "GET" && url.pathname === "/auth/meta/callback") {
       const code = url.searchParams.get("code");
-      const userId = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1];
+      const userId = currentUserId || req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1];
       if (!code || !userId) return new Response("Missing parameters", { status: 400 });
 
       // 1. Exchange code for user access token
@@ -227,7 +235,7 @@ export async function handlePublicAuth(env: Env, req: Request): Promise<Response
 
   if (req.method === "GET" && url.pathname === "/auth/threads/callback") {
       const code = url.searchParams.get("code");
-      const userId = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1];
+      const userId = currentUserId || req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1];
       if (!code || !userId) return new Response("Missing parameters", { status: 400 });
 
       // 1. Exchange code for short-lived token
@@ -258,7 +266,7 @@ export async function handlePublicAuth(env: Env, req: Request): Promise<Response
   }
 
   if (url.pathname === "/auth/logout") {
-    return new Response("Redirect", { status: 302, headers: { "Location": "/", "Set-Cookie": `user_id=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
+    return new Response("Redirect", { status: 302, headers: { "Location": "/", "Set-Cookie": `session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
   }
 
   return new Response("Not found", { status: 404 });
