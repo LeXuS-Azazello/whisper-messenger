@@ -9,7 +9,7 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
   if (!userId) {
     return new Response(null, { status: 302, headers: { 
         "Location": "/",
-        "Set-Cookie": "session=deleted; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+        "Set-Cookie": "session=deleted; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0"
     } });
   }
 
@@ -19,7 +19,7 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       status: 401,
       headers: { 
         "Content-Type": "text/html; charset=utf-8",
-        "Set-Cookie": `session=deleted; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
+        "Set-Cookie": `session=deleted; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
       }
     });
   }

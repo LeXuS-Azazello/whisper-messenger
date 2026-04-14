@@ -16,12 +16,12 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     const password = formData.get("password")?.toString();
     if (password === env.ADMIN_SECRET) {
       const signedAdminSession = await createSignedSession("admin", env.ADMIN_SECRET);
-      return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=${signedAdminSession}; Path=/; HttpOnly; SameSite=Lax` } });
+      return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=${signedAdminSession}; Path=/; HttpOnly; SameSite=Lax; Secure;` } });
     }
   }
   
   if (url.pathname === "/admin/logout") {
-    return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
+    return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
   }
   
   if (adminId !== "admin") return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });

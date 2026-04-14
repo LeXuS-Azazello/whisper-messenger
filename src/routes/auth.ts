@@ -42,7 +42,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
       const signedSession = await createSignedSession(registeredUserId, env.SESSION_SECRET || "default_session_secret");
       return Response.json(data, {
         headers: {
-          "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
+          "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=31536000`
         }
       });
     }
@@ -61,7 +61,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
       const signedSession = await createSignedSession(registeredUserId, env.SESSION_SECRET || "default_session_secret");
       return Response.json(data, {
         headers: {
-          "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
+          "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=31536000`
         }
       });
     }
@@ -74,8 +74,9 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     if (!idToken) return new Response("Missing credential", { status: 400 });
 
     try {
-      const payloadBase64 = idToken.split(".")[1];
-      const payload = JSON.parse(atob(payloadBase64));
+      const payloadBase64 = idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const pad = payloadBase64.length % 4;
+      const payload = JSON.parse(atob(pad ? payloadBase64 + "=".repeat(4 - pad) : payloadBase64));
       
       if (payload.aud !== env.GOOGLE_CLIENT_ID) {
           throw new Error("Invalid Google Client ID (audience mismatch)");
@@ -106,7 +107,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
       return new Response("Redirecting...", {
         status: 302, headers: { 
             "Location": "/dashboard",
-            "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000` 
+            "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=31536000` 
         }
       });
     } catch (e) {
@@ -163,7 +164,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     return new Response("Redirecting...", {
       status: 302, headers: { 
           "Location": "/dashboard",
-          "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000` 
+          "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=31536000` 
       }
     });
   }
@@ -266,7 +267,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   }
 
   if (url.pathname === "/auth/logout") {
-    return new Response("Redirect", { status: 302, headers: { "Location": "/", "Set-Cookie": `session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
+    return new Response("Redirect", { status: 302, headers: { "Location": "/", "Set-Cookie": `session=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
   }
 
   return new Response("Not found", { status: 404 });

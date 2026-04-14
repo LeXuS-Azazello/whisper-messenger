@@ -34,7 +34,9 @@ export async function createSignedSession(userId: string, secret: string): Promi
 export async function verifySession(session: string, secret: string): Promise<string | null> {
   if (!session || !session.includes('.')) return null;
 
-  const [userId, hashHex] = session.split('.');
+  const lastDot = session.lastIndexOf('.');
+  const userId = session.substring(0, lastDot);
+  const hashHex = session.substring(lastDot + 1);
   const key = await getSigningKey(secret);
   const encoder = new TextEncoder();
 
