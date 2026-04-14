@@ -226,6 +226,10 @@ app.post('/spawn', auth, async (req, res) => {
             if (items.length > 0) {
                 console.log(`[/spawn] Found ${items.length} existing pods for ${safeUserId}, deleting...`);
                 for (const p of items) {
+                    if (!p?.metadata?.name) {
+                        console.warn(`[/spawn] Skipping pod without metadata:`, p);
+                        continue;
+                    }
                     await withTimeout(k8sApi.deleteNamespacedPod({
                         name: p.metadata.name,
                         namespace
@@ -291,6 +295,7 @@ app.post('/delete', auth, async (req, res) => {
         const items = existing?.body?.items || existing?.items || [];
         if (items.length > 0) {
             for (const p of items) {
+                if (!p?.metadata?.name) continue;
                 await withTimeout(k8sApi.deleteNamespacedPod({
                     name: p.metadata.name,
                     namespace
@@ -320,6 +325,7 @@ app.post('/internal/access-revoked', auth, async (req, res) => {
         
         const items = existing?.body?.items || existing?.items || [];
         for (const p of items) {
+            if (!p?.metadata?.name) continue;
             await withTimeout(k8sApi.deleteNamespacedPod({
                 name: p.metadata.name,
                 namespace
