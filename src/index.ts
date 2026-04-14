@@ -16,8 +16,19 @@ export default {
     
     // Signed session from cookie
     const sessionCookie = req.headers.get('Cookie')?.match(/session=([^;]+)/)?.[1];
-    const userId = sessionCookie ? await verifySession(sessionCookie, env.SESSION_SECRET || env.ADMIN_SECRET) : null;
-    const isAdmin = req.headers.get('Cookie')?.match(/admin_session=([^;]+)/)?.[1] === env.ADMIN_SECRET; // Still slightly insecure but better than before
+    const userId = sessionCookie ? await verifySession(sessionCookie, env.SESSION_SECRET ?? env.ADMIN_SECRET) : null;
+    
+    // Constant-time comparison for admin session to prevent timing attacks
+    const adminCookie = req.headers.get('Cookie')?.match(/admin_session=([^;]+)/)?.[1];
+    let isAdmin = false;
+    if (adminCookie && env.ADMIN_SECRET) {
+      if (adminCookie.length === env.ADMIN_SECRET.length) {
+        isAdmin = crypto.subtle.timingSafeEqual(
+          new TextEncoder().encode(adminCookie),
+          new TextEncoder().encode(env.ADMIN_SECRET)
+        );
+      }
+    }
 
     if (url.pathname === "/") {
         if (userId) return Response.redirect(`${url.origin}/dashboard`);

@@ -97,7 +97,7 @@ export const renderHome = (googleClientId: string) => {
                                 <div id="g_id_onload"
                                     data-client_id={googleClientId}
                                     data-context="signin"
-                                    data-ux_mode="popup"
+                                    data-ux_mode="redirect"
                                     data-login_uri="/auth/google/callback"
                                     data-auto_prompt="false">
                                 </div>

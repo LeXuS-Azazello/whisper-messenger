@@ -1,5 +1,19 @@
 import { Env } from "./types";
 
+// Helper for fetch with timeout
+async function fetchWithTimeout(url: string, options: RequestInit, timeout = 10000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (e) {
+    clearTimeout(id);
+    throw e;
+  }
+}
+
 export interface TelegramWebhookUpdate {
   update_id: number;
   message?: {
@@ -60,7 +74,7 @@ export async function sendTelegramMessage(chatId: string | number, text: string,
   if (replyToMsgId) {
     body.reply_to_message_id = replyToMsgId;
   }
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -74,7 +88,7 @@ export async function sendTelegramMessage(chatId: string | number, text: string,
 
 export async function sendTelegramTypingOn(chatId: string | number, env: Env): Promise<void> {
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendChatAction`;
-  await fetch(url, {
+  await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -86,7 +100,7 @@ export async function sendTelegramTypingOn(chatId: string | number, env: Env): P
 
 export async function getTelegramFileUrl(fileId: string, env: Env): Promise<string | null> {
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) {
     console.error(`[telegram] getFile failed: ${await res.text()}`);
     return null;

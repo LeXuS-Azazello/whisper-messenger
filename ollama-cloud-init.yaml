@@ -1,0 +1,14 @@
+#cloud-config
+users:
+  - name: ollama
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+
+runcmd:
+  - curl -fsSL https://ollama.com/install.sh | sh
+  - systemctl enable ollama
+  - systemctl start ollama
+  - sleep 10
+  - ollama pull qwen2.5-coder:32b
+  - ollama pull gemma4:latest
+  - ufw allow 11434/tcp

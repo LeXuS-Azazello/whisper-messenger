@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cloudflared
+  namespace: debugging-ollama
+spec:
+  containers:
+  - name: cloudflared
+    image: cloudflare/cloudflared:2026.3.0
+    env:
+    - name: TUNNEL_TOKEN
+      value: "eyJhIjoiZmZhMjc2NTFhNjQ3ZDM3YTcxZmIzYWVhZTk2OWM3NjIiLCJ0IjoiMmZiNDgxMTItMDQ0Mi00NjY2LWFjN2ItMjJjMmRmMjczMjgyIiwicyI6IkF4MnBTbnRJNmpvSHErWjZ1TjhWbkNJTG5hZUt2a0luRlFmR3R2TTBSV1k9In0K"
+    command: ["cloudflared", "tunnel", "--no-autoupdate", "run", "--url", "tcp://10.0.0.8:22"]
+    ports:
+    - containerPort: 22
+      name: ssh

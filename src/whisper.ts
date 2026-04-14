@@ -39,8 +39,8 @@ async function transcribeCloudflare(
   console.log(`[whisper] Cloudflare: Audio size ${audio.byteLength} bytes`);
 
   try {
-    // @ts-ignore
-    const result = await env.AI.run(MODEL, input) as WhisperResponse;
+    // Cast through unknown to handle Ai.run typing limitations
+    const result = await (env.AI.run as (model: string, input: { audio: Uint8Array }) => Promise<WhisperResponse>)(MODEL, input);
 
     if (!result || !result.text) {
       throw new Error(`Cloudflare Whisper returned empty result`);

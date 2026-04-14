@@ -1,0 +1,6 @@
+tunnel: ollama-tunnel
+credentials-file: /home/lexus/.cloudflared/cd97b91d-6493-4962-89f2-a4a9db5a6977.json
+ingress:
+  - hostname: ollama.debug.org.ua
+    service: http://100.65.0.209:11434
+  - service: http_status:404

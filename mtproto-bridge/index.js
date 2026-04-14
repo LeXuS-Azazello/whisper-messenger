@@ -28,6 +28,9 @@ const PORT       = parseInt(process.env.PORT       || '3000', 10);
 const TARGET_USER_ID = process.env.TARGET_USER_ID || '';
 const TG_SESSION     = process.env.TG_SESSION     || '';
 const WORKER_URL     = process.env.WORKER_URL     || '';
+const DEVICE_MODEL   = process.env.DEVICE_MODEL    || 'Desktop';
+const APP_VERSION    = process.env.APP_VERSION    || '1.0.0';
+const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Linux';
 
 // K8s Client
 let k8sApi = null;
@@ -141,6 +144,18 @@ app.post('/test-tg', auth, async (req, res) => {
         }
         const client = new TelegramClient(new StringSession(sessionToUse), API_ID, API_HASH, { connectionRetries: 3 });
         await client.connect();
+        
+        await client.invoke(new Api.InitConnection({
+            apiId: API_ID,
+            deviceModel: DEVICE_MODEL,
+            systemVersion: SYSTEM_VERSION,
+            appVersion: APP_VERSION,
+            systemLangCode: 'en',
+            langPack: '',
+            langCode: 'en',
+            query: new Api.help.GetConfig()
+        }));
+        
         await client.sendMessage('me', { message: '🧪 Bridge test‑tg: message to self ✅' });
         await client.disconnect();
         return res.json({ success: true });
@@ -164,10 +179,17 @@ app.post('/test-voice', auth, async (req, res) => {
         }
         const buffer = fs.readFileSync(audioPath);
         const toMe = await client.getMe();
-        await client.sendFile(toMe.id, {
+        
+        // Use InputFile with correct attributes for voice message
+        const inputFile = new Api.InputFile({
             file: buffer,
-            voice: true,
             mimeType: 'audio/ogg',
+            fileName: 'test_voice.ogg'
+        });
+        
+        // Send as document with voice attribute
+        await client.sendMessage(toMe.id, {
+            file: inputFile,
             attributes: [
                 new Api.DocumentAttributeAudio({
                     voice: true,
@@ -230,7 +252,10 @@ app.post('/spawn', auth, async (req, res) => {
                         { name: 'BRIDGE_SECRET', value: SECRET },
                         { name: 'WORKER_URL', value: WORKER_URL },
                         { name: 'WHISPER_SERVER_URL', value: process.env.WHISPER_SERVER_URL || '' },
-                        { name: 'WHISPER_SECRET', value: process.env.WHISPER_SECRET || '' }
+                        { name: 'WHISPER_SECRET', value: process.env.WHISPER_SECRET || '' },
+                        { name: 'DEVICE_MODEL', value: process.env.DEVICE_MODEL || DEVICE_MODEL },
+                        { name: 'APP_VERSION', value: process.env.APP_VERSION || APP_VERSION },
+                        { name: 'SYSTEM_VERSION', value: process.env.SYSTEM_VERSION || SYSTEM_VERSION }
                     ],
                     resources: { requests: { memory: '512Mi' }, limits: { memory: '1Gi' } }
                 }]
@@ -280,6 +305,34 @@ app.post('/delete', auth, async (req, res) => {
     }
 });
 
+app.post('/internal/access-revoked', auth, async (req, res) => {
+    if (MODE !== 'MANAGER') return res.status(400).send('Not manager');
+    const { userId } = req.body;
+    console.log(`[/internal/access-revoked] User ${userId} removed access`);
+    try {
+        const safeUserId = String(userId);
+        const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
+        
+        const existing = await withTimeout(k8sApi.listNamespacedPod({
+            namespace,
+            labelSelector: `userId=${safeUserId}`
+        }), 3000);
+        
+        const items = existing?.body?.items || existing?.items || [];
+        for (const p of items) {
+            await withTimeout(k8sApi.deleteNamespacedPod({
+                name: p.metadata.name,
+                namespace
+            }), 2000).catch(() => {});
+        }
+        console.log(`[/internal/access-revoked] Deleted pod for ${userId}`);
+        res.json({ success: true });
+    } catch (e) {
+        console.error(`[/internal/access-revoked] Error:`, e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ─── USER MODE Logic ─────────────────────────────────────────────────────────
 function splitLongText(text, maxLength = 4000) {
     const parts = [];
@@ -312,8 +365,7 @@ async function handleNewMessage(event) {
     
     try {
         const senderId = msg.senderId;
-        const targetPeer = msg.chatId;
-        const isSameChat = senderId && targetPeer && senderId.toString() === targetPeer.toString();
+        const targetPeer = TARGET_USER_ID;
 
         // Set typing status and send notification
         await userClient.invoke(new Api.messages.SetTyping({
@@ -363,11 +415,74 @@ async function startUserClient() {
     if (!TG_SESSION) return console.error('[user] No TG_SESSION provided!');
     userClient = new TelegramClient(new StringSession(TG_SESSION), API_ID, API_HASH, { connectionRetries: 5 });
     await userClient.connect();
-        userClient.addEventHandler(handleNewMessage, new (require('telegram/events').NewMessage)({ incoming: true, outgoing: false }));
+    
+    await userClient.invoke(new Api.InitConnection({
+        apiId: API_ID,
+        deviceModel: DEVICE_MODEL,
+        systemVersion: SYSTEM_VERSION,
+        appVersion: APP_VERSION,
+        systemLangCode: 'en',
+        langPack: '',
+        langCode: 'en',
+        query: new Api.help.GetConfig()
+    }));
+    
+    userClient.addEventHandler(handleNewMessage, new (require('telegram/events').NewMessage)({ incoming: true, outgoing: false }));
     console.log(`[user] Online.`);
+}
+
+app.get('/check-access', auth, async (req, res) => {
+    if (MODE !== 'USER') return res.status(400).send('Not user mode');
+    if (!userClient) return res.json({ accessible: false, error: 'No client' });
+    
+    try {
+        await userClient.invoke(new Api.users.GetUsers({
+            id: [TARGET_USER_ID]
+        }));
+        res.json({ accessible: true });
+    } catch (e) {
+        const errMsg = e.errorMessage || e.message || '';
+        const isBlocked = errMsg.includes('USER_IS_BLOCKED') || 
+                         errMsg.includes('PEER_ID_INVALID') || 
+                         errMsg.includes('INPUT_USER_DEACTIVATED') ||
+                         errMsg.includes('USER_ID_INVALID');
+        console.log(`[/check-access] Not accessible: ${errMsg}`);
+        res.json({ accessible: false, blocked: isBlocked, error: errMsg });
+    }
+});
+
+let accessCheckInterval = null;
+function startAccessChecker() {
+    if (MODE !== 'USER' || !WORKER_URL) return;
+    
+    accessCheckInterval = setInterval(async () => {
+        if (!userClient) return;
+        try {
+            await userClient.invoke(new Api.users.GetUsers({
+                id: [TARGET_USER_ID]
+            }));
+        } catch (e) {
+            const errMsg = e.errorMessage || e.message || '';
+            const isBlocked = errMsg.includes('USER_IS_BLOCKED') || 
+                             errMsg.includes('PEER_ID_INVALID') || 
+                             errMsg.includes('INPUT_USER_DEACTIVATED') ||
+                             errMsg.includes('USER_ID_INVALID');
+            if (isBlocked) {
+                console.log(`[access-check] User removed access: ${errMsg}, notifying manager`);
+                fetch(`${WORKER_URL}/internal/access-revoked`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET })
+                }).catch(() => {});
+            }
+        }
+    }, 60000);
 }
 
 app.listen(PORT, async () => {
     console.log(`[bridge] ${MODE} on ${PORT}`);
-    if (MODE === 'USER') await startUserClient();
+    if (MODE === 'USER') {
+        await startUserClient();
+        startAccessChecker();
+    }
 });

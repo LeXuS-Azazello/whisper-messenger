@@ -40,14 +40,19 @@ export async function handleMetaMessaging(body: MetaWebhookBody, env: Env): Prom
       const senderId = msg.sender?.id || "";
       const audioUrl = msg.message?.attachments?.[0]?.payload?.url;
       if (senderId && audioUrl) {
-         if (token) {
-             await sendTypingOn(senderId, token, env);
-             await sendMessageSafe(senderId, "⏳ Transcribing...", token, env);
-         }
-         let platform = body.object === "instagram" ? "instagram" : "messenger";
-         if (isThreads) platform = "threads" as any;
+        // Skip if page not connected to any user
+        if (!ownerId) {
+          console.log(`[webhooks] Skipping audio: page ${pageId} not connected to any user`);
+          continue;
+        }
+        if (token) {
+            await sendTypingOn(senderId, token, env);
+            await sendMessageSafe(senderId, "⏳ Transcribing...", token, env);
+        }
+        let platform = body.object === "instagram" ? "instagram" : "messenger";
+        if (isThreads) platform = "threads" as any;
 
-         await env.AUDIO_QUEUE.send({ userId: ownerId || undefined, senderId, audioUrl, platform });
+        await env.AUDIO_QUEUE.send({ userId: ownerId, senderId, audioUrl, platform });
       }
     }
   }
@@ -71,11 +76,16 @@ export async function handleWhatsApp(body: WhatsAppWebhookBody, env: Env): Promi
 
       for (const msg of change.value.messages ?? []) {
         if (msg.from && msg.audio) {
+          // Skip if phone not connected to any user
+          if (!ownerId) {
+            console.log(`[webhooks] Skipping audio: phone ${phoneId} not connected to any user`);
+            continue;
+          }
           const audioUrl = await getWhatsAppAudioUrl(msg.audio.id, token, env);
           if (audioUrl) {
             await sendWhatsAppTypingOn(phoneId, msg.from, token, env);
             await sendWhatsAppMessageSafe(phoneId, msg.from, "⏳ Transcribing...", token, env);
-            await env.AUDIO_QUEUE.send({ userId: ownerId || undefined, senderId: msg.from, audioUrl, platform: "whatsapp" });
+            await env.AUDIO_QUEUE.send({ userId: ownerId, senderId: msg.from, audioUrl, platform: "whatsapp" });
           }
         }
       }

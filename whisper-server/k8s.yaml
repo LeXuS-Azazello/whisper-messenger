@@ -1,42 +1,46 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: whisper-onnx
+  name: sherpa-onnx
   namespace: debugging-echovoice
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: whisper-onnx
+      app: sherpa-onnx
   template:
     metadata:
       labels:
-        app: whisper-onnx
+        app: sherpa-onnx
     spec:
       containers:
-      - name: sherpa
+      - name: whisper
         image: azazellosaraksh/debugging-whisper-onnx:latest
         ports:
         - containerPort: 8000
         env:
+        - name: MODEL_DIR
+          value: /app/models/whisper-tiny
+        - name: NUM_THREADS
+          value: "4"
         - name: WHISPER_SECRET
           value: "whisper-sh-secret-2026"
         resources:
           requests:
-            cpu: "0.5"
             memory: "1Gi"
+            cpu: "500m"
           limits:
-            cpu: "2"
             memory: "2Gi"
+            cpu: "2000m"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: whisper-onnx
+  name: sherpa-onnx
   namespace: debugging-echovoice
 spec:
   selector:
-    app: whisper-onnx
+    app: sherpa-onnx
   ports:
   - port: 8000
     targetPort: 8000
