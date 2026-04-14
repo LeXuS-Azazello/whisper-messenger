@@ -39,6 +39,9 @@ SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = "465"
 SMTP_SECURE = "true"
 
+# Ollama Config
+OLLAMA_BASE_URL = "http://91.224.11.67:11434"
+
 [observability]
 enabled = true
 head_sampling_rate = 1

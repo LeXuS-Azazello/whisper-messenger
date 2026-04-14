@@ -24,9 +24,10 @@ export interface Env {
   GOOGLE_CLIENT_SECRET: string;
   STATS: KVNamespace;
   // Whisper Config
-  WHISPER_PROVIDER?: "cloudflare" | "local";
+  WHISPER_PROVIDER?: "cloudflare" | "local" | "ollama";
   LOCAL_WHISPER_URL?: string;
   LOCAL_WHISPER_SECRET?: string;
+  OLLAMA_BASE_URL?: string;
   
   // SMTP Config
   EMAIL_FROM?: string;

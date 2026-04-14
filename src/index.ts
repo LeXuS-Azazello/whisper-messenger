@@ -16,7 +16,7 @@ export default {
     
     // Signed session from cookie
     const sessionCookie = req.headers.get('Cookie')?.match(/session=([^;]+)/)?.[1];
-    const userId = sessionCookie ? await verifySession(sessionCookie, env.SESSION_SECRET ?? env.ADMIN_SECRET) : null;
+    const userId = sessionCookie ? await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret") : null;
     
     // Constant-time comparison for admin session to prevent timing attacks
     const adminCookie = req.headers.get('Cookie')?.match(/admin_session=([^;]+)/)?.[1];
@@ -72,7 +72,7 @@ export default {
 
     if (url.pathname === "/test-whisper" && req.method === "POST") {
         if (!isAdmin && !userId) return new Response("Unauthorized", { status: 401 });
-        const provider = url.searchParams.get("provider") as "cloudflare" | "local" || "cloudflare";
+        const provider = url.searchParams.get("provider") as "cloudflare" | "local" | "ollama" || "ollama";
         const formData = await req.formData();
         const file = formData.get("file") as File;
         if (!file) return new Response("Missing file", { status: 400 });
