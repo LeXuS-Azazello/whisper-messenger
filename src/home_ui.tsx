@@ -128,6 +128,13 @@ export const renderHome = (googleClientId: string) => {
                     var authView = document.getElementById('auth-view');
                     var successView = document.getElementById('success-view');
 
+                    // Check for existing session
+                    var sessionMatch = document.cookie.match(/session=([^;]+)/);
+                    if (sessionMatch) {
+                        window.location.href = '/dashboard';
+                        throw new Error('Redirecting to dashboard');
+                    }
+
                     document.getElementById('forgot-pass-btn').onclick = (e) => {
                         e.preventDefault();
                         emailInput.focus();
