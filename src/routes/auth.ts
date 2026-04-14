@@ -39,7 +39,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     const data: any = await res.json();
     if (data.success) {
       const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie);
-      const signedSession = await createSignedSession(registeredUserId, env.SESSION_SECRET || env.ADMIN_SECRET);
+      const signedSession = await createSignedSession(registeredUserId, env.SESSION_SECRET || "default_session_secret");
       return Response.json(data, {
         headers: {
           "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
@@ -58,7 +58,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     const data: any = await res.json();
     if (data.done) {
       const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie);
-      const signedSession = await createSignedSession(registeredUserId, env.SESSION_SECRET || env.ADMIN_SECRET);
+      const signedSession = await createSignedSession(registeredUserId, env.SESSION_SECRET || "default_session_secret");
       return Response.json(data, {
         headers: {
           "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`
@@ -102,7 +102,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
           }
       }
       
-      const signedSession = await createSignedSession(userId, env.SESSION_SECRET || env.ADMIN_SECRET || "fallback_secret");
+      const signedSession = await createSignedSession(userId, env.SESSION_SECRET || "default_session_secret");
       return new Response("Redirecting...", {
         status: 302, headers: { 
             "Location": "/dashboard",
@@ -159,7 +159,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
         }
     }
 
-    const signedSession = await createSignedSession(userId, env.SESSION_SECRET || env.ADMIN_SECRET || "fallback_secret");
+    const signedSession = await createSignedSession(userId, env.SESSION_SECRET || "default_session_secret");
     return new Response("Redirecting...", {
       status: 302, headers: { 
           "Location": "/dashboard",

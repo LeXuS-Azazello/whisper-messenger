@@ -44,6 +44,7 @@ The system consists of three primary components:
 
 *   `KV_NAMESPACE`: Access to the `STATS` storage.
 *   `ADMIN_SECRET`: Password for the admin dashboard.
+*   `SESSION_SECRET`: Key for signing user session cookies (standard HMAC-SHA256).
 *   `BRIDGE_URL`: Public endpoint for the MTProto Manager.
 *   `WHISPER_PROVIDER`: `cloudflare` (default) or `local`.
 *   `LOCAL_WHISPER_URL`: Public endpoint for the Whisper-ONNX server.

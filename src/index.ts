@@ -14,6 +14,52 @@ export default {
 
     if (url.pathname === "/health") return Response.json({ ok: true });
     
+    // Proxy for Ollama (OpenAI compatible and native)
+    if (url.pathname.startsWith("/v1/") || url.pathname.startsWith("/api/") || url.pathname === "/chat/completions") {
+        const ollamaBase = env.OLLAMA_BASE_URL || "http://91.224.11.69:11434";
+        let targetPath = url.pathname;
+        if (targetPath === "/chat/completions") targetPath = "/v1/chat/completions";
+        
+        const targetUrl = new URL(targetPath, ollamaBase);
+        url.searchParams.forEach((v, k) => targetUrl.searchParams.set(k, v));
+
+        const headers = new Headers(req.headers);
+        headers.set("Host", new URL(ollamaBase).host);
+
+        try {
+            const response = await fetch(targetUrl.toString(), {
+                method: req.method,
+                headers: headers,
+                body: req.method !== "GET" && req.method !== "HEAD" ? await req.blob() : null,
+                redirect: "follow"
+            });
+
+            const newHeaders = new Headers(response.headers);
+            newHeaders.set("Access-Control-Allow-Origin", "*");
+            newHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            newHeaders.set("Access-Control-Allow-Headers", "*");
+
+            return new Response(response.body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: newHeaders
+            });
+        } catch (e) {
+            return Response.json({ error: (e as Error).message }, { status: 502 });
+        }
+    }
+
+    if (req.method === "OPTIONS") {
+        return new Response(null, {
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "86400",
+            }
+        });
+    }
+
     // Signed session from cookie
     const sessionCookie = req.headers.get('Cookie')?.match(/session=([^;]+)/)?.[1];
     const userId = sessionCookie ? await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret") : null;

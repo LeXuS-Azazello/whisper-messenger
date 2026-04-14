@@ -201,7 +201,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 <span id="whisper-status-tag" class="status-tag active">LOADING...</span>
                             </div>
                             <div style={{ marginTop: '10px' }}>
-                                <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+                                <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
                                         <input type="radio" name="whisper_provider" value="cloudflare" id="provider-cf" /> 
                                         <span style={{ fontSize: '14px' }}>Cloudflare AI</span>
@@ -210,10 +210,24 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                         <input type="radio" name="whisper_provider" value="local" id="provider-local" />
                                         <span style={{ fontSize: '14px' }}>Local Sherpa ONNX</span>
                                     </label>
-                                <button class="btn" id="test-s2t-btn" style="margin-top:10px; background:#8B5CF6; width:100%; border-radius:12px; padding:10px; font-weight:600;">Test Speech2Text</button>
-</div>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                        <input type="radio" name="whisper_provider" value="ollama" id="provider-ollama" />
+                                        <span style={{ fontSize: '14px' }}>Ollama</span>
+                                    </label>
+                                </div>
 
-                                <button class="btn" id="save-whisper-btn" style={{ marginTop: '15px', background: '#8B5CF6', width: '100%', borderRadius: '12px', padding: '10px', fontWeight: '600' }}>Save Whisper Config</button>
+                                <div id="ollama-config-section" style={{ display: 'none', marginTop: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                                    <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '8px' }}>Select Ollama Model:</label>
+                                    <select id="ollama-model-select" class="input-field" style={{ width: '100%', marginBottom: '10px', background: '#111', color: '#fff', border: '1px solid #333' }}>
+                                        <option value="qwen3-coder:30b">Qwen 3 Coder (30B)</option>
+                                        <option value="gemma4:latest">Gemma 4 (8B)</option>
+                                        <option value="llama3.2:1b">Llama 3.2 (1B)</option>
+                                        <option value="whisper">Ollama Whisper (Native)</option>
+                                    </select>
+                                </div>
+
+                                <button class="btn" id="save-whisper-btn" style={{ marginTop: '15px', background: '#8B5CF6', width: '100%', borderRadius: '12px', padding: '10px', fontWeight: '600' }}>Save AI Config</button>
+                                <button class="btn" id="test-s2t-btn" style={{ marginTop: '10px', background: 'rgba(139, 92, 246, 0.2)', color: '#8B5CF6', border: '1px solid #8B5CF6', width: '100%', borderRadius: '12px', padding: '10px', fontWeight: '600' }}>Test Speech2Text</button>
                             </div>
                         </div>
 

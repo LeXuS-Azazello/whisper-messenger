@@ -40,7 +40,8 @@ SMTP_PORT = "465"
 SMTP_SECURE = "true"
 
 # Ollama Config
-OLLAMA_BASE_URL = "http://91.224.11.67:11434"
+OLLAMA_BASE_URL = "http://91.224.11.69:11434"
+OLLAMA_MODEL = "qwen3-coder:30b"
 
 [observability]
 enabled = true

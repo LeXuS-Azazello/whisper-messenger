@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ollama-pull-models
+  namespace: debugging-llm-proj
+spec:
+  template:
+    spec:
+      containers:
+      - name: puller
+        image: curlimages/curl:latest
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            echo "Pulling models..."
+            curl -X POST http://ollama:11434/api/pull -d '{"name": "qwen3-coder:30b"}'
+            curl -X POST http://ollama:11434/api/pull -d '{"name": "gemma4:latest"}'
+            curl -X POST http://ollama:11434/api/pull -d '{"name": "llama3.2:1b"}'
+            curl -X POST http://ollama:11434/api/pull -d '{"name": "qwen2.5-coder:32b"}'
+            echo "Done."
+      restartPolicy: Never
+  backoffLimit: 4

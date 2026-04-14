@@ -2,15 +2,19 @@
  * MTProto Bridge — Hybrid Manager/User Pod
  */
 
-'use strict';
+import express from 'express';
+import { TelegramClient, Api } from 'telegram';
+import { StringSession } from 'telegram/sessions/index.js';
+import k8s from '@kubernetes/client-node';
+import { transcribe } from './transcribe.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
-const express = require('express');
-const { TelegramClient, Api } = require('telegram');
-const { StringSession } = require('telegram/sessions');
-const k8s = require('@kubernetes/client-node');
-const { transcribe } = require('./transcribe');
-const fs = require('fs');
-const path = require('path');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
 
 const app = express();
 app.use((req, res, next) => {
@@ -144,17 +148,6 @@ app.post('/test-tg', auth, async (req, res) => {
         }
         const client = new TelegramClient(new StringSession(sessionToUse), API_ID, API_HASH, { connectionRetries: 3 });
         await client.connect();
-        
-        await client.invoke(new Api.InitConnection({
-            apiId: API_ID,
-            deviceModel: DEVICE_MODEL,
-            systemVersion: SYSTEM_VERSION,
-            appVersion: APP_VERSION,
-            systemLangCode: 'en',
-            langPack: '',
-            langCode: 'en',
-            query: new Api.help.GetConfig()
-        }));
         
         await client.sendMessage('me', { message: '🧪 Bridge test‑tg: message to self ✅' });
         await client.disconnect();
@@ -422,18 +415,7 @@ async function startUserClient() {
     userClient = new TelegramClient(new StringSession(TG_SESSION), API_ID, API_HASH, { connectionRetries: 5 });
     await userClient.connect();
     
-    await userClient.invoke(new Api.InitConnection({
-        apiId: API_ID,
-        deviceModel: DEVICE_MODEL,
-        systemVersion: SYSTEM_VERSION,
-        appVersion: APP_VERSION,
-        systemLangCode: 'en',
-        langPack: '',
-        langCode: 'en',
-        query: new Api.help.GetConfig()
-    }));
-    
-    userClient.addEventHandler(handleNewMessage, new (require('telegram/events').NewMessage)({ incoming: true, outgoing: false }));
+    userClient.addEventHandler(handleNewMessage, new (require('telegram/events/index.js').NewMessage)({ incoming: true, outgoing: false }));
     console.log(`[user] Online.`);
 }
 
@@ -485,10 +467,17 @@ function startAccessChecker() {
     }, 60000);
 }
 
-app.listen(PORT, async () => {
-    console.log(`[bridge] ${MODE} on ${PORT}`);
-    if (MODE === 'USER') {
-        await startUserClient();
-        startAccessChecker();
-    }
-});
+// Simple workaround for require.main === module in ESM
+const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+
+if (isMain) {
+    app.listen(PORT, async () => {
+        console.log(`[bridge] ${MODE} on ${PORT}`);
+        if (MODE === 'USER') {
+            await startUserClient();
+            startAccessChecker();
+        }
+    });
+}
+
+export default app;

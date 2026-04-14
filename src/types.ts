@@ -28,6 +28,7 @@ export interface Env {
   LOCAL_WHISPER_URL?: string;
   LOCAL_WHISPER_SECRET?: string;
   OLLAMA_BASE_URL?: string;
+  OLLAMA_MODEL?: string;
   
   // SMTP Config
   EMAIL_FROM?: string;

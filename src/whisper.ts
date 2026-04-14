@@ -18,9 +18,12 @@ export async function transcribeWithFallback(
   
   const kvSecret = await env.STATS.get("config_local_whisper_secret");
   const localSecret = kvSecret || env.LOCAL_WHISPER_SECRET;
+  
+  const kvModel = await env.STATS.get("config_ollama_model");
+  const ollamaModel = kvModel || env.OLLAMA_MODEL || "whisper";
 
   if (provider === "ollama" && localUrl) {
-    return transcribeOllama(audio, localUrl, localSecret);
+    return transcribeOllama(audio, localUrl, ollamaModel, localSecret);
   }
   
   if (provider === "local" && localUrl) {
@@ -98,9 +101,10 @@ async function transcribeLocal(
 async function transcribeOllama(
   audio: ArrayBuffer,
   url: string,
+  model: string,
   secret?: string
 ): Promise<WhisperResponse> {
-  console.log(`[whisper] Ollama: Audio size ${audio.byteLength} bytes, URL: ${url}`);
+  console.log(`[whisper] Ollama: Audio size ${audio.byteLength} bytes, URL: ${url}, Model: ${model}`);
   
   const bytes = new Uint8Array(audio);
   let binary = "";
@@ -109,17 +113,20 @@ async function transcribeOllama(
   }
   const base64Audio = btoa(binary);
 
+  const isNativeWhisper = model === "whisper";
+  const endpoint = isNativeWhisper ? "/api/transcribe" : "/api/generate";
+  const body = isNativeWhisper 
+    ? { model, audio: base64Audio }
+    : { model, prompt: `Transcribe this audio (base64): ${base64Audio}`, stream: false };
+
   try {
-    const response = await fetch(`${url}/api/transcribe`, {
+    const response = await fetch(`${url}${endpoint}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${secret || ""}`,
       },
-      body: JSON.stringify({
-        model: "whisper",
-        audio: base64Audio,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -127,9 +134,10 @@ async function transcribeOllama(
       throw new Error(`Ollama server returned ${response.status}: ${errorText}`);
     }
 
-    const result = await response.json() as WhisperResponse;
-    console.log(`[whisper] Ollama succeeded: "${result.text?.substring(0, 50)}..."`);
-    return result;
+    const result = await response.json() as any;
+    const transcribedText = isNativeWhisper ? result.text : result.response;
+    console.log(`[whisper] Ollama succeeded: "${transcribedText?.substring(0, 50)}..."`);
+    return { text: transcribedText };
   } catch (e) {
     console.error(`[whisper] Ollama failed: ${e}`);
     throw e;

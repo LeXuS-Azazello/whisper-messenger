@@ -196,11 +196,13 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
   if (url.pathname === "/admin/whisper-config") {
     if (req.method === "GET") {
       const provider = await env.STATS.get("config_whisper_provider") || "cloudflare";
-      return Response.json({ provider });
+      const model = await env.STATS.get("config_ollama_model") || "qwen3-coder:30b";
+      return Response.json({ provider, model });
     }
     if (req.method === "POST") {
-      const { provider } = await req.json() as any;
-      await env.STATS.put("config_whisper_provider", provider);
+      const { provider, model } = await req.json() as any;
+      if (provider) await env.STATS.put("config_whisper_provider", provider);
+      if (model) await env.STATS.put("config_ollama_model", model);
       return Response.json({ success: true });
     }
   }

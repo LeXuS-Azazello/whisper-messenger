@@ -181,16 +181,37 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/admin/whisper-config').then(r => r.json()).then(data => {
             const providerLocal = document.getElementById('provider-local');
             const providerCf = document.getElementById('provider-cf');
+            const providerOllama = document.getElementById('provider-ollama');
+            const ollamaSection = document.getElementById('ollama-config-section');
+            const modelSelect = document.getElementById('ollama-model-select');
+            
             if (data.provider === 'local') {
                 if (providerLocal) providerLocal.checked = true;
+            } else if (data.provider === 'ollama') {
+                if (providerOllama) providerOllama.checked = true;
+                if (ollamaSection) ollamaSection.style.display = 'block';
             } else {
                 if (providerCf) providerCf.checked = true;
             }
+
+            if (modelSelect && data.model) {
+                modelSelect.value = data.model;
+            }
+
             const statusTag = document.getElementById('whisper-status-tag');
             if (statusTag) statusTag.innerText = data.provider.toUpperCase();
         });
     }
     loadWhisperConfig();
+
+    document.querySelectorAll('input[name="whisper_provider"]').forEach(input => {
+        input.addEventListener('change', (e) => {
+            const ollamaSection = document.getElementById('ollama-config-section');
+            if (ollamaSection) {
+                ollamaSection.style.display = e.target.value === 'ollama' ? 'block' : 'none';
+            }
+        });
+    });
 
     const saveWhisperBtn = document.getElementById('save-whisper-btn');
     if (saveWhisperBtn) {
@@ -198,15 +219,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const checked = document.querySelector('input[name="whisper_provider"]:checked');
             if (!checked) return;
             const provider = checked.value;
+            const modelSelect = document.getElementById('ollama-model-select');
+            const model = modelSelect ? modelSelect.value : null;
             
             saveWhisperBtn.innerText = 'Saving...';
             fetch('/admin/whisper-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ provider })
+                body: JSON.stringify({ provider, model })
             }).then(r => r.json()).then(d => {
-                alert(d.success ? 'Whisper config saved' : 'Error: ' + d.error);
-                saveWhisperBtn.innerText = 'Save Whisper Config';
+                alert(d.success ? 'AI config saved' : 'Error: ' + d.error);
+                saveWhisperBtn.innerText = 'Save AI Config';
                 loadWhisperConfig();
             });
         });
