@@ -11,6 +11,7 @@ vi.mock('telegram', () => ({
     },
     TelegramClient: function() {
         return {
+            connected: true,
             connect: vi.fn().mockResolvedValue(true),
             disconnect: vi.fn().mockResolvedValue(true),
             sendMessage: vi.fn().mockResolvedValue(true),

@@ -6,8 +6,8 @@
   "scripts": {
     "build": "npx wrangler deploy --dry-run",
     "deploy:worker": "npm version patch && npx wrangler deploy",
-    "deploy:server": "npm version patch && bash mtproto-bridge/build.sh && kubectl rollout restart deployment mtproto-bridge-manager -n debugging-whispermsg",
-    "deploy:all": "npm version patch && npx wrangler deploy && bash mtproto-bridge/build.sh && kubectl rollout restart deployment mtproto-bridge-manager -n debugging-whispermsg",
+    "deploy:server": "npm version patch && bash mtproto-bridge/build.sh && kubectl rollout restart deployment mtproto-bridge-manager -n debugging-echovoice",
+    "deploy:all": "npm version patch && npx wrangler deploy && bash mtproto-bridge/build.sh && kubectl rollout restart deployment mtproto-bridge-manager -n debugging-echovoice",
     "deploy": "npm run deploy:worker",
     "dev": "wrangler dev",
     "test": "vitest run",
@@ -25,6 +25,7 @@
     "undici": "^6.24.1"
   },
   "dependencies": {
+    "jose": "^6.2.2",
     "preact": "^10.29.0",
     "preact-render-to-string": "^6.6.7"
   }

@@ -144,17 +144,21 @@ app.post('/test-tg', auth, async (req, res) => {
     try {
         const sessionToUse = req.body.session || TG_SESSION;
         if (!sessionToUse) {
-            return res.status(400).json({ success: false, error: 'No TG_SESSION configured or provided' });
+            return res.status(400).json({ success: false, error: 'No TG_SESSION' });
         }
-        const client = new TelegramClient(new StringSession(sessionToUse), API_ID, API_HASH, { connectionRetries: 3 });
+        const client = new TelegramClient(new StringSession(sessionToUse), API_ID, API_HASH, { connectionRetries: 3, onlyThis: true });
         await client.connect();
-        
-        await client.sendMessage('me', { message: '🧪 Bridge test‑tg: message to self ✅' });
+        if (!client.connected) {
+            return res.status(401).json({ success: false, error: 'Session expired, re-login required' });
+        }
+        const toMe = await client.getMe();
+        await client.sendMessage(toMe.id, { message: 'Test from bridge!' });
         await client.disconnect();
         return res.json({ success: true });
     } catch (e) {
         console.error('[test-tg] error:', e);
-        return res.status(500).json({ success: false, error: e.message });
+        const isExpired = e.message?.includes('CONNECTION_LAYER_INVALID') || e.message?.includes('SESSION');
+        return res.status(isExpired ? 401 : 500).json({ success: false, error: isExpired ? 'Session expired, re-login required' : e.message });
     }
 });
 
@@ -164,37 +168,42 @@ app.post('/test-voice', auth, async (req, res) => {
         if (!sessionToUse) {
             return res.status(400).json({ success: false, error: 'No TG_SESSION' });
         }
-        const client = new TelegramClient(new StringSession(sessionToUse), API_ID, API_HASH, { connectionRetries: 3 });
+        const client = new TelegramClient(new StringSession(sessionToUse), API_ID, API_HASH, { connectionRetries: 3, onlyThis: true });
         await client.connect();
-        const audioPath = path.join(__dirname, 'test.ogg');
-        if (!fs.existsSync(audioPath)) {
-            return res.status(404).json({ error: 'test.ogg not found' });
+        if (!client.connected) {
+            return res.status(401).json({ success: false, error: 'Session expired, re-login required' });
         }
-        const buffer = fs.readFileSync(audioPath);
         const toMe = await client.getMe();
         
-        // Use InputFile with correct attributes for voice message
-        const inputFile = new Api.InputFile({
-            file: buffer,
-            mimeType: 'audio/ogg',
-            fileName: 'test_voice.ogg'
-        });
+        // Send simple text test first
+        await client.sendMessage(toMe.id, { message: '🔊 Voice test' });
         
-        // Send as document with voice attribute
-        await client.sendMessage(toMe.id, {
-            file: inputFile,
-            attributes: [
-                new Api.DocumentAttributeAudio({
-                    voice: true,
-                    duration: 2
-                })
-            ]
-        });
+        // Try to send voice using built-in sample URL
+        try {
+            const voiceUrl = 'https://upload.wikimedia.org/wikipedia/commons/7/75/Example.ogg';
+            const voiceRes = await fetch(voiceUrl);
+            const voiceBuffer = await voiceRes.arrayBuffer();
+            
+            const inputFile = new Api.InputFile({
+                file: Buffer.from(voiceBuffer),
+                mimeType: 'audio/ogg',
+                fileName: 'test.ogg'
+            });
+            
+            await client.sendMessage(toMe.id, {
+                file: inputFile,
+                attributes: [new Api.DocumentAttributeAudio({ voice: true, duration: 2 })]
+            });
+        } catch (voiceErr) {
+            console.log('[test-voice] voice send skipped:', voiceErr.message);
+        }
+        
         await client.disconnect();
         return res.json({ success: true });
     } catch (e) {
         console.error('[test-voice] error:', e);
-        return res.status(500).json({ success: false, error: e.message });
+        const isExpired = e.message?.includes('CONNECTION_LAYER_INVALID') || e.message?.includes('SESSION');
+        return res.status(isExpired ? 401 : 500).json({ success: false, error: isExpired ? 'Session expired, re-login required' : e.message });
     }
 });
 

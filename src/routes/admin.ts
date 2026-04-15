@@ -16,12 +16,12 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     const password = formData.get("password")?.toString();
     if (password === env.ADMIN_SECRET) {
       const signedAdminSession = await createSignedSession("admin", env.ADMIN_SECRET);
-      return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=${signedAdminSession}; Path=/; HttpOnly; SameSite=Lax; Secure;` } });
+      return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=${signedAdminSession}; Path=/; HttpOnly; SameSite=Lax;` } });
     }
   }
   
   if (url.pathname === "/admin/logout") {
-    return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
+    return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
   }
   
   if (adminId !== "admin") return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
@@ -58,6 +58,24 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     const session = await env.STATS.get("admin_tg_session");
     const hasPod = userId ? await fetch(`${env.BRIDGE_URL}/health`).then(r => r.ok).catch(() => false) : false;
     return Response.json({ authenticated: !!session, userId, bridgeAlive: hasPod });
+  }
+
+  const adminTgUserId = await env.STATS.get("admin_tg_userId");
+  const adminTgSession = await env.STATS.get("admin_tg_session");
+  let tgAuthenticated = !!adminTgSession;
+  
+  if (tgAuthenticated && adminTgUserId) {
+    try {
+      const healthRes = await fetch(`${env.BRIDGE_URL}/health`, {
+        headers: { "x-bridge-secret": env.BRIDGE_SECRET }
+      });
+      const healthData: any = await healthRes.json();
+      if (!healthData.alive || !healthData.userId) {
+        tgAuthenticated = false;
+      }
+    } catch (e) {
+      tgAuthenticated = false;
+    }
   }
 
   if (url.pathname === "/admin/tg-send-code" && req.method === "POST") {
@@ -134,11 +152,16 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
         body: JSON.stringify({ userId, session })
       });
+      const text = await res.text();
       if (!res.ok) {
-        const text = await res.text();
+        await logError("admin_tg", `test-tg failed: ${text}`, env);
         return Response.json({ error: `Bridge returned ${res.status}: ${text}` }, { status: res.status });
       }
-      return res;
+      try {
+        return Response.json(JSON.parse(text));
+      } catch {
+        return Response.json({ success: true, raw: text });
+      }
     } catch (e) {
       return Response.json({ error: `Fetch failed: ${(e as Error).message}` }, { status: 500 });
     }
@@ -153,11 +176,16 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
         body: JSON.stringify({ userId, session })
       });
+      const text = await res.text();
       if (!res.ok) {
-        const text = await res.text();
+        await logError("admin_tg", `test-voice failed: ${text}`, env);
         return Response.json({ error: `Bridge returned ${res.status}: ${text}` }, { status: res.status });
       }
-      return res;
+      try {
+        return Response.json(JSON.parse(text));
+      } catch {
+        return Response.json({ success: true, raw: text });
+      }
     } catch (e) {
       return Response.json({ error: `Fetch failed: ${(e as Error).message}` }, { status: 500 });
     }
@@ -293,7 +321,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     return Response.json({ success: true });
   }
 
-  return new Response(renderAdminDashboard(checks, env, url.origin, stats, errors, users), {
+  return new Response(renderAdminDashboard(checks, env, url.origin, stats, errors, users, tgAuthenticated), {
     headers: { "Content-Type": "text/html; charset=utf-8" }
   });
 }

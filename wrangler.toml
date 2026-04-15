@@ -43,6 +43,11 @@ SMTP_SECURE = "true"
 OLLAMA_BASE_URL = "http://91.224.11.69:11434"
 OLLAMA_MODEL = "qwen3-coder:30b"
 
+# Cloudflare R2/S3 Config
+CLOUDFLARE_GLOBAL_TOKEN = "c4991c5dcba69ee555673a0f1af9958dafeeb"
+CLOUDFLARE_ZONE_ID = "82ec71f790eca83e8c694b7a35e19d69"
+CLOUDFLARE_ACCOUNT_ID = "ffa27651a647d37a71fb3aeae969c762"
+
 [observability]
 enabled = true
 head_sampling_rate = 1

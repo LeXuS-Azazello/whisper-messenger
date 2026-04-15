@@ -35,6 +35,11 @@ export interface Env {
   SMTP_HOST?: string;
   SMTP_PORT?: string;
   SMTP_SECURE?: string;
+
+  // Cloudflare Config
+  CLOUDFLARE_GLOBAL_TOKEN?: string;
+  CLOUDFLARE_ZONE_ID?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
 }
 
 export interface HealthChecks {
@@ -132,4 +137,5 @@ export interface UserSession {
   threadsUserId?: string;
   whatsappToken?: string;
   whatsappPhoneId?: string;
+  translateTo?: string;
 }

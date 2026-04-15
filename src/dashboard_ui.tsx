@@ -138,6 +138,22 @@ export const renderDashboard = (user: UserSession) => {
                                 <div style={{ fontSize: '48px', fontWeight: '800', color: '#22c55e' }}>{user.transcriptionCount || 0}</div>
                                 <div style={{ fontSize: '12px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1px' }}>Voice Messages Transcribed</div>
                             </div>
+                            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', justifyContent: 'center' }}>
+                                    <input type="checkbox" id="translate-checkbox" checked={!!user.translateTo} />
+                                    <span style={{ fontSize: '13px' }}>Translate to</span>
+                                    <select id="translate-lang" class="input-field" style={{ width: 'auto', padding: '6px', margin: 0, fontSize: '12px' }} value={user.translateTo || ''}>
+                                        <option value="">Select language</option>
+                                        <option value="en">English</option>
+                                        <option value="uk">Ukrainian</option>
+                                        <option value="ru">Russian</option>
+                                        <option value="es">Spanish</option>
+                                        <option value="de">German</option>
+                                        <option value="fr">French</option>
+                                        <option value="zh">Chinese</option>
+                                    </select>
+                                </label>
+                            </div>
                         </div>
                         
                         {/* Threads Integration */}
@@ -249,6 +265,22 @@ export const renderDashboard = (user: UserSession) => {
                             body: JSON.stringify({ whatsappToken: document.getElementById('wa-token').value, whatsappPhoneId: document.getElementById('wa-phone-id').value })
                         }).then(() => location.reload());
                     });
+
+                    // Translation settings
+                    const translateCheckbox = document.getElementById('translate-checkbox');
+                    const translateLang = document.getElementById('translate-lang');
+                    if (translateCheckbox && translateLang) {
+                        const saveTranslate = () => {
+                            const enabled = translateCheckbox.checked;
+                            const lang = enabled ? translateLang.value : '';
+                            fetch('/dashboard/save-settings', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ translateTo: lang })
+                            });
+                        };
+                        translateCheckbox.addEventListener('change', saveTranslate);
+                        translateLang.addEventListener('change', saveTranslate);
+                    }
                     `
                 }} />
             </body>

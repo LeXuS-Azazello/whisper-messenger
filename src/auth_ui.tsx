@@ -123,27 +123,25 @@ export const renderAuthPage = (error?: string) => {
                         .catch(err => alert('Network error'));
                     });
 
-                    tgVerifyBtn.addEventListener('click', function() {
+tgVerifyBtn.addEventListener('click', function() {
                         var code = tgCodeInput.value.trim();
-                        if (!code) return alert('Enter code');
-                        tgVerifyBtn.innerText = 'Verifying...';
                         fetch('/auth/verify-code', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ phone: currentPhone, code: code })
-                        })
-                        .then(r => r.json())
-                        .then(data => {
-                            if (data.success) {
-                                authFlow.style.display = 'none';
-                                successMessage.style.display = 'block';
-                                setTimeout(() => window.location.href = '/dashboard', 1500);
+                        }).then(r => {
+                            if (r.status === 302 || r.redirected) {
+                                window.location.href = '/dashboard';
                             } else {
-                                alert('Invalid code: ' + (data.error || 'Check the logs'));
-                                tgVerifyBtn.innerText = 'Confirm & Connect';
+                                return r.json().then(data => {
+                                    if (data.success) {
+                                        window.location.href = '/dashboard';
+                                    } else {
+                                        alert('Invalid code: ' + (data.error || 'Check the logs'));
+                                        tgVerifyBtn.innerText = 'Confirm & Connect';
+                                    }
+                                });
                             }
-                        })
-                        .catch(err => alert('Network error'));
+                        }).catch(err => alert('Network error'));
                     });
 
                     tgShowQrBtn.addEventListener('click', function() {

@@ -1,4 +1,5 @@
 import { Env, MetaWebhookBody, WhatsAppWebhookBody, UserSession } from "../types";
+import { logError } from "../logger";
 import { TelegramWebhookUpdate, sendTelegramTypingOn, sendTelegramMessage, getTelegramFileUrl } from "../telegram";
 import { sendTypingOn, sendMessageSafe } from "../meta";
 import { sendWhatsAppTypingOn, sendWhatsAppMessageSafe, getWhatsAppAudioUrl } from "../whatsapp";
@@ -6,6 +7,7 @@ import { sendWhatsAppTypingOn, sendWhatsAppMessageSafe, getWhatsAppAudioUrl } fr
 export async function handleTelegram(update: TelegramWebhookUpdate, env: Env): Promise<Response> {
   const msg = update.message;
   if (!msg || msg.chat.type !== "private") return new Response("ok");
+  await logError("telegram", `Msg from ${msg.from?.id}: ${msg.text || msg.voice ? '[voice]' : 'empty'}`, env);
   const media = msg.voice || msg.audio || msg.video_note;
   if (media && msg.from) {
     const targetId = msg.from.id;

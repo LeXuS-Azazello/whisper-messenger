@@ -42,7 +42,7 @@ const UserRow = ({ user }: { user: UserSession }) => (
         </td>
         <td style={{ textAlign: 'center' }}>{formatUptime(user.lastStartedAt)}</td>
         <td style={{ textAlign: 'center', fontWeight: '700', color: '#24A1DE' }}>{user.transcriptionCount || 0}</td>
-        <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+        <td>{user.lastActiveAt ? new Date(user.lastActiveAt).toLocaleDateString() : '-'}</td>
         <td style={{ textAlign: 'right' }}>
             {user.isActive && (
                 <button class="btn btn-sm restart-btn" data-userid={user.userId} style={{ padding: '4px 8px', fontSize: '10px', margin: '0 4px 0 0', background: '#F59E0B', color: '#000' }}>
@@ -66,7 +66,7 @@ const ErrorLogItem = ({ error }: { error: ErrorLog }) => (
     </div>
 );
 
-export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: string, stats: any, errors: ErrorLog[], users: UserSession[] = []) => {
+export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: string, stats: any, errors: ErrorLog[], users: UserSession[] = [], tgAuthenticated: boolean = false) => {
     return "<!DOCTYPE html>" + render(
         <html lang="en">
             <head>
@@ -100,8 +100,8 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 <h3 class="card-title">
                                     <span style={{ color: '#24A1DE' }}>✦</span> Telegram
                                 </h3>
-                                <span class={`status-tag ${checks.TELEGRAM_APP_ID && checks.TELEGRAM_APP_HASH ? 'active' : 'inactive'}`}>
-                                    {checks.TELEGRAM_APP_ID && checks.TELEGRAM_APP_HASH ? 'CONNECTED' : 'NOT SETUP'}
+                                <span class={`status-tag ${tgAuthenticated ? 'active' : 'inactive'}`}>
+                                    {tgAuthenticated ? 'CONNECTED' : 'NOT SETUP'}
                                 </span>
                             </div>
                             <div class="config-list">
@@ -109,7 +109,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 <ConfigItem label="APP_HASH" active={checks.TELEGRAM_APP_HASH} />
                             </div>
                             <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                                <div id="tg-auth-status-container" style={{ display: 'none', marginBottom: '15px', padding: '12px', background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: '8px' }}>
+                                <div id="tg-auth-status-container" style={{ display: tgAuthenticated ? 'block' : 'none', marginBottom: '15px', padding: '12px', background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: '8px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div>
                                             <div style={{ fontSize: '14px', color: '#22c55e', fontWeight: '600' }}>Authenticated</div>
@@ -122,7 +122,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                         </div>
                                     </div>
                                 </div>
-                                <div id="tg-auth-form">
+                                <div id="tg-auth-form" style={{ display: tgAuthenticated ? 'none' : 'block' }}>
                                     <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                                         <input type="tel" id="tg-phone-input" class="input-field" placeholder="+1234567890" style={{ width: '180px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
                                         <button class="btn" id="tg-send-code-btn" style={{ margin: 0, width: 'auto', background: '#8B5CF6' }}>Send Code</button>
@@ -273,7 +273,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                             <th style={{ padding: '10px 5px', textAlign: 'center' }}>Pod Status</th>
                                             <th style={{ padding: '10px 5px', textAlign: 'center' }}>Uptime</th>
                                             <th style={{ padding: '10px 5px', textAlign: 'center' }}>Voice Stats</th>
-                                            <th style={{ padding: '10px 5px' }}>Joined</th>
+                                            <th style={{ padding: '10px 5px' }}>Last online</th>
                                             <th style={{ padding: '10px 5px', textAlign: 'right' }}>Actions</th>
                                         </tr>
                                     </thead>

@@ -8,8 +8,8 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
 
   if (!userId) {
     return new Response(null, { status: 302, headers: { 
-        "Location": "/",
-        "Set-Cookie": "session=deleted; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0"
+        "Location": "/auth",
+        "Set-Cookie": "session=deleted; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
     } });
   }
 
@@ -19,7 +19,7 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       status: 401,
       headers: { 
         "Content-Type": "text/html; charset=utf-8",
-        "Set-Cookie": `session=deleted; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
+        "Set-Cookie": `session=deleted; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
       }
     });
   }
@@ -85,6 +85,12 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       user.isActive = false;
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
       await env.STATS.delete(`tg_session_${userId}`);
+      return Response.json({ success: true });
+    }
+    if (url.pathname === "/dashboard/save-settings") {
+      const { translateTo } = await req.json() as any;
+      user.translateTo = translateTo || undefined;
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
       return Response.json({ success: true });
     }
   }

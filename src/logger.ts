@@ -16,10 +16,27 @@ export async function logError(platform: string, error: string, env: Env) {
       message: error,
     };
     errors.unshift(newError);
-    errors = errors.slice(0, 10); // Keep last 10 errors
+    errors = errors.slice(0, 50); // Keep last 50 errors
     await env.STATS.put("last_errors", JSON.stringify(errors));
   } catch (err) {
     console.error(`Failed to log error: ${err}`);
+  }
+}
+
+export async function logInfo(platform: string, message: string, env: Env) {
+  try {
+    const errorLog = await env.STATS.get("last_errors");
+    let errors: ErrorLog[] = errorLog ? JSON.parse(errorLog) : [];
+    const newError = {
+      timestamp: new Date().toISOString(),
+      platform,
+      message: `[INFO] ${message}`,
+    };
+    errors.unshift(newError);
+    errors = errors.slice(0, 50);
+    await env.STATS.put("last_errors", JSON.stringify(errors));
+  } catch (err) {
+    console.error(`Failed to log info: ${err}`);
   }
 }
 
