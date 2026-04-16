@@ -10,8 +10,12 @@ RUN npm install
 
 COPY . .
 
-# Preload the sherpa model during build
-RUN node preload-model.cjs
+# Download and extract the sherpa model during build
+RUN mkdir -p models/paraformer && \
+    cd models/paraformer && \
+    wget -q https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2 && \
+    tar -xjf sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2 --strip-components=1 && \
+    rm sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2
 
 RUN chmod +x entrypoint.sh
 CMD ["./entrypoint.sh"]
