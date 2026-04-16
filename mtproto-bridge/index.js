@@ -350,6 +350,8 @@ function splitLongText(text, maxLength = 4000) {
 }
 
 let userClient = null;
+let transcribe = null;
+
 async function handleNewMessage(event) {
     const msg = event.message;
     if (!msg || !msg.isPrivate) {
@@ -389,8 +391,6 @@ async function handleNewMessage(event) {
         const buffer = await userClient.downloadMedia(msg.media, { workers: 1 });
         const mimeType = isVoice ? 'audio/ogg' : 'video/mp4';
 
-        // Lazy import transcribe only when needed
-        const { transcribe } = await import('./transcribe.js');
         const { text, duration } = await transcribe(Buffer.from(buffer), mimeType);
         
         if (text) {
@@ -424,7 +424,13 @@ async function startUserClient() {
     if (!TG_SESSION) return console.error('[user] No TG_SESSION provided!');
     userClient = new TelegramClient(new StringSession(TG_SESSION), API_ID, API_HASH, { connectionRetries: 5 });
     await userClient.connect();
-    
+
+    // Import transcribe only in USER mode
+    if (!transcribe) {
+        const { transcribe: transcribeFunc } = await import('./transcribe.js');
+        transcribe = transcribeFunc;
+    }
+
     userClient.addEventHandler(handleNewMessage, new (require('telegram/events/index.js').NewMessage)({ incoming: true, outgoing: false }));
     console.log(`[user] Online.`);
 }
