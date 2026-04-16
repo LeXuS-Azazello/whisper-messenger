@@ -2,7 +2,8 @@ import { Env, UserSession } from "../types";
 import { renderAuthPage } from "../auth_ui";
 import { logError } from "../logger";
 import { createSignedSession } from "../session";
-import { jwtVerify, createRemoteJWKSet } from "jose";
+import { jwtVerify } from "jose/jwt/verify";
+import { createRemoteJWKSet } from "jose/jwk/remote";
 
 interface SendCodeRequest { phone: string; }
 interface VerifyCodeRequest { phone: string; code: string; }
