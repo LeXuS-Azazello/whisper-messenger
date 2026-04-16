@@ -2,7 +2,6 @@ import { Env, UserSession } from "../types";
 import { renderAuthPage } from "../auth_ui";
 import { logError } from "../logger";
 import { createSignedSession } from "../session";
-import { jwtVerify, createRemoteJWKSet } from "jose";
 
 interface SendCodeRequest { phone: string; }
 interface VerifyCodeRequest { phone: string; code: string; }
@@ -79,20 +78,23 @@ async function handleGoogleCallback(env: Env, formData: FormData): Promise<Respo
   if (!credential) return new Response("Missing credential", { status: 400 });
 
   try {
-    const googleJWKSet = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
-    const { payload } = await jwtVerify(credential, googleJWKSet, {
-      issuer: 'https://accounts.google.com'
-    });
+    // Use Google's tokeninfo endpoint for verification (more compatible with Cloudflare Workers)
+    const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
+    if (!tokenInfoRes.ok) {
+      return new Response("Auth Error: Invalid Google credential", { status: 400 });
+    }
 
-    // Verify audience manually for better error message
-    if (payload.aud !== env.GOOGLE_CLIENT_ID) {
+    const tokenInfo = await tokenInfoRes.json();
+
+    // Verify audience
+    if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
       return new Response("Auth Error: Invalid Google Client ID (audience mismatch)", { status: 500 });
     }
 
-    const sub = payload.sub as string;
-    const email = payload.email as string;
-    const givenName = payload.given_name as string || payload.name as string || email.split('@')[0];
-    const name = payload.name as string || givenName;
+    const sub = tokenInfo.sub;
+    const email = tokenInfo.email;
+    const givenName = tokenInfo.given_name || tokenInfo.name || email.split('@')[0];
+    const name = tokenInfo.name || givenName;
 
     const userId = `google_${sub}`;
 

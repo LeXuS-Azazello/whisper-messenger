@@ -1,13 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { handlePublicAuth } from '../routes/auth';
 import { Env, UserSession } from '../types';
-import { jwtVerify } from 'jose';
-
-// Mock jose module
-vi.mock('jose', () => ({
-    jwtVerify: vi.fn(),
-    createRemoteJWKSet: vi.fn()
-}));
 
 // Helper to create a minimal Env mock
 const createMockEnv = (overrides = {}): Env => ({
@@ -39,30 +32,30 @@ describe('Google OAuth Callback Integration', () => {
 
     beforeEach(() => {
         env = createMockEnv();
-        // Mock global fetch for registerNewUser call
-        (globalThis as any).fetch = vi.fn().mockResolvedValue({
-            ok: true,
-            text: () => Promise.resolve('ok'),
-            json: () => Promise.resolve({ ok: true })
-        });
-        // Clear jwtVerify mock
-        vi.mocked(jwtVerify).mockReset();
+        // Mock global fetch
+        (globalThis as any).fetch = vi.fn();
     });
 
     it('should successfully authenticate with a valid Google ID Token', async () => {
-        const payload = {
+        const tokenInfo = {
             aud: env.GOOGLE_CLIENT_ID,
             sub: '123456789',
             email: 'test@example.com',
             given_name: 'Test',
             name: 'Test User'
         };
-        const idToken = createMockIdToken(payload);
 
-        vi.mocked(jwtVerify).mockResolvedValueOnce({ payload } as any);
+        (globalThis as any).fetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve(tokenInfo)
+        }).mockResolvedValueOnce({
+            ok: true,
+            text: () => Promise.resolve('ok'),
+            json: () => Promise.resolve({ ok: true })
+        });
 
         const formData = new FormData();
-        formData.append('credential', idToken);
+        formData.append('credential', 'mock-credential');
 
         const req = new Request('https://whisper.debug.org.ua/auth/google/callback', {
             method: 'POST',
@@ -85,17 +78,19 @@ describe('Google OAuth Callback Integration', () => {
     });
 
     it('should fail if audience mismatch', async () => {
-        const payload = {
+        const tokenInfo = {
             aud: 'wrong-client-id',
             sub: '123456789',
             email: 'test@example.com'
         };
-        const idToken = createMockIdToken(payload);
 
-        vi.mocked(jwtVerify).mockResolvedValueOnce({ payload } as any);
+        (globalThis as any).fetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve(tokenInfo)
+        });
 
         const formData = new FormData();
-        formData.append('credential', idToken);
+        formData.append('credential', 'mock-credential');
 
         const req = new Request('https://whisper.debug.org.ua/auth/google/callback', {
             method: 'POST',
@@ -140,17 +135,23 @@ describe('Google OAuth Callback Integration', () => {
             return null;
         });
 
-        const payload = {
+        const tokenInfo = {
             aud: env.GOOGLE_CLIENT_ID,
             sub: '123456789',
             given_name: 'Test'
         };
-        const idToken = createMockIdToken(payload);
 
-        vi.mocked(jwtVerify).mockResolvedValueOnce({ payload } as any);
+        (globalThis as any).fetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve(tokenInfo)
+        }).mockResolvedValueOnce({
+            ok: true,
+            text: () => Promise.resolve('ok'),
+            json: () => Promise.resolve({ ok: true })
+        });
 
         const formData = new FormData();
-        formData.append('credential', idToken);
+        formData.append('credential', 'mock-credential');
 
         const req = new Request('https://whisper.debug.org.ua/auth/google/callback', {
             method: 'POST',
