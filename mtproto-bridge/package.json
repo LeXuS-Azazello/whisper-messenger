@@ -10,14 +10,15 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@kubernetes/client-node": "^1.0.0",
+    "dotenv": "^16.6.1",
     "express": "^4.18.2",
-    "telegram": "^2.26.22",
     "input": "^1.0.1",
-    "@kubernetes/client-node": "^1.0.0"
+    "telegram": "^2.26.22"
   },
   "devDependencies": {
-    "vitest": "^1.0.0",
-    "supertest": "^6.3.3"
+    "supertest": "^6.3.3",
+    "vitest": "^1.0.0"
   },
   "engines": {
     "node": ">=18"

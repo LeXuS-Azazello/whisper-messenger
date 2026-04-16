@@ -1,8 +1,10 @@
-'use strict';
+import path from 'path';
+import fs from 'fs';
+import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
 
-const path = require('path');
-const fs = require('fs');
-const { execSync } = require('child_process');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const TEMP_DIR = path.join(__dirname, 'temp');
 
@@ -82,13 +84,8 @@ async function transcribe(audioBuffer, mimeType) {
   };
 }
 
-// Removed - local transcription not supported
-
-function isInitialized() {
+export function isInitialized() {
   return true; // Always use shared server
 }
 
-module.exports = {
-  transcribe,
-  isInitialized,
-};
+export { transcribe };
