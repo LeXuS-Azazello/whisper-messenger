@@ -4,9 +4,9 @@ metadata:
   name: cloudflared-config
   namespace: debugging-echovoice
 data:
-  config.yaml: |
-    tunnel: mtproto
-    ingress:
-      - hostname: mtproto.debug.org.ua
-        service: http://mtproto-bridge-manager:3000
-      - service: http://localhost:80
+config.yaml: |
+      tunnel: mtproto
+      ingress:
+        - hostname: mtproto.debug.org.ua
+          service: http://mtproto-bridge-manager:3000
+        - service: http_status:404
