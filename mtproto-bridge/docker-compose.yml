@@ -6,13 +6,10 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./models:/app/models
       - ./session:/app/session
     environment:
       - TG_API_ID=${TG_API_ID}
       - TG_API_HASH=${TG_API_HASH}
       - PORT=3000
       - NODE_ENV=production
-      - MODEL_DIR=/app/models/paraformer
-      - ASR_NUM_THREADS=4
     working_dir: /app

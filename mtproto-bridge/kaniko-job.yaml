@@ -33,17 +33,12 @@ metadata:
 data:
   Dockerfile: |
     FROM node:20-bookworm
-    RUN apt-get update && apt-get install -y ffmpeg bzip2 wget && rm -rf /var/lib/apt/*
+    RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/*
     WORKDIR /app
     COPY package*.json ./
     RUN npm install
     COPY . .
-    RUN mkdir -p /app/models/paraformer && \
-        cd /app/models/paraformer && \
-        wget -q https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2 && \
-        tar xvf sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2 && \
-        mv sherpa-onnx-paraformer-zh-2023-09-14/* . && \
-        rm -rf sherpa-onnx-paraformer-zh-2023-09-14 sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2
+    RUN chmod +x entrypoint.sh
     CMD ["node", "index.js"]
   package.json: |
     {
@@ -53,8 +48,7 @@ data:
       "dependencies": {
         "express": "^4.18.2",
         "telegram": "^2.26.22",
-        "input": "^1.0.1",
-        "sherpa-onnx-node": "^1.10.0"
+        "input": "^1.0.1"
       }
     }
   index.js: |

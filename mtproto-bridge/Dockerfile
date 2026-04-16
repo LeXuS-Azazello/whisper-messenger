@@ -1,4 +1,4 @@
-# Simple Dockerfile - model downloaded at build time
+# Simple Dockerfile - no local models, uses external whisper-server
 FROM node:20-bookworm
 
 RUN apt-get update && apt-get install -y ffmpeg wget bzip2 && rm -rf /var/lib/apt/*
