@@ -84,7 +84,7 @@ async function handleGoogleCallback(env: Env, formData: FormData): Promise<Respo
       return new Response("Auth Error: Invalid Google credential", { status: 400 });
     }
 
-    const tokenInfo = await tokenInfoRes.json();
+    const tokenInfo = await tokenInfoRes.json() as { aud: string; sub: string; email: string; given_name?: string; name?: string };
 
     // Verify audience
     if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
