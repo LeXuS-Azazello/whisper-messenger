@@ -15,18 +15,21 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
       let token = "";
       let whatsappPhoneId = env.WHATSAPP_PHONE_NUMBER_ID || "";
       const isThreads = platform === "threads";
+      let u: UserSession | null = null;
 
       if (userId) {
         const userData = await env.STATS.get(`user_meta_${userId}`);
         if (userData) {
-          const u: UserSession = JSON.parse(userData);
-          if (platform === "whatsapp") {
-              token = u.whatsappToken || "";
-              whatsappPhoneId = u.whatsappPhoneId || whatsappPhoneId;
-          } else if (isThreads) {
-              token = u.threadsToken || "";
-          } else {
-              token = u.metaToken || "";
+          u = JSON.parse(userData);
+          if (u) {
+            if (platform === "whatsapp") {
+                token = u.whatsappToken || "";
+                whatsappPhoneId = u.whatsappPhoneId || whatsappPhoneId;
+            } else if (isThreads) {
+                token = u.threadsToken || "";
+            } else {
+                token = u.metaToken || "";
+            }
           }
         }
       }
@@ -66,7 +69,7 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
       let finalText = result.text;
 
       // 4.5 Translate if needed
-      if (user.translateTo && user.translateTo !== result.detectedLang) {
+      if (u && u.translateTo && u.translateTo !== result.detectedLang) {
         try {
           const ollamaUrl = env.OLLAMA_BASE_URL || "http://91.224.11.69:11434";
           const translateRes = await fetch(`${ollamaUrl}/v1/chat/completions`, {
@@ -75,7 +78,7 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
             body: JSON.stringify({
               model: "qwen3-coder:30b",
               messages: [
-                { role: "system", content: `Translate the following text to ${user.translateTo}. Output only the translated text, nothing else.` },
+                { role: "system", content: `Translate the following text to ${u!.translateTo}. Output only the translated text, nothing else.` },
                 { role: "user", content: result.text }
               ],
               stream: false

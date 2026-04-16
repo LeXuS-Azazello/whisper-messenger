@@ -69,10 +69,7 @@ export default {
     let isAdmin = false;
     if (adminCookie && env.ADMIN_SECRET) {
       if (adminCookie.length === env.ADMIN_SECRET.length) {
-        isAdmin = crypto.subtle.timingSafeEqual(
-          new TextEncoder().encode(adminCookie),
-          new TextEncoder().encode(env.ADMIN_SECRET)
-        );
+        isAdmin = adminCookie === env.ADMIN_SECRET;
       }
     }
 

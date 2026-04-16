@@ -106,7 +106,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
           await logError("bridge", `Failed to spawn admin pod: ${await spawnRes.text()}`, env);
         }
       } catch (e) {
-        await logError("bridge", `Spawn admin pod failed: ${e.message}`, env);
+        await logError("bridge", `Spawn admin pod failed: ${e instanceof Error ? e.message : String(e)}`, env);
       }
     }
     return Response.json(data);

@@ -4,6 +4,7 @@ const MODEL = "@cf/openai/whisper-tiny-en";
 
 interface WhisperResponse {
   text: string;
+  detectedLang?: string;
 }
 
 export async function transcribeWithFallback(

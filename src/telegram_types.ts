@@ -15,6 +15,7 @@ export interface TelegramWebhookUpdate {
       username?: string;
       type: "private" | "group" | "supergroup" | "channel";
     };
+    text?: string;
     voice?: {
       file_id: string;
       file_unique_id: string;

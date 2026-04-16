@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: whisper-onnx
+  name: sherpa-onnx
   namespace: debugging-echovoice
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: whisper-onnx
+      app: sherpa-onnx
   template:
     metadata:
       labels:
-        app: whisper-onnx
+        app: sherpa-onnx
     spec:
       containers:
       - name: sherpa
@@ -32,11 +32,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: whisper-onnx
+  name: sherpa-onnx
   namespace: debugging-echovoice
 spec:
   selector:
-    app: whisper-onnx
+    app: sherpa-onnx
   ports:
   - port: 8000
     targetPort: 8000

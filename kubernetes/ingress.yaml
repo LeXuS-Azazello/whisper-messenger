@@ -6,6 +6,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
 spec:
+  ingressClassName: nginx
   rules:
   - host: echovoice.debug.org.ua
     http:
@@ -26,6 +27,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
 spec:
+  ingressClassName: nginx
   rules:
   - host: sherpa-onnx.echovoice.debug.org.ua
     http:

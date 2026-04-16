@@ -31,6 +31,7 @@ export interface TelegramWebhookUpdate {
       username?: string;
       type: "private" | "group" | "supergroup" | "channel";
     };
+    text?: string;
     voice?: {
       file_id: string;
       file_unique_id: string;
@@ -100,7 +101,7 @@ export async function sendTelegramTypingOn(chatId: string | number, env: Env): P
 
 export async function getTelegramFileUrl(fileId: string, env: Env): Promise<string | null> {
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`;
-  const res = await fetchWithTimeout(url);
+  const res = await fetchWithTimeout(url, {});
   if (!res.ok) {
     console.error(`[telegram] getFile failed: ${await res.text()}`);
     return null;
