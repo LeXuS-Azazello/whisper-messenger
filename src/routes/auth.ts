@@ -271,7 +271,7 @@ async function createSessionResponse(userId: string, env: Env): Promise<Response
     status: 302,
     headers: {
       "Location": "/dashboard",
-      "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}`
+      "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}`
     }
   });
 }
