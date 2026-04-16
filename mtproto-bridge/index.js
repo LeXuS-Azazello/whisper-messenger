@@ -181,22 +181,22 @@ app.post('/test-voice', auth, async (req, res) => {
         try {
             const voiceUrl = 'https://upload.wikimedia.org/wikipedia/commons/7/75/Example.ogg';
             const voiceRes = await fetch(voiceUrl);
+            if (!voiceRes.ok) throw new Error(`HTTP ${voiceRes.status}`);
             const voiceBuffer = await voiceRes.arrayBuffer();
-            
-            const inputFile = new Api.InputFile({
-                file: Buffer.from(voiceBuffer),
+
+            const inputFile = await client.uploadFile(Buffer.from(voiceBuffer), {
                 mimeType: 'audio/ogg',
                 fileName: 'test.ogg'
             });
-            
+
             await client.sendMessage(toMe.id, {
                 file: inputFile,
-                attributes: [new Api.DocumentAttributeAudio({ voice: true, duration: 2 })]
+                attributes: [new Api.DocumentAttributeAudio({ voice: true, duration: 2, title: '' })]
             });
         } catch (voiceErr) {
             console.log('[test-voice] voice send skipped:', voiceErr.message);
         }
-        
+
         await client.disconnect();
         return res.json({ success: true });
     } catch (e) {

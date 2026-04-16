@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { handlePublicAuth } from '../routes/auth';
 import { Env, UserSession } from '../types';
+import { jwtVerify } from 'jose';
+
+// Mock jose module
+vi.mock('jose', () => ({
+    jwtVerify: vi.fn(),
+    createRemoteJWKSet: vi.fn()
+}));
 
 // Helper to create a minimal Env mock
 const createMockEnv = (overrides = {}): Env => ({
@@ -38,10 +45,11 @@ describe('Google OAuth Callback Integration', () => {
             text: () => Promise.resolve('ok'),
             json: () => Promise.resolve({ ok: true })
         });
+        // Clear jwtVerify mock
+        vi.mocked(jwtVerify).mockReset();
     });
 
-    it.skip('should successfully authenticate with a valid Google ID Token', async () => {
-        // SKIPPED: Google auth is currently disabled in auth.ts line 78
+    it('should successfully authenticate with a valid Google ID Token', async () => {
         const payload = {
             aud: env.GOOGLE_CLIENT_ID,
             sub: '123456789',
@@ -50,6 +58,8 @@ describe('Google OAuth Callback Integration', () => {
             name: 'Test User'
         };
         const idToken = createMockIdToken(payload);
+
+        vi.mocked(jwtVerify).mockResolvedValueOnce({ payload } as any);
 
         const formData = new FormData();
         formData.append('credential', idToken);
@@ -74,14 +84,15 @@ describe('Google OAuth Callback Integration', () => {
         expect(env.STATS.put).toHaveBeenCalledWith('user_meta_google_123456789', expect.stringContaining('"userId":"google_123456789"'));
     });
 
-    it.skip('should fail if audience mismatch', async () => {
-        // SKIPPED: Google auth is currently disabled in auth.ts line 78
+    it('should fail if audience mismatch', async () => {
         const payload = {
             aud: 'wrong-client-id',
             sub: '123456789',
             email: 'test@example.com'
         };
         const idToken = createMockIdToken(payload);
+
+        vi.mocked(jwtVerify).mockResolvedValueOnce({ payload } as any);
 
         const formData = new FormData();
         formData.append('credential', idToken);
@@ -99,7 +110,6 @@ describe('Google OAuth Callback Integration', () => {
     });
 
     it('should fail if credential is missing', async () => {
-        // Returns 500 because Google auth is disabled in auth.ts
         const formData = new FormData();
         const req = new Request('https://whisper.debug.org.ua/auth/google/callback', {
             method: 'POST',
@@ -108,12 +118,11 @@ describe('Google OAuth Callback Integration', () => {
 
         const response = await handlePublicAuth(env, req, null);
 
-        expect(response.status).toBe(500);
-        expect(await response.text()).toBe('Google auth disabled');
+        expect(response.status).toBe(400);
+        expect(await response.text()).toBe('Missing credential');
     });
 
-    it.skip('should reuse existing user metadata if already present', async () => {
-        // SKIPPED: Google auth is currently disabled in auth.ts line 78
+    it('should reuse existing user metadata if already present', async () => {
         const userId = 'google_123456789';
         const existingUser: UserSession = {
             userId,
@@ -137,6 +146,8 @@ describe('Google OAuth Callback Integration', () => {
             given_name: 'Test'
         };
         const idToken = createMockIdToken(payload);
+
+        vi.mocked(jwtVerify).mockResolvedValueOnce({ payload } as any);
 
         const formData = new FormData();
         formData.append('credential', idToken);

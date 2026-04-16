@@ -75,7 +75,60 @@ async function handleQrCheck(env: Env, token: string | null | undefined, userCoo
 }
 
 async function handleGoogleCallback(env: Env, formData: FormData): Promise<Response> {
-  return new Response("Google auth disabled", { status: 500 });
+  const credential = formData.get('credential') as string;
+  if (!credential) return new Response("Missing credential", { status: 400 });
+
+  try {
+    const googleJWKSet = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
+    const { payload } = await jwtVerify(credential, googleJWKSet, {
+      issuer: 'https://accounts.google.com'
+    });
+
+    // Verify audience manually for better error message
+    if (payload.aud !== env.GOOGLE_CLIENT_ID) {
+      return new Response("Auth Error: Invalid Google Client ID (audience mismatch)", { status: 500 });
+    }
+
+    const sub = payload.sub as string;
+    const email = payload.email as string;
+    const givenName = payload.given_name as string || payload.name as string || email.split('@')[0];
+    const name = payload.name as string || givenName;
+
+    const userId = `google_${sub}`;
+
+    // Check if user exists
+    const existingRaw = await env.STATS.get(`user_meta_${userId}`);
+    if (!existingRaw) {
+      const user: UserSession = {
+        userId,
+        firstName: givenName,
+        username: name,
+        session: "",
+        platform: "telegram", // Keep as telegram for compatibility
+        transcriptionCount: 0,
+        isActive: true,
+        createdAt: Date.now(),
+        lastActiveAt: Date.now(),
+        email
+      };
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+
+      // Add to users_list
+      const listRaw = await env.STATS.get("users_list") || "[]";
+      const list = JSON.parse(listRaw);
+      if (!list.includes(userId)) {
+        list.push(userId);
+        await env.STATS.put("users_list", JSON.stringify(list));
+      }
+    }
+
+    await logError("auth", `User ${userId} authenticated via Google`, env);
+    return await createSessionResponse(userId, env);
+
+  } catch (error) {
+    await logError("auth", `Google auth error: ${error}`, env);
+    return new Response("Auth Error: Invalid Google credential", { status: 400 });
+  }
 }
 
 async function handleEmailSend(env: Env, body: EmailSendRequest, url: URL): Promise<Response> {
