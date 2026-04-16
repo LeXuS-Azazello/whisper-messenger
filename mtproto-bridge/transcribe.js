@@ -3,13 +3,13 @@
 const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
-const sherpa_onnx = require('sherpa-onnx-node');
 
 const MODEL_DIR = process.env.MODEL_DIR || path.join(__dirname, 'models', 'paraformer');
 const NUM_THREADS = parseInt(process.env.ASR_NUM_THREADS || '4', 10);
 const TEMP_DIR = path.join(__dirname, 'temp');
 
 let recognizer = null;
+let sherpa_onnx = null;
 
 function ensureTempDir() {
   if (!fs.existsSync(TEMP_DIR)) {
@@ -17,7 +17,11 @@ function ensureTempDir() {
   }
 }
 
-function initRecognizer() {
+async function initRecognizer() {
+  if (!sherpa_onnx) {
+    sherpa_onnx = require('sherpa-onnx-node');
+  }
+
   const modelPath = path.join(MODEL_DIR, 'model.int8.onnx');
   const tokensPath = path.join(MODEL_DIR, 'tokens.txt');
 
@@ -52,9 +56,9 @@ function initRecognizer() {
   return recognizer;
 }
 
-function getRecognizer() {
+async function getRecognizer() {
   if (!recognizer) {
-    initRecognizer();
+    await initRecognizer();
   }
   return recognizer;
 }
@@ -134,7 +138,7 @@ async function transcribeParaformer(audioBuffer, mimeType) {
   const startTime = Date.now();
   console.log(`[transcribe] Starting local paraformer, audio size: ${audioBuffer.length} bytes`);
 
-  const r = getRecognizer();
+  const r = await getRecognizer();
 
   const { sampleRate, samples } = await convertAudioToPcm(audioBuffer, mimeType);
   console.log(`[transcribe] Converted to PCM: ${samples.length} samples, ${sampleRate} Hz`);
