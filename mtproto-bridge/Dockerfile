@@ -11,7 +11,7 @@ RUN npm install
 COPY . .
 
 # Preload the sherpa model during build
-RUN node preload-model.js
+RUN node preload-model.cjs
 
 RUN chmod +x entrypoint.sh
 CMD ["./entrypoint.sh"]
