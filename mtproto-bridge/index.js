@@ -5,7 +5,7 @@
 import express from 'express';
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
-import k8s from '@kubernetes/client-node';
+import * as k8s from '@kubernetes/client-node';
 import { transcribe } from './transcribe.js';
 import fs from 'fs';
 import path from 'path';
