@@ -4,63 +4,12 @@ const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
 
-const MODEL_DIR = process.env.MODEL_DIR || path.join(__dirname, 'models', 'paraformer');
-const NUM_THREADS = parseInt(process.env.ASR_NUM_THREADS || '4', 10);
 const TEMP_DIR = path.join(__dirname, 'temp');
-
-let recognizer = null;
-let sherpa_onnx = null;
 
 function ensureTempDir() {
   if (!fs.existsSync(TEMP_DIR)) {
     fs.mkdirSync(TEMP_DIR, { recursive: true });
   }
-}
-
-async function initRecognizer() {
-  if (!sherpa_onnx) {
-    sherpa_onnx = require('sherpa-onnx-node');
-  }
-
-  const modelPath = path.join(MODEL_DIR, 'model.int8.onnx');
-  const tokensPath = path.join(MODEL_DIR, 'tokens.txt');
-
-  if (!fs.existsSync(modelPath)) {
-    throw new Error(`Model not found: ${modelPath}`);
-  }
-  if (!fs.existsSync(tokensPath)) {
-    throw new Error(`tokens.txt not found: ${tokensPath}`);
-  }
-
-  const config = {
-    featConfig: {
-      sampleRate: 16000,
-      featureDim: 80,
-    },
-    modelConfig: {
-      paraformer: {
-        model: modelPath,
-      },
-      tokens: tokensPath,
-      numThreads: NUM_THREADS,
-      provider: 'cpu',
-      debug: 1,
-    },
-  };
-
-  recognizer = new sherpa_onnx.OfflineRecognizer(config);
-  console.log('[transcribe] Recognizer initialized');
-  console.log('[transcribe] Model:', modelPath);
-  console.log('[transcribe] Threads:', NUM_THREADS);
-
-  return recognizer;
-}
-
-async function getRecognizer() {
-  if (!recognizer) {
-    await initRecognizer();
-  }
-  return recognizer;
 }
 
 async function convertAudioToPcm(inputBuffer, mimeType) {
@@ -135,29 +84,11 @@ async function transcribe(audioBuffer, mimeType) {
 }
 
 async function transcribeParaformer(audioBuffer, mimeType) {
-  const startTime = Date.now();
-  console.log(`[transcribe] Starting local paraformer, audio size: ${audioBuffer.length} bytes`);
-
-  const r = await getRecognizer();
-
-  const { sampleRate, samples } = await convertAudioToPcm(audioBuffer, mimeType);
-  console.log(`[transcribe] Converted to PCM: ${samples.length} samples, ${sampleRate} Hz`);
-
-  const stream = r.createStream();
-  stream.acceptWaveform({ sampleRate, samples: Array.from(samples) });
-
-  r.decode(stream);
-  const result = r.getResult(stream);
-  const elapsed = (Date.now() - startTime) / 1000;
-
-  return { 
-    text: result.text || '', 
-    duration: elapsed 
-  };
+  throw new Error('Local transcription is disabled. Use shared Whisper server.');
 }
 
 function isInitialized() {
-  return recognizer !== null;
+  return true; // Always use shared server
 }
 
 module.exports = {
