@@ -35,8 +35,8 @@ kubectl -n debugging-whispermsg logs -f deployment/mtproto-bridge
 
 | File | Purpose |
 |------|---------|
-| `mtproto-bridge/Dockerfile` | Node.js 20 + ffmpeg + Paraformer |
+| `mtproto-bridge/Dockerfile` | Node.js 20 + ffmpeg |
 | `mtproto-bridge/docker-compose.yml` | Docker Compose (VM) |
 | `mtproto-bridge/k8s.yaml` | Kubernetes manifest |
-| `mtproto-bridge/transcribe.js` | sherpa-onnx wrapper |
-| `mtproto-bridge/index.js` | Modified for local transcription |
+| `mtproto-bridge/transcribe.js` | External Whisper server client |
+| `mtproto-bridge/index.js` | Telegram bot bridge |

@@ -2,11 +2,26 @@
 import { render } from 'preact-render-to-string';
 import adminCss from './admin.css';
 
-export const renderAuthPage = (error?: string) => {
+export const renderAuthPage = (error?: string, isAuthenticated: boolean = false) => {
+    // If user is already authenticated, redirect them immediately
+    if (isAuthenticated) {
+        return "<!DOCTYPE html>" + render(
+            <html lang="en">
+                <head>
+                    <meta charSet="UTF-8" />
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                    <title>Redirecting...</title>
+                    <script dangerouslySetInnerHTML={{ __html: 'window.location.href = "/dashboard";' }} />
+                </head>
+                <body />
+            </html>
+        );
+    }
+
     return "<!DOCTYPE html>" + render(
         <html lang="en">
             <head>
-                <meta charset="UTF-8" />
+                <meta charSet="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <title>Connect Telegram - Echo Messenger</title>
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -21,7 +36,10 @@ export const renderAuthPage = (error?: string) => {
                         <div class="logo" style={{ justifyContent: 'center', marginBottom: '20px' }}>
                             <div class="logo-icon">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                    <line x1="12" y1="19" x2="12" y2="23"/>
+                                    <line x1="8" y1="23" x2="16" y2="23"/>
                                 </svg>
                             </div>
                             ECHO

@@ -13,8 +13,9 @@ const EMAIL_VERIFY_TTL = 900;
 const RATE_LIMIT_TTL = 60;
 
 function handleAuthPage(currentUserId: string | null): Response {
-  if (currentUserId) return new Response("Redirecting...", { status: 302, headers: { "Location": "/dashboard" } });
-  return new Response(renderAuthPage(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  const isAuthenticated = !!currentUserId;
+  if (isAuthenticated) return new Response("Redirecting...", { status: 302, headers: { "Location": "/dashboard" } });
+  return new Response(renderAuthPage(undefined, isAuthenticated), { headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
 
 async function handleQrStart(env: Env): Promise<Response> {
@@ -73,65 +74,70 @@ async function handleQrCheck(env: Env, token: string | null | undefined, userCoo
   return Response.json(data);
 }
 
-async function handleGoogleCallback(env: Env, formData: FormData): Promise<Response> {
-  const credential = formData.get('credential') as string;
-  if (!credential) return new Response("Missing credential", { status: 400 });
+async function handleGoogleCallback(env: Env, formData: FormData, url: URL, currentUserId: string | null | undefined): Promise<Response> {
+    // If already logged in, redirect to dashboard
+    if (currentUserId) {
+      return Response.redirect(`${url.origin}/dashboard`, 302);
+    }
 
-  try {
-    // Use Google's tokeninfo endpoint for verification (more compatible with Cloudflare Workers)
-    const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
-    if (!tokenInfoRes.ok) {
+    const credential = formData.get('credential') as string;
+    if (!credential) return new Response("Missing credential", { status: 400 });
+
+    try {
+      // Use Google's tokeninfo endpoint for verification (more compatible with Cloudflare Workers)
+      const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
+      if (!tokenInfoRes.ok) {
+        return new Response("Auth Error: Invalid Google credential", { status: 400 });
+      }
+
+      const tokenInfo = await tokenInfoRes.json() as { aud: string; sub: string; email: string; given_name?: string; name?: string };
+
+      // Verify audience
+      if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
+        return new Response("Auth Error: Invalid Google Client ID (audience mismatch)", { status: 500 });
+      }
+
+      const sub = tokenInfo.sub;
+      const email = tokenInfo.email;
+      const givenName = tokenInfo.given_name || tokenInfo.name || email.split('@')[0];
+      const name = tokenInfo.name || givenName;
+
+      const userId = `google_${sub}`;
+
+      // Check if user exists
+      const existingRaw = await env.STATS.get(`user_meta_${userId}`);
+      if (!existingRaw) {
+        const user: UserSession = {
+          userId,
+          firstName: givenName,
+          username: name,
+          session: "",
+          platform: "telegram", // Keep as telegram for compatibility
+          transcriptionCount: 0,
+          isActive: true,
+          createdAt: Date.now(),
+          lastActiveAt: Date.now(),
+          email
+        };
+        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+
+        // Add to users_list
+        const listRaw = await env.STATS.get("users_list") || "[]";
+        const list = JSON.parse(listRaw);
+        if (!list.includes(userId)) {
+          list.push(userId);
+          await env.STATS.put("users_list", JSON.stringify(list));
+        }
+      }
+
+      await logError("auth", `User ${userId} authenticated via Google`, env);
+      return await createSessionResponse(userId, env);
+
+    } catch (error) {
+      await logError("auth", `Google auth error: ${error}`, env);
       return new Response("Auth Error: Invalid Google credential", { status: 400 });
     }
-
-    const tokenInfo = await tokenInfoRes.json() as { aud: string; sub: string; email: string; given_name?: string; name?: string };
-
-    // Verify audience
-    if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
-      return new Response("Auth Error: Invalid Google Client ID (audience mismatch)", { status: 500 });
-    }
-
-    const sub = tokenInfo.sub;
-    const email = tokenInfo.email;
-    const givenName = tokenInfo.given_name || tokenInfo.name || email.split('@')[0];
-    const name = tokenInfo.name || givenName;
-
-    const userId = `google_${sub}`;
-
-    // Check if user exists
-    const existingRaw = await env.STATS.get(`user_meta_${userId}`);
-    if (!existingRaw) {
-      const user: UserSession = {
-        userId,
-        firstName: givenName,
-        username: name,
-        session: "",
-        platform: "telegram", // Keep as telegram for compatibility
-        transcriptionCount: 0,
-        isActive: true,
-        createdAt: Date.now(),
-        lastActiveAt: Date.now(),
-        email
-      };
-      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-
-      // Add to users_list
-      const listRaw = await env.STATS.get("users_list") || "[]";
-      const list = JSON.parse(listRaw);
-      if (!list.includes(userId)) {
-        list.push(userId);
-        await env.STATS.put("users_list", JSON.stringify(list));
-      }
-    }
-
-    await logError("auth", `User ${userId} authenticated via Google`, env);
-    return await createSessionResponse(userId, env);
-
-  } catch (error) {
-    await logError("auth", `Google auth error: ${error}`, env);
-    return new Response("Auth Error: Invalid Google credential", { status: 400 });
   }
-}
 
 async function handleEmailSend(env: Env, body: EmailSendRequest, url: URL): Promise<Response> {
   const { email } = body;
@@ -265,7 +271,7 @@ async function createSessionResponse(userId: string, env: Env): Promise<Response
     status: 302,
     headers: {
       "Location": "/dashboard",
-      "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; Max-Age=${SESSION_MAX_AGE}`
+      "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}`
     }
   });
 }
@@ -310,7 +316,8 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
   if (method === "POST" && pathname === "/auth/google/callback") {
     const formData = await req.formData();
-    return await handleGoogleCallback(env, formData);
+    const userId = formData.get('userId') as string | null;
+    return await handleGoogleCallback(env, formData, url, userId);
   }
 
   if (method === "POST" && pathname === "/auth/email/send") {

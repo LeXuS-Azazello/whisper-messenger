@@ -55,7 +55,7 @@ The system consists of three primary components:
 
 ## 🛠️ Deployment (Redeploying to a new Host)
 
-> **Note on AI Models:** The Whisper and Paraformer ONNX models are **not** stored in this repository and are **not** baked into the Docker images to keep the images lightweight and CI/CD fast. The models will be automatically downloaded by the `entrypoint.sh` scripts into the `/app/models` directories when the pods first start up.
+> **Note on AI Models:** The Whisper ONNX models are downloaded by the `whisper-server/entrypoint.sh` script into the `/app/models` directory when the pod first starts up. The MTProto bridge uses the external Whisper server for transcription and does not download or store models locally.
 
 ### 1. Cloudflare Worker
 ```bash
@@ -88,6 +88,12 @@ kubectl apply -f k8s.yaml
 2.  Add Public Hostnames in Cloudflare Zero Trust Dashboard:
     *   `mtproto.your-domain.com` -> `http://mtproto-bridge-manager:3000`
     *   `whisper-onnx.your-domain.com` -> `http://whisper-onnx:8000`
+
+### 5. System Tuning (UDP Buffer)
+If QUIC logs show `failed to sufficiently increase receive buffer size`:
+- Increase UDP buffer sizes: `sysctl -w net.core.rmem_max=67108864 net.core.wmem_max=67108864`
+- Increase file descriptors: `ulimit -n 1048576`
+- Check current limits: `cat /proc/sys/net/core/rmem_max`
 
 ---
 

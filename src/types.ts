@@ -122,6 +122,7 @@ export interface UserSession {
   userId: string;
   firstName: string;
   username?: string;
+  email?: string;
   phone?: string;
   session: string;
   platform: "telegram";

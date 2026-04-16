@@ -60,8 +60,13 @@ export default {
         });
     }
 
-    // Signed session from cookie
-    const sessionCookie = req.headers.get('Cookie')?.match(/session=([^;]+)/)?.[1];
+    // Signed session from cookie (handle multiple cookies and edge cases)
+    let sessionCookie = null;
+    const cookieHeader = req.headers.get('Cookie') || '';
+    const sessionMatch = cookieHeader.match(/session=([^;]+)/);
+    if (sessionMatch) {
+      sessionCookie = sessionMatch[1].trim();
+    }
     const userId = sessionCookie ? await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret") : null;
     
     // Constant-time comparison for admin session to prevent timing attacks
