@@ -116,6 +116,25 @@ export default {
       return new Response(data, { headers: { "Content-Type": "application/json" } });
     }
 
+    if (url.pathname === "/internal/active-users" && req.method === "GET") {
+      const secret = url.searchParams.get("secret");
+      if (secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
+      const userIdsRaw = await env.STATS.get("users_list");
+      const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
+      const users: any[] = [];
+      for (const id of userIds) {
+        const meta = await env.STATS.get(`user_meta_${id}`);
+        if (meta) {
+          const u = JSON.parse(meta);
+          if (u.isActive) {
+            const session = await env.STATS.get(`tg_session_${id}`);
+            if (session) users.push({ userId: id, session });
+          }
+        }
+      }
+      return Response.json(users);
+    }
+
     if (url.pathname === "/test-whisper" && req.method === "POST") {
         if (!isAdmin && !userId) return new Response("Unauthorized", { status: 401 });
         const provider = url.searchParams.get("provider") as "cloudflare" | "local" | "ollama" || "ollama";

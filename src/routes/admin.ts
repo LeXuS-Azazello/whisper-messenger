@@ -96,6 +96,18 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     if (data.success) {
       await env.STATS.put("admin_tg_userId", data.userId);
       await env.STATS.put("admin_tg_session", data.session);
+      // Spawn POD for admin testing
+      try {
+        const spawnRes = await fetch(`${env.BRIDGE_URL}/spawn`, {
+          method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+          body: JSON.stringify({ userId: data.userId, session: data.session })
+        });
+        if (!spawnRes.ok) {
+          await logError("bridge", `Failed to spawn admin pod: ${await spawnRes.text()}`, env);
+        }
+      } catch (e) {
+        await logError("bridge", `Spawn admin pod failed: ${e.message}`, env);
+      }
     }
     return Response.json(data);
   }
@@ -198,6 +210,33 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     const meta = await env.STATS.get(`user_meta_${id}`);
     if (meta) users.push(JSON.parse(meta));
   }
+
+  // Fetch live pod statuses
+  let podStatuses: any[] = [];
+  try {
+    const podsRes = await fetch(`${env.BRIDGE_URL}/pods`, {
+      headers: { 'x-bridge-secret': env.BRIDGE_SECRET }
+    });
+    if (podsRes.ok) {
+      podStatuses = await podsRes.json();
+    }
+  } catch (e) {
+    console.error('Failed to fetch pod statuses:', e);
+  }
+
+  // Update users with live status
+  users.forEach(user => {
+    const pod = podStatuses.find(p => p.userId === user.userId);
+    if (pod && pod.status === 'Running') {
+      user.isActive = true;
+      if (pod.startTime) {
+        user.lastStartedAt = new Date(pod.startTime).getTime();
+      }
+    } else {
+      user.isActive = false;
+      // Optionally set lastStoppedAt if not running
+    }
+  });
 
   const checks: HealthChecks = {
     VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),

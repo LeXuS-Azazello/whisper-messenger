@@ -327,3 +327,25 @@ h1 {
     font-size: 14px;
     font-style: italic;
 }
+
+/* Responsive table */
+@media (max-width: 768px) {
+    .user-table th, .user-table td {
+        padding: 5px;
+        font-size: 12px;
+    }
+    .user-table th:nth-child(2), .user-table td:nth-child(2),
+    .user-table th:nth-child(3), .user-table td:nth-child(3),
+    .user-table th:nth-child(6), .user-table td:nth-child(6) {
+        display: none;
+    }
+    .user-table th:nth-child(7), .user-table td:nth-child(7) {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 80px;
+    }
+    .user-table-container {
+        overflow-x: auto;
+    }
+}

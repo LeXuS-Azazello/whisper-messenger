@@ -340,6 +340,39 @@ app.post('/internal/access-revoked', auth, async (req, res) => {
     }
 });
 
+app.post('/send', auth, async (req, res) => {
+    if (MODE !== 'USER') return res.status(400).json({ error: 'Not user mode' });
+    const { chatId, text } = req.body;
+    if (!chatId || !text) return res.status(400).json({ error: 'Missing chatId or text' });
+    try {
+        await userClient.sendMessage(chatId, { message: text });
+        res.json({ success: true });
+    } catch (e) {
+        console.error(`[/send] Error:`, e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/pods', auth, async (req, res) => {
+    if (MODE !== 'MANAGER') return res.status(400).json({ error: 'Not manager' });
+    try {
+        const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
+        const pods = await k8sApi.listNamespacedPod({
+            namespace,
+            labelSelector: 'app=tg-user-bridge'
+        });
+        const podStatuses = pods.body.items.map(p => ({
+            userId: p.metadata.labels.userId,
+            status: p.status.phase,
+            startTime: p.status.startTime
+        }));
+        res.json(podStatuses);
+    } catch (e) {
+        console.error(`[/pods] Error:`, e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ─── USER MODE Logic ─────────────────────────────────────────────────────────
 function splitLongText(text, maxLength = 4000) {
     const parts = [];
@@ -492,6 +525,39 @@ if (isMain) {
         if (MODE === 'USER') {
             await startUserClient();
             startAccessChecker();
+        } else if (MODE === 'MANAGER') {
+            // Startup reconciliation: spawn pods for active users
+            if (WORKER_URL) {
+                try {
+                    console.log(`[bridge] Starting reconciliation...`);
+                    const res = await fetch(`${WORKER_URL}/internal/active-users?secret=${SECRET}`);
+                    if (res.ok) {
+                        const users = await res.json();
+                        console.log(`[bridge] Found ${users.length} active users to reconcile`);
+                        for (const user of users) {
+                            try {
+                                console.log(`[bridge] Spawning pod for ${user.userId}`);
+                                const spawnRes = await fetch(`${process.env.BRIDGE_URL || `http://localhost:${PORT}`}/spawn`, {
+                                    method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": SECRET },
+                                    body: JSON.stringify(user)
+                                });
+                                if (!spawnRes.ok) {
+                                    console.error(`[bridge] Failed to spawn for ${user.userId}: ${await spawnRes.text()}`);
+                                } else {
+                                    console.log(`[bridge] Spawned pod for ${user.userId}`);
+                                }
+                            } catch (e) {
+                                console.error(`[bridge] Spawn failed for ${user.userId}: ${e.message}`);
+                            }
+                        }
+                        console.log(`[bridge] Reconciliation complete`);
+                    } else {
+                        console.error(`[bridge] Failed to fetch active users: ${res.status}`);
+                    }
+                } catch (e) {
+                    console.error(`[bridge] Startup reconciliation failed: ${e.message}`);
+                }
+            }
         }
     });
 }
