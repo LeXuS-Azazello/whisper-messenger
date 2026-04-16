@@ -6,7 +6,6 @@ import express from 'express';
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
 import * as k8s from '@kubernetes/client-node';
-import { transcribe } from './transcribe.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -358,19 +357,19 @@ async function handleNewMessage(event) {
         return;
     }
     console.log(`[user] New private message from ${msg.chatId}: ${msg.message?.slice(0, 50)}...`);
-    
+
     // In GramJS, media is inside msg.media
     const mediaDoc = msg.media && msg.media.document;
     const isVoice = mediaDoc && mediaDoc.attributes.some(a => a instanceof Api.DocumentAttributeAudio && a.voice);
     const isVideoNote = mediaDoc && mediaDoc.attributes.some(a => a instanceof Api.DocumentAttributeVideo && a.roundMessage);
-    
+
     if (!isVoice && !isVideoNote && !msg.videoNote && !msg.voice) {
         console.log(`[user] No supported media found (voice or video note).`);
         return;
     }
 
     console.log(`[user] Supported media found, starting transcription...`);
-    
+
     try {
         const senderId = msg.senderId;
         const targetPeer = TARGET_USER_ID;
@@ -380,16 +379,18 @@ async function handleNewMessage(event) {
             peer: targetPeer,
             action: new Api.SendMessageRecordAudioAction()
         })).catch(() => {});
-        
-        const statusMsg = await userClient.sendMessage(targetPeer, { 
+
+        const statusMsg = await userClient.sendMessage(targetPeer, {
             message: "⏳ Transcribing..." ,
             replyTo: msg.senderId
-            
+
         });
 
         const buffer = await userClient.downloadMedia(msg.media, { workers: 1 });
         const mimeType = isVoice ? 'audio/ogg' : 'video/mp4';
-        
+
+        // Lazy import transcribe only when needed
+        const { transcribe } = await import('./transcribe.js');
         const { text, duration } = await transcribe(Buffer.from(buffer), mimeType);
         
         if (text) {
