@@ -66,10 +66,13 @@ if (MODE === 'MANAGER') {
             keepAliveMsecs: 10000,
             maxSockets: 10,
             maxFreeSockets: 5,
-            timeout: 30000, // 30s socket timeout
+            timeout: 60000, // 60s socket timeout
         });
         
-        k8sApi = kc.makeApiClient(k8s.CoreV1Api, { httpsAgent });
+        k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+        if (k8sApi && k8sApi.defaultClient) {
+            k8sApi.defaultClient.timeout = 60000;
+        }
         console.log(`[bridge] K8s initialized. Server: ${cluster?.server}, Namespace: ${process.env.POD_NAMESPACE || 'unknown'}`);
     } catch (err) {
         console.error(`[bridge] Failed to initialize K8s client:`, err);
@@ -128,13 +131,18 @@ app.get('/env', auth, (req, res) => {
 });
 
 app.post('/send-code', auth, async (req, res) => {
-    const { phone } = req.body;
-    console.log(`[/send-code] Initiating for ${phone}`);
-    const session = new StringSession('');
-    const client = new TelegramClient(session, API_ID, API_HASH, { connectionRetries: 5 });
-    await client.connect();
     try {
-        const { phoneCodeHash } = await client.sendCode({ apiId: API_ID, apiHash: API_HASH, phoneNumber: phone });
+        const { phone } = req.body;
+        console.log(`[/send-code] Initiating for ${phone}`);
+        const session = new StringSession('');
+        const client = new TelegramClient(session, API_ID, API_HASH, { 
+            connectionRetries: 5,
+            deviceModel: DEVICE_MODEL,
+            appVersion: APP_VERSION,
+            systemVersion: SYSTEM_VERSION
+        });
+        await client.connect();
+        const { phoneCodeHash } = await client.sendCode({ apiId: API_ID, apiHash: API_HASH }, phone);
         authSessions.set(phone, { client, session, phoneCodeHash });
         console.log(`[/send-code] Success for ${phone}, hash sent`);
         res.json({ success: true });
@@ -145,14 +153,15 @@ app.post('/send-code', auth, async (req, res) => {
 });
 
 app.post('/verify-code', auth, async (req, res) => {
-    const { phone, code } = req.body;
-    console.log(`[/verify-code] Checking code ${code} for ${phone}`);
-    const s = authSessions.get(phone);
-    if (!s) {
-        console.error(`[/verify-code] No session for ${phone}`);
-        return res.status(404).json({ error: 'Session not found' });
-    }
     try {
+        const { phone, code } = req.body;
+        console.log(`[/verify-code] Checking code ${code} for ${phone}`);
+        const s = authSessions.get(phone);
+        if (!s) {
+            console.error(`[/verify-code] No session for ${phone}`);
+            return res.status(404).json({ error: 'Session not found' });
+        }
+        
         const result = await s.client.invoke(new Api.auth.SignIn({
             phoneNumber: phone,
             phoneCodeHash: s.phoneCodeHash,
@@ -176,13 +185,13 @@ app.post('/verify-code', auth, async (req, res) => {
 });
 
 app.post('/verify-password', auth, async (req, res) => {
-    const { phone, password, token } = req.body;
-    const key = phone || token; // Phone for code flow, token for QR flow
-    console.log(`[/verify-password] Checking password for ${key}`);
-    const s = authSessions.get(key);
-    if (!s) return res.status(404).json({ error: 'Session not found' });
-
     try {
+        const { phone, password, token } = req.body;
+        const key = phone || token; // Phone for code flow, token for QR flow
+        console.log(`[/verify-password] Checking password for ${key}`);
+        const s = authSessions.get(key);
+        if (!s) return res.status(404).json({ error: 'Session not found' });
+
         const user = await s.client.signIn({ password: async () => password });
         const sessionStr = s.session.save();
         authSessions.delete(key);
@@ -195,51 +204,55 @@ app.post('/verify-password', auth, async (req, res) => {
 });
 
 app.post('/qr-start', auth, async (req, res) => {
-    if (MODE !== 'MANAGER') return res.status(400).send('Not manager');
-    const session = new StringSession('');
-    const client = new TelegramClient(session, API_ID, API_HASH, { connectionRetries: 3 });
-    await client.connect();
-    let qrData = null;
-    
-    const loginPromise = client.signInUserWithQrCode(
-        { apiId: API_ID, apiHash: API_HASH }, 
-        {
-            qrCode: async (code) => {
-                const b64 = code.token.toString('base64url');
-                qrData = { qrUrl: `tg://login?token=${b64}`, token: b64 };
-            },
-            password: async () => {
-                const s = authSessions.get(qrData.token);
-                if (s) s.status = 'password_needed';
-                // We return an empty string here because we'll handle the actual sign-in in /verify-password
-                // This will fail the current sign-in attempt, which is fine, 
-                // as long as we keep the client/session for the manual password verification.
-                return ""; 
-            },
-            onError: (err) => {
-                console.error("[qr-start] Error:", err.message);
+    try {
+        if (MODE !== 'MANAGER') return res.status(400).send('Not manager');
+        const session = new StringSession('');
+        const client = new TelegramClient(session, API_ID, API_HASH, { 
+            connectionRetries: 3,
+            deviceModel: DEVICE_MODEL,
+            appVersion: APP_VERSION,
+            systemVersion: SYSTEM_VERSION
+        });
+        await client.connect();
+        let qrData = null;
+        
+        const loginPromise = client.signInUserWithQrCode(
+            { apiId: API_ID, apiHash: API_HASH }, 
+            {
+                qrCode: async (code) => {
+                    const b64 = code.token.toString('base64url');
+                    qrData = { qrUrl: `tg://login?token=${b64}`, token: b64 };
+                },
+                password: async () => {
+                    const s = authSessions.get(qrData.token);
+                    if (s) s.status = 'password_needed';
+                    return ""; 
+                },
+                onError: (err) => {
+                    console.error("[qr-start] Error:", err.message);
+                }
             }
-        }
-    );
+        );
 
-    for (let i=0; i<10; i++) { if (qrData) break; await new Promise(r => setTimeout(r, 500)); }
-    if (!qrData) return res.status(500).json({ error: 'QR timeout' });
-    
-    authSessions.set(qrData.token, { client, session, status: 'pending' });
-    
-    loginPromise.then(user => {
-        const s = authSessions.get(qrData.token);
-        if (s) { s.status = 'done'; s.user = user; s.sessionStr = session.save(); }
-    }).catch(e => { 
-        const s = authSessions.get(qrData.token);
-        if (s && s.status === 'password_needed') {
-            // Keep session for password verification
-            return;
-        }
-        authSessions.delete(qrData.token); 
-    });
-    
-    res.json(qrData);
+        for (let i=0; i<20; i++) { if (qrData) break; await new Promise(r => setTimeout(r, 500)); }
+        if (!qrData) return res.status(500).json({ error: 'QR timeout' });
+        
+        authSessions.set(qrData.token, { client, session, status: 'pending' });
+        
+        loginPromise.then(user => {
+            const s = authSessions.get(qrData.token);
+            if (s) { s.status = 'done'; s.user = user; s.sessionStr = session.save(); }
+        }).catch(e => { 
+            const s = authSessions.get(qrData.token);
+            if (s && s.status === 'password_needed') return;
+            authSessions.delete(qrData.token); 
+        });
+        
+        res.json(qrData);
+    } catch (e) {
+        console.error(`[/qr-start] Error:`, e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.get('/qr-check', auth, (req, res) => {

@@ -24,8 +24,24 @@ function handleAuthPage(currentUserId: string | null): Response {
   });
 }
 
+async function bridgeFetch(url: string, options: any): Promise<Response> {
+  try {
+    const res = await fetch(url, options);
+    const contentType = res.headers.get("Content-Type") || "";
+    if (contentType.includes("application/json")) {
+      return res;
+    }
+    const text = await res.text();
+    return Response.json({ 
+      error: `Bridge Error ${res.status}: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}` 
+    }, { status: res.status });
+  } catch (e: any) {
+    return Response.json({ error: `Fetch Failed: ${e.message}` }, { status: 500 });
+  }
+}
+
 async function handleQrStart(env: Env): Promise<Response> {
-  return fetch(`${env.BRIDGE_URL}/qr-start`, {
+  return bridgeFetch(`${env.BRIDGE_URL}/qr-start`, {
     method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "" }
   });
 }
@@ -35,7 +51,7 @@ async function handleSendCode(env: Env, body: SendCodeRequest): Promise<Response
   if (!phone || typeof phone !== 'string' || phone.length < 7) {
     return Response.json({ error: "Invalid phone number" }, { status: 400 });
   }
-  return fetch(`${env.BRIDGE_URL}/send-code`, {
+  return bridgeFetch(`${env.BRIDGE_URL}/send-code`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "" },
     body: JSON.stringify({ phone })
@@ -47,11 +63,14 @@ async function handleVerifyCode(env: Env, body: VerifyCodeRequest, userCookie: s
   if (!phone || !code || typeof phone !== 'string' || typeof code !== 'string' || phone.length < 7 || code.length < 4) {
     return Response.json({ error: "Invalid phone or code" }, { status: 400 });
   }
-  const res = await fetch(`${env.BRIDGE_URL}/verify-code`, {
+  const res = await bridgeFetch(`${env.BRIDGE_URL}/verify-code`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "" },
     body: JSON.stringify({ phone, code })
   });
+  
+  if (!res.ok) return res;
+
   const data: BridgeUserData & { requiresPassword?: boolean } = await res.json();
   if (data.success) {
     const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);
@@ -75,11 +94,14 @@ async function handleVerifyPassword(env: Env, body: VerifyPasswordRequest, userC
     return Response.json({ error: "Invalid request" }, { status: 400 });
   }
   
-  const res = await fetch(`${env.BRIDGE_URL}/verify-password`, {
+  const res = await bridgeFetch(`${env.BRIDGE_URL}/verify-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "" },
     body: JSON.stringify({ phone, token, password })
   });
+  
+  if (!res.ok) return res;
+
   const data: BridgeUserData = await res.json();
   if (data.success) {
     const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);
@@ -93,9 +115,12 @@ async function handleQrCheck(env: Env, token: string | null | undefined, userCoo
   if (!token || typeof token !== 'string') {
     return Response.json({ error: "Invalid token" }, { status: 400 });
   }
-  const res = await fetch(`${env.BRIDGE_URL}/qr-check?token=${token}`, {
+  const res = await bridgeFetch(`${env.BRIDGE_URL}/qr-check?token=${token}`, {
     headers: { "x-bridge-secret": env.BRIDGE_SECRET || "" }
   });
+  
+  if (!res.ok) return res;
+
   const data: BridgeUserData & { requiresPassword?: boolean } = await res.json();
   if (data.done) {
     const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);

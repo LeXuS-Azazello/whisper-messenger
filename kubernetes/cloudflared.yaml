@@ -7,7 +7,7 @@ metadata:
 data:
   config.yaml: |
     ingress:
-      - hostname: whisper.debug.org.ua
+      - hostname: whisper-api.debug.org.ua
         service: http://sherpa-onnx:8000
       - service: http://localhost:8090
 ---
@@ -93,13 +93,6 @@ spec:
         - name: config
           mountPath: /etc/cloudflared
           readOnly: true
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-          limits:
-            cpu: 500m
-            memory: 256Mi
       volumes:
       - name: config
         configMap:
@@ -146,13 +139,6 @@ spec:
         - name: config
           mountPath: /etc/cloudflared
           readOnly: true
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-          limits:
-            cpu: 500m
-            memory: 256Mi
       volumes:
       - name: config
         configMap:

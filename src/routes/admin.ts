@@ -6,6 +6,24 @@ import { sampleAudioBase64 } from "../sample_audio";
 // @ts-ignore
 import ADMIN_JS_CONTENT from "../admin.js";
 
+async function bridgeFetch(url: string, options: any): Promise<Response> {
+  try {
+    const res = await fetch(url, options);
+    const contentType = res.headers.get("Content-Type") || "";
+    if (contentType.includes("application/json")) {
+      return res;
+    }
+    // Handle non-JSON response (e.g. 502/530 HTML)
+    const text = await res.text();
+    return Response.json({ 
+      success: false, 
+      error: `Bridge Error ${res.status}: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}` 
+    }, { status: res.status });
+  } catch (e: any) {
+    return Response.json({ success: false, error: `Fetch Failed: ${e.message}` }, { status: 500 });
+  }
+}
+
 export async function handleAdmin(env: Env, req: Request): Promise<Response> {
   const url = new URL(req.url);
   const cookieAuth = req.headers.get("Cookie")?.match(/admin_session=([^;]+)/)?.[1];
@@ -85,7 +103,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
 
   if (url.pathname === "/admin/tg-send-code" && req.method === "POST") {
     const { phoneNumber } = await req.json() as any;
-    return fetch(`${env.BRIDGE_URL}/send-code`, {
+    return bridgeFetch(`${env.BRIDGE_URL}/send-code`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
       body: JSON.stringify({ phone: phoneNumber })
     });
@@ -93,47 +111,53 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
 
   if (url.pathname === "/admin/tg-verify-code" && req.method === "POST") {
     const { phoneNumber, code } = await req.json() as any;
-    const res = await fetch(`${env.BRIDGE_URL}/verify-code`, {
+    const res = await bridgeFetch(`${env.BRIDGE_URL}/verify-code`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
       body: JSON.stringify({ phone: phoneNumber, code })
     });
-    const data: any = await res.json();
-    if (data.success) {
-      await env.STATS.put("admin_tg_userId", data.userId);
-      await env.STATS.put("admin_tg_session", data.session);
-      // Spawn POD for admin testing
-      try {
-        const spawnRes = await fetch(`${env.BRIDGE_URL}/spawn`, {
-          method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-          body: JSON.stringify({ userId: data.userId, session: data.session })
-        });
-        if (!spawnRes.ok) {
-          await logError("bridge", `Failed to spawn admin pod: ${await spawnRes.text()}`, env);
+    
+    if (res.ok) {
+      const data: any = await res.clone().json();
+      if (data.success) {
+        await env.STATS.put("admin_tg_userId", data.userId);
+        await env.STATS.put("admin_tg_session", data.session);
+        // Spawn POD for admin testing
+        try {
+          const spawnRes = await fetch(`${env.BRIDGE_URL}/spawn`, {
+            method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+            body: JSON.stringify({ userId: data.userId, session: data.session })
+          });
+          if (!spawnRes.ok) {
+            await logError("bridge", `Failed to spawn admin pod: ${await spawnRes.text()}`, env);
+          }
+        } catch (e) {
+          await logError("bridge", `Spawn admin pod failed: ${e instanceof Error ? e.message : String(e)}`, env);
         }
-      } catch (e) {
-        await logError("bridge", `Spawn admin pod failed: ${e instanceof Error ? e.message : String(e)}`, env);
       }
     }
-    return Response.json(data);
+    return res;
   }
 
   if (url.pathname === "/admin/tg-qr-login" && req.method === "POST") {
-    return fetch(`${env.BRIDGE_URL}/qr-start`, {
+    return bridgeFetch(`${env.BRIDGE_URL}/qr-start`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET }
     });
   }
 
   if (url.pathname === "/admin/tg-qr-check") {
     const token = url.searchParams.get("token");
-    const res = await fetch(`${env.BRIDGE_URL}/qr-check?token=${token}`, {
+    const res = await bridgeFetch(`${env.BRIDGE_URL}/qr-check?token=${token}`, {
       headers: { "x-bridge-secret": env.BRIDGE_SECRET }
     });
-    const data: any = await res.json();
-    if (data.done) {
-      await env.STATS.put("admin_tg_userId", data.userId);
-      await env.STATS.put("admin_tg_session", data.session);
+    
+    if (res.ok) {
+      const data: any = await res.clone().json();
+      if (data.done) {
+        await env.STATS.put("admin_tg_userId", data.userId);
+        await env.STATS.put("admin_tg_session", data.session);
+      }
     }
-    return Response.json(data);
+    return res;
   }
 
   if (url.pathname === "/admin/tg-logout" && req.method === "POST") {
