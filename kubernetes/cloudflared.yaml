@@ -114,7 +114,7 @@ data:
   config.yaml: |
     ingress:
       - hostname: mtproto.debug.org.ua
-        service: http://mtproto-bridge-manager.debugging-echovoice.svc.cluster.local:3000
+        service: http://mtproto-bridge-manager:3000
       - service: http://localhost:8090
 ---
 apiVersion: apps/v1
