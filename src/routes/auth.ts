@@ -164,10 +164,12 @@ async function handleGoogleCallback(env: Env, formData: FormData, url: URL, curr
         }
       }
 
+      console.log(`[Auth] Creating session for user: ${userId}`);
       await logError("auth", `User ${userId} authenticated via Google`, env);
       return await createSessionResponse(userId, env);
 
     } catch (error) {
+      console.error(`[Auth] Google error: ${error}`);
       await logError("auth", `Google auth error: ${error}`, env);
       return new Response("Auth Error: Invalid Google credential", { status: 400 });
     }

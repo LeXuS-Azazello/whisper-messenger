@@ -61,12 +61,17 @@ export default {
     }
 
     // Signed session from cookie (handle multiple cookies and edge cases)
-    let sessionCookie: string | null = null;
     const cookieHeader = req.headers.get('Cookie') || '';
-    const sessionMatch = cookieHeader.match(/session="?([^;"]+)"?/);
-    if (sessionMatch) {
-      sessionCookie = sessionMatch[1].trim();
+    const cookies = Object.fromEntries(cookieHeader.split(';').map(c => {
+      const [k, ...v] = c.trim().split('=');
+      return [k, v.join('=')];
+    }));
+    
+    let sessionCookie = cookies['session'];
+    if (sessionCookie && sessionCookie.startsWith('"') && sessionCookie.endsWith('"')) {
+      sessionCookie = sessionCookie.substring(1, sessionCookie.length - 1);
     }
+    
     const userId = sessionCookie ? await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret") : null;
     
     // Constant-time comparison for admin session to prevent timing attacks
