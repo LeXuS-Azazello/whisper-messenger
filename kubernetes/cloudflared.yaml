@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared-whisper
+  namespace: debugging-echovoice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudflared-whisper
+  template:
+    metadata:
+      labels:
+        app: cloudflared-whisper
+    spec:
+      containers:
+      - name: cloudflared
+        image: cloudflare/cloudflared:latest
+        args:
+        - tunnel
+        - --no-autoupdate
+        - run
+        - --token
+        - eyJhIjoiZmZhMjc2NTFhNjQ3ZDM3YTcxZmIzYWVhZTk2OWM3NjIiLCJ0IjoiYTIxZmRkMDItMmUxNi00ZWVlLWEwY2YtM2ZlNWZhODM1YmI4IiwicyI6Ik9EWmxaREl6TnprdE4yUmhaQzAwTXpBekxXSXhOemt0WVRjeE4yRmxNemc0WW1WaCJ9
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared-voice
+  namespace: debugging-echovoice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudflared-voice
+  template:
+    metadata:
+      labels:
+        app: cloudflared-voice
+    spec:
+      containers:
+      - name: cloudflared
+        image: cloudflare/cloudflared:latest
+        args:
+        - tunnel
+        - --no-autoupdate
+        - run
+        - --token
+        - eyJhIjoiZmZhMjc2NTFhNjQ3ZDM3YTcxZmIzYWVhZTk2OWM3NjIiLCJ0IjoiMmY1N2Y3MGUtNTAwYi00ODIyLTliMWQtYTY1Yzk0YmUxMjE1IiwicyI6Imhpa1BmRjRtYmkrWDlEQkRnNFE2SHFwbnA1d283TFd4ME8vSnYyVi9Ga3c9In0=
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi

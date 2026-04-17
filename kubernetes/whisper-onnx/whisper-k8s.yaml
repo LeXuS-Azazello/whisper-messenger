@@ -28,6 +28,21 @@ spec:
           limits:
             cpu: "2"
             memory: "2Gi"
+      - name: cloudflared
+        image: cloudflare/cloudflared:latest
+        args:
+        - tunnel
+        - --no-autoupdate
+        - run
+        - --token
+        - eyJhIjoiZmZhMjc2NTFhNjQ3ZDM3YTcxZmIzYWVhZTk2OWM3NjIiLCJ0IjoiYTIxZmRkMDItMmUxNi00ZWVlLWEwY2YtM2ZlNWZhODM1YmI4IiwicyI6Ik9EWmxaREl6TnprdE4yUmhaQzAwTXpBekxXSXhOemt0WVRjeE4yRmxNemc0WW1WaCJ9
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
 ---
 apiVersion: v1
 kind: Service
