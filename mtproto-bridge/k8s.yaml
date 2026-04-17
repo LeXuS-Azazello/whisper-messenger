@@ -81,8 +81,6 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        - name: BRIDGE_API_SERVER
-          value: https://127.0.0.1:6443
         - name: BRIDGE_IMAGE
           value: azazellosaraksh/debugging-mtproto-bridge:latest
         resources:
@@ -92,8 +90,7 @@ spec:
           limits:
             memory: 1Gi
             cpu: 500m
-      hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
+      dnsPolicy: ClusterFirst
 ---
 apiVersion: v1
 kind: Service
