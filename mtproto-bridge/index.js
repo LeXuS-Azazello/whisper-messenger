@@ -11,6 +11,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import dns from 'dns';
+
+dns.setDefaultResultOrder('ipv4first');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,8 +44,15 @@ let k8sApi = null;
 if (MODE === 'MANAGER') {
     const kc = new k8s.KubeConfig();
     kc.loadFromDefault();
-    k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+    
+    // Override server to use service hostname if it's the default IP to avoid potential connectivity issues
     const cluster = kc.getCurrentCluster();
+    if (cluster && (cluster.server.includes('10.101.0.1') || cluster.server.includes('10.96.0.1'))) {
+        console.log(`[bridge] Overriding K8s server ${cluster.server} with https://kubernetes.default.svc`);
+        cluster.server = 'https://kubernetes.default.svc';
+    }
+    
+    k8sApi = kc.makeApiClient(k8s.CoreV1Api);
     console.log(`[bridge] K8s initialized. Server: ${cluster?.server || 'unknown'}, Namespace: ${process.env.POD_NAMESPACE || 'unknown'}`);
 }
 

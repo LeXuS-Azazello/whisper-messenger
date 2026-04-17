@@ -177,8 +177,9 @@ export default {
             if (originalProvider) await env.STATS.put("config_whisper_provider", originalProvider);
             
             return Response.json({ success: true, provider, elapsed, text: result.text });
-        } catch (e) {
-            return Response.json({ success: false, error: (e as Error).message }, { status: 500 });
+        } catch (e: any) {
+            console.error(`[/test-whisper] Error: ${e.message}`, e);
+            return Response.json({ success: false, error: e.message }, { status: 500 });
         }
     }
 
