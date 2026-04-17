@@ -46,9 +46,16 @@ export const renderDashboard = (user: UserSession) => {
                             </div>
                             
                             <div id="tg-status-container" style={{ display: isTgConnected ? 'block' : 'none', marginTop: '15px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                    <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Status:</span>
+                                    <span class={`status-tag ${user.isActive ? 'active' : 'inactive'}`} style={{ fontSize: '11px', padding: '2px 8px' }}>
+                                        {user.currentStatus || (user.isActive ? 'RUNNING' : 'STOPPED')}
+                                    </span>
+                                </div>
                                 <p style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Your personal Telegram account is bridged and ready to transcribe.</p>
-                                <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+                                <div style={{ marginTop: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                                     <button class="btn btn-sm" id="test-tg-btn" style={{ background: '#3B82F6', margin: 0 }}>Send Test Message</button>
+                                    <button class="btn btn-sm" id="restart-tg-btn" style={{ background: '#F59E0B', margin: 0, color: '#000' }}>Restart Bridge</button>
                                     <button class="btn btn-sm" id="disconnect-tg-btn" style={{ background: '#ef4444', margin: 0 }}>Disconnect</button>
                                 </div>
                             </div>
@@ -248,6 +255,24 @@ export const renderDashboard = (user: UserSession) => {
                         fetch('/dashboard/test-tg', { method: 'POST' })
                             .then(r => r.json())
                             .then(d => alert(d.success ? 'Success! Check your Telegram' : 'Error: ' + (d.error || 'Failed to send test message')));
+                    });
+
+                    document.getElementById('restart-tg-btn')?.addEventListener('click', () => {
+                        const btn = document.getElementById('restart-tg-btn');
+                        btn.disabled = true;
+                        btn.innerText = 'Restarting...';
+                        fetch('/dashboard/restart-tg', { method: 'POST' })
+                            .then(r => r.json())
+                            .then(d => {
+                                if (d.success) {
+                                    alert('Restart initiated. Please wait a few seconds for the pod to start.');
+                                    location.reload();
+                                } else {
+                                    alert('Restart failed: ' + (d.error || 'Unknown error'));
+                                    btn.disabled = false;
+                                    btn.innerText = 'Restart Bridge';
+                                }
+                            });
                     });
 
                     // Meta / WA hooks
