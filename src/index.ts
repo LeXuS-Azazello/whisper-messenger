@@ -80,7 +80,7 @@ export default {
 
     if (url.pathname === "/") {
         if (userId) return Response.redirect(`${url.origin}/dashboard`);
-        return new Response(renderHome(env.GOOGLE_CLIENT_ID), { 
+        return new Response(renderHome(env.GOOGLE_CLIENT_ID, url.origin), { 
             headers: { 
                 "Content-Type": "text/html; charset=utf-8",
                 "Cross-Origin-Opener-Policy": "same-origin-allow-popups"

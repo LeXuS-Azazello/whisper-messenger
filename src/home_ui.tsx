@@ -27,7 +27,7 @@ const ArrowLeftIcon = ({ size = 24, color = "currentColor" }) => (
     </svg>
 );
 
-export const renderHome = (googleClientId: string) => {
+export const renderHome = (googleClientId: string, origin: string) => {
     return "<!DOCTYPE html>" + render(
         <html lang="en">
             <head>
@@ -98,7 +98,7 @@ export const renderHome = (googleClientId: string) => {
                                     data-client_id={googleClientId}
                                     data-context="signin"
                                     data-ux_mode="redirect"
-                                    data-login_uri="/auth/google/callback"
+                                    data-login_uri={`${origin}/auth/google/callback`}
                                     data-auto_prompt="false">
                                 </div>
                                 <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large"></div>
