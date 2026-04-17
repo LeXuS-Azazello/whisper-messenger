@@ -306,7 +306,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                         </div>
                     </div>
                 </div>
-                <script src="/admin/js"></script>
+                <script src={`/admin/js?v=${Date.now()}`}></script>
             </body>
         </html>
     );
