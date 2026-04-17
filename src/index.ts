@@ -80,7 +80,12 @@ export default {
 
     if (url.pathname === "/") {
         if (userId) return Response.redirect(`${url.origin}/dashboard`);
-        return new Response(renderHome(env.GOOGLE_CLIENT_ID), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+        return new Response(renderHome(env.GOOGLE_CLIENT_ID), { 
+            headers: { 
+                "Content-Type": "text/html; charset=utf-8",
+                "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
+            } 
+        });
     }
 
     if (url.pathname === "/auth" && userId) {

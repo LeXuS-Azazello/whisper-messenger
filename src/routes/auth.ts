@@ -15,7 +15,12 @@ const RATE_LIMIT_TTL = 60;
 function handleAuthPage(currentUserId: string | null): Response {
   const isAuthenticated = !!currentUserId;
   if (isAuthenticated) return new Response("Redirecting...", { status: 302, headers: { "Location": "/dashboard" } });
-  return new Response(renderAuthPage(undefined, isAuthenticated), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  return new Response(renderAuthPage(undefined, isAuthenticated), { 
+    headers: { 
+      "Content-Type": "text/html; charset=utf-8",
+      "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
+    } 
+  });
 }
 
 async function handleQrStart(env: Env): Promise<Response> {
