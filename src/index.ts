@@ -94,7 +94,14 @@ export default {
 
     // Public Auth Routes
     if (url.pathname.startsWith("/auth")) {
-      return handlePublicAuth(env, req, userId);
+      const res = await handlePublicAuth(env, req, userId);
+      const contentType = res.headers.get("Content-Type");
+      if (contentType?.includes("text/html")) {
+        const newRes = new Response(res.body, res);
+        newRes.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+        return newRes;
+      }
+      return res;
     }
 
     // Admin Routes

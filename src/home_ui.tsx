@@ -97,8 +97,8 @@ export const renderHome = (googleClientId: string) => {
                                 <div id="g_id_onload"
                                     data-client_id={googleClientId}
                                     data-context="signin"
-                                    data-ux_mode="popup"
-                                    data-callback="handleGoogleCallback"
+                                    data-ux_mode="redirect"
+                                    data-login_uri="/auth/google/callback"
                                     data-auto_prompt="false">
                                 </div>
                                 <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large"></div>
@@ -127,19 +127,6 @@ export const renderHome = (googleClientId: string) => {
                     var statusMsg = document.getElementById('status-msg');
                     var authView = document.getElementById('auth-view');
                     var successView = document.getElementById('success-view');
-
-                    window.handleGoogleCallback = (response) => {
-                        var form = document.createElement('form');
-                        form.method = 'POST';
-                        form.action = '/auth/google/callback';
-                        var input = document.createElement('input');
-                        input.type = 'hidden';
-                        input.name = 'credential';
-                        input.value = response.credential;
-                        form.appendChild(input);
-                        document.body.appendChild(form);
-                        form.submit();
-                    };
 
                     // Check for existing session
                     var sessionMatch = document.cookie.match(/session=([^;]+)/);

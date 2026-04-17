@@ -8,8 +8,8 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
 
   if (!userId) {
     return new Response(null, { status: 302, headers: { 
-        "Location": "/auth",
-        "Set-Cookie": "session=deleted; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+        "Location": "/",
+        "Set-Cookie": "session=deleted; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0"
     } });
   }
 
@@ -105,7 +105,10 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
     }
   }
 
-  return new Response(renderDashboard(user), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  return new Response(renderDashboard(user), { headers: { 
+    "Content-Type": "text/html; charset=utf-8",
+    "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
+  } });
 }
 
 export async function incrementUserStats(userId: string, env: Env) {
