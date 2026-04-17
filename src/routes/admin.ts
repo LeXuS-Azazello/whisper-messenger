@@ -75,7 +75,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         headers: { "x-bridge-secret": env.BRIDGE_SECRET }
       });
       const healthData: any = await healthRes.json();
-      if (!healthData.alive || !healthData.userId) {
+      if (!healthData.alive) {
         tgAuthenticated = false;
       }
     } catch (e) {
@@ -119,7 +119,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
 
   if (url.pathname === "/admin/tg-qr-login" && req.method === "POST") {
     return fetch(`${env.BRIDGE_URL}/qr-start`, {
-      method: "POST", headers: { "x-bridge-secret": env.BRIDGE_SECRET }
+      method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET }
     });
   }
 

@@ -26,7 +26,7 @@ function handleAuthPage(currentUserId: string | null): Response {
 
 async function handleQrStart(env: Env): Promise<Response> {
   return fetch(`${env.BRIDGE_URL}/qr-start`, {
-    method: "POST", headers: { "x-bridge-secret": env.BRIDGE_SECRET || "" }
+    method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "" }
   });
 }
 
@@ -56,7 +56,7 @@ async function handleVerifyCode(env: Env, body: VerifyCodeRequest, userCookie: s
   if (data.success) {
     const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);
     await logError("auth", `User ${registeredUserId} authenticated via phone`, env);
-    return await createSessionResponse(registeredUserId, env);
+    return await createSessionResponse(registeredUserId, env, true);
   }
   
   if (data.requiresPassword) {
@@ -84,7 +84,7 @@ async function handleVerifyPassword(env: Env, body: VerifyPasswordRequest, userC
   if (data.success) {
     const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);
     await logError("auth", `User ${registeredUserId} authenticated via 2FA`, env);
-    return await createSessionResponse(registeredUserId, env);
+    return await createSessionResponse(registeredUserId, env, true);
   }
   return Response.json(data, { status: res.status });
 }
@@ -100,7 +100,7 @@ async function handleQrCheck(env: Env, token: string | null | undefined, userCoo
   if (data.done) {
     const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);
     await logError("auth", `User ${registeredUserId} authenticated via QR`, env);
-    return await createSessionResponse(registeredUserId, env);
+    return await createSessionResponse(registeredUserId, env, true);
   }
   if (data.requiresPassword) {
     return Response.json({ requiresPassword: true });
@@ -301,10 +301,16 @@ function handleLogout(): Response {
   return new Response("Redirect", { status: 302, headers: { "Location": "/", "Set-Cookie": "session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT" } });
 }
 
-async function createSessionResponse(userId: string, env: Env): Promise<Response> {
+async function createSessionResponse(userId: string, env: Env, returnJson: boolean = false): Promise<Response> {
   const signedSession = await createSignedSession(userId, env.SESSION_SECRET || "default_session_secret");
   const cookie = `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${SESSION_MAX_AGE}`;
   
+  if (returnJson) {
+    return Response.json({ success: true, userId }, {
+      headers: { "Set-Cookie": cookie }
+    });
+  }
+
   // Use HTML intermediate page to ensure Cookie is saved across cross-site redirects
   const html = `
     <!DOCTYPE html>

@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         fetch('/admin/tg-qr-check?token=' + data.token)
                         .then(r => r.json())
                         .then(status => {
-                            if (status.authenticated) { clearInterval(qrPollInterval); checkTgStatus(); location.reload(); }
+                            if (status.done) { clearInterval(qrPollInterval); checkTgStatus(); location.reload(); }
                         });
                     }, 2500);
                 }
