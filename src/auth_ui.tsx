@@ -72,6 +72,17 @@ export const renderAuthPage = (error?: string, isAuthenticated: boolean = false)
                                 </p>
                             </div>
 
+                            <div id="password-section" style={{ display: 'none', marginTop: '20px' }}>
+                                <div class="input-group">
+                                    <label class="input-label">Cloud Password (2FA)</label>
+                                    <input type="password" id="tg-password-input" class="input-field" placeholder="Your password" />
+                                </div>
+                                <button class="btn" id="tg-password-btn" style={{ background: '#8B5CF6' }}>Unlock Account</button>
+                                <p style={{ fontSize: '12px', marginTop: '10px', color: 'var(--text-dim)', textAlign: 'center' }}>
+                                    Your account is protected with Two-Factor Authentication.
+                                </p>
+                            </div>
+
                             <div style={{ margin: '30px 0', display: 'flex', alignItems: 'center', gap: '15px' }}>
                                 <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
                                 <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>OR</span>
@@ -105,10 +116,13 @@ export const renderAuthPage = (error?: string, isAuthenticated: boolean = false)
                     __html: `
                     var tgPhoneInput = document.getElementById('tg-phone-input');
                     var tgCodeInput = document.getElementById('tg-code-input');
+                    var tgPasswordInput = document.getElementById('tg-password-input');
                     var tgSendCodeBtn = document.getElementById('tg-send-code-btn');
                     var tgVerifyBtn = document.getElementById('tg-verify-btn');
+                    var tgPasswordBtn = document.getElementById('tg-password-btn');
                     var phoneSection = document.getElementById('phone-section');
                     var codeSection = document.getElementById('code-section');
+                    var passwordSection = document.getElementById('password-section');
                     var qrSection = document.getElementById('qr-section');
                     var tgShowQrBtn = document.getElementById('tg-show-qr-btn');
                     var authFlow = document.getElementById('auth-flow');
@@ -116,6 +130,7 @@ export const renderAuthPage = (error?: string, isAuthenticated: boolean = false)
                     var qrCodeContainer = document.getElementById('qr-code-container');
                     var qrStatus = document.getElementById('qr-status');
                     var currentPhone = '';
+                    var currentQrToken = '';
                     var qrPollInterval = null;
 
                     tgSendCodeBtn.addEventListener('click', function() {
@@ -141,8 +156,10 @@ export const renderAuthPage = (error?: string, isAuthenticated: boolean = false)
                         .catch(err => alert('Network error'));
                     });
 
-tgVerifyBtn.addEventListener('click', function() {
+                    tgVerifyBtn.addEventListener('click', function() {
                         var code = tgCodeInput.value.trim();
+                        if (!code) return alert('Enter code');
+                        tgVerifyBtn.innerText = 'Verifying...';
                         fetch('/auth/verify-code', {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ phone: currentPhone, code: code })
@@ -153,9 +170,40 @@ tgVerifyBtn.addEventListener('click', function() {
                                 return r.json().then(data => {
                                     if (data.success) {
                                         window.location.href = '/dashboard';
+                                    } else if (data.requiresPassword) {
+                                        codeSection.style.display = 'none';
+                                        passwordSection.style.display = 'block';
                                     } else {
-                                        alert('Invalid code: ' + (data.error || 'Check the logs'));
+                                        alert('Error: ' + (data.error || 'Check the logs'));
                                         tgVerifyBtn.innerText = 'Confirm & Connect';
+                                    }
+                                });
+                            }
+                        }).catch(err => alert('Network error'));
+                    });
+
+                    tgPasswordBtn.addEventListener('click', function() {
+                        var pwd = tgPasswordInput.value.trim();
+                        if (!pwd) return alert('Enter password');
+                        tgPasswordBtn.innerText = 'Unlocking...';
+                        
+                        var body = { password: pwd };
+                        if (currentPhone) body.phone = currentPhone;
+                        if (currentQrToken) body.token = currentQrToken;
+
+                        fetch('/auth/verify-password', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                        }).then(r => {
+                            if (r.status === 302 || r.redirected) {
+                                window.location.href = '/dashboard';
+                            } else {
+                                return r.json().then(data => {
+                                    if (data.success) {
+                                        window.location.href = '/dashboard';
+                                    } else {
+                                        alert('Login failed: ' + (data.error || 'Invalid password'));
+                                        tgPasswordBtn.innerText = 'Unlock Account';
                                     }
                                 });
                             }
@@ -188,6 +236,11 @@ tgVerifyBtn.addEventListener('click', function() {
                                                     authFlow.style.display = 'none';
                                                     successMessage.style.display = 'block';
                                                     setTimeout(() => window.location.href = '/dashboard', 1500);
+                                                } else if (status.requiresPassword) {
+                                                    clearInterval(qrPollInterval);
+                                                    currentQrToken = data.token;
+                                                    qrSection.style.display = 'none';
+                                                    passwordSection.style.display = 'block';
                                                 }
                                             })
                                             .catch(() => {});

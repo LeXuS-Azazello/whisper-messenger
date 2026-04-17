@@ -5,6 +5,7 @@ import { createSignedSession } from "../session";
 
 interface SendCodeRequest { phone: string; }
 interface VerifyCodeRequest { phone: string; code: string; }
+interface VerifyPasswordRequest { phone?: string; token?: string; password: string; }
 interface EmailSendRequest { email: string; }
 interface BridgeUserData { userId: string; firstName: string; session: string; phone?: string; success?: boolean; error?: string; done?: boolean; }
 
@@ -51,16 +52,41 @@ async function handleVerifyCode(env: Env, body: VerifyCodeRequest, userCookie: s
     headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "" },
     body: JSON.stringify({ phone, code })
   });
-  const data: BridgeUserData = await res.json();
+  const data: BridgeUserData & { requiresPassword?: boolean } = await res.json();
   if (data.success) {
     const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);
     await logError("auth", `User ${registeredUserId} authenticated via phone`, env);
     return await createSessionResponse(registeredUserId, env);
   }
+  
+  if (data.requiresPassword) {
+    return Response.json({ requiresPassword: true });
+  }
+
   if (data.error) {
     await logError("auth", `Verify failed for ${phone}: ${data.error}`, env);
   }
   return Response.json(data);
+}
+
+async function handleVerifyPassword(env: Env, body: VerifyPasswordRequest, userCookie: string | null | undefined, currentUserId: string | null | undefined): Promise<Response> {
+  const { phone, token, password } = body;
+  if (!password || (!phone && !token)) {
+    return Response.json({ error: "Invalid request" }, { status: 400 });
+  }
+  
+  const res = await fetch(`${env.BRIDGE_URL}/verify-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "" },
+    body: JSON.stringify({ phone, token, password })
+  });
+  const data: BridgeUserData = await res.json();
+  if (data.success) {
+    const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);
+    await logError("auth", `User ${registeredUserId} authenticated via 2FA`, env);
+    return await createSessionResponse(registeredUserId, env);
+  }
+  return Response.json(data, { status: res.status });
 }
 
 async function handleQrCheck(env: Env, token: string | null | undefined, userCookie: string | null | undefined, currentUserId: string | null | undefined): Promise<Response> {
@@ -70,11 +96,14 @@ async function handleQrCheck(env: Env, token: string | null | undefined, userCoo
   const res = await fetch(`${env.BRIDGE_URL}/qr-check?token=${token}`, {
     headers: { "x-bridge-secret": env.BRIDGE_SECRET || "" }
   });
-  const data: BridgeUserData = await res.json();
+  const data: BridgeUserData & { requiresPassword?: boolean } = await res.json();
   if (data.done) {
     const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);
     await logError("auth", `User ${registeredUserId} authenticated via QR`, env);
     return await createSessionResponse(registeredUserId, env);
+  }
+  if (data.requiresPassword) {
+    return Response.json({ requiresPassword: true });
   }
   return Response.json(data);
 }
@@ -308,6 +337,16 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
       const body = await req.json() as VerifyCodeRequest;
       const userCookie = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1] || null;
       return await handleVerifyCode(env, body, userCookie, currentUserId || null);
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+  }
+
+  if (method === "POST" && pathname === "/auth/verify-password") {
+    try {
+      const body = await req.json() as VerifyPasswordRequest;
+      const userCookie = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1] || null;
+      return await handleVerifyPassword(env, body, userCookie, currentUserId || null);
     } catch {
       return Response.json({ error: "Invalid JSON" }, { status: 400 });
     }

@@ -96,14 +96,39 @@ app.post('/verify-code', auth, async (req, res) => {
             phoneCodeHash: s.phoneCodeHash,
             phoneCode: String(code)
         }));
+        
+        // Success!
         const user = result.user;
         const sessionStr = s.session.save();
         authSessions.delete(phone);
         console.log(`[/verify-code] SUCCESS! Welcome ${user.firstName} (ID: ${user.id})`);
         res.json({ success: true, session: sessionStr, userId: user.id.toString(), firstName: user.firstName });
     } catch (e) {
+        if (e.message.includes('SESSION_PASSWORD_NEEDED')) {
+            console.log(`[/verify-code] 2FA required for ${phone}`);
+            return res.json({ success: false, requiresPassword: true });
+        }
         console.error(`[/verify-code] Telegram error:`, e);
         res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/verify-password', auth, async (req, res) => {
+    const { phone, password, token } = req.body;
+    const key = phone || token; // Phone for code flow, token for QR flow
+    console.log(`[/verify-password] Checking password for ${key}`);
+    const s = authSessions.get(key);
+    if (!s) return res.status(404).json({ error: 'Session not found' });
+
+    try {
+        const user = await s.client.signIn({ password: async () => password });
+        const sessionStr = s.session.save();
+        authSessions.delete(key);
+        console.log(`[/verify-password] SUCCESS! Welcome ${user.firstName} (ID: ${user.id})`);
+        res.json({ success: true, session: sessionStr, userId: user.id.toString(), firstName: user.firstName });
+    } catch (e) {
+        console.error(`[/verify-password] error:`, e);
+        res.status(400).json({ error: e.message });
     }
 });
 
@@ -113,30 +138,62 @@ app.post('/qr-start', auth, async (req, res) => {
     const client = new TelegramClient(session, API_ID, API_HASH, { connectionRetries: 3 });
     await client.connect();
     let qrData = null;
-    const loginPromise = client.signInUserWithQrCode({ apiId: API_ID, apiHash: API_HASH }, {
-        qrCode: async (code) => {
-            const b64 = code.token.toString('base64url');
-            qrData = { qrUrl: `tg://login?token=${b64}`, token: b64 };
+    
+    const loginPromise = client.signInUserWithQrCode(
+        { apiId: API_ID, apiHash: API_HASH }, 
+        {
+            qrCode: async (code) => {
+                const b64 = code.token.toString('base64url');
+                qrData = { qrUrl: `tg://login?token=${b64}`, token: b64 };
+            },
+            password: async () => {
+                const s = authSessions.get(qrData.token);
+                if (s) s.status = 'password_needed';
+                // We return an empty string here because we'll handle the actual sign-in in /verify-password
+                // This will fail the current sign-in attempt, which is fine, 
+                // as long as we keep the client/session for the manual password verification.
+                return ""; 
+            },
+            onError: (err) => {
+                console.error("[qr-start] Error:", err.message);
+            }
         }
-    });
+    );
+
     for (let i=0; i<10; i++) { if (qrData) break; await new Promise(r => setTimeout(r, 500)); }
     if (!qrData) return res.status(500).json({ error: 'QR timeout' });
+    
     authSessions.set(qrData.token, { client, session, status: 'pending' });
+    
     loginPromise.then(user => {
         const s = authSessions.get(qrData.token);
         if (s) { s.status = 'done'; s.user = user; s.sessionStr = session.save(); }
-    }).catch(e => { authSessions.delete(qrData.token); });
+    }).catch(e => { 
+        const s = authSessions.get(qrData.token);
+        if (s && s.status === 'password_needed') {
+            // Keep session for password verification
+            return;
+        }
+        authSessions.delete(qrData.token); 
+    });
+    
     res.json(qrData);
 });
 
 app.get('/qr-check', auth, (req, res) => {
     const s = authSessions.get(req.query.token);
     if (!s) return res.json({ done: false, expired: true });
+    
     if (s.status === 'done') {
         const resp = { done: true, session: s.sessionStr, userId: s.user.id.toString(), firstName: s.user.firstName };
         authSessions.delete(req.query.token);
         return res.json(resp);
     }
+    
+    if (s.status === 'password_needed') {
+        return res.json({ done: false, requiresPassword: true });
+    }
+    
     res.json({ done: false });
 });
 
