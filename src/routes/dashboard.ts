@@ -13,7 +13,17 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
     } });
   }
 
-  const userStats = await env.STATS.get(`user_meta_${userId}`);
+  let userStats = await env.STATS.get(`user_meta_${userId}`);
+  
+  // Retry strategy for CF KV eventual consistency (waits up to 1500ms)
+  if (!userStats) {
+    for (let i = 0; i < 3; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      userStats = await env.STATS.get(`user_meta_${userId}`);
+      if (userStats) break;
+    }
+  }
+
   if (!userStats) {
     return new Response("<html><body>Session expired or user deleted. <a href='/'>Click here to login again</a>.</body></html>", {
       status: 401,

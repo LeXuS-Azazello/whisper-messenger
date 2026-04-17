@@ -316,8 +316,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
   if (method === "POST" && pathname === "/auth/google/callback") {
     const formData = await req.formData();
-    const userId = formData.get('userId') as string | null;
-    return await handleGoogleCallback(env, formData, url, userId);
+    return await handleGoogleCallback(env, formData, url, currentUserId);
   }
 
   if (method === "POST" && pathname === "/auth/email/send") {
