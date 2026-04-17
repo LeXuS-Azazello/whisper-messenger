@@ -12,6 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import dns from 'dns';
+import https from 'https';
 
 // dns.setDefaultResultOrder('ipv4first');
 
@@ -46,17 +47,29 @@ if (MODE === 'MANAGER') {
         const kc = new k8s.KubeConfig();
         kc.loadFromDefault();
         
-        const cluster = kc.getCurrentCluster();
+        let cluster = kc.getCurrentCluster();
         console.log(`[bridge] K8s context: ${kc.getCurrentContext()}, Cluster: ${cluster?.name}, Original Server: ${cluster?.server}`);
         
-        // Some clusters have issues reaching the IP VIP but work with the hostname
-        if (cluster && (cluster.server.includes('10.101.0.1') || cluster.server.includes('10.96.0.1'))) {
-            console.log(`[bridge] Overriding K8s server ${cluster.server} with https://kubernetes.default.svc`);
-            cluster.server = 'https://kubernetes.default.svc';
-            cluster.skipTLSVerify = true; // Avoid cert issues with hostname
+        // Override server if BRIDGE_API_SERVER is set (used with hostNetwork)
+        const customServer = process.env.BRIDGE_API_SERVER;
+        if (customServer) {
+            console.log(`[bridge] Overriding K8s server ${cluster?.server} -> ${customServer} (BRIDGE_API_SERVER)`);
+            cluster.server = customServer;
+            cluster.skipTLSVerify = false; // Use in-cluster CA cert
+        } else {
+            console.log(`[bridge] Using default K8s server`);
         }
         
-        k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+        // Configure HTTPS agent with keep-alive and timeouts to prevent connection stalls
+        const httpsAgent = new https.Agent({
+            keepAlive: true,
+            keepAliveMsecs: 10000,
+            maxSockets: 10,
+            maxFreeSockets: 5,
+            timeout: 30000, // 30s socket timeout
+        });
+        
+        k8sApi = kc.makeApiClient(k8s.CoreV1Api, { httpsAgent });
         console.log(`[bridge] K8s initialized. Server: ${cluster?.server}, Namespace: ${process.env.POD_NAMESPACE || 'unknown'}`);
     } catch (err) {
         console.error(`[bridge] Failed to initialize K8s client:`, err);
@@ -373,7 +386,7 @@ app.post('/spawn', auth, async (req, res) => {
         };
 
         console.log(`[/spawn] Creating new pod ${podName}...`);
-        await withTimeout(k8sApi.createNamespacedPod({ namespace: namespace, body: podManifest }), 60000); 
+        await withTimeout(k8sApi.createNamespacedPod({ namespace: namespace, body: podManifest }), 300000); 
 
         console.log(`[/spawn] Successfully spawned ${podName}`);
         res.json({ success: true, podName }); 
