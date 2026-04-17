@@ -301,11 +301,28 @@ function handleLogout(): Response {
 
 async function createSessionResponse(userId: string, env: Env): Promise<Response> {
   const signedSession = await createSignedSession(userId, env.SESSION_SECRET || "default_session_secret");
-  return new Response("Redirecting...", {
-    status: 302,
+  const cookie = `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${SESSION_MAX_AGE}`;
+  
+  // Use HTML intermediate page to ensure Cookie is saved across cross-site redirects
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Redirecting...</title>
+        <meta http-equiv="refresh" content="0;url=/dashboard">
+      </head>
+      <body>
+        <script>window.location.href = "/dashboard";</script>
+        <p>Signing in, please wait... <a href="/dashboard">click here if not redirected</a></p>
+      </body>
+    </html>
+  `;
+
+  return new Response(html, {
+    status: 200,
     headers: {
-      "Location": "/dashboard",
-      "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${SESSION_MAX_AGE}`
+      "Content-Type": "text/html; charset=utf-8",
+      "Set-Cookie": cookie
     }
   });
 }
