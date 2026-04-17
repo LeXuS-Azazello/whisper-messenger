@@ -7,20 +7,48 @@ import { sampleAudioBase64 } from "../sample_audio";
 import ADMIN_JS_CONTENT from "../admin.js";
 
 async function bridgeFetch(url: string, options: any): Promise<Response> {
+  const start = Date.now();
   try {
-    const res = await fetch(url, options);
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        "Accept": "application/json",
+      }
+    });
+    
+    const duration = Date.now() - start;
     const contentType = res.headers.get("Content-Type") || "";
-    if (contentType.includes("application/json")) {
+    
+    if (res.ok && contentType.includes("application/json")) {
       return res;
     }
-    // Handle non-JSON response (e.g. 502/530 HTML)
+
     const text = await res.text();
-    return Response.json({ 
-      success: false, 
-      error: `Bridge Error ${res.status}: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}` 
-    }, { status: res.status });
+    console.error(`[bridgeFetch] Error ${res.status} from ${url} (${duration}ms). Body: ${text.slice(0, 200)}`);
+    
+    return new Response(JSON.stringify({ 
+      success: false,
+      error: `Bridge Error ${res.status}`,
+      details: text.slice(0, 500),
+      url: url,
+      duration: `${duration}ms`
+    }), { 
+      status: res.status === 200 ? 502 : res.status,
+      headers: { "Content-Type": "application/json", "X-Bridge-Error": "true" } 
+    });
   } catch (e: any) {
-    return Response.json({ success: false, error: `Fetch Failed: ${e.message}` }, { status: 500 });
+    const duration = Date.now() - start;
+    console.error(`[bridgeFetch] Critical Failed ${url} (${duration}ms): ${e.message}`);
+    return new Response(JSON.stringify({ 
+      success: false,
+      error: `Fetch Failed: ${e.message}`,
+      url: url,
+      duration: `${duration}ms`
+    }), { 
+      status: 504, 
+      headers: { "Content-Type": "application/json", "X-Worker-Error": "true" } 
+    });
   }
 }
 

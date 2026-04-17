@@ -142,7 +142,7 @@ app.post('/send-code', auth, async (req, res) => {
             systemVersion: SYSTEM_VERSION
         });
         await client.connect();
-        const { phoneCodeHash } = await client.sendCode({ apiId: API_ID, apiHash: API_HASH }, phone);
+        const { phoneCodeHash } = await client.sendCode({ apiId: API_ID, apiHash: API_HASH, phoneNumber: phone });
         authSessions.set(phone, { client, session, phoneCodeHash });
         console.log(`[/send-code] Success for ${phone}, hash sent`);
         res.json({ success: true });
