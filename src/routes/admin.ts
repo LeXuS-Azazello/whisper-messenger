@@ -270,12 +270,18 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     if (req.method === "GET") {
       const provider = await env.STATS.get("config_whisper_provider") || "cloudflare";
       const model = await env.STATS.get("config_ollama_model") || "qwen3-coder:30b";
-      return Response.json({ provider, model });
+      const localUrl = await env.STATS.get("config_local_whisper_url") || "";
+      const localSecret = await env.STATS.get("config_local_whisper_secret") || "";
+      const ollamaUrl = await env.STATS.get("config_ollama_url") || "";
+      return Response.json({ provider, model, localUrl, localSecret, ollamaUrl });
     }
     if (req.method === "POST") {
-      const { provider, model } = await req.json() as any;
+      const { provider, model, localUrl, localSecret, ollamaUrl } = await req.json() as any;
       if (provider) await env.STATS.put("config_whisper_provider", provider);
       if (model) await env.STATS.put("config_ollama_model", model);
+      if (localUrl !== undefined) await env.STATS.put("config_local_whisper_url", localUrl);
+      if (localSecret !== undefined) await env.STATS.put("config_local_whisper_secret", localSecret);
+      if (ollamaUrl !== undefined) await env.STATS.put("config_ollama_url", ollamaUrl);
       return Response.json({ success: true });
     }
   }

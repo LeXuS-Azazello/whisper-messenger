@@ -208,10 +208,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const providerCf = document.getElementById('provider-cf');
             const providerOllama = document.getElementById('provider-ollama');
             const ollamaSection = document.getElementById('ollama-config-section');
+            const localSection = document.getElementById('local-config-section');
             const modelSelect = document.getElementById('ollama-model-select');
+            
+            const localUrlInput = document.getElementById('local-whisper-url');
+            const localSecretInput = document.getElementById('local-whisper-secret');
+            const ollamaUrlInput = document.getElementById('ollama-url');
             
             if (data.provider === 'local') {
                 if (providerLocal) providerLocal.checked = true;
+                if (localSection) localSection.style.display = 'block';
             } else if (data.provider === 'ollama') {
                 if (providerOllama) providerOllama.checked = true;
                 if (ollamaSection) ollamaSection.style.display = 'block';
@@ -222,6 +228,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (modelSelect && data.model) {
                 modelSelect.value = data.model;
             }
+            if (localUrlInput && data.localUrl) localUrlInput.value = data.localUrl;
+            if (localSecretInput && data.localSecret) localSecretInput.value = data.localSecret;
+            if (ollamaUrlInput && data.ollamaUrl) ollamaUrlInput.value = data.ollamaUrl;
 
             const statusTag = document.getElementById('whisper-status-tag');
             if (statusTag) statusTag.innerText = data.provider.toUpperCase();
@@ -232,9 +241,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('input[name="whisper_provider"]').forEach(input => {
         input.addEventListener('change', (e) => {
             const ollamaSection = document.getElementById('ollama-config-section');
-            if (ollamaSection) {
-                ollamaSection.style.display = e.target.value === 'ollama' ? 'block' : 'none';
-            }
+            const localSection = document.getElementById('local-config-section');
+            if (ollamaSection) ollamaSection.style.display = e.target.value === 'ollama' ? 'block' : 'none';
+            if (localSection) localSection.style.display = e.target.value === 'local' ? 'block' : 'none';
         });
     });
 
@@ -247,15 +256,22 @@ document.addEventListener('DOMContentLoaded', function() {
             const modelSelect = document.getElementById('ollama-model-select');
             const model = modelSelect ? modelSelect.value : null;
             
+            const localUrl = document.getElementById('local-whisper-url')?.value || '';
+            const localSecret = document.getElementById('local-whisper-secret')?.value || '';
+            const ollamaUrl = document.getElementById('ollama-url')?.value || '';
+            
             saveWhisperBtn.innerText = 'Saving...';
             fetch('/admin/whisper-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ provider, model })
+                body: JSON.stringify({ provider, model, localUrl, localSecret, ollamaUrl })
             }).then(r => r.json()).then(d => {
                 alert(d.success ? 'AI config saved' : 'Error: ' + d.error);
                 saveWhisperBtn.innerText = 'Save AI Config';
                 loadWhisperConfig();
+            }).catch(e => {
+                alert('Save failed: ' + e.message);
+                saveWhisperBtn.innerText = 'Save AI Config';
             });
         });
     }

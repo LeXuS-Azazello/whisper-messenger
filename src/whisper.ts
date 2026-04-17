@@ -11,23 +11,27 @@ export async function transcribeWithFallback(
   audio: ArrayBuffer,
   env: Env
 ): Promise<WhisperResponse> {
-  const kvProvider = await env.STATS.get("config_whisper_provider") as "cloudflare" | "local" | "ollama" | null;
-  const provider = kvProvider || env.WHISPER_PROVIDER || "ollama";
+  const provider = await env.STATS.get("config_whisper_provider") as "cloudflare" | "local" | "ollama" || env.WHISPER_PROVIDER || "ollama";
   
-  const kvUrl = await env.STATS.get("config_local_whisper_url");
-  const localUrl = kvUrl || env.LOCAL_WHISPER_URL || env.OLLAMA_BASE_URL;
+  const kvLocalUrl = await env.STATS.get("config_local_whisper_url");
+  const localUrl = kvLocalUrl || env.LOCAL_WHISPER_URL;
   
-  const kvSecret = await env.STATS.get("config_local_whisper_secret");
-  const localSecret = kvSecret || env.LOCAL_WHISPER_SECRET;
+  const kvLocalSecret = await env.STATS.get("config_local_whisper_secret");
+  const localSecret = kvLocalSecret || env.LOCAL_WHISPER_SECRET;
+
+  const kvOllamaUrl = await env.STATS.get("config_ollama_url");
+  const ollamaUrl = kvOllamaUrl || env.OLLAMA_BASE_URL;
   
   const kvModel = await env.STATS.get("config_ollama_model");
   const ollamaModel = kvModel || env.OLLAMA_MODEL || "whisper";
 
-  if (provider === "ollama" && localUrl) {
-    return transcribeOllama(audio, localUrl, ollamaModel, localSecret);
+  if (provider === "ollama") {
+    if (!ollamaUrl) throw new Error("Ollama URL not configured");
+    return transcribeOllama(audio, ollamaUrl, ollamaModel, localSecret);
   }
   
-  if (provider === "local" && localUrl) {
+  if (provider === "local") {
+    if (!localUrl) throw new Error("Local Whisper URL not configured");
     return transcribeLocal(audio, localUrl, localSecret);
   }
   
@@ -87,15 +91,15 @@ async function transcribeLocal(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Local Whisper server returned ${response.status}: ${errorText}`);
+      throw new Error(`Local Whisper [${url}] error ${response.status}: ${errorText}`);
     }
 
     const result = await response.json() as WhisperResponse;
     console.log(`[whisper] Local Whisper succeeded: "${result.text?.substring(0, 50)}..."`);
     return result;
   } catch (e) {
-    console.error(`[whisper] Local Whisper failed: ${e}`);
-    throw e;
+    console.error(`[whisper] Local Whisper [${url}] failed: ${e}`);
+    throw new Error(`Local Whisper [${url}] failed: ${(e as Error).message}`);
   }
 }
 

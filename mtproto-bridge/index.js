@@ -278,11 +278,10 @@ app.post('/spawn', auth, async (req, res) => {
     try {
         // Find and delete any existing pods for this user (with timeout)
         try {
-            const existing = await withTimeout(k8sApi.listNamespacedPod(
-                namespace, 
-                undefined, undefined, undefined, undefined, 
-                `userId=${safeUserId}`
-            ), 15000);
+            const existing = await withTimeout(k8sApi.listNamespacedPod({
+                namespace: namespace,
+                labelSelector: `userId=${safeUserId}`
+            }), 15000);
             
             const items = existing?.body?.items || existing?.items || [];
             if (items.length > 0) {
@@ -292,7 +291,7 @@ app.post('/spawn', auth, async (req, res) => {
                         console.warn(`[/spawn] Skipping pod without metadata:`, p);
                         continue;
                     }
-                    await withTimeout(k8sApi.deleteNamespacedPod(p.metadata.name, namespace), 15000).catch(e => console.error(`[/spawn] Failed to delete ${p.metadata.name}:`, e.message));
+                    await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: namespace }), 15000).catch(e => console.error(`[/spawn] Failed to delete ${p.metadata.name}:`, e.message));
                 }
             }
         } catch (listErr) {
@@ -328,7 +327,7 @@ app.post('/spawn', auth, async (req, res) => {
         };
 
         console.log(`[/spawn] Creating new pod ${podName}`);
-        await withTimeout(k8sApi.createNamespacedPod(namespace, podManifest), 30000); 
+        await withTimeout(k8sApi.createNamespacedPod({ namespace: namespace, body: podManifest }), 30000); 
 
         console.log(`[/spawn] Successfully spawned ${podName}`);
         res.json({ success: true, podName }); 
@@ -345,17 +344,16 @@ app.post('/delete', auth, async (req, res) => {
         const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
         
         console.log(`[/delete] Deleting pods for user ${safeUserId}`);
-        const existing = await withTimeout(k8sApi.listNamespacedPod(
-            namespace,
-            undefined, undefined, undefined, undefined, 
-            `userId=${safeUserId}`
-        ), 15000);
+        const existing = await withTimeout(k8sApi.listNamespacedPod({
+            namespace: namespace,
+            labelSelector: `userId=${safeUserId}`
+        }), 15000);
         
         const items = existing?.body?.items || existing?.items || [];
         if (items.length > 0) {
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
-                await withTimeout(k8sApi.deleteNamespacedPod(p.metadata.name, namespace), 15000).catch((err) => {
+                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: namespace }), 15000).catch((err) => {
                     console.error(`[/delete] Failed to delete pod ${p.metadata.name}:`, err.message);
                 });
             }
@@ -376,16 +374,15 @@ app.post('/internal/access-revoked', auth, async (req, res) => {
         const safeUserId = String(userId);
         const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
         
-        const existing = await withTimeout(k8sApi.listNamespacedPod(
-            namespace,
-            undefined, undefined, undefined, undefined, 
-            `userId=${safeUserId}`
-        ), 15000);
+        const existing = await withTimeout(k8sApi.listNamespacedPod({
+            namespace: namespace,
+            labelSelector: `userId=${safeUserId}`
+        }), 15000);
         
         const items = existing?.body?.items || existing?.items || [];
         for (const p of items) {
             if (!p?.metadata?.name) continue;
-            await withTimeout(k8sApi.deleteNamespacedPod(p.metadata.name, namespace), 15000).catch(() => {});
+            await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: namespace }), 15000).catch(() => {});
         }
         console.log(`[/internal/access-revoked] Deleted pod for ${userId}`);
         res.json({ success: true });
@@ -413,11 +410,10 @@ app.get('/pods', auth, async (req, res) => {
     try {
         const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
         console.log(`[/pods] Fetching pods in namespace ${namespace}`);
-        const pods = await k8sApi.listNamespacedPod(
-            namespace,
-            undefined, undefined, undefined, undefined,
-            'app=tg-user-bridge'
-        );
+        const pods = await k8sApi.listNamespacedPod({
+            namespace: namespace,
+            labelSelector: 'app=tg-user-bridge'
+        });
         const items = pods?.body?.items || pods?.items || [];
         const podStatuses = items.map(p => ({
             userId: p.metadata.labels.userId,

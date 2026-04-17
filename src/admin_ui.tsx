@@ -216,7 +216,16 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                     </label>
                                 </div>
 
+                                <div id="local-config-section" style={{ display: 'none', marginTop: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                                    <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>Sherpa ONNX URL:</label>
+                                    <input type="text" id="local-whisper-url" class="input-field" placeholder="http://sherpa-onnx.example.com" style={{ width: '100%', marginBottom: '10px', background: '#111', color: '#fff', border: '1px solid #333' }} />
+                                    <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>Sherpa Secret:</label>
+                                    <input type="password" id="local-whisper-secret" class="input-field" placeholder="secret" style={{ width: '100%', background: '#111', color: '#fff', border: '1px solid #333' }} />
+                                </div>
+
                                 <div id="ollama-config-section" style={{ display: 'none', marginTop: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                                    <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>Ollama Base URL:</label>
+                                    <input type="text" id="ollama-url" class="input-field" placeholder="http://ollama.example.com:11434" style={{ width: '100%', marginBottom: '10px', background: '#111', color: '#fff', border: '1px solid #333' }} />
                                     <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '8px' }}>Select Ollama Model:</label>
                                     <select id="ollama-model-select" class="input-field" style={{ width: '100%', marginBottom: '10px', background: '#111', color: '#fff', border: '1px solid #333' }}>
                                         <option value="qwen3-coder:30b">Qwen 3 Coder (30B)</option>
