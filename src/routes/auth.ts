@@ -346,8 +346,8 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     try {
       const body = await req.json() as SendCodeRequest;
       return await handleSendCode(env, body);
-    } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    } catch (e: any) {
+      return Response.json({ error: e.message || "Invalid JSON" }, { status: 400 });
     }
   }
 
@@ -356,8 +356,8 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
       const body = await req.json() as VerifyCodeRequest;
       const userCookie = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1] || null;
       return await handleVerifyCode(env, body, userCookie, currentUserId || null);
-    } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    } catch (e: any) {
+      return Response.json({ error: e.message || "Auth failed" }, { status: 400 });
     }
   }
 
@@ -366,8 +366,8 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
       const body = await req.json() as VerifyPasswordRequest;
       const userCookie = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1] || null;
       return await handleVerifyPassword(env, body, userCookie, currentUserId || null);
-    } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    } catch (e: any) {
+      return Response.json({ error: e.message || "2FA failed" }, { status: 400 });
     }
   }
 
@@ -383,11 +383,18 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   }
 
   if (method === "POST" && pathname === "/auth/email/send") {
+    let body: EmailSendRequest;
     try {
-      const body = await req.json() as EmailSendRequest;
-      return await handleEmailSend(env, body, url);
+      body = await req.json() as EmailSendRequest;
     } catch {
       return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    
+    try {
+      return await handleEmailSend(env, body, url);
+    } catch (e: any) {
+      console.error("[auth] Email send error:", e);
+      return Response.json({ error: e.message || "Internal auth error" }, { status: 500 });
     }
   }
 

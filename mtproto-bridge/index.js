@@ -279,7 +279,7 @@ app.post('/spawn', auth, async (req, res) => {
             const existing = await withTimeout(k8sApi.listNamespacedPod({
                 namespace,
                 labelSelector: `userId=${safeUserId}`
-            }), 10000);
+            }), 5000);
             
             const items = existing?.body?.items || existing?.items || [];
             if (items.length > 0) {
@@ -325,7 +325,7 @@ app.post('/spawn', auth, async (req, res) => {
         };
 
         console.log(`[/spawn] Creating new pod ${podName}`);
-        await withTimeout(k8sApi.createNamespacedPod({ namespace, body: podManifest }), 15000); 
+        await withTimeout(k8sApi.createNamespacedPod({ namespace, body: podManifest }), 7000); 
 
         console.log(`[/spawn] Successfully spawned ${podName}`);
         res.json({ success: true, podName }); 
@@ -345,7 +345,7 @@ app.post('/delete', auth, async (req, res) => {
         const existing = await withTimeout(k8sApi.listNamespacedPod({
             namespace,
             labelSelector: `userId=${safeUserId}`
-        }), 10000);
+        }), 5000);
         
         const items = existing?.body?.items || existing?.items || [];
         if (items.length > 0) {
@@ -375,7 +375,7 @@ app.post('/internal/access-revoked', auth, async (req, res) => {
         const existing = await withTimeout(k8sApi.listNamespacedPod({
             namespace,
             labelSelector: `userId=${safeUserId}`
-        }), 10000);
+        }), 5000);
         
         const items = existing?.body?.items || existing?.items || [];
         for (const p of items) {
