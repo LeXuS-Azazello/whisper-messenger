@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import dns from 'dns';
 
-dns.setDefaultResultOrder('ipv4first');
+// dns.setDefaultResultOrder('ipv4first');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,18 +42,25 @@ const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Linux';
 // K8s Client
 let k8sApi = null;
 if (MODE === 'MANAGER') {
-    const kc = new k8s.KubeConfig();
-    kc.loadFromDefault();
-    
-    // Override server to use service hostname if it's the default IP to avoid potential connectivity issues
-    const cluster = kc.getCurrentCluster();
-    if (cluster && (cluster.server.includes('10.101.0.1') || cluster.server.includes('10.96.0.1'))) {
-        console.log(`[bridge] Overriding K8s server ${cluster.server} with https://kubernetes.default.svc`);
-        cluster.server = 'https://kubernetes.default.svc';
+    try {
+        const kc = new k8s.KubeConfig();
+        kc.loadFromDefault();
+        
+        const cluster = kc.getCurrentCluster();
+        console.log(`[bridge] K8s context: ${kc.getCurrentContext()}, Cluster: ${cluster?.name}, Original Server: ${cluster?.server}`);
+        
+        // Some clusters have issues reaching the IP VIP but work with the hostname
+        if (cluster && (cluster.server.includes('10.101.0.1') || cluster.server.includes('10.96.0.1'))) {
+            console.log(`[bridge] Overriding K8s server ${cluster.server} with https://kubernetes.default.svc`);
+            cluster.server = 'https://kubernetes.default.svc';
+            cluster.skipTLSVerify = true; // Avoid cert issues with hostname
+        }
+        
+        k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+        console.log(`[bridge] K8s initialized. Server: ${cluster?.server}, Namespace: ${process.env.POD_NAMESPACE || 'unknown'}`);
+    } catch (err) {
+        console.error(`[bridge] Failed to initialize K8s client:`, err);
     }
-    
-    k8sApi = kc.makeApiClient(k8s.CoreV1Api);
-    console.log(`[bridge] K8s initialized. Server: ${cluster?.server || 'unknown'}, Namespace: ${process.env.POD_NAMESPACE || 'unknown'}`);
 }
 
 // ─── Auth Middleware ────────────────────────────────────────────────────────
@@ -65,17 +72,41 @@ function auth(req, res, next) {
 
 const authSessions = new Map();
 
-function withTimeout(promise, ms) {
+function withTimeout(promise, ms, name = 'Operation') {
     let timeoutId;
     const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
+        timeoutId = setTimeout(() => reject(new Error(`${name} timed out after ${ms}ms`)), ms);
     });
     return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+}
+
+function checkConnect(host, port) {
+    return new Promise((resolve) => {
+        const socket = new (require('net').Socket)();
+        let finished = false;
+        socket.setTimeout(2000);
+        socket.on('connect', () => { if (!finished) { finished = true; socket.destroy(); resolve(true); } });
+        socket.on('error', () => { if (!finished) { finished = true; socket.destroy(); resolve(false); } });
+        socket.on('timeout', () => { if (!finished) { finished = true; socket.destroy(); resolve(false); } });
+        socket.connect(port, host);
+    });
 }
 
 // ─── Manager Routes ─────────────────────────────────────────────────────────
 
 app.get('/health', (req, res) => res.json({ mode: MODE, alive: true }));
+
+app.get('/test-net', auth, async (req, res) => {
+    const host = req.query.host || 'kubernetes.default.svc';
+    const port = parseInt(req.query.port || '443');
+    console.log(`[/test-net] Testing ${host}:${port}`);
+    const result = await checkConnect(host, port);
+    res.json({ host, port, result });
+});
+
+app.get('/env', auth, (req, res) => {
+    res.json(process.env);
+});
 
 app.post('/send-code', auth, async (req, res) => {
     const { phone } = req.body;
@@ -288,10 +319,13 @@ app.post('/spawn', auth, async (req, res) => {
     try {
         // Find and delete any existing pods for this user (with timeout)
         try {
+            if (!k8sApi) throw new Error('K8s API not initialized');
+            
+            console.log(`[/spawn] Listing pods for ${safeUserId}...`);
             const existing = await withTimeout(k8sApi.listNamespacedPod({
                 namespace: namespace,
                 labelSelector: `userId=${safeUserId}`
-            }), 15000);
+            }), 30000);
             
             const items = existing?.body?.items || existing?.items || [];
             if (items.length > 0) {
@@ -301,7 +335,9 @@ app.post('/spawn', auth, async (req, res) => {
                         console.warn(`[/spawn] Skipping pod without metadata:`, p);
                         continue;
                     }
-                    await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: namespace }), 15000).catch(e => console.error(`[/spawn] Failed to delete ${p.metadata.name}:`, e.message));
+                    console.log(`[/spawn] Deleting pod ${p.metadata.name}...`);
+                    await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: namespace }), 30000)
+                        .catch(e => console.error(`[/spawn] Failed to delete ${p.metadata.name}:`, e.message));
                 }
             }
         } catch (listErr) {
@@ -336,8 +372,8 @@ app.post('/spawn', auth, async (req, res) => {
             }
         };
 
-        console.log(`[/spawn] Creating new pod ${podName}`);
-        await withTimeout(k8sApi.createNamespacedPod({ namespace: namespace, body: podManifest }), 30000); 
+        console.log(`[/spawn] Creating new pod ${podName}...`);
+        await withTimeout(k8sApi.createNamespacedPod({ namespace: namespace, body: podManifest }), 60000); 
 
         console.log(`[/spawn] Successfully spawned ${podName}`);
         res.json({ success: true, podName }); 
@@ -354,16 +390,19 @@ app.post('/delete', auth, async (req, res) => {
         const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
         
         console.log(`[/delete] Deleting pods for user ${safeUserId}`);
+        if (!k8sApi) throw new Error('K8s API not initialized');
+        
         const existing = await withTimeout(k8sApi.listNamespacedPod({
             namespace: namespace,
             labelSelector: `userId=${safeUserId}`
-        }), 15000);
+        }), 30000);
         
         const items = existing?.body?.items || existing?.items || [];
         if (items.length > 0) {
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
-                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: namespace }), 15000).catch((err) => {
+                console.log(`[/delete] Deleting pod ${p.metadata.name}...`);
+                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: namespace }), 30000).catch((err) => {
                     console.error(`[/delete] Failed to delete pod ${p.metadata.name}:`, err.message);
                 });
             }
@@ -418,18 +457,19 @@ app.post('/send', auth, async (req, res) => {
 app.get('/pods', auth, async (req, res) => {
     if (MODE !== 'MANAGER') return res.status(400).json({ error: 'Not manager' });
     try {
+        if (!k8sApi) throw new Error('K8s API not initialized');
         const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
         console.log(`[/pods] Fetching pods in namespace ${namespace}`);
-        const pods = await k8sApi.listNamespacedPod({
+        const pods = await withTimeout(k8sApi.listNamespacedPod({
             namespace: namespace,
             labelSelector: 'app=tg-user-bridge'
-        });
+        }), 30000);
         const items = pods?.body?.items || pods?.items || [];
         const podStatuses = items.map(p => ({
-            userId: p.metadata.labels.userId,
-            status: p.status.phase,
-            startTime: p.status.startTime,
-            podName: p.metadata.name
+            userId: p?.metadata?.labels?.userId,
+            status: p?.status?.phase,
+            startTime: p?.status?.startTime,
+            podName: p?.metadata?.name
         }));
         res.json(podStatuses);
     } catch (e) {
@@ -591,37 +631,39 @@ if (isMain) {
             await startUserClient();
             startAccessChecker();
         } else if (MODE === 'MANAGER') {
-            // Startup reconciliation: spawn pods for active users
             if (WORKER_URL) {
-                try {
-                    console.log(`[bridge] Starting reconciliation...`);
-                    const res = await fetch(`${WORKER_URL}/internal/active-users?secret=${SECRET}`);
-                    if (res.ok) {
-                        const users = await res.json();
-                        console.log(`[bridge] Found ${users.length} active users to reconcile`);
-                        for (const user of users) {
-                            try {
-                                console.log(`[bridge] Spawning pod for ${user.userId}`);
-                                const spawnRes = await fetch(`${process.env.BRIDGE_URL || `http://localhost:${PORT}`}/spawn`, {
-                                    method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": SECRET },
-                                    body: JSON.stringify(user)
-                                });
-                                if (!spawnRes.ok) {
-                                    console.error(`[bridge] Failed to spawn for ${user.userId}: ${await spawnRes.text()}`);
-                                } else {
-                                    console.log(`[bridge] Spawned pod for ${user.userId}`);
+                setTimeout(async () => {
+                    try {
+                        console.log(`[bridge] Starting reconciliation...`);
+                        const res = await fetch(`${WORKER_URL}/internal/active-users?secret=${SECRET}`);
+                        if (res.ok) {
+                            const users = await res.json();
+                            console.log(`[bridge] Found ${users.length} active users to reconcile`);
+                            for (const user of users) {
+                                try {
+                                    console.log(`[bridge] Spawning pod for ${user.userId}`);
+                                    const spawnRes = await fetch(`${process.env.BRIDGE_URL || `http://localhost:${PORT}`}/spawn`, {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json", "x-bridge-secret": SECRET },
+                                        body: JSON.stringify(user)
+                                    });
+                                    if (!spawnRes.ok) {
+                                        console.error(`[bridge] Failed to spawn for ${user.userId}: ${await spawnRes.text()}`);
+                                    } else {
+                                        console.log(`[bridge] Spawned pod for ${user.userId}`);
+                                    }
+                                } catch (e) {
+                                    console.error(`[bridge] Spawn failed for ${user.userId}: ${e.message}`);
                                 }
-                            } catch (e) {
-                                console.error(`[bridge] Spawn failed for ${user.userId}: ${e.message}`);
                             }
+                            console.log(`[bridge] Reconciliation complete`);
+                        } else {
+                            console.error(`[bridge] Failed to fetch active users: ${res.status}`);
                         }
-                        console.log(`[bridge] Reconciliation complete`);
-                    } else {
-                        console.error(`[bridge] Failed to fetch active users: ${res.status}`);
+                    } catch (e) {
+                        console.error(`[bridge] Startup reconciliation failed: ${e.message}`);
                     }
-                } catch (e) {
-                    console.error(`[bridge] Startup reconciliation failed: ${e.message}`);
-                }
+                }, 5000);
             }
         }
     });
