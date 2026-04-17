@@ -129,6 +129,7 @@ export interface UserSession {
   createdAt: number;
   lastActiveAt: number;
   isActive: boolean;
+  currentStatus?: string;
   lastStartedAt?: number;
   lastStoppedAt?: number;
   transcriptionCount: number;

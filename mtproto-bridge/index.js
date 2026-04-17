@@ -355,10 +355,12 @@ app.post('/delete', auth, async (req, res) => {
         if (items.length > 0) {
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
-                await withTimeout(k8sApi.deleteNamespacedPod({
+        await withTimeout(k8sApi.deleteNamespacedPod({
                     name: p.metadata.name,
                     namespace
-                }), 2000).catch(() => {});
+                }), 2000).catch((err) => {
+                    console.error(`[/delete] Failed to delete pod ${p.metadata.name}:`, err.message);
+                });
             }
         }
         res.json({ success: true });
@@ -415,18 +417,21 @@ app.get('/pods', auth, async (req, res) => {
     if (MODE !== 'MANAGER') return res.status(400).json({ error: 'Not manager' });
     try {
         const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
+        console.log(`[/pods] Fetching pods in namespace ${namespace}`);
         const pods = await k8sApi.listNamespacedPod({
             namespace,
             labelSelector: 'app=tg-user-bridge'
         });
-        const podStatuses = pods.body.items.map(p => ({
+        const items = pods?.body?.items || pods?.items || [];
+        const podStatuses = items.map(p => ({
             userId: p.metadata.labels.userId,
             status: p.status.phase,
-            startTime: p.status.startTime
+            startTime: p.status.startTime,
+            podName: p.metadata.name
         }));
         res.json(podStatuses);
     } catch (e) {
-        console.error(`[/pods] Error:`, e.message);
+        console.error(`[/pods] Error:`, e.body || e.message);
         res.status(500).json({ error: e.message });
     }
 });

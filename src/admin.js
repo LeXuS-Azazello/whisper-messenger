@@ -156,12 +156,25 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.deactivate-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             var uid = btn.dataset.userid;
-            var action = btn.innerText.includes('Stop') ? 'stop' : 'delete';
-            if(!confirm('Are you sure?')) return;
+            var text = btn.innerText.trim();
+            var action = text.includes('Stop') ? 'stop' : 'delete';
+            if(!confirm(`Are you sure you want to ${action} user ${uid}?`)) return;
+            
+            btn.disabled = true;
             fetch('/admin/user-action', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: uid, action: action })
-            }).then(() => location.reload());
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Action failed: ' + (data.error || 'Unknown error'));
+                    btn.disabled = false;
+                }
+            }).catch(err => {
+                alert('Network error: ' + err.message);
+                btn.disabled = false;
+            });
         });
     });
 
@@ -169,10 +182,22 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', () => {
             var uid = btn.dataset.userid;
             if(!confirm('Restart this pod? This will stop and restart the session without deleting data.')) return;
+            
+            btn.disabled = true;
             fetch('/admin/user-action', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: uid, action: 'restart' })
-            }).then(() => location.reload());
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Restart failed: ' + (data.error || 'Unknown error'));
+                    btn.disabled = false;
+                }
+            }).catch(err => {
+                alert('Network error: ' + err.message);
+                btn.disabled = false;
+            });
         });
     });
 

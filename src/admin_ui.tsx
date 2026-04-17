@@ -37,7 +37,7 @@ const UserRow = ({ user }: { user: UserSession }) => (
         <td>{user.phone || 'n/a'}</td>
         <td style={{ textAlign: 'center' }}>
             <span class={`status-tag ${user.isActive ? 'active' : 'inactive'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
-                {user.isActive ? 'RUNNING' : 'STOPPED'}
+                {user.currentStatus || (user.isActive ? 'RUNNING' : 'STOPPED')}
             </span>
         </td>
         <td style={{ textAlign: 'center' }}>{formatUptime(user.lastStartedAt)}</td>

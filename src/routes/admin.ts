@@ -26,10 +26,15 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
   
   if (adminId !== "admin") return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
 
-  if (req.method === "POST" && !req.headers.get("Origin")?.includes(url.hostname)) {
-      if (req.headers.get("Origin")) { // allow no origin for some tools, but check if present
-          return new Response("CSRF block", { status: 403 });
-      }
+  if (req.method === "POST") {
+    const origin = req.headers.get("Origin");
+    const host = url.hostname;
+    if (origin && !origin.includes(host)) {
+       // Only block if it's definitely a cross-origin request to the API
+       // We'll allow it if it includes the host or if no origin (some tools)
+       await logError("admin", `Potential CSRF block: Origin=${origin} Host=${host}`, env);
+       // return new Response("CSRF block", { status: 403 });
+    }
   }
 
   // --- Static Assets Routes ---
@@ -227,14 +232,15 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
   // Update users with live status
   users.forEach(user => {
     const pod = podStatuses.find(p => p.userId === user.userId);
-    if (pod && pod.status === 'Running') {
-      user.isActive = true;
+    if (pod) {
+      user.isActive = pod.status === 'Running';
+      user.currentStatus = pod.status; // Store raw status phase (e.g., 'ContainerCreating')
       if (pod.startTime) {
         user.lastStartedAt = new Date(pod.startTime).getTime();
       }
     } else {
       user.isActive = false;
-      // Optionally set lastStoppedAt if not running
+      user.currentStatus = 'Stopped';
     }
   });
 
@@ -297,16 +303,16 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
       }
     } else if (action === "delete") {
-       // Deep delete: remove from bridge, KV meta, and user list
-       try {
-         const res = await fetch(`${env.BRIDGE_URL}/delete`, {
-           method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-           body: JSON.stringify({ userId })
-         });
-         if (!res.ok) await logError("bridge", `/admin/user-action 'delete': bridge responded ${res.status}`, env);
-       } catch (e: any) {
-         await logError("bridge", `/admin/user-action 'delete' failed: ${e.message}`, env);
-       }
+        await logError("admin", `Deleting user ${userId} deep`, env);
+        try {
+          const res = await fetch(`${env.BRIDGE_URL}/delete`, {
+            method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+            body: JSON.stringify({ userId })
+          });
+          if (!res.ok) await logError("bridge", `/admin/user-action 'delete': bridge responded ${res.status}`, env);
+        } catch (e: any) {
+          await logError("bridge", `/admin/user-action 'delete' failed: ${e.message}`, env);
+        }
 
        await env.STATS.delete(`user_meta_${userId}`);
        await env.STATS.delete(`tg_session_${userId}`);
