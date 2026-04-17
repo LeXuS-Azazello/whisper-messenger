@@ -142,7 +142,17 @@ app.post('/send-code', auth, async (req, res) => {
             systemVersion: SYSTEM_VERSION
         });
         await client.connect();
-        const { phoneCodeHash } = await client.sendCode(API_ID, API_HASH, phone);
+        const result = await client.invoke(new Api.auth.SendCode({
+            phoneNumber: phone,
+            apiId: API_ID,
+            apiHash: API_HASH,
+            settings: new Api.CodeSettings({
+                allowFlashcall: true,
+                currentNumber: true,
+                allowAppHash: true,
+            }),
+        }));
+        const { phoneCodeHash } = result;
         authSessions.set(phone, { client, session, phoneCodeHash });
         console.log(`[/send-code] Success for ${phone}, hash sent`);
         res.json({ success: true });
@@ -162,11 +172,11 @@ app.post('/verify-code', auth, async (req, res) => {
             return res.status(404).json({ error: 'Session not found' });
         }
         
-        const result = await s.client.signIn({
+        const result = await s.client.invoke(new Api.auth.SignIn({
             phoneNumber: phone,
             phoneCodeHash: s.phoneCodeHash,
             phoneCode: String(code)
-        });
+        }));
         
         // Success!
         const user = result;
