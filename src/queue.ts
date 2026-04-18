@@ -73,16 +73,17 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
       let finalText = result.text;
 
       // 4.5 Translate if needed
-      if (u && u.translateTo && u.translateTo !== result.detectedLang) {
+      if (u && u.translateTo) {
         try {
-          const ollamaUrl = env.OLLAMA_BASE_URL || "http://91.224.11.69:11434";
+          const ollamaUrl = env.OLLAMA_BASE_URL || "http://100.65.0.209:11434";
+          const ollamaModel = env.OLLAMA_MODEL || "qwen3-coder:30b";
           const translateRes = await fetch(`${ollamaUrl}/v1/chat/completions`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              model: "qwen3-coder:30b",
+              model: ollamaModel,
               messages: [
-                { role: "system", content: `Translate the following text to ${u!.translateTo}. Output only the translated text, nothing else.` },
+                { role: "system", content: `Translate the following audio transcription to ${u!.translateTo}. Output ONLY the translated text. Do not add any introductions or explanations.` },
                 { role: "user", content: result.text }
               ],
               stream: false
@@ -101,7 +102,7 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
     await incrementUserStats(userId!, env, platform);
 
     const sec = ((Date.now() - start) / 1000).toFixed(1);
-      finalText = `${finalText}\n\n⏱ ${sec}s`;
+      finalText = `${finalText}\n\n⏱ ${sec}s | 🤖 ${result.model || 'Unknown'}`;
       const parts = splitLongText(finalText);
 
       // 5. Send Results

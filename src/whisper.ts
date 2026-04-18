@@ -5,6 +5,7 @@ const MODEL = "@cf/openai/whisper-tiny-en";
 interface WhisperResponse {
   text: string;
   detectedLang?: string;
+  model?: string;
 }
 
 export async function transcribeWithFallback(
@@ -58,7 +59,7 @@ async function transcribeCloudflare(
       throw new Error(`Cloudflare Whisper returned empty result`);
     }
 
-    return result;
+    return { ...result, model: MODEL };
   } catch (e) {
     console.error(`[whisper] Cloudflare Whisper failed: ${e}`);
     if (fallbackUrl) {
@@ -109,7 +110,7 @@ async function transcribeLocal(
 
     const result = await response.json() as WhisperResponse;
     console.log(`[whisper] Local Whisper succeeded: "${result.text?.substring(0, 50)}..."`);
-    return result;
+    return { ...result, model: "Sherpa ONNX (Local)" };
   } catch (e) {
     clearTimeout(timeoutId);
     console.error(`[whisper] Local Whisper [${url}] failed: ${e}`);
@@ -170,7 +171,7 @@ async function transcribeOllama(
     const result = await response.json() as any;
     const transcribedText = isNativeWhisper ? result.text : result.response;
     console.log(`[whisper] Ollama succeeded: "${transcribedText?.substring(0, 50)}..."`);
-    return { text: transcribedText };
+    return { text: transcribedText, model: `Ollama (${model})` };
   } catch (e) {
     clearTimeout(timeoutId);
     console.error(`[whisper] Ollama failed: ${e}`);

@@ -169,21 +169,37 @@ export const renderDashboard = (user: UserSession) => {
                                     </div>
                                 )}
                             </div>
-                            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', justifyContent: 'center' }}>
-                                    <input type="checkbox" id="translate-checkbox" checked={!!user.translateTo} />
-                                    <span style={{ fontSize: '13px' }}>Translate to</span>
-                                    <select id="translate-lang" class="input-field" style={{ width: 'auto', padding: '6px', margin: 0, fontSize: '12px' }} value={user.translateTo || ''}>
-                                        <option value="">Select language</option>
-                                        <option value="en">English</option>
-                                        <option value="uk">Ukrainian</option>
-                                        <option value="ru">Russian</option>
-                                        <option value="es">Spanish</option>
-                                        <option value="de">German</option>
-                                        <option value="fr">French</option>
-                                        <option value="zh">Chinese</option>
-                                    </select>
+                        </div>
+
+                        {/* General Settings */}
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">⚙️ General Settings</h3>
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                                    <input type="checkbox" id="translate-checkbox" checked={!!user.translateTo} style={{ width: '18px', height: '18px' }} />
+                                    <span>Enable Translation</span>
                                 </label>
+                            </div>
+                            <div id="translate-options" style={{ display: user.translateTo ? 'block' : 'none', marginTop: '10px' }}>
+                                <div class="input-group">
+                                    <label class="input-label">Translate To Language</label>
+                                    <select id="translate-lang" class="input-field" style={{ width: '100%' }} value={user.translateTo || ''}>
+                                        <option value="">Select language...</option>
+                                        <option value="en">English 🇺🇸</option>
+                                        <option value="uk">Ukrainian 🇺🇦</option>
+                                        <option value="ru">Russian 🇷🇺</option>
+                                        <option value="es">Spanish 🇪🇸</option>
+                                        <option value="de">German 🇩🇪</option>
+                                        <option value="fr">French 🇫🇷</option>
+                                        <option value="zh">Chinese 🇨🇳</option>
+                                        <option value="ja">Japanese 🇯🇵</option>
+                                    </select>
+                                </div>
+                                <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '5px' }}>
+                                    Voice messages will be translated from their original language automatically.
+                                </p>
                             </div>
                         </div>
                         
@@ -382,20 +398,22 @@ export const renderDashboard = (user: UserSession) => {
                     });
 
                     // Translation settings
-                    const translateCheckbox = document.getElementById('translate-checkbox');
-                    const translateLang = document.getElementById('translate-lang');
-                    if (translateCheckbox && translateLang) {
-                        const saveTranslate = () => {
-                            const enabled = translateCheckbox.checked;
-                            const lang = enabled ? translateLang.value : '';
-                            fetch('/dashboard/save-settings', {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ translateTo: lang })
-                            });
-                        };
-                        translateCheckbox.addEventListener('change', saveTranslate);
-                        translateLang.addEventListener('change', saveTranslate);
-                    }
+                     const translateCheckbox = document.getElementById('translate-checkbox');
+                     const translateLang = document.getElementById('translate-lang');
+                     const translateOptions = document.getElementById('translate-options');
+                     if (translateCheckbox && translateLang) {
+                         const saveTranslate = () => {
+                             const enabled = translateCheckbox.checked;
+                             const lang = enabled ? translateLang.value : '';
+                             if (translateOptions) translateOptions.style.display = enabled ? 'block' : 'none';
+                             fetch('/dashboard/save-settings', {
+                                 method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                 body: JSON.stringify({ translateTo: lang })
+                             });
+                         };
+                         translateCheckbox.addEventListener('change', saveTranslate);
+                         translateLang.addEventListener('change', saveTranslate);
+                     }
                     `
                 }} />
             </body>
