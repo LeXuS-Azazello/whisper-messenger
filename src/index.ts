@@ -138,16 +138,28 @@ export default {
     if (url.pathname === "/internal/active-users" && req.method === "GET") {
       const secret = url.searchParams.get("secret");
       if (secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
+      
       const userIdsRaw = await env.STATS.get("users_list");
-      const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
+      let userIds: string[] = [];
+      try {
+        userIds = userIdsRaw ? JSON.parse(userIdsRaw) : [];
+      } catch (e) {
+        console.error("Failed to parse users_list:", userIdsRaw?.slice(0, 100));
+        return Response.json([]);
+      }
+
       const users: any[] = [];
       for (const id of userIds) {
         const meta = await env.STATS.get(`user_meta_${id}`);
         if (meta) {
-          const u = JSON.parse(meta);
-          if (u.isActive) {
-            const session = await env.STATS.get(`tg_session_${id}`);
-            if (session) users.push({ userId: id, session });
+          try {
+            const u = JSON.parse(meta);
+            if (u.isActive) {
+              const session = await env.STATS.get(`tg_session_${id}`);
+              if (session) users.push({ userId: id, session });
+            }
+          } catch (e) {
+            console.error(`Failed to parse meta for user ${id}:`, meta.slice(0, 100));
           }
         }
       }
