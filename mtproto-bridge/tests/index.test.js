@@ -57,7 +57,9 @@ vi.mock('@kubernetes/client-node', () => {
         KubeConfig: function() {
             return {
                 loadFromDefault: () => {},
-                makeApiClient: () => ({})
+                makeApiClient: () => ({}),
+                getCurrentCluster: () => ({ name: 'test-cluster', server: 'http://localhost' }),
+                getCurrentContext: () => 'test-context'
             };
         },
         CoreV1Api: function() {}

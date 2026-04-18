@@ -236,7 +236,10 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 </div>
 
                                 <button class="btn" id="save-whisper-btn" style={{ marginTop: '15px', background: '#8B5CF6', width: '100%', borderRadius: '12px', padding: '10px', fontWeight: '600' }}>Save AI Config</button>
-                                <button class="btn" id="test-s2t-btn" style={{ marginTop: '10px', background: 'rgba(139, 92, 246, 0.2)', color: '#8B5CF6', border: '1px solid #8B5CF6', width: '100%', borderRadius: '12px', padding: '10px', fontWeight: '600' }}>Test Speech2Text</button>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                                    <button class="btn" id="test-s2t-btn" style={{ margin: 0, background: 'rgba(139, 92, 246, 0.1)', color: '#8B5CF6', border: '1px solid #8B5CF6', borderRadius: '12px', padding: '10px', fontWeight: '600', fontSize: '12px' }}>Test Sample</button>
+                                    <button class="btn" id="record-test-btn" style={{ margin: 0, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '12px', padding: '10px', fontWeight: '600', fontSize: '12px' }}>Record 5s & Test</button>
+                                </div>
                             </div>
                         </div>
 

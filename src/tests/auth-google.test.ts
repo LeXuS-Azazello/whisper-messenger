@@ -64,8 +64,9 @@ describe('Google OAuth Callback Integration', () => {
 
         const response = await handlePublicAuth(env, req, null);
 
-        expect(response.status).toBe(302);
-        expect(response.headers.get('Location')).toBe('/dashboard');
+        expect(response.status).toBe(200);
+        const body = await response.text();
+        expect(body).toContain('window.location.href = "/dashboard"');
         
         const setCookie = response.headers.get('Set-Cookie');
         expect(setCookie).toContain('session=google_123456789.');
@@ -160,7 +161,9 @@ describe('Google OAuth Callback Integration', () => {
 
         const response = await handlePublicAuth(env, req, null);
 
-        expect(response.status).toBe(302);
+        expect(response.status).toBe(200);
+        const body_reuse = await response.text();
+        expect(body_reuse).toContain('window.location.href = "/dashboard"');
         // Should NOT call put for user_meta if it exists (according to current implementation in auth.ts)
         // Wait, looking at auth.ts:
         // if (!existingRaw) { ... await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user)); ... }

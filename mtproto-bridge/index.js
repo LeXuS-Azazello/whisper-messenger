@@ -292,7 +292,8 @@ app.post('/test-tg', auth, async (req, res) => {
             return res.status(401).json({ success: false, error: 'Session expired, re-login required' });
         }
         const toMe = await client.getMe();
-        await client.sendMessage(toMe.id, { message: 'Test from bridge!' });
+        const msgText = req.body.message || 'Test from bridge!';
+        await client.sendMessage(toMe.id, { message: msgText });
         await client.disconnect();
         return res.json({ success: true });
     } catch (e) {

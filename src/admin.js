@@ -310,6 +310,70 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Record & Test button handler
+    const recordTestBtn = document.getElementById('record-test-btn');
+    if (recordTestBtn) {
+        recordTestBtn.addEventListener('click', async () => {
+            const checked = document.querySelector('input[name="whisper_provider"]:checked');
+            const provider = checked ? checked.value : 'ollama';
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const mediaRecorder = new MediaRecorder(stream);
+                const chunks = [];
+                
+                mediaRecorder.ondataavailable = e => chunks.push(e.data);
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(chunks, { type: 'audio/webm' });
+                    const form = new FormData();
+                    form.append('file', blob, 'record.webm');
+                    
+                    recordTestBtn.innerText = 'Transcribing...';
+                    const res = await fetch('/test-whisper?provider=' + provider, {
+                        method: 'POST',
+                        body: form
+                    });
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        alert('✅ Recorded result: ' + data.text);
+                        // Send to Telegram too
+                        fetch('/admin/tg-send-text', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: data.text })
+                        }).then(r => r.json()).then(tg => {
+                            if (!tg.success) console.error('TG Send failed:', tg.error);
+                        });
+                    } else {
+                        alert('❌ Error: ' + data.error);
+                    }
+                    recordTestBtn.innerText = 'Record 5s & Test';
+                    recordTestBtn.style.background = 'rgba(239, 68, 68, 0.1)';
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                mediaRecorder.start();
+                let timeLeft = 5;
+                recordTestBtn.innerText = `Recording... ${timeLeft}s`;
+                recordTestBtn.style.background = '#ef4444';
+                
+                const timer = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft > 0) recordTestBtn.innerText = `Recording... ${timeLeft}s`;
+                    else {
+                        clearInterval(timer);
+                        mediaRecorder.stop();
+                    }
+                }, 1000);
+                
+            } catch (e) {
+                alert('Mic error: ' + e.message);
+            }
+        });
+    }
+
     const statusBadge = document.querySelector('.status-badge');
     if (statusBadge) {
         statusBadge.addEventListener('click', () => {

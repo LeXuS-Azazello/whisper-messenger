@@ -260,6 +260,24 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     }
   }
 
+  if (url.pathname === "/admin/tg-send-text" && req.method === "POST") {
+    const userId = await env.STATS.get("admin_tg_userId");
+    const session = await env.STATS.get("admin_tg_session");
+    if (!userId || !session) return Response.json({ error: "Not logged in to Telegram" }, { status: 400 });
+    const { message } = await req.json() as any;
+    if (!message) return Response.json({ error: "Empty message" }, { status: 400 });
+    
+    try {
+      const res = await fetch(`${env.BRIDGE_URL}/test-tg`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+        body: JSON.stringify({ userId, session, message: `🧪 Test Record Result:\n\n${message}` })
+      });
+      return res;
+    } catch (e) {
+      return Response.json({ error: (e as Error).message }, { status: 500 });
+    }
+  }
+
   const userIdsRaw = await env.STATS.get("users_list");
   const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
   const users: UserSession[] = [];
