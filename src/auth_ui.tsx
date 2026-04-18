@@ -113,7 +113,7 @@ export const renderAuthPage = (error?: string, isAuthenticated: boolean = false)
 
                             <div style={{ marginTop: '20px', textAlign: 'center' }}>
                                 <script async src="https://telegram.org/js/telegram-widget.js?22" 
-                                    data-telegram-login="EchoVoiceBridgeBot" 
+                                    data-telegram-login="HajimeLabBot" 
                                     data-size="large" 
                                     data-auth-url="/auth/telegram/callback" 
                                     data-request-access="write">

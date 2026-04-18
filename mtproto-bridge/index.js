@@ -29,8 +29,8 @@ app.use(express.json());
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const MODE       = process.env.MODE || 'MANAGER';
-const API_ID     = parseInt(process.env.TG_API_ID  || '0', 10);
-const API_HASH   = process.env.TG_API_HASH         || '';
+const API_ID     = parseInt(process.env.TG_API_ID || process.env.TELEGRAM_APP_ID || '0', 10);
+const API_HASH   = process.env.TG_API_HASH || process.env.TELEGRAM_APP_HASH || '';
 const SECRET     = process.env.BRIDGE_SECRET       || 'changeme';
 const PORT       = parseInt(process.env.PORT       || '3000', 10);
 const TARGET_USER_ID = process.env.TARGET_USER_ID || '';

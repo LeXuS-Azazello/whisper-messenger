@@ -12,6 +12,7 @@ export interface Env {
   TELEGRAM_APP_ID: string;
   TELEGRAM_APP_HASH: string;
   TELEGRAM_BOT_TOKEN: string;
+  TELEGRAM_CHAT_ID?: string;
   BRIDGE_URL: string;
   BRIDGE_SECRET: string;
   WORKER_URL: string;
