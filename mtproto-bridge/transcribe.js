@@ -59,29 +59,39 @@ async function transcribe(audioBuffer, mimeType) {
       throw new Error('WHISPER_SERVER_URL not configured - external whisper server required');
   }
 
-  console.log(`[transcribe] Using external Whisper Server: ${WHISPER_SERVER_URL}`);
+  console.log(`[transcribe] Sending ${audioBuffer.length} bytes to Sherpa-ONNX at: ${WHISPER_SERVER_URL}`);
 
   const formData = new FormData();
   const blob = new Blob([audioBuffer], { type: mimeType });
   formData.append('file', blob, 'audio.ogg');
 
-  const response = await fetch(`${WHISPER_SERVER_URL}/transcribe`, {
-      method: 'POST',
-      headers: {
-          'x-whisper-secret': WHISPER_SECRET
-      },
-      body: formData
-  });
+  try {
+    const response = await fetch(`${WHISPER_SERVER_URL}/transcribe`, {
+        method: 'POST',
+        headers: {
+            'x-whisper-secret': WHISPER_SECRET
+        },
+        body: formData
+    });
 
-  if (!response.ok) {
-      throw new Error(`Whisper server error: ${response.status} ${response.statusText}`);
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[transcribe] Sherpa error (${response.status}): ${errorText}`);
+        throw new Error(`Whisper server error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const duration = (Date.now() - startTime) / 1000;
+    console.log(`[transcribe] Success in ${duration.toFixed(1)}s. Text: "${data.text?.slice(0, 50)}..."`);
+    
+    return {
+        text: data.text || '',
+        duration
+    };
+  } catch (err) {
+    console.error(`[transcribe] Network/Fetch error:`, err.message);
+    throw err;
   }
-
-  const data = await response.json();
-  return {
-      text: data.text || '',
-      duration: (Date.now() - startTime) / 1000
-  };
 }
 
 export function isInitialized() {

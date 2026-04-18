@@ -115,3 +115,24 @@ export async function getTelegramFileUrl(fileId: string, env: Env): Promise<stri
 
   return `https://api.telegram.org/file/bot${env.TELEGRAM_BOT_TOKEN}/${data.result.file_path}`;
 }
+export async function sendTelegramRichMessage(chatId: string | number, text: string, env: Env, replyMarkup?: any, parseMode?: string): Promise<void> {
+  const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const body: any = {
+    chat_id: chatId,
+    text: text,
+    parse_mode: parseMode || 'HTML'
+  };
+  if (replyMarkup) {
+    body.reply_markup = replyMarkup;
+  }
+  const res = await fetchWithTimeout(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error(`[telegram] Failed to send rich message to ${chatId}: ${err}`);
+  }
+}

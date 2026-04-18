@@ -65,30 +65,44 @@ async def transcribe(
     file: UploadFile = File(...),
     x_whisper_secret: str = Header(None)
 ):
+    print(f"--- Incoming request: {file.filename} ({file.content_type}) ---")
+    
     if x_whisper_secret != SECRET:
+        print(f"Unauthorized: Secret mismatch. Received: {x_whisper_secret}")
         raise HTTPException(status_code=401, detail="Unauthorized")
         
     audio_bytes = await file.read()
+    print(f"Received {len(audio_bytes)} bytes. Converting with FFmpeg...")
     
     # Convert to 16kHz mono PCM using ffmpeg
-    with subprocess.Popen(
-        ["ffmpeg", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", "16000", "pipe:1"],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    ) as process:
-        stdout, stderr = process.communicate(input=audio_bytes)
-        if process.returncode != 0:
-            error_msg = stderr.decode() if isinstance(stderr, bytes) else str(stderr)
-            raise HTTPException(status_code=500, detail=f"FFmpeg error: {error_msg}")
+    try:
+        with subprocess.Popen(
+            ["ffmpeg", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", "16000", "pipe:1"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        ) as process:
+            stdout, stderr = process.communicate(input=audio_bytes)
+            if process.returncode != 0:
+                error_msg = stderr.decode() if isinstance(stderr, bytes) else str(stderr)
+                print(f"FFmpeg error: {error_msg}")
+                raise HTTPException(status_code=500, detail=f"FFmpeg error: {error_msg}")
+    except Exception as e:
+        print(f"Subprocess error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
         
+    print(f"FFmpeg conversion successful ({len(stdout)} bytes). Recognizing...")
+    
     samples = np.frombuffer(stdout, dtype=np.int16).astype(np.float32) / 32768.0
     
     stream = recognizer.create_stream()
     stream.accept_waveform(16000, samples)
     recognizer.decode_stream(stream)
     
-    return {"text": stream.result.text}
+    text = stream.result.text
+    print(f"Transcription complete: {text[:100]}...")
+    
+    return {"text": text}
 
 @app.get("/health")
 async def health():

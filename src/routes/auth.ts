@@ -486,6 +486,71 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     return await handleThreadsCallback(env, code, userId, url);
   }
 
+  if (method === "GET" && pathname === "/auth/telegram/callback") {
+    // Verify Telegram Hash
+    const botToken = env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) return new Response("Bot token not configured", { status: 500 });
+
+    const data: any = {};
+    for (const [key, value] of url.searchParams.entries()) {
+      if (key !== 'hash') data[key] = value;
+    }
+
+    const checkString = Object.keys(data)
+      .sort()
+      .map(key => `${key}=${data[key]}`)
+      .join('\n');
+
+    const encoder = new TextEncoder();
+    const secretKey = await crypto.subtle.importKey(
+      'raw',
+      await crypto.subtle.digest('SHA-256', encoder.encode(botToken)),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+
+    const signature = await crypto.subtle.sign(
+      'HMAC',
+      secretKey,
+      encoder.encode(checkString)
+    );
+
+    const hexSignature = Array.from(new Uint8Array(signature))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    if (hexSignature !== url.searchParams.get('hash')) {
+      return new Response("Invalid Telegram hash", { status: 403 });
+    }
+
+    const userId = data.id;
+    const existingRaw = await env.STATS.get(`user_meta_${userId}`);
+    if (!existingRaw) {
+      const user: UserSession = {
+        userId,
+        firstName: data.first_name,
+        username: data.username,
+        session: "",
+        platform: "telegram",
+        transcriptionCount: 0,
+        isActive: false,
+        createdAt: Date.now(),
+        lastActiveAt: Date.now()
+      };
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+      
+      const listRaw = await env.STATS.get("users_list") || "[]";
+      const list = JSON.parse(listRaw);
+      if (!list.includes(userId)) {
+        list.push(userId);
+        await env.STATS.put("users_list", JSON.stringify(list));
+      }
+    }
+
+    return await createSessionResponse(String(userId), env);
+  }
+
   if (pathname === "/auth/logout") {
     return handleLogout();
   }

@@ -53,7 +53,25 @@ export const renderAuthPage = (error?: string, isAuthenticated: boolean = false)
                         {error && <div class="error-msg" style={{ marginBottom: '20px' }}>{error}</div>}
 
                         <div id="auth-flow">
-                            <div id="phone-section">
+                            {/* Simple Step 1: Initialize Connection */}
+                            <div id="simple-start-section" style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '48px', marginBottom: '10px' }}>🚀</div>
+                                <h3 style={{ marginBottom: '15px' }}>One-Click Connection</h3>
+                                <p style={{ fontSize: '14px', color: 'var(--text-dim)', marginBottom: '25px' }}>
+                                    We'll open your Telegram app to authorize the connection securelly.
+                                </p>
+                                <button class="btn" id="tg-simple-connect-btn" style={{ background: 'linear-gradient(135deg, #24A1DE, #1C92D2)', height: '56px', fontSize: '16px', fontWeight: '800' }}>
+                                    Connect Telegram Now
+                                </button>
+                                
+                                <div style={{ marginTop: '20px' }}>
+                                    <button id="show-manual-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
+                                        Alternative login (Phone number / QR)
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="phone-section" style={{ display: 'none' }}>
                                 <div class="input-group">
                                     <label class="input-label">Phone Number</label>
                                     <input type="tel" id="tg-phone-input" class="input-field" placeholder="+66 85 093 2800" />
@@ -93,8 +111,23 @@ export const renderAuthPage = (error?: string, isAuthenticated: boolean = false)
                                 Login with QR Code
                             </button>
 
+                            <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                                <script async src="https://telegram.org/js/telegram-widget.js?22" 
+                                    data-telegram-login="EchoVoiceBridgeBot" 
+                                    data-size="large" 
+                                    data-auth-url="/auth/telegram/callback" 
+                                    data-request-access="write">
+                                </script>
+                            </div>
+
                             <div id="qr-section" style={{ display: 'none', marginTop: '25px', textAlign: 'center' }}>
                                 <div id="qr-code-container" style={{ background: 'white', padding: '15px', borderRadius: '12px', display: 'inline-block', marginBottom: '15px' }}></div>
+                                <div style={{ marginBottom: '15px' }}>
+                                    <a id="tg-app-link" href="#" class="btn btn-sm" style={{ background: '#24A1DE', display: 'inline-flex', alignItems: 'center', gap: '8px', width: 'auto', padding: '8px 16px', borderRadius: '20px', textDecoration: 'none', color: 'white', fontWeight: '600' }}>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                                        Open in Telegram App
+                                    </a>
+                                </div>
                                 <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '5px' }}>Open Telegram &gt; Settings &gt; Devices &gt; Scan QR</p>
                                 <p id="qr-status" style={{ fontSize: '14px', color: '#8B5CF6', fontWeight: '600' }}>Waiting for scan...</p>
                             </div>
@@ -210,6 +243,70 @@ export const renderAuthPage = (error?: string, isAuthenticated: boolean = false)
                         }).catch(err => alert('Network error'));
                     });
 
+                    var simpleConnectBtn = document.getElementById('tg-simple-connect-btn');
+                    var manualBtn = document.getElementById('show-manual-btn');
+                    var simpleStartSection = document.getElementById('simple-start-section');
+
+                    manualBtn.addEventListener('click', function() {
+                        simpleStartSection.style.display = 'none';
+                        phoneSection.style.display = 'block';
+                        tgShowQrBtn.style.display = 'block';
+                    });
+
+                    function initiateAutoLogin() {
+                        simpleConnectBtn.innerText = 'Initializing...';
+                        fetch('/auth/qr-start', { method: 'POST' })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.qrUrl) {
+                                    // Start polling first
+                                    startQrPolling(data.token);
+                                    // Then open app
+                                    window.location.href = data.qrUrl;
+                                    simpleConnectBtn.innerText = 'Check your Telegram App';
+                                    
+                                    // Also show QR as backup if they didn't have app or it failed
+                                    setTimeout(() => {
+                                        qrSection.style.display = 'block';
+                                        qrCodeContainer.innerHTML = '';
+                                        new QRCode(qrCodeContainer, {
+                                            text: data.qrUrl,
+                                            width: 200, height: 200
+                                        });
+                                    }, 2000);
+                                }
+                            });
+                    }
+
+                    simpleConnectBtn.addEventListener('click', initiateAutoLogin);
+                    
+                    // Auto-initiate if requested via URL
+                    if (new URLSearchParams(window.location.search).get('auto') === 'true') {
+                        setTimeout(initiateAutoLogin, 500);
+                    }
+
+                    function startQrPolling(token) {
+                        qrPollInterval = setInterval(() => {
+                            fetch('/auth/qr-check?token=' + token)
+                                .then(r => r.json())
+                                .then(status => {
+                                    if (status.done) {
+                                        clearInterval(qrPollInterval);
+                                        authFlow.style.display = 'none';
+                                        successMessage.style.display = 'block';
+                                        setTimeout(() => window.location.href = '/dashboard', 1500);
+                                    } else if (status.requiresPassword) {
+                                        clearInterval(qrPollInterval);
+                                        currentQrToken = token;
+                                        qrSection.style.display = 'none';
+                                        simpleStartSection.style.display = 'none';
+                                        passwordSection.style.display = 'block';
+                                    }
+                                })
+                                .catch(() => {});
+                        }, 2500);
+                    }
+
                     tgShowQrBtn.addEventListener('click', function() {
                         qrSection.style.display = 'block';
                         tgShowQrBtn.style.display = 'none';
@@ -226,25 +323,14 @@ export const renderAuthPage = (error?: string, isAuthenticated: boolean = false)
                                         colorLight : "#ffffff",
                                         correctLevel : QRCode.CorrectLevel.H
                                     });
+                                    
+                                    var tgAppLink = document.getElementById('tg-app-link');
+                                    if (tgAppLink) {
+                                        tgAppLink.href = data.qrUrl;
+                                        tgAppLink.style.display = 'inline-flex';
+                                    }
 
-                                    qrPollInterval = setInterval(() => {
-                                        fetch('/auth/qr-check?token=' + data.token)
-                                            .then(r => r.json())
-                                            .then(status => {
-                                                if (status.done) {
-                                                    clearInterval(qrPollInterval);
-                                                    authFlow.style.display = 'none';
-                                                    successMessage.style.display = 'block';
-                                                    setTimeout(() => window.location.href = '/dashboard', 1500);
-                                                } else if (status.requiresPassword) {
-                                                    clearInterval(qrPollInterval);
-                                                    currentQrToken = data.token;
-                                                    qrSection.style.display = 'none';
-                                                    passwordSection.style.display = 'block';
-                                                }
-                                            })
-                                            .catch(() => {});
-                                    }, 2500);
+                                    startQrPolling(data.token);
                                 } else {
                                     alert('Failed to get QR token');
                                 }

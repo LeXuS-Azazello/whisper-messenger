@@ -93,7 +93,7 @@ export const renderHome = (googleClientId: string, origin: string) => {
                                 <span>OR CONTINUE WITH</span>
                             </div>
 
-                            <div class="google-btn-wrapper">
+                            <div class="google-btn-wrapper" style={{ flexDirection: 'column', gap: '15px' }}>
                                 <div id="g_id_onload"
                                     data-client_id={googleClientId}
                                     data-context="signin"
@@ -102,6 +102,16 @@ export const renderHome = (googleClientId: string, origin: string) => {
                                     data-auto_prompt="false">
                                 </div>
                                 <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large"></div>
+                                
+                                <div style={{ marginTop: '5px' }}>
+                                    <script async src="https://telegram.org/js/telegram-widget.js?22" 
+                                        data-telegram-login="EchoVoiceBridgeBot" 
+                                        data-size="large" 
+                                        data-radius="10" 
+                                        data-auth-url={`${origin}/auth/telegram/callback`} 
+                                        data-request-access="write">
+                                    </script>
+                                </div>
                             </div>
                         </div>
 

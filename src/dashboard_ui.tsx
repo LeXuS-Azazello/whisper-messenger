@@ -59,26 +59,43 @@ export const renderDashboard = (user: UserSession) => {
                                     <button class="btn btn-sm" id="disconnect-tg-btn" style={{ background: '#ef4444', margin: 0 }}>Disconnect</button>
                                 </div>
                             </div>
-
                             <div id="tg-auth-container" style={{ display: isTgConnected ? 'none' : 'block', marginTop: '15px' }}>
-                                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                    <input type="tel" id="tg-phone-input" class="input-field" placeholder="+1234567890" style={{ width: '180px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
-                                    <button class="btn btn-sm" id="tg-send-code-btn" style={{ margin: 0, width: 'auto', background: '#8B5CF6' }}>Send Code</button>
-                                </div>
-                                <div id="tg-code-section" style={{ display: 'none', marginTop: '10px' }}>
-                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        <input type="text" id="tg-code-input" class="input-field" placeholder="Enter code" style={{ width: '130px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
-                                        <button class="btn btn-sm" id="tg-verify-btn" style={{ margin: 0, width: 'auto', background: '#22c55e' }}>Verify</button>
-                                    </div>
-                                </div>
-                                <div style={{ marginTop: '10px' }}>
-                                    <button class="btn btn-sm" id="tg-show-qr-btn" style={{ margin: 0, width: 'auto', background: '#6B7280', fontSize: '11px', padding: '5px 10px' }}>QR Code Login</button>
-                                </div>
-                                <div id="tg-qr-section" style={{ display: 'none', marginTop: '10px', textAlign: 'center' }}>
-                                    <div id="qr-code-container" style={{ background: 'white', padding: '10px', borderRadius: '8px', display: 'inline-block', marginBottom: '8px' }}></div>
-                                    <p id="qr-status" style={{ fontSize: '11px', color: '#8B5CF6' }}>Scan from Telegram App</p>
-                                </div>
-                            </div>
+                                 {/* Simple One-Click Connect */}
+                                 <div id="tg-simple-connect-view" style={{ textAlign: 'center', padding: '10px 0' }}>
+                                     <button class="btn" id="tg-simple-connect-btn" style={{ background: 'linear-gradient(135deg, #24A1DE, #1C92D2)', height: '48px', width: '100%', fontSize: '15px', fontWeight: '700', margin: '0 0 10px 0' }}>
+                                         Connect My Telegram
+                                     </button>
+                                     <button id="show-manual-auth-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline' }}>
+                                         Use phone number or QR code
+                                     </button>
+                                 </div>
+
+                                 <div id="tg-manual-auth-view" style={{ display: 'none' }}>
+                                     <div style={{ display: 'flex', gap: '5px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                         <input type="tel" id="tg-phone-input" class="input-field" placeholder="+123..." style={{ flex: 1, padding: '0.5rem', margin: 0, borderRadius: '8px', fontSize: '13px' }} />
+                                         <button class="btn btn-sm" id="tg-send-code-btn" style={{ margin: 0, width: 'auto', background: '#8B5CF6' }}>Code</button>
+                                     </div>
+                                     <div id="tg-code-section" style={{ display: 'none', marginTop: '8px' }}>
+                                         <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                             <input type="text" id="tg-code-input" class="input-field" placeholder="Code" style={{ width: '80px', padding: '0.5rem', margin: 0, borderRadius: '8px', fontSize: '13px' }} />
+                                             <button class="btn btn-sm" id="tg-verify-btn" style={{ margin: 0, width: 'auto', background: '#22c55e' }}>Link</button>
+                                         </div>
+                                     </div>
+                                     <div style={{ marginTop: '10px' }}>
+                                         <button class="btn btn-sm" id="tg-show-qr-btn" style={{ margin: 0, width: 'auto', background: '#6B7280', fontSize: '10px', padding: '4px 8px' }}>Show QR</button>
+                                     </div>
+                                     <div id="tg-qr-section" style={{ display: 'none', marginTop: '10px', textAlign: 'center' }}>
+                                         <div id="qr-code-container" style={{ background: 'white', padding: '10px', borderRadius: '8px', display: 'inline-block', marginBottom: '8px' }}></div>
+                                         <div style={{ marginBottom: '8px' }}>
+                                             <a id="tg-app-link" href="#" class="btn btn-sm" style={{ background: '#24A1DE', display: 'none', alignItems: 'center', gap: '5px', width: 'auto', padding: '5px 12px', borderRadius: '15px', textDecoration: 'none', color: 'white', fontSize: '11px' }}>
+                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                                                 Open App
+                                             </a>
+                                         </div>
+                                         <p id="qr-status" style={{ fontSize: '11px', color: '#8B5CF6' }}>Scan from Telegram App</p>
+                                     </div>
+                                 </div>
+                             </div>
                         </div>
 
                         {/* Meta Integration */}
@@ -237,6 +254,50 @@ export const renderDashboard = (user: UserSession) => {
                         });
                     });
 
+                    // Simplified Dashboard Auth
+                    var simpleConnectBtn = document.getElementById('tg-simple-connect-btn');
+                    var manualBtn = document.getElementById('show-manual-auth-btn');
+                    var simpleView = document.getElementById('tg-simple-connect-view');
+                    var manualView = document.getElementById('tg-manual-auth-view');
+
+                    if (manualBtn) {
+                        manualBtn.onclick = () => {
+                            simpleView.style.display = 'none';
+                            manualView.style.display = 'block';
+                        };
+                    }
+
+                    function startQrPolling(token) {
+                        var interval = setInterval(() => {
+                            fetch('/auth/qr-check?token=' + token).then(r => r.json()).then(s => {
+                                if (s.done) { clearInterval(interval); location.reload(); }
+                                else if (s.requiresPassword) {
+                                    clearInterval(interval);
+                                    alert('2FA Password required. Please use manual login or wait for update.');
+                                }
+                            });
+                        }, 2500);
+                    }
+
+                    if (simpleConnectBtn) {
+                        simpleConnectBtn.onclick = () => {
+                            simpleConnectBtn.innerText = 'Connecting...';
+                            fetch('/auth/qr-start', { method: 'POST' }).then(r => r.json()).then(data => {
+                                if (data.qrUrl) {
+                                    startQrPolling(data.token);
+                                    window.location.href = data.qrUrl;
+                                    setTimeout(() => {
+                                        simpleView.style.display = 'none';
+                                        manualView.style.display = 'block';
+                                        tgQrSection.style.display = 'block';
+                                        qrCodeContainer.innerHTML = '';
+                                        new QRCode(qrCodeContainer, { text: data.qrUrl, width: 140, height: 140 });
+                                    }, 2000);
+                                }
+                            });
+                        };
+                    }
+
                     tgShowQrBtn.addEventListener('click', function() {
                         tgQrSection.style.display = 'block';
                         tgShowQrBtn.style.display = 'none';
@@ -244,11 +305,11 @@ export const renderDashboard = (user: UserSession) => {
                             if (data.token) {
                                 qrCodeContainer.innerHTML = '';
                                 new QRCode(qrCodeContainer, { text: data.qrUrl, width: 180, height: 180 });
-                                var interval = setInterval(() => {
-                                    fetch('/auth/qr-check?token=' + data.token).then(r => r.json()).then(s => {
-                                        if (s.done) { clearInterval(interval); location.reload(); }
-                                    });
-                                }, 2500);
+                                
+                                var appBtn = document.getElementById('tg-app-link');
+                                if (appBtn) { appBtn.href = data.qrUrl; appBtn.style.display = 'inline-flex'; }
+
+                                startQrPolling(data.token);
                             }
                         });
                     });

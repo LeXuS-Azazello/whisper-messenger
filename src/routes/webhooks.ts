@@ -1,12 +1,93 @@
 import { Env, MetaWebhookBody, WhatsAppWebhookBody, UserSession } from "../types";
 import { logError } from "../logger";
-import { TelegramWebhookUpdate, sendTelegramTypingOn, sendTelegramMessage, getTelegramFileUrl } from "../telegram";
+import { TelegramWebhookUpdate, sendTelegramTypingOn, sendTelegramMessage, getTelegramFileUrl, sendTelegramRichMessage } from "../telegram";
 import { sendTypingOn, sendMessageSafe } from "../meta";
 import { sendWhatsAppTypingOn, sendWhatsAppMessageSafe, getWhatsAppAudioUrl } from "../whatsapp";
 
 export async function handleTelegram(update: TelegramWebhookUpdate, env: Env): Promise<Response> {
   const msg = update.message;
   if (!msg || msg.chat.type !== "private") return new Response("ok");
+  
+  const text = msg.text?.trim() || "";
+  const chatId = msg.chat.id;
+  const userId = String(msg.from?.id);
+
+  // Command Handling
+  if (text.startsWith("/")) {
+    if (text === "/start" || text === "/status") {
+      const userData = await env.STATS.get(`user_meta_${userId}`);
+      if (!userData) {
+        await sendTelegramRichMessage(chatId, 
+          `🚀 <b>Welcome to Echo Messenger!</b>\n\nTo start using the voice-to-text bridge, you need to connect your Telegram account. It's safe and takes 2 seconds.`, 
+          env,
+          {
+            inline_keyboard: [[{ text: "🔌 Connect Telegram Now", url: `${env.WORKER_URL}/auth?auto=true` }]]
+          }
+        );
+        return new Response("ok");
+      }
+
+      const user: UserSession = JSON.parse(userData);
+      const isConnected = !!user.session;
+      
+      let status = "Not Connected";
+      let buttons = [[{ text: "🔌 Connect Telegram", url: `${env.WORKER_URL}/dashboard` }]];
+
+      if (isConnected) {
+        // Fetch live status from bridge
+        let liveStatus = "STOPPED";
+        try {
+          const res = await fetch(`${env.BRIDGE_URL}/pods`, {
+            headers: { 'x-bridge-secret': env.BRIDGE_SECRET }
+          });
+          if (res.ok) {
+            const pods: any[] = await res.json();
+            const pod = pods.find(p => p.userId === userId);
+            liveStatus = pod ? pod.status?.toUpperCase() : "STOPPED";
+          }
+        } catch (e) {}
+
+        status = liveStatus === "RUNNING" ? "🟢 RUNNING" : `🔴 ${liveStatus}`;
+        buttons = [
+          [{ text: "🔄 Restart Bridge", callback_data: `restart_${userId}` }],
+          [{ text: "⚙️ Dashboard & Settings", url: `${env.WORKER_URL}/dashboard` }]
+        ];
+      }
+
+      await sendTelegramRichMessage(chatId, 
+        `👤 <b>User Info</b>\nID: <code>${userId}</code>\nBridge Status: <b>${status}</b>\n\nYou can manage your bridge directly from here or via the dashboard.`,
+        env,
+        { inline_keyboard: buttons }
+      );
+      return new Response("ok");
+    }
+
+    if (text === "/restart") {
+        const userData = await env.STATS.get(`user_meta_${userId}`);
+        if (!userData || !JSON.parse(userData).session) {
+            await sendTelegramMessage(chatId, "❌ You don't have a bridge connected yet. Use /start to begin.", env);
+            return new Response("ok");
+        }
+        await sendTelegramMessage(chatId, "⏳ Restarting your bridge, please wait...", env);
+        try {
+            const session = await env.STATS.get(`tg_session_${userId}`);
+            await fetch(`${env.BRIDGE_URL}/delete`, {
+                method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+                body: JSON.stringify({ userId })
+            });
+            await new Promise(r => setTimeout(r, 1000));
+            await fetch(`${env.BRIDGE_URL}/spawn`, {
+                method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+                body: JSON.stringify({ userId, session })
+            });
+            await sendTelegramMessage(chatId, "✅ Bridge restarted successfully!", env);
+        } catch (e: any) {
+            await sendTelegramMessage(chatId, `❌ Restart failed: ${e.message}`, env);
+        }
+        return new Response("ok");
+    }
+  }
+
   await logError("telegram", `Msg from ${msg.from?.id}: ${msg.text || msg.voice ? '[voice]' : 'empty'}`, env);
   const media = msg.voice || msg.audio || msg.video_note;
   if (media && msg.from) {

@@ -14,7 +14,7 @@ import { createRequire } from 'module';
 import dns from 'dns';
 import https from 'https';
 
-dns.setDefaultResultOrder('ipv4first');
+// dns.setDefaultResultOrder('ipv4first');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -553,82 +553,105 @@ async function handleNewMessage(event) {
         return;
     }
 
-    console.log(`[user] Supported media found, starting transcription...`);
-
     try {
         const targetPeer = msg.chatId;
+        const msgId = msg.id;
 
-        // Set typing status and send notification
+        console.log(`[user] 🎤 Processing voice/video from ${targetPeer} (Msg ID: ${msgId})`);
+
+        // Set typing status
         const inputPeer = await userClient.getInputEntity(targetPeer);
         await userClient.invoke(new Api.messages.SetTyping({
             peer: inputPeer,
             action: new Api.SendMessageRecordAudioAction()
         })).catch(() => {});
 
+        console.log(`[user] ⏳ Notifying user and downloading media...`);
         const statusMsg = await userClient.sendMessage(targetPeer, {
-            message: "⏳ Transcribing..." ,
-            replyTo: msg.id
-
+            message: "⏳ _Transcribing audio..._",
+            replyTo: msgId,
+            parseMode: 'markdown'
         });
 
-        const buffer = await userClient.downloadMedia(msg.media, { workers: 1 });
+        const buffer = await userClient.downloadMedia(msg.media, { workers: 2 });
         const mimeType = isVoice ? 'audio/ogg' : 'video/mp4';
+        console.log(`[user] 💾 Downloaded ${buffer.length} bytes. Starting transcription...`);
 
-        console.log(`[user] Transcribing audio from ${targetPeer}...`);
         const { text, duration } = await transcribe(Buffer.from(buffer), mimeType);
-        console.log(`[user] Transcription complete (${duration}s): "${text.slice(0, 50)}..."`);
         
-        if (text) {
-            let finalText = text;
-            
-            // Fetch User Meta for Translation settings
-            try {
-                const workerUrl = process.env.WORKER_URL || 'https://whisper.debug.org.ua';
-                const metaRes = await fetch(`${workerUrl}/internal/user-meta?userId=${TARGET_USER_ID}&secret=${process.env.BRIDGE_SECRET}`);
-                if (metaRes.ok) {
-                    const meta = await metaRes.json();
-                    if (meta.translateTo && meta.translateTo !== 'original' && meta.translateTo !== 'auto') {
-                        console.log(`[user] Translating to ${meta.translateTo}...`);
-                        const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://91.224.11.69:11434';
-                        const translateRes = await fetch(`${ollamaUrl}/v1/chat/completions`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
-                                messages: [
-                                    { role: "system", content: `Translate the following text to ${meta.translateTo}. Output only the translated text, nothing else.` },
-                                    { role: "user", content: text }
-                                ],
-                                stream: false
-                            })
-                        });
-                        if (translateRes.ok) {
-                            const tData = await translateRes.json();
-                            const translatedText = tData.choices?.[0]?.message?.content;
-                            if (translatedText) {
-                                finalText = `[${meta.translateTo.toUpperCase()}] ${translatedText}\n---\n${text}`;
-                            }
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error(`[user] Translation error:`, e.message);
-            }
-
-            const timeStr = typeof duration === 'number' ? duration.toFixed(1) : duration;
-            const fullMsg = `🎤 ${finalText}\n\n⏱️ ${timeStr}s`;
-            
-            await userClient.sendMessage(targetPeer, {
-                message: fullMsg,
-                replyTo: msg.id
-            });
+        if (!text || text.trim().length === 0) {
+            console.log(`[user] ❌ Transcription returned empty text.`);
+            await userClient.editMessage(targetPeer, {
+                message: statusMsg.id,
+                text: "❌ Could not transcribe audio (empty result)."
+            }).catch(e => console.error(`[user] Edit status failed:`, e.message));
+            return;
         }
+
+        console.log(`[user] ✅ Transcribed (${duration.toFixed(1)}s): "${text.slice(0, 100)}${text.length > 100 ? '...' : ''}"`);
         
+        let finalText = text;
+        let translationSuffix = "";
+
+        // Fetch User Meta for Translation settings
+        try {
+            const workerUrl = process.env.WORKER_URL || 'https://whisper.debug.org.ua';
+            console.log(`[user] 🔍 Checking translation settings for user ${TARGET_USER_ID}...`);
+            const metaRes = await fetch(`${workerUrl}/internal/user-meta?userId=${TARGET_USER_ID}&secret=${process.env.BRIDGE_SECRET}`);
+            if (metaRes.ok) {
+                const meta = await metaRes.json();
+                if (meta.translateTo && meta.translateTo !== 'original' && meta.translateTo !== 'auto') {
+                    console.log(`[user] 🌐 Translating to ${meta.translateTo}...`);
+                    const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://91.224.11.69:11434';
+                    const translateRes = await fetch(`${ollamaUrl}/v1/chat/completions`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
+                            messages: [
+                                { role: "system", content: `Translate the following text to ${meta.translateTo}. Output only the translated text, nothing else. If the text is already in ${meta.translateTo}, return it as is.` },
+                                { role: "user", content: text }
+                            ],
+                            stream: false
+                        })
+                    });
+                    if (translateRes.ok) {
+                        const tData = await translateRes.json();
+                        const translatedText = tData.choices?.[0]?.message?.content;
+                        if (translatedText) {
+                            console.log(`[user] ✅ Translation complete: "${translatedText.slice(0, 50)}..."`);
+                            finalText = translatedText;
+                            translationSuffix = `\n\n---\n🌐 *Original:* ${text}`;
+                        }
+                    } else {
+                        console.error(`[user] ❌ Translation service failed: ${translateRes.status}`);
+                    }
+                } else {
+                    console.log(`[user] ℹ️ Translation disabled (mode: ${meta.translateTo || 'none'})`);
+                }
+            } else {
+                console.warn(`[user] ⚠️ Could not fetch user meta: ${metaRes.status}`);
+            }
+        } catch (e) {
+            console.error(`[user] ❌ Translation/Meta error:`, e.message);
+        }
+
+        const timeStr = typeof duration === 'number' ? duration.toFixed(1) : duration;
+        const fullMsg = `🎤 ${finalText}\n\n⏱️ ${timeStr}s${translationSuffix}`;
+        
+        console.log(`[user] 📤 Sending result to ${targetPeer}...`);
+        await userClient.sendMessage(targetPeer, {
+            message: fullMsg,
+            replyTo: msgId,
+            parseMode: 'markdown'
+        });
+
         // Remove status message
         await statusMsg.delete().catch(() => {});
+        console.log(`[user] ✨ Done processing message ${msgId}.`);
         
-        if (text && WORKER_URL) {
-            await fetch(`${WORKER_URL}/internal/stats`, {
+        if (WORKER_URL) {
+            fetch(`${WORKER_URL}/internal/stats`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET })
             }).catch(e => console.error('[user] Stats notify failed:', e));
@@ -650,8 +673,9 @@ async function startUserClient() {
     }
 
     userClient.addEventHandler(handleNewMessage, new (require('telegram/events/index.js').NewMessage)({ incoming: true, outgoing: false }));
-    console.log(`[user] Online.`);
+    console.log(`[user] 🚀 Bridge Online for User ID: ${TARGET_USER_ID}. Listening for messages...`);
 }
+
 
 app.get('/check-access', auth, async (req, res) => {
     if (MODE !== 'USER') return res.status(400).send('Not user mode');
