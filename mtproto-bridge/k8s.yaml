@@ -42,6 +42,7 @@ metadata:
   namespace: debugging-echovoice
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: mtproto-bridge-manager

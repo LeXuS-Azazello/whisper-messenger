@@ -20,6 +20,7 @@ metadata:
   namespace: debugging-echovoice
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: cloudflared-whisper
@@ -73,6 +74,7 @@ metadata:
   namespace: debugging-echovoice
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: cloudflared-voice
@@ -126,6 +128,7 @@ metadata:
   namespace: debugging-echovoice
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: cloudflared-mtproto
