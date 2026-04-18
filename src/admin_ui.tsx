@@ -28,30 +28,36 @@ const formatUptime = (startedAt?: number) => {
 };
 
 const UserRow = ({ user }: { user: UserSession }) => (
-    <tr class="user-row">
+    <tr class="user-row" data-userid={user.userId}>
         <td>
             <div style={{ fontWeight: '600' }}>{user.firstName}</div>
             <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>@{user.username || 'n/a'}</div>
         </td>
         <td><code style={{ fontSize: '11px', color: '#888' }}>{user.userId}</code></td>
-        <td>{user.phone || 'n/a'}</td>
+        <td style={{ fontSize: '12px' }}>{user.phone || 'n/a'}</td>
         <td style={{ textAlign: 'center' }}>
             <span class={`status-tag ${user.isActive ? 'active' : 'inactive'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
                 {user.currentStatus || (user.isActive ? 'RUNNING' : 'STOPPED')}
             </span>
         </td>
-        <td style={{ textAlign: 'center' }}>{formatUptime(user.lastStartedAt)}</td>
+        <td style={{ textAlign: 'center', fontSize: '11px' }}>{formatUptime(user.lastStartedAt)}</td>
         <td style={{ textAlign: 'center', fontWeight: '700', color: '#24A1DE' }}>{user.transcriptionCount || 0}</td>
-        <td>{user.lastActiveAt ? new Date(user.lastActiveAt).toLocaleDateString() : '-'}</td>
+        <td style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
+            {user.lastActiveAt ? new Date(user.lastActiveAt).toLocaleString('en-GB', { hour12: false }) : '-'}
+        </td>
         <td style={{ textAlign: 'right' }}>
-            {user.isActive && (
-                <button class="btn btn-sm restart-btn" data-userid={user.userId} style={{ padding: '4px 8px', fontSize: '10px', margin: '0 4px 0 0', background: '#F59E0B', color: '#000' }}>
-                    Restart Pod
+            <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                <button class="btn btn-sm restart-btn" data-userid={user.userId} title="Restart Pod" style={{ width: '32px', height: '32px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F59E0B', color: '#000', borderRadius: '8px' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
                 </button>
-            )}
-            <button class="btn btn-sm btn-danger deactivate-btn" data-userid={user.userId} style={{ padding: '4px 8px', fontSize: '10px', margin: 0, background: user.isActive ? '#ef4444' : '#6B7280' }}>
-                {user.isActive ? 'Stop Pod' : 'Delete'}
-            </button>
+                <button class="btn btn-sm btn-danger deactivate-btn" data-userid={user.userId} title={user.isActive ? 'Stop Pod' : 'Delete User'} style={{ width: '32px', height: '32px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', background: user.isActive ? '#ef4444' : '#6B7280', borderRadius: '8px' }}>
+                    {user.isActive ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg>
+                    ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    )}
+                </button>
+            </div>
         </td>
     </tr>
 );
@@ -272,7 +278,11 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
 
                         <div class="card" style={{ gridColumn: '1 / -1' }}>
                             <div class="card-header">
-                                <h3 class="card-title">User Management (Telegram Pods)</h3>
+                                <div>
+                                    <h3 class="card-title">User Management (Telegram Pods)</h3>
+                                    <div id="last-updated-info" style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '2px' }}>Polling active (5s)</div>
+                                </div>
+                                <button class="btn btn-sm" id="force-refresh-btn" style={{ width: 'auto', background: 'rgba(255,255,255,0.05)', fontSize: '10px', padding: '4px 8px' }}>Refresh Now</button>
                                 <div id="total-users" style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{users.length} users</div>
                             </div>
                             <div class="user-table-container" style={{ overflowX: 'auto', marginTop: '10px' }}>
@@ -289,7 +299,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                             <th style={{ padding: '10px 5px', textAlign: 'right' }}>Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody id="user-table-body">
                                         {users.length > 0 ? (
                                             users.map(u => <UserRow key={u.userId} user={u} />)
                                         ) : (

@@ -164,9 +164,13 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
   } });
 }
 
-export async function incrementUserStats(userId: string, env: Env) {
-  const global = await env.STATS.get("stats_telegram");
-  await env.STATS.put("stats_telegram", String(parseInt(global || "0", 10) + 1));
+export async function incrementUserStats(userId: string, env: Env, platform: string = "telegram") {
+  // Global stats for this platform
+  const globalKey = `stats_${platform}`;
+  const global = await env.STATS.get(globalKey);
+  await env.STATS.put(globalKey, String(parseInt(global || "0", 10) + 1));
+  
+  // Per-user stats
   const metaRaw = await env.STATS.get(`user_meta_${userId}`);
   if (metaRaw) {
     const meta: UserSession = JSON.parse(metaRaw);

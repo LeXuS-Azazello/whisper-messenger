@@ -374,6 +374,105 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // --- User management polling ---
+    var userTableBody = document.getElementById('user-table-body');
+    var forceRefreshBtn = document.getElementById('force-refresh-btn');
+    var lastUpdatedInfo = document.getElementById('last-updated-info');
+
+    function formatUptime(startTime) {
+        if (!startTime) return 'n/a';
+        const now = Date.now();
+        const diff = Math.floor((now - startTime) / 1000);
+        if (diff < 0) return '0s';
+        if (diff < 60) return diff + 's';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm ' + (diff % 60) + 's';
+        return Math.floor(diff / 3600) + 'h ' + Math.floor((diff % 3600) / 60) + 'm';
+    }
+
+    function renderUsers(users) {
+        if (!userTableBody) return;
+        userTableBody.innerHTML = users.map(u => `
+            <tr class="user-row" data-userid="${u.userId}">
+                <td>
+                    <div style="font-weight: 600">${u.firstName || 'User'}</div>
+                    <div style="font-size: 11px; color: var(--text-dim)">@${u.username || 'n/a'}</div>
+                </td>
+                <td><code style="font-size: 11px; color: #888">${u.userId}</code></td>
+                <td style="font-size: 12px">${u.phone || 'n/a'}</td>
+                <td style="text-align: center">
+                    <span class="status-tag ${u.isActive ? 'active' : 'inactive'}" style="font-size: 10px; padding: 2px 6px">
+                        ${u.currentStatus || (u.isActive ? 'RUNNING' : 'STOPPED')}
+                    </span>
+                </td>
+                <td style="text-align: center; font-size: 11px">${formatUptime(u.lastStartedAt)}</td>
+                <td style="text-align: center; font-weight: 700; color: #24A1DE">${u.transcriptionCount || 0}</td>
+                <td style="font-size: 11px; white-space: nowrap">
+                    ${u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleString('en-GB', { hour12: false }) : '-'}
+                </td>
+                <td style="text-align: right">
+                    <div style="display: flex; gap: 4px; justify-content: flex-end">
+                        <button class="btn btn-sm restart-btn" data-userid="${u.userId}" title="Restart Pod" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: #F59E0B; color: #000; border-radius: 8px">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                        </button>
+                        <button class="btn btn-sm btn-danger deactivate-btn" data-userid="${u.userId}" title="${u.isActive ? 'Stop Pod' : 'Delete User'}" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: ${u.isActive ? '#ef4444' : '#6B7280'}; border-radius: 8px">
+                            ${u.isActive ? 
+                                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg>' : 
+                                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+                            }
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function refreshUsers() {
+        if (!userTableBody || document.visibilityState === 'hidden') return;
+        const oFetch = originalFetch || window.fetch;
+        oFetch('/admin/users-json')
+            .then(r => r.json())
+            .then(users => {
+                renderUsers(users);
+                if (lastUpdatedInfo) {
+                    lastUpdatedInfo.innerText = 'Last updated: ' + new Date().toLocaleTimeString();
+                }
+            })
+            .catch(e => console.error('Refresh users failed:', e));
+    }
+
+    if (userTableBody) {
+        setInterval(refreshUsers, 5000);
+        if (forceRefreshBtn) forceRefreshBtn.addEventListener('click', refreshUsers);
+
+        userTableBody.addEventListener('click', function(e) {
+            var btn = e.target.closest('.btn');
+            if (!btn) return;
+            var userId = btn.getAttribute('data-userid');
+            if (!userId) return;
+
+            if (btn.classList.contains('restart-btn')) {
+                if (!confirm('Restart pod for ' + userId + '?')) return;
+                fetch('/admin/restart-pod', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userId })
+                }).then(r => r.json()).then(d => {
+                    if (d.success) refreshUsers();
+                    else alert('Error: ' + d.error);
+                });
+            } else if (btn.classList.contains('deactivate-btn')) {
+                var isDeactivate = btn.title.includes('Stop');
+                if (!confirm((isDeactivate ? 'Stop pod' : 'Delete user') + ' for ' + userId + '?')) return;
+                fetch('/admin/deactivate-user', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userId })
+                }).then(r => r.json()).then(d => {
+                    if (d.success) refreshUsers();
+                    else alert('Error: ' + d.error);
+                });
+            }
+        });
+    }
+
     const statusBadge = document.querySelector('.status-badge');
     if (statusBadge) {
         statusBadge.addEventListener('click', () => {

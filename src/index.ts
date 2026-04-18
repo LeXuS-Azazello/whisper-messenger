@@ -121,9 +121,9 @@ export default {
 
     // Internal Stats (called by Bridge User Pods)
     if (url.pathname === "/internal/stats" && req.method === "POST") {
-      const { userId, secret } = await req.json() as any;
+      const { userId, secret, platform } = await req.json() as any;
       if (secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
-      await incrementUserStats(userId, env);
+      await incrementUserStats(userId, env, platform || "telegram");
       return Response.json({ ok: true });
     }
     

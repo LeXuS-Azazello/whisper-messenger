@@ -141,9 +141,16 @@ export const renderDashboard = (user: UserSession) => {
                             <div class="card-header">
                                 <h3 class="card-title">My Stats</h3>
                             </div>
-                            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                                <div style={{ fontSize: '48px', fontWeight: '800', color: '#22c55e' }}>{user.transcriptionCount || 0}</div>
-                                <div style={{ fontSize: '12px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1px' }}>Voice Messages Transcribed</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '15px' }}>
+                                <div style={{ background: 'rgba(34, 197, 94, 0.05)', border: '1px solid rgba(34, 197, 94, 0.2)', padding: '20px', borderRadius: '16px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Total Transcriptions</div>
+                                    <div style={{ fontSize: '48px', fontWeight: '800', color: '#22c55e', lineHeight: '1' }}>{user.transcriptionCount || 0}</div>
+                                </div>
+                                {user.lastActiveAt && (
+                                    <div style={{ padding: '0 10px', fontSize: '11px', color: 'var(--text-dim)', textAlign: 'center' }}>
+                                        Last active: {new Date(user.lastActiveAt).toLocaleString()}
+                                    </div>
+                                )}
                             </div>
                             <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', justifyContent: 'center' }}>

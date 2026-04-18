@@ -88,12 +88,15 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
             const data: any = await translateRes.json();
             finalText = data.choices?.[0]?.message?.content || finalText;
           }
-        } catch (e) {
-          console.log(`[queue] Translation failed: ${(e as Error).message}`);
-        }
+      } catch (e) {
+        console.log(`[queue] Translation failed: ${(e as Error).message}`);
       }
+    }
 
-      const sec = ((Date.now() - start) / 1000).toFixed(1);
+    const { incrementUserStats } = await import("./routes/dashboard");
+    await incrementUserStats(userId!, env, platform);
+
+    const sec = ((Date.now() - start) / 1000).toFixed(1);
       finalText = `${finalText}\n\n⏱ ${sec}s`;
       const parts = splitLongText(finalText);
 

@@ -52,6 +52,46 @@ async function bridgeFetch(url: string, options: any): Promise<Response> {
   }
 }
 
+async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
+  const userIdsRaw = await env.STATS.get("users_list");
+  const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
+  const users: UserSession[] = [];
+  for (const id of userIds) {
+    const meta = await env.STATS.get(`user_meta_${id}`);
+    if (meta) users.push(JSON.parse(meta));
+  }
+
+  // Fetch live pod statuses
+  let podStatuses: any[] = [];
+  try {
+    const podsRes = await fetch(`${env.BRIDGE_URL}/pods`, {
+      headers: { 'x-bridge-secret': env.BRIDGE_SECRET }
+    });
+    if (podsRes.ok) {
+      podStatuses = await podsRes.json();
+    }
+  } catch (e) {
+    console.error('Failed to fetch pod statuses:', e);
+  }
+
+  // Update users with live status
+  users.forEach(user => {
+    const pod = podStatuses.find(p => p.userId === user.userId);
+    if (pod) {
+      user.isActive = pod.status === 'Running';
+      user.currentStatus = pod.status; 
+      if (pod.startTime) {
+        user.lastStartedAt = new Date(pod.startTime).getTime();
+      }
+    } else {
+      user.isActive = false;
+      user.currentStatus = 'Stopped';
+    }
+  });
+
+  return users;
+}
+
 export async function handleAdmin(env: Env, req: Request): Promise<Response> {
   const url = new URL(req.url);
   const cookieAuth = req.headers.get("Cookie")?.match(/admin_session=([^;]+)/)?.[1];
@@ -278,42 +318,12 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     }
   }
 
-  const userIdsRaw = await env.STATS.get("users_list");
-  const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
-  const users: UserSession[] = [];
-  for (const id of userIds) {
-    const meta = await env.STATS.get(`user_meta_${id}`);
-    if (meta) users.push(JSON.parse(meta));
+  if (url.pathname === "/admin/users-json") {
+    const users = await fetchUsersWithStatus(env);
+    return Response.json(users);
   }
 
-  // Fetch live pod statuses
-  let podStatuses: any[] = [];
-  try {
-    const podsRes = await fetch(`${env.BRIDGE_URL}/pods`, {
-      headers: { 'x-bridge-secret': env.BRIDGE_SECRET }
-    });
-    if (podsRes.ok) {
-      podStatuses = await podsRes.json();
-    }
-  } catch (e) {
-    console.error('Failed to fetch pod statuses:', e);
-  }
-
-  // Update users with live status
-  users.forEach(user => {
-    const pod = podStatuses.find(p => p.userId === user.userId);
-    if (pod) {
-      user.isActive = pod.status === 'Running';
-      user.currentStatus = pod.status; // Store raw status phase (e.g., 'ContainerCreating')
-      if (pod.startTime) {
-        user.lastStartedAt = new Date(pod.startTime).getTime();
-      }
-    } else {
-      user.isActive = false;
-      user.currentStatus = 'Stopped';
-    }
-  });
-
+  const users = await fetchUsersWithStatus(env);
   const checks: HealthChecks = {
     VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
     META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
