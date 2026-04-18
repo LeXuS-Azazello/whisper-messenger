@@ -50,12 +50,13 @@ spec:
       labels:
         app: mtproto-bridge-manager
     spec:
-      hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
+      # hostNetwork: true
+      dnsPolicy: ClusterFirst
       serviceAccountName: mtproto-bridge-sa
       containers:
       - name: bridge
-        image: azazellosaraksh/debugging-mtproto-bridge:latest
+        image: azazellosaraksh/debugging-mtproto-bridge:v1.0.3
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
         env:
@@ -94,6 +95,18 @@ spec:
           limits:
             memory: 1Gi
             cpu: 500m
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -101,6 +114,7 @@ metadata:
   name: mtproto-bridge-manager
   namespace: debugging-echovoice
 spec:
+  # clusterIP: None
   selector:
     app: mtproto-bridge-manager
   ports:

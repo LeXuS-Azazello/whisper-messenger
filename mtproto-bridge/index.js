@@ -14,7 +14,7 @@ import { createRequire } from 'module';
 import dns from 'dns';
 import https from 'https';
 
-// dns.setDefaultResultOrder('ipv4first');
+dns.setDefaultResultOrder('ipv4first');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,9 +36,9 @@ const PORT       = parseInt(process.env.PORT       || '3000', 10);
 const TARGET_USER_ID = process.env.TARGET_USER_ID || '';
 const TG_SESSION     = process.env.TG_SESSION     || '';
 const WORKER_URL     = process.env.WORKER_URL     || '';
-const DEVICE_MODEL   = process.env.DEVICE_MODEL    || 'Desktop';
-const APP_VERSION    = process.env.APP_VERSION    || '1.0.0';
-const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Linux';
+const DEVICE_MODEL   = process.env.DEVICE_MODEL    || 'Desktop Linux';
+const APP_VERSION    = process.env.APP_VERSION    || '4.15.2';
+const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Ubuntu 24.04';
 
 // Helper to create client with consistent parameters
 function createClient(sessionStr, options = {}) {
@@ -147,25 +147,36 @@ app.get('/env', auth, (req, res) => {
 app.post('/send-code', auth, async (req, res) => {
     try {
         const { phone } = req.body;
-        console.log(`[/send-code] Initiating for ${phone}`);
+        if (!phone) {
+            console.error(`[/send-code] Missing phone in request body`);
+            return res.status(400).json({ error: 'Missing phone' });
+        }
+        const phoneClean = String(phone).trim();
+        console.log(`[/send-code] Raw Request: ${phoneClean}`);
+        
         const client = createClient('');
         await client.connect();
-        const { phoneCodeHash } = await client.sendCode({
-            apiId: API_ID,
+        
+        console.log(`[/send-code] Invoking Api.auth.SendCode...`);
+        const result = await client.invoke(new Api.auth.SendCode({
+            phoneNumber: phoneClean,
+            apiId: Number(API_ID),
             apiHash: API_HASH,
-            phoneNumber: phone,
             settings: new Api.CodeSettings({
-                allowFlashcall: true,
+                allowFlashcall: false,
                 currentNumber: true,
                 allowAppHash: true,
-            }),
-        });
-        authSessions.set(phone, { client, session: client.session, phoneCodeHash });
-        console.log(`[/send-code] Success for ${phone}, hash sent`);
-        res.json({ success: true });
+            })
+        }));
+
+        console.log(`[/send-code] Result:`, result);
+        const { phoneCodeHash } = result;
+        
+        authSessions.set(phoneClean, { client, session: client.session, phoneCodeHash });
+        res.json({ success: true, phoneCodeHash });
     } catch (e) { 
-        console.error(`[/send-code] Error:`, e); 
-        res.status(500).json({ error: e.message }); 
+        console.error(`[/send-code] CRITICAL ERROR:`, e); 
+        res.status(500).json({ error: e.message, stack: e.stack }); 
     }
 });
 
@@ -175,17 +186,19 @@ app.post('/verify-code', auth, async (req, res) => {
         console.log(`[/verify-code] Checking code ${code} for ${phone}`);
         const s = authSessions.get(phone);
         if (!s) {
-            console.error(`[/verify-code] No session for ${phone}`);
+            console.error(`[/verify-code] No session for ${phone}. Available keys:`, [...authSessions.keys()]);
             return res.status(404).json({ error: 'Session not found' });
         }
         
-        const user = await s.client.signIn({
-            phoneNumber: phone,
+        console.log(`[/verify-code] Client found. Type: ${s.client?.constructor?.name}. Has signIn: ${typeof s.client?.signIn === 'function'}`);
+        
+        const user = await s.client.invoke(new Api.auth.SignIn({
+            phoneNumber: String(phone),
             phoneCodeHash: s.phoneCodeHash,
             phoneCode: String(code)
-        });
+        }));
         
-        // Success!
+        console.log(`[/verify-code] SignIn Success! User ID:`, user.user?.id || user.id);
         const sessionStr = s.session.save();
         
         // Disconnect immediately to avoid session collision with user pod
@@ -195,17 +208,19 @@ app.post('/verify-code', auth, async (req, res) => {
         } catch (e) {
             console.warn(`[/verify-code] Disconnect error (ignoring):`, e.message);
         }
-        authSessions.delete(phone);
+        const telegramUser = user.user || user;
+        const firstName = telegramUser.firstName || "Telegram User";
+        const userId = telegramUser.id?.toString() || "0";
         
-        console.log(`[/verify-code] SUCCESS! Welcome ${user.firstName} (ID: ${user.id})`);
-        res.json({ success: true, session: sessionStr, userId: user.id.toString(), firstName: user.firstName });
+        console.log(`[/verify-code] SUCCESS! Welcome ${firstName} (ID: ${userId})`);
+        res.json({ success: true, session: sessionStr, userId, firstName });
     } catch (e) {
-        if (e.message.includes('SESSION_PASSWORD_NEEDED')) {
+        if (e.message?.includes('SESSION_PASSWORD_NEEDED')) {
             console.log(`[/verify-code] 2FA required for ${phone}`);
             return res.json({ success: false, requiresPassword: true });
         }
-        console.error(`[/verify-code] Telegram error:`, e);
-        res.status(500).json({ error: e.message });
+        console.error(`[/verify-code] CRITICAL ERROR:`, e);
+        res.status(500).json({ error: e.message, stack: e.stack });
     }
 });
 
@@ -244,20 +259,23 @@ app.post('/qr-start', auth, async (req, res) => {
         await client.connect();
         let qrData = null;
         
+        console.log(`[qr-start] Initiating QR code login...`);
         const loginPromise = client.signInUserWithQrCode(
             { apiId: API_ID, apiHash: API_HASH }, 
             {
                 qrCode: async (code) => {
                     const b64 = code.token.toString('base64url');
                     qrData = { qrUrl: `tg://login?token=${b64}`, token: b64 };
+                    console.log(`[qr-start] QR generated: ${qrData.qrUrl}`);
                 },
                 password: async () => {
-                    const s = authSessions.get(qrData.token);
+                    console.log(`[qr-start] 2FA Password required`);
+                    const s = authSessions.get(qrData?.token);
                     if (s) s.status = 'password_needed';
                     return ""; 
                 },
                 onError: (err) => {
-                    console.error("[qr-start] Error:", err.message);
+                    console.error("[qr-start] Error in sign-in callback:", err.message);
                 }
             }
         );
@@ -307,23 +325,42 @@ app.get('/qr-check', auth, (req, res) => {
 });
 
 app.post('/test-tg', auth, async (req, res) => {
+    const start = Date.now();
     try {
         const sessionToUse = req.body.session || TG_SESSION;
         if (!sessionToUse) {
             return res.status(400).json({ success: false, error: 'No TG_SESSION' });
         }
-        const client = createClient(sessionToUse, { connectionRetries: 3, onlyThis: true });
+        console.log(`[/test-tg] Starting test...`);
+        const client = createClient(sessionToUse, { connectionRetries: 1, onlyThis: true });
+        
+        console.log(`[/test-tg] Connecting to Telegram...`);
         await client.connect();
+        
         if (!client.connected) {
             return res.status(401).json({ success: false, error: 'Session expired, re-login required' });
         }
+        
+        console.log(`[/test-tg] Getting self...`);
         const toMe = await client.getMe();
+        
         const msgText = req.body.message || 'Test from bridge!';
+        console.log(`[/test-tg] Sending message to ${toMe.id}...`);
         await client.sendMessage(toMe.id, { message: msgText });
-        await client.disconnect();
-        return res.json({ success: true });
+        
+        console.log(`[/test-tg] Disconnecting...`);
+        // Use a timeout for disconnect to avoid hanging the request
+        await Promise.race([
+            client.disconnect(),
+            new Promise(resolve => setTimeout(resolve, 2000))
+        ]);
+        
+        const duration = Date.now() - start;
+        console.log(`[/test-tg] Success! Total time: ${duration}ms`);
+        return res.json({ success: true, duration });
     } catch (e) {
-        console.error('[test-tg] error:', e);
+        const duration = Date.now() - start;
+        console.error(`[/test-tg] error after ${duration}ms:`, e);
         const isExpired = e.message?.includes('CONNECTION_LAYER_INVALID') || e.message?.includes('SESSION');
         return res.status(isExpired ? 401 : 500).json({ success: false, error: isExpired ? 'Session expired, re-login required' : e.message });
     }
