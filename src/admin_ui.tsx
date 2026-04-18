@@ -36,9 +36,16 @@ const UserRow = ({ user }: { user: UserSession }) => (
         <td><code style={{ fontSize: '11px', color: '#888' }}>{user.userId}</code></td>
         <td style={{ fontSize: '12px' }}>{user.phone || 'n/a'}</td>
         <td style={{ textAlign: 'center' }}>
-            <span class={`status-tag ${user.isActive ? 'active' : 'inactive'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
-                {user.currentStatus || (user.isActive ? 'RUNNING' : 'STOPPED')}
-            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
+                <span class={`status-tag ${user.isActive ? 'active' : 'inactive'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
+                    {user.currentStatus || (user.isActive ? 'RUNNING' : 'STOPPED')}
+                </span>
+                {/* @ts-ignore */}
+                <span style={{ fontSize: '9px', color: user.tgAuthenticated ? '#22c55e' : '#ef4444', fontWeight: 'bold' }}>
+                    {/* @ts-ignore */}
+                    {user.tgAuthenticated ? 'TG AUTH' : 'TG NEED LOGIN'}
+                </span>
+            </div>
         </td>
         <td style={{ textAlign: 'center', fontSize: '11px' }}>{formatUptime(user.lastStartedAt)}</td>
         <td style={{ textAlign: 'center', fontWeight: '700', color: '#24A1DE' }}>{user.transcriptionCount || 0}</td>
@@ -47,6 +54,9 @@ const UserRow = ({ user }: { user: UserSession }) => (
         </td>
         <td style={{ textAlign: 'right' }}>
             <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                <button class="btn btn-sm test-user-btn" data-userid={user.userId} title="Send Test Message" style={{ width: '32px', height: '32px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#3B82F6', color: '#fff', borderRadius: '8px' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
                 <button class="btn btn-sm restart-btn" data-userid={user.userId} title="Restart Pod" style={{ width: '32px', height: '32px', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F59E0B', color: '#000', borderRadius: '8px' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
                 </button>

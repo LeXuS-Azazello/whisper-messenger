@@ -2,7 +2,7 @@
 import { render } from 'preact-render-to-string';
 import adminCss from './admin.css';
 
-export const renderAuthPage = (error?: string, isAuthenticated: boolean = false) => {
+export const renderAuthPage = (error?: string, isAuthenticated: boolean = false, origin: string = "") => {
     // If user is already authenticated, redirect them immediately
     if (isAuthenticated) {
         return "<!DOCTYPE html>" + render(
@@ -115,7 +115,7 @@ export const renderAuthPage = (error?: string, isAuthenticated: boolean = false)
                                 <script async src="https://telegram.org/js/telegram-widget.js?22" 
                                     data-telegram-login="HajimeLabBot" 
                                     data-size="large" 
-                                    data-auth-url="/auth/telegram/callback" 
+                                    data-auth-url={`${origin}/auth/telegram/callback`} 
                                     data-request-access="write">
                                 </script>
                             </div>

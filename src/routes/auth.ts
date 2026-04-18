@@ -13,10 +13,10 @@ const SESSION_MAX_AGE = 31536000;
 const EMAIL_VERIFY_TTL = 900;
 const RATE_LIMIT_TTL = 60;
 
-function handleAuthPage(currentUserId: string | null): Response {
+function handleAuthPage(currentUserId: string | null, url: URL): Response {
   const isAuthenticated = !!currentUserId;
   if (isAuthenticated) return new Response("Redirecting...", { status: 302, headers: { "Location": "/dashboard" } });
-  return new Response(renderAuthPage(undefined, isAuthenticated), { 
+  return new Response(renderAuthPage(undefined, isAuthenticated, url.origin), { 
     headers: { 
       "Content-Type": "text/html; charset=utf-8",
       "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
@@ -396,7 +396,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   const pathname = url.pathname;
 
   if (method === "GET" && pathname === "/auth") {
-    return handleAuthPage(currentUserId);
+    return handleAuthPage(currentUserId, url);
   }
 
   if (method === "POST" && pathname === "/auth/qr-start") {

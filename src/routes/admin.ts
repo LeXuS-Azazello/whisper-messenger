@@ -57,8 +57,15 @@ async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
   const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
   const users: UserSession[] = [];
   for (const id of userIds) {
-    const meta = await env.STATS.get(`user_meta_${id}`);
-    if (meta) users.push(JSON.parse(meta));
+    const metaStr = await env.STATS.get(`user_meta_${id}`);
+    if (metaStr) {
+      const meta = JSON.parse(metaStr) as UserSession;
+      // Also check if TG session exists
+      const session = await env.STATS.get(`tg_session_${id}`);
+      // @ts-ignore - dynamic property for UI
+      meta.tgAuthenticated = !!session;
+      users.push(meta);
+    }
   }
 
   // Fetch live pod statuses
@@ -110,7 +117,16 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
   }
   
-  if (adminId !== "admin") return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  if (adminId !== "admin") {
+    // If it's an API request, return 401 JSON
+    if (req.method === "POST" || url.pathname.endsWith(".json") || url.pathname.includes("/tg-") || url.pathname.includes("/user-action")) {
+      return new Response(JSON.stringify({ success: false, error: "Unauthorized. Please login." }), { 
+        status: 401, 
+        headers: { "Content-Type": "application/json" } 
+      });
+    }
+    return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
 
   if (req.method === "POST") {
     const origin = req.headers.get("Origin");
@@ -297,6 +313,28 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
       }
     } catch (e) {
       return Response.json({ error: `Fetch failed: ${(e as Error).message}` }, { status: 500 });
+    }
+  }
+
+  if (url.pathname === "/admin/user-test-msg" && req.method === "POST") {
+    const { userId } = await req.json() as any;
+    if (!userId) return Response.json({ error: "Missing userId" }, { status: 400 });
+    
+    const session = await env.STATS.get(`tg_session_${userId}`);
+    if (!session) return Response.json({ error: "User has no Telegram session" }, { status: 400 });
+
+    try {
+      const res = await fetch(`${env.BRIDGE_URL}/test-tg`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+        body: JSON.stringify({ userId, session, message: "🧪 Admin Test Message: Your Telegram Transcription Bridge is active!" })
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        return Response.json({ error: `Bridge error ${res.status}: ${text}` }, { status: res.status });
+      }
+      return Response.json({ success: true });
+    } catch (e) {
+      return Response.json({ error: (e as Error).message }, { status: 500 });
     }
   }
 

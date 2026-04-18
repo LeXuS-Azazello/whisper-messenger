@@ -155,7 +155,8 @@ export default {
     }
 
     if (url.pathname === "/test-whisper" && req.method === "POST") {
-        if (!isAdmin && !userId) return new Response("Unauthorized", { status: 401 });
+        const secret = url.searchParams.get("secret");
+        if (!isAdmin && !userId && secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
         const provider = url.searchParams.get("provider") as "cloudflare" | "local" | "ollama" || "ollama";
         const formData = await req.formData();
         const file = formData.get("file") as File;

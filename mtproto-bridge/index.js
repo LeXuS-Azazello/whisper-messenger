@@ -408,7 +408,7 @@ app.post('/spawn', auth, async (req, res) => {
                         { name: 'APP_VERSION', value: process.env.APP_VERSION || APP_VERSION },
                         { name: 'SYSTEM_VERSION', value: process.env.SYSTEM_VERSION || SYSTEM_VERSION }
                     ],
-                    resources: { requests: { memory: '512Mi' }, limits: { memory: '1Gi' } }
+                    resources: { requests: { memory: '128Mi' }, limits: { memory: '256Mi' } }
                 }]
             }
         };

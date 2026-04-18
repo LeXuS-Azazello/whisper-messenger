@@ -14,13 +14,13 @@ export async function transcribeWithFallback(
   const provider = await env.STATS.get("config_whisper_provider") as "cloudflare" | "local" | "ollama" || env.WHISPER_PROVIDER || "ollama";
   
   const kvLocalUrl = await env.STATS.get("config_local_whisper_url");
-  const localUrl = kvLocalUrl || env.LOCAL_WHISPER_URL;
+  const localUrl = kvLocalUrl || env.LOCAL_WHISPER_URL || "https://whisper-onnx.debug.org.ua";
   
   const kvLocalSecret = await env.STATS.get("config_local_whisper_secret");
-  const localSecret = kvLocalSecret || env.LOCAL_WHISPER_SECRET;
+  const localSecret = kvLocalSecret || env.LOCAL_WHISPER_SECRET || "whisper-sh-secret-2026";
 
   const kvOllamaUrl = await env.STATS.get("config_ollama_url");
-  const ollamaUrl = kvOllamaUrl || env.OLLAMA_BASE_URL;
+  const ollamaUrl = kvOllamaUrl || env.OLLAMA_BASE_URL || "http://100.65.0.209:11434";
   
   const kvModel = await env.STATS.get("config_ollama_model");
   const ollamaModel = kvModel || env.OLLAMA_MODEL || "whisper";
@@ -45,7 +45,7 @@ async function transcribeCloudflare(
   fallbackSecret?: string
 ): Promise<WhisperResponse> {
   const input = {
-    audio: new Uint8Array(audio),
+    audio: Array.from(new Uint8Array(audio)),
   };
 
   console.log(`[whisper] Cloudflare: Audio size ${audio.byteLength} bytes`);

@@ -400,9 +400,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td><code style="font-size: 11px; color: #888">${u.userId}</code></td>
                 <td style="font-size: 12px">${u.phone || 'n/a'}</td>
                 <td style="text-align: center">
-                    <span class="status-tag ${u.isActive ? 'active' : 'inactive'}" style="font-size: 10px; padding: 2px 6px">
-                        ${u.currentStatus || (u.isActive ? 'RUNNING' : 'STOPPED')}
-                    </span>
+                    <div style="display: flex; flexDirection: column; gap: 4px; align-items: center">
+                        <span class="status-tag ${u.isActive ? 'active' : 'inactive'}" style="font-size: 10px; padding: 2px 6px">
+                            ${u.currentStatus || (u.isActive ? 'RUNNING' : 'STOPPED')}
+                        </span>
+                        <span style="font-size: 9px; color: ${u.tgAuthenticated ? '#22c55e' : '#ef4444'}; font-weight: bold">
+                            ${u.tgAuthenticated ? 'TG AUTH' : 'TG NEED LOGIN'}
+                        </span>
+                    </div>
                 </td>
                 <td style="text-align: center; font-size: 11px">${formatUptime(u.lastStartedAt)}</td>
                 <td style="text-align: center; font-weight: 700; color: #24A1DE">${u.transcriptionCount || 0}</td>
@@ -411,6 +416,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </td>
                 <td style="text-align: right">
                     <div style="display: flex; gap: 4px; justify-content: flex-end">
+                        <button class="btn btn-sm test-user-btn" data-userid="${u.userId}" title="Send Test Message" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: #3B82F6; color: #fff; border-radius: 8px">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        </button>
                         <button class="btn btn-sm restart-btn" data-userid="${u.userId}" title="Restart Pod" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: #F59E0B; color: #000; border-radius: 8px">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
                         </button>
@@ -450,7 +458,16 @@ document.addEventListener('DOMContentLoaded', function() {
             var userId = btn.getAttribute('data-userid');
             if (!userId) return;
 
-            if (btn.classList.contains('restart-btn')) {
+            if (btn.classList.contains('test-user-btn')) {
+                btn.disabled = true;
+                fetch('/admin/user-test-msg', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userId })
+                }).then(r => r.json()).then(d => {
+                    if (d.success) alert('Test message sent to ' + userId);
+                    else alert('Error: ' + d.error);
+                }).finally(() => { btn.disabled = false; });
+            } else if (btn.classList.contains('restart-btn')) {
                 if (!confirm('Restart pod for ' + userId + '?')) return;
                 fetch('/admin/restart-pod', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
