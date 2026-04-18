@@ -88,7 +88,7 @@ async function handleSendCode(env: Env, body: SendCodeRequest): Promise<Response
   });
 }
 
-async function handleVerifyCode(env: Env, body: VerifyCodeRequest, userCookie: string | null | undefined, currentUserId: string | null | undefined): Promise<Response> {
+async function handleVerifyCode(env: Env, body: VerifyCodeRequest, userCookie: string | null | undefined, currentUserId: string | null | undefined, ctx: ExecutionContext): Promise<Response> {
   const { phone, code } = body;
   if (!phone || !code || typeof phone !== 'string' || typeof code !== 'string' || phone.length < 7 || code.length < 4) {
     return Response.json({ error: "Invalid phone or code" }, { status: 400 });
@@ -103,7 +103,7 @@ async function handleVerifyCode(env: Env, body: VerifyCodeRequest, userCookie: s
 
   const data: BridgeUserData & { requiresPassword?: boolean } = await res.json();
   if (data.success) {
-    const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);
+    const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined, ctx);
     await logError("auth", `User ${registeredUserId} authenticated via phone`, env);
     return await createSessionResponse(registeredUserId, env, true);
   }
@@ -118,7 +118,7 @@ async function handleVerifyCode(env: Env, body: VerifyCodeRequest, userCookie: s
   return Response.json(data);
 }
 
-async function handleVerifyPassword(env: Env, body: VerifyPasswordRequest, userCookie: string | null | undefined, currentUserId: string | null | undefined): Promise<Response> {
+async function handleVerifyPassword(env: Env, body: VerifyPasswordRequest, userCookie: string | null | undefined, currentUserId: string | null | undefined, ctx: ExecutionContext): Promise<Response> {
   const { phone, token, password } = body;
   if (!password || (!phone && !token)) {
     return Response.json({ error: "Invalid request" }, { status: 400 });
@@ -134,14 +134,14 @@ async function handleVerifyPassword(env: Env, body: VerifyPasswordRequest, userC
 
   const data: BridgeUserData = await res.json();
   if (data.success) {
-    const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);
+    const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined, ctx);
     await logError("auth", `User ${registeredUserId} authenticated via 2FA`, env);
     return await createSessionResponse(registeredUserId, env, true);
   }
   return Response.json(data, { status: res.status });
 }
 
-async function handleQrCheck(env: Env, token: string | null | undefined, userCookie: string | null | undefined, currentUserId: string | null | undefined): Promise<Response> {
+async function handleQrCheck(env: Env, token: string | null | undefined, userCookie: string | null | undefined, currentUserId: string | null | undefined, ctx: ExecutionContext): Promise<Response> {
   if (!token || typeof token !== 'string') {
     return Response.json({ error: "Invalid token" }, { status: 400 });
   }
@@ -153,7 +153,7 @@ async function handleQrCheck(env: Env, token: string | null | undefined, userCoo
 
   const data: BridgeUserData & { requiresPassword?: boolean } = await res.json();
   if (data.done) {
-    const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined);
+    const registeredUserId = await registerNewUser(data, env, currentUserId || userCookie || undefined, ctx);
     await logError("auth", `User ${registeredUserId} authenticated via QR`, env);
     return await createSessionResponse(registeredUserId, env, true);
   }
@@ -390,7 +390,7 @@ async function createSessionResponse(userId: string, env: Env, returnJson: boole
   });
 }
 
-export async function handlePublicAuth(env: Env, req: Request, currentUserId: string | null): Promise<Response> {
+export async function handlePublicAuth(env: Env, req: Request, currentUserId: string | null, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(req.url);
   const method = req.method;
   const pathname = url.pathname;
@@ -416,7 +416,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     try {
       const body = await req.json() as VerifyCodeRequest;
       const userCookie = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1] || null;
-      return await handleVerifyCode(env, body, userCookie, currentUserId || null);
+      return await handleVerifyCode(env, body, userCookie, currentUserId || null, ctx);
     } catch (e: any) {
       return Response.json({ error: e.message || "Auth failed" }, { status: 400 });
     }
@@ -426,7 +426,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     try {
       const body = await req.json() as VerifyPasswordRequest;
       const userCookie = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1] || null;
-      return await handleVerifyPassword(env, body, userCookie, currentUserId || null);
+      return await handleVerifyPassword(env, body, userCookie, currentUserId || null, ctx);
     } catch (e: any) {
       return Response.json({ error: e.message || "2FA failed" }, { status: 400 });
     }
@@ -435,7 +435,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   if (method === "GET" && pathname === "/auth/qr-check") {
     const token = url.searchParams.get("token") || null;
     const userCookie = req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1] || null;
-    return await handleQrCheck(env, token, userCookie, currentUserId || null);
+    return await handleQrCheck(env, token, userCookie, currentUserId || null, ctx);
   }
 
   if (method === "POST" && pathname === "/auth/google/callback") {
@@ -493,7 +493,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   return new Response("Not found", { status: 404 });
 }
 
-async function registerNewUser(data: BridgeUserData, env: Env, existingUserId?: string | null): Promise<string> {
+async function registerNewUser(data: BridgeUserData, env: Env, existingUserId: string | null | undefined, ctx: ExecutionContext): Promise<string> {
   const { userId: tgUserId, firstName, session, phone } = data;
   const targetUserId = existingUserId || tgUserId;
   const existingRaw = await env.STATS.get(`user_meta_${targetUserId}`);
@@ -522,15 +522,21 @@ async function registerNewUser(data: BridgeUserData, env: Env, existingUserId?: 
   await env.STATS.put(`user_meta_${targetUserId}`, JSON.stringify(user));
   await env.STATS.put(`tg_session_${targetUserId}`, session);
 
-  const spawnRes = await fetch(`${env.BRIDGE_URL}/spawn`, {
-    method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-    body: JSON.stringify({ userId: targetUserId, session })
-  });
+  const spawnPod = async () => {
+    try {
+      const spawnRes = await fetch(`${env.BRIDGE_URL}/spawn`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
+        body: JSON.stringify({ userId: targetUserId, session })
+      });
+      if (!spawnRes.ok) {
+        const err = await spawnRes.text();
+        await logError("bridge", `Failed to spawn pod for ${targetUserId}: ${err}`, env);
+      }
+    } catch (e: any) {
+      await logError("bridge", `Spawn fetch error for ${targetUserId}: ${e.message}`, env);
+    }
+  };
 
-  if (!spawnRes.ok) {
-    const err = await spawnRes.text();
-    await logError("bridge", `Failed to spawn pod for ${targetUserId}: ${err}`, env);
-  }
-
+  ctx.waitUntil(spawnPod());
   return targetUserId;
 }

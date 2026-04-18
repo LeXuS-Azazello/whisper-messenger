@@ -14,7 +14,7 @@ import { createRequire } from 'module';
 import dns from 'dns';
 import https from 'https';
 
-// dns.setDefaultResultOrder('ipv4first');
+dns.setDefaultResultOrder('ipv4first');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -142,17 +142,16 @@ app.post('/send-code', auth, async (req, res) => {
             systemVersion: SYSTEM_VERSION
         });
         await client.connect();
-        const result = await client.invoke(new Api.auth.SendCode({
-            phoneNumber: phone,
+        const { phoneCodeHash } = await client.sendCode({
             apiId: API_ID,
             apiHash: API_HASH,
+            phoneNumber: phone,
             settings: new Api.CodeSettings({
                 allowFlashcall: true,
                 currentNumber: true,
                 allowAppHash: true,
             }),
-        }));
-        const { phoneCodeHash } = result;
+        });
         authSessions.set(phone, { client, session, phoneCodeHash });
         console.log(`[/send-code] Success for ${phone}, hash sent`);
         res.json({ success: true });
@@ -172,14 +171,13 @@ app.post('/verify-code', auth, async (req, res) => {
             return res.status(404).json({ error: 'Session not found' });
         }
         
-        const result = await s.client.invoke(new Api.auth.SignIn({
+        const user = await s.client.signIn({
             phoneNumber: phone,
             phoneCodeHash: s.phoneCodeHash,
             phoneCode: String(code)
-        }));
+        });
         
         // Success!
-        const user = result;
         const sessionStr = s.session.save();
         authSessions.delete(phone);
         console.log(`[/verify-code] SUCCESS! Welcome ${user.firstName} (ID: ${user.id})`);
@@ -354,7 +352,7 @@ app.post('/spawn', auth, async (req, res) => {
     const safeUserId = String(userId);
     // Kubernetes names must be lowercase alphanumeric or '-', and starts/ends with alphanumeric.
     const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
+    const namespace = process.env.POD_NAMESPACE || 'debugging-echovoice';
 
     console.log(`[/spawn] Spawning pod for user ${safeUserId}`);
 
@@ -364,11 +362,10 @@ app.post('/spawn', auth, async (req, res) => {
             if (!k8sApi) throw new Error('K8s API not initialized');
             
             console.log(`[/spawn] Listing pods for ${safeUserId}...`);
-            const existing = await withTimeout(k8sApi.listNamespacedPod(
+            const existing = await withTimeout(k8sApi.listNamespacedPod({
                 namespace,
-                undefined, undefined, undefined, undefined,
-                `userId=${safeUserId}`
-            ), 30000);
+                labelSelector: `userId=${safeUserId}`
+            }), 30000);
             
             const items = existing?.body?.items || existing?.items || [];
             if (items.length > 0) {
@@ -379,7 +376,7 @@ app.post('/spawn', auth, async (req, res) => {
                         continue;
                     }
                     console.log(`[/spawn] Deleting pod ${p.metadata.name}...`);
-                    await withTimeout(k8sApi.deleteNamespacedPod(p.metadata.name, namespace), 30000)
+                    await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 30000)
                         .catch(e => console.error(`[/spawn] Failed to delete ${p.metadata.name}:`, e.message));
                 }
             }
@@ -416,7 +413,7 @@ app.post('/spawn', auth, async (req, res) => {
         };
 
         console.log(`[/spawn] Creating new pod ${podName}...`);
-        await withTimeout(k8sApi.createNamespacedPod(namespace, podManifest), 300000); 
+        await withTimeout(k8sApi.createNamespacedPod({ namespace, body: podManifest }), 300000); 
 
         console.log(`[/spawn] Successfully spawned ${podName}`);
         res.json({ success: true, podName }); 
@@ -430,23 +427,22 @@ app.post('/spawn', auth, async (req, res) => {
 app.post('/delete', auth, async (req, res) => {
     try {
         const safeUserId = String(req.body.userId);
-        const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
+        const namespace = process.env.POD_NAMESPACE || 'debugging-echovoice';
         
         console.log(`[/delete] Deleting pods for user ${safeUserId}`);
         if (!k8sApi) throw new Error('K8s API not initialized');
         
-        const existing = await withTimeout(k8sApi.listNamespacedPod(
+        const existing = await withTimeout(k8sApi.listNamespacedPod({
             namespace,
-            undefined, undefined, undefined, undefined,
-            `userId=${safeUserId}`
-        ), 30000);
+            labelSelector: `userId=${safeUserId}`
+        }), 30000);
         
         const items = existing?.body?.items || existing?.items || [];
         if (items.length > 0) {
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
                 console.log(`[/delete] Deleting pod ${p.metadata.name}...`);
-                await withTimeout(k8sApi.deleteNamespacedPod(p.metadata.name, namespace), 30000).catch((err) => {
+                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 30000).catch((err) => {
                     console.error(`[/delete] Failed to delete pod ${p.metadata.name}:`, err.message);
                 });
             }
@@ -465,18 +461,17 @@ app.post('/internal/access-revoked', auth, async (req, res) => {
     console.log(`[/internal/access-revoked] User ${userId} removed access`);
     try {
         const safeUserId = String(userId);
-        const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
+        const namespace = process.env.POD_NAMESPACE || 'debugging-echovoice';
         
-        const existing = await withTimeout(k8sApi.listNamespacedPod(
+        const existing = await withTimeout(k8sApi.listNamespacedPod({
             namespace,
-            undefined, undefined, undefined, undefined,
-            `userId=${safeUserId}`
-        ), 15000);
+            labelSelector: `userId=${safeUserId}`
+        }), 15000);
         
         const items = existing?.body?.items || existing?.items || [];
         for (const p of items) {
             if (!p?.metadata?.name) continue;
-            await withTimeout(k8sApi.deleteNamespacedPod(p.metadata.name, namespace), 15000).catch(() => {});
+            await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 15000).catch(() => {});
         }
         console.log(`[/internal/access-revoked] Deleted pod for ${userId}`);
         res.json({ success: true });
@@ -503,20 +498,23 @@ app.get('/pods', auth, async (req, res) => {
     if (MODE !== 'MANAGER') return res.status(400).json({ error: 'Not manager' });
     try {
         if (!k8sApi) throw new Error('K8s API not initialized');
-        const namespace = process.env.POD_NAMESPACE || 'debugging-whispermsg';
+        const namespace = process.env.POD_NAMESPACE || 'debugging-echovoice';
         console.log(`[/pods] Fetching pods in namespace ${namespace}`);
-        const pods = await withTimeout(k8sApi.listNamespacedPod(
+        const pods = await withTimeout(k8sApi.listNamespacedPod({
             namespace,
-            undefined, undefined, undefined, undefined,
-            'app=tg-user-bridge'
-        ), 30000);
+            labelSelector: 'app=tg-user-bridge'
+        }), 30000);
         const items = pods?.body?.items || pods?.items || [];
-        const podStatuses = items.map(p => ({
-            userId: p?.metadata?.labels?.userId,
-            status: p?.status?.phase,
-            startTime: p?.status?.startTime,
-            podName: p?.metadata?.name
-        }));
+        const podStatuses = items.map(p => {
+            const labels = p?.metadata?.labels || {};
+            return {
+                userId: labels.userId,
+                status: p?.status?.phase,
+                startTime: p?.status?.startTime,
+                podName: p?.metadata?.name
+            };
+        });
+        console.log(`[/pods] Returning ${podStatuses.length} pod statuses`);
         res.json(podStatuses);
     } catch (e) {
         console.error(`[/pods] Error:`, e.body || e.message);
@@ -546,8 +544,8 @@ async function handleNewMessage(event) {
 
     // In GramJS, media is inside msg.media
     const mediaDoc = msg.media && msg.media.document;
-    const isVoice = mediaDoc && mediaDoc.attributes.some(a => a instanceof Api.DocumentAttributeAudio && a.voice);
-    const isVideoNote = mediaDoc && mediaDoc.attributes.some(a => a instanceof Api.DocumentAttributeVideo && a.roundMessage);
+    const isVoice = mediaDoc && mediaDoc.attributes && mediaDoc.attributes.some(a => (a.className === 'DocumentAttributeAudio' || a instanceof Api.DocumentAttributeAudio) && a.voice);
+    const isVideoNote = mediaDoc && mediaDoc.attributes && mediaDoc.attributes.some(a => (a.className === 'DocumentAttributeVideo' || a instanceof Api.DocumentAttributeVideo) && a.roundMessage);
 
     if (!isVoice && !isVideoNote && !msg.videoNote && !msg.voice) {
         console.log(`[user] No supported media found (voice or video note).`);
@@ -557,37 +555,72 @@ async function handleNewMessage(event) {
     console.log(`[user] Supported media found, starting transcription...`);
 
     try {
-        const senderId = msg.senderId;
-        const targetPeer = TARGET_USER_ID;
+        const targetPeer = msg.chatId;
 
         // Set typing status and send notification
+        const inputPeer = await userClient.getInputEntity(targetPeer);
         await userClient.invoke(new Api.messages.SetTyping({
-            peer: targetPeer,
+            peer: inputPeer,
             action: new Api.SendMessageRecordAudioAction()
         })).catch(() => {});
 
         const statusMsg = await userClient.sendMessage(targetPeer, {
             message: "⏳ Transcribing..." ,
-            replyTo: msg.senderId
+            replyTo: msg.id
 
         });
 
         const buffer = await userClient.downloadMedia(msg.media, { workers: 1 });
         const mimeType = isVoice ? 'audio/ogg' : 'video/mp4';
 
+        console.log(`[user] Transcribing audio from ${targetPeer}...`);
         const { text, duration } = await transcribe(Buffer.from(buffer), mimeType);
+        console.log(`[user] Transcription complete (${duration}s): "${text.slice(0, 50)}..."`);
         
         if (text) {
-            const timeStr = typeof duration === 'number' ? duration.toFixed(1) : duration;
-            const finalText = `📝 ${text}\n\n⏱ ${timeStr}s`;
-            const chunks = splitLongText(finalText);
+            let finalText = text;
             
-            for (const chunk of chunks) {
-                await userClient.sendMessage(targetPeer, { 
-                    message: chunk, 
-                    replyTo: msg.senderId
-                });
+            // Fetch User Meta for Translation settings
+            try {
+                const workerUrl = process.env.WORKER_URL || 'https://whisper.debug.org.ua';
+                const metaRes = await fetch(`${workerUrl}/internal/user-meta?userId=${TARGET_USER_ID}&secret=${process.env.BRIDGE_SECRET}`);
+                if (metaRes.ok) {
+                    const meta = await metaRes.json();
+                    if (meta.translateTo && meta.translateTo !== 'original' && meta.translateTo !== 'auto') {
+                        console.log(`[user] Translating to ${meta.translateTo}...`);
+                        const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://91.224.11.69:11434';
+                        const translateRes = await fetch(`${ollamaUrl}/v1/chat/completions`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
+                                messages: [
+                                    { role: "system", content: `Translate the following text to ${meta.translateTo}. Output only the translated text, nothing else.` },
+                                    { role: "user", content: text }
+                                ],
+                                stream: false
+                            })
+                        });
+                        if (translateRes.ok) {
+                            const tData = await translateRes.json();
+                            const translatedText = tData.choices?.[0]?.message?.content;
+                            if (translatedText) {
+                                finalText = `[${meta.translateTo.toUpperCase()}] ${translatedText}\n---\n${text}`;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error(`[user] Translation error:`, e.message);
             }
+
+            const timeStr = typeof duration === 'number' ? duration.toFixed(1) : duration;
+            const fullMsg = `🎤 ${finalText}\n\n⏱️ ${timeStr}s`;
+            
+            await userClient.sendMessage(targetPeer, {
+                message: fullMsg,
+                replyTo: msg.id
+            });
         }
         
         // Remove status message

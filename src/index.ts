@@ -9,7 +9,7 @@ import { renderHome } from "./home_ui";
 import { verifySession } from "./session";
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
 
     if (url.pathname === "/health") return Response.json({ ok: true });
@@ -99,7 +99,7 @@ export default {
 
     // Public Auth Routes
     if (url.pathname.startsWith("/auth")) {
-      const res = await handlePublicAuth(env, req, userId);
+      const res = await handlePublicAuth(env, req, userId, ctx);
       const contentType = res.headers.get("Content-Type");
       if (contentType?.includes("text/html")) {
         const newRes = new Response(res.body, res);

@@ -111,10 +111,11 @@ async function transcribeOllama(
 ): Promise<WhisperResponse> {
   console.log(`[whisper] Ollama: Audio size ${audio.byteLength} bytes, URL: ${url}, Model: ${model}`);
   
-  const bytes = new Uint8Array(audio);
   let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  const bytes = new Uint8Array(audio);
+  const CHUNK_SIZE = 8192;
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK_SIZE) as any);
   }
   const base64Audio = btoa(binary);
 
