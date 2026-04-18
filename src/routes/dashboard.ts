@@ -87,6 +87,24 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
       return Response.json({ success: true });
     }
+    if (url.pathname === "/dashboard/test-wa") {
+      try {
+        const { whatsappToken, whatsappPhoneId, testRecipient } = await req.json() as any;
+        const targetToken = whatsappToken || user.whatsappToken;
+        const targetPhoneId = whatsappPhoneId || user.whatsappPhoneId;
+        
+        if (!targetToken || !targetPhoneId || !testRecipient) {
+          return Response.json({ success: false, error: "Missing token, phone ID, or recipient" }, { status: 400 });
+        }
+
+        const { sendWhatsAppMessageSafe } = await import("../whatsapp");
+        await sendWhatsAppMessageSafe(targetPhoneId, testRecipient, "✅ WhatsApp connection test successful!", targetToken, env);
+        
+        return Response.json({ success: true });
+      } catch (e: any) {
+        return Response.json({ success: false, error: e.message });
+      }
+    }
     if (url.pathname === "/dashboard/test-tg") {
       try {
         const session = await env.STATS.get(`tg_session_${userId}`);

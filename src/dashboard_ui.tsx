@@ -359,6 +359,28 @@ export const renderDashboard = (user: UserSession) => {
                         }).then(() => location.reload());
                     });
 
+                    document.getElementById('test-wa-btn')?.addEventListener('click', () => {
+                        const token = document.getElementById('wa-token').value;
+                        const phoneId = document.getElementById('wa-phone-id').value;
+                        const recipient = document.getElementById('wa-test-num').value;
+                        
+                        if (!recipient) return alert('Enter test recipient phone number (format: 15551234567)');
+                        
+                        const btn = document.getElementById('test-wa-btn');
+                        btn.disabled = true;
+                        btn.innerText = 'Testing...';
+                        
+                        fetch('/dashboard/test-wa', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ whatsappToken: token, whatsappPhoneId: phoneId, testRecipient: recipient })
+                        }).then(r => r.json()).then(d => {
+                            if (d.success) alert('Test message sent!');
+                            else alert('Error: ' + d.error);
+                            btn.disabled = false;
+                            btn.innerText = 'Test';
+                        });
+                    });
+
                     // Translation settings
                     const translateCheckbox = document.getElementById('translate-checkbox');
                     const translateLang = document.getElementById('translate-lang');

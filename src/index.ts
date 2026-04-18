@@ -259,19 +259,45 @@ export default {
     }
 
     // Standard Webhooks (Meta, WhatsApp, Telegram Bot)
+    if (url.pathname === "/webhooks/meta" || url.pathname === "/webhooks/whatsapp") {
+      if (req.method === "GET") {
+        const mode = url.searchParams.get("hub.mode");
+        const token = url.searchParams.get("hub.verify_token");
+        const challenge = url.searchParams.get("hub.challenge");
+
+        if (mode === "subscribe" && token === env.VERIFY_TOKEN) {
+          console.log("[webhooks] Meta verification successful ✓");
+          return new Response(challenge);
+        }
+        console.warn("[webhooks] Meta verification failed: token mismatch or missing params");
+        return new Response("Forbidden", { status: 403 });
+      }
+
+      if (req.method === "POST") {
+        const rawBody = await req.text();
+        const verifyError = await verifyWebhook(req, rawBody, env);
+        if (verifyError) return verifyError;
+
+        let body: any;
+        try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
+
+        if (body.object === "whatsapp_business_account") return handleWhatsApp(body, env);
+        if (body.object === "page" || body.object === "instagram" || body.object === "threads") return handleMetaMessaging(body, env);
+      }
+    }
+
+    // Telegram Bot Webhook (usually just POST /webhooks/telegram or similar, 
+    // but the current code checks body.update_id on ANY POST)
     if (req.method === "POST") {
       const rawBody = await req.text();
       let body: any;
       try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
 
-      const isTelegram = !!body.update_id;
-      if (isTelegram) {
+      if (body.update_id) {
         return handleTelegram(body, env);
       }
-
-      const verifyError = await verifyWebhook(req, rawBody, env);
-      if (verifyError) return verifyError;
-
+      
+      // Fallback for other POSTs that might be webhooks
       if (body.object === "whatsapp_business_account") return handleWhatsApp(body, env);
       if (body.object === "page" || body.object === "instagram" || body.object === "threads") return handleMetaMessaging(body, env);
 
