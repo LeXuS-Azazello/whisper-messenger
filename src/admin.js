@@ -490,6 +490,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // --- Transcription Stats Expansion ---
+    document.addEventListener('click', function(e) {
+        const expandBtn = e.target.closest('.expand-user-info');
+        if (expandBtn) {
+            const userId = expandBtn.dataset.userid;
+            const infoBox = document.getElementById(`info-box-${userId}`);
+            if (infoBox) {
+                const isHidden = infoBox.style.display === 'none';
+                infoBox.style.display = isHidden ? 'block' : 'none';
+                expandBtn.innerText = isHidden ? 'HIDE' : 'INFO';
+                expandBtn.style.background = isHidden ? 'rgba(239, 68, 68, 0.1)' : 'rgba(139, 92, 246, 0.1)';
+                expandBtn.style.borderColor = isHidden ? 'rgba(239, 68, 68, 0.3)' : 'rgba(139, 92, 246, 0.3)';
+                expandBtn.style.color = isHidden ? '#ef4444' : '#8B5CF6';
+            }
+        }
+    });
+
     const statusBadge = document.querySelector('.status-badge');
     if (statusBadge) {
         statusBadge.addEventListener('click', () => {

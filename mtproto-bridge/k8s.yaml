@@ -50,12 +50,12 @@ spec:
       labels:
         app: mtproto-bridge-manager
     spec:
-      # hostNetwork: true
-      dnsPolicy: ClusterFirst
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: mtproto-bridge-sa
       containers:
       - name: bridge
-        image: azazellosaraksh/debugging-mtproto-bridge:v1.0.3
+        image: azazellosaraksh/debugging-mtproto-bridge:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
@@ -80,8 +80,6 @@ spec:
           value: http://sherpa-onnx:8000
         - name: WHISPER_SECRET
           value: whisper-sh-secret-2026
-        - name: BRIDGE_API_SERVER
-          value: https://kubernetes.default.svc
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:

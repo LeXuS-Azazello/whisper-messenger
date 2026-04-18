@@ -349,3 +349,40 @@ h1 {
         overflow-x: auto;
     }
 }
+
+/* User Stats in Transcription Card */
+.user-stats-list {
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.user-stats-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.user-stats-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.user-stat-item {
+    padding: 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    transition: all 0.2s;
+}
+
+.user-stat-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.user-info-detail {
+    border-left: 2px solid var(--primary);
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}

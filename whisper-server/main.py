@@ -12,7 +12,8 @@ app = FastAPI()
 # Configuration
 MODEL_DIR = os.getenv("MODEL_DIR", "/app/models/whisper-tiny")
 num_threads = int(os.getenv("NUM_THREADS", "4"))
-SECRET = os.getenv("WHISPER_SECRET", "changeme")
+SECRET_ENV = os.getenv("WHISPER_SECRET", "changeme")
+SECRETS = [s.strip() for s in SECRET_ENV.split(",")]
 
 # Initialize recognizer
 def create_recognizer():
@@ -67,7 +68,7 @@ async def transcribe(
 ):
     print(f"--- Incoming request: {file.filename} ({file.content_type}) ---")
     
-    if x_whisper_secret != SECRET:
+    if x_whisper_secret not in SECRETS:
         print(f"Unauthorized: Secret mismatch. Received: {x_whisper_secret}")
         raise HTTPException(status_code=401, detail="Unauthorized")
         

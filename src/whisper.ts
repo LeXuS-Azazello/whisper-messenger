@@ -90,12 +90,17 @@ async function transcribeLocal(
     headers["CF-Access-Client-Secret"] = env.CF_ACCESS_CLIENT_SECRET;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
   try {
     const response = await fetch(`${url}/transcribe`, {
       method: "POST",
       headers,
       body: formData,
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -106,6 +111,7 @@ async function transcribeLocal(
     console.log(`[whisper] Local Whisper succeeded: "${result.text?.substring(0, 50)}..."`);
     return result;
   } catch (e) {
+    clearTimeout(timeoutId);
     console.error(`[whisper] Local Whisper [${url}] failed: ${e}`);
     throw new Error(`Local Whisper [${url}] failed: ${(e as Error).message}`);
   }
@@ -144,12 +150,17 @@ async function transcribeOllama(
     headers["CF-Access-Client-Secret"] = env.CF_ACCESS_CLIENT_SECRET;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout for Ollama
+
   try {
     const response = await fetch(`${url}${endpoint}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -161,6 +172,7 @@ async function transcribeOllama(
     console.log(`[whisper] Ollama succeeded: "${transcribedText?.substring(0, 50)}..."`);
     return { text: transcribedText };
   } catch (e) {
+    clearTimeout(timeoutId);
     console.error(`[whisper] Ollama failed: ${e}`);
     throw e;
   }

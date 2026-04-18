@@ -9,6 +9,8 @@ data:
     ingress:
       - hostname: whisper-api.debug.org.ua
         service: http://sherpa-onnx:8000
+      - hostname: whisper-onnx.debug.org.ua
+        service: http://sherpa-onnx:8000
       - service: http://localhost:8090
 ---
 apiVersion: apps/v1

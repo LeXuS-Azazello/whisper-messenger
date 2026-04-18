@@ -14,88 +14,79 @@ function ensureTempDir() {
   }
 }
 
-async function convertAudioToPcm(inputBuffer, mimeType) {
-  ensureTempDir();
-
-  let inputExt = 'ogg';
-  if (mimeType.includes('mp3')) inputExt = 'mp3';
-  else if (mimeType.includes('mp4') || mimeType.includes('video')) inputExt = 'mp4';
-  const inputPath = path.join(TEMP_DIR, `input_${Date.now()}.${inputExt}`);
-  const outputPath = path.join(TEMP_DIR, `output_${Date.now()}.wav`);
-
-  fs.writeFileSync(inputPath, inputBuffer);
-
-  try {
-    execSync(`ffmpeg -y -i "${inputPath}" -ar 16000 -ac 1 -acodec pcm_s16le "${outputPath}"`, {
-      stdio: 'ignore'
-    });
-
-    const pcmBuffer = fs.readFileSync(outputPath);
-    
-    fs.unlinkSync(inputPath);
-    fs.unlinkSync(outputPath);
-
-    const samples = new Int16Array(pcmBuffer.length / 2);
-    for (let i = 0; i < samples.length; i++) {
-      samples[i] = pcmBuffer.readInt16LE(i * 2);
-    }
-
-    return { sampleRate: 16000, samples };
-  } catch (err) {
-    console.error('[transcribe] Audio conversion error:', err.message);
-    if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
-    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-    throw err;
-  }
-}
-
 const WHISPER_SERVER_URL = process.env.WHISPER_SERVER_URL || '';
 const WHISPER_SECRET = process.env.WHISPER_SECRET || '';
 
-async function transcribe(audioBuffer, mimeType) {
+async function transcribe(audioBuffer, mimeType, config = null) {
   const startTime = Date.now();
+  
+  const provider = config?.provider || 'local';
+  const localUrl = config?.localUrl || WHISPER_SERVER_URL || 'https://whisper-onnx.debug.org.ua';
+  const localSecret = config?.localSecret || WHISPER_SECRET || 'whisper-sh-secret-2026';
+  const ollamaUrl = config?.ollamaUrl || 'http://100.65.0.209:11434';
+  const ollamaModel = config?.model || 'whisper';
 
-  if (!WHISPER_SERVER_URL) {
-      throw new Error('WHISPER_SERVER_URL not configured - external whisper server required');
+  console.log(`[transcribe] Using provider: ${provider} (Mime: ${mimeType})`);
+
+  if (provider === 'local') {
+    return transcribeLocal(audioBuffer, mimeType, localUrl, localSecret, startTime);
+  } else if (provider === 'ollama') {
+    return transcribeOllama(audioBuffer, mimeType, ollamaUrl, ollamaModel, startTime);
+  } else if (provider === 'cloudflare') {
+    // For cloudflare, we need to use the worker as a proxy or hit CF AI directly
+    // Since this is a bridge, hit the worker's test-whisper endpoint or similar
+    // For now, fallback to local if cloudflare implementation is too complex for here
+    console.warn(`[transcribe] Cloudflare provider not natively supported in bridge, falling back to local`);
+    return transcribeLocal(audioBuffer, mimeType, localUrl, localSecret, startTime);
   }
 
-  console.log(`[transcribe] Sending ${audioBuffer.length} bytes to Sherpa-ONNX at: ${WHISPER_SERVER_URL}`);
+  return transcribeLocal(audioBuffer, mimeType, localUrl, localSecret, startTime);
+}
 
-  const formData = new FormData();
-  const blob = new Blob([audioBuffer], { type: mimeType });
-  formData.append('file', blob, 'audio.ogg');
+async function transcribeLocal(audioBuffer, mimeType, url, secret, startTime) {
+    const formData = new FormData();
+    const blob = new Blob([audioBuffer], { type: mimeType });
+    formData.append('file', blob, 'audio.ogg');
 
-  try {
-    const response = await fetch(`${WHISPER_SERVER_URL}/transcribe`, {
+    const response = await fetch(`${url}/transcribe`, {
         method: 'POST',
-        headers: {
-            'x-whisper-secret': WHISPER_SECRET
-        },
+        headers: { 'x-whisper-secret': secret },
         body: formData
     });
 
     if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[transcribe] Sherpa error (${response.status}): ${errorText}`);
-        throw new Error(`Whisper server error: ${response.status} ${response.statusText}`);
+        throw new Error(`Local Whisper error (${response.status}): ${errorText}`);
     }
 
     const data = await response.json();
-    const duration = (Date.now() - startTime) / 1000;
-    console.log(`[transcribe] Success in ${duration.toFixed(1)}s. Text: "${data.text?.slice(0, 50)}..."`);
-    
-    return {
-        text: data.text || '',
-        duration
-    };
-  } catch (err) {
-    console.error(`[transcribe] Network/Fetch error:`, err.message);
-    throw err;
-  }
+    return { text: data.text || '', duration: (Date.now() - startTime) / 1000 };
 }
 
-export function isInitialized() {
-  return true; // Always use shared server
+async function transcribeOllama(audioBuffer, mimeType, url, model, startTime) {
+    // Ollama needs base64
+    const base64Audio = audioBuffer.toString('base64');
+    
+    const isNativeWhisper = model === "whisper";
+    const endpoint = isNativeWhisper ? "/api/transcribe" : "/api/generate";
+    const body = isNativeWhisper 
+      ? { model, audio: base64Audio }
+      : { model, prompt: `Transcribe this audio (base64): ${base64Audio}`, stream: false };
+
+    const response = await fetch(`${url}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Ollama error (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    const text = isNativeWhisper ? data.text : data.response;
+    return { text: text || '', duration: (Date.now() - startTime) / 1000 };
 }
 
 export { transcribe };

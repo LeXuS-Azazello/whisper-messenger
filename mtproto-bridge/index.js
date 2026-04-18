@@ -429,7 +429,7 @@ app.post('/spawn', auth, async (req, res) => {
             const existing = await withTimeout(k8sApi.listNamespacedPod({
                 namespace,
                 labelSelector: `userId=${safeUserId}`
-            }), 30000);
+            }), 10000);
             
             const items = existing?.body?.items || existing?.items || [];
             if (items.length > 0) {
@@ -438,7 +438,7 @@ app.post('/spawn', auth, async (req, res) => {
                     if (!p?.metadata?.name) continue;
                     console.log(`[/spawn] Deleting stale pod ${p.metadata.name}...`);
                     // Foreground deletion to ensure it's gone before we spawn new one
-                    await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 30000)
+                    await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 10000)
                         .catch(e => console.error(`[/spawn] Partial delete failure for ${p.metadata.name}:`, e.message));
                 }
                 // Small grace period for K8s to process deletions
@@ -477,7 +477,7 @@ app.post('/spawn', auth, async (req, res) => {
         };
 
         console.log(`[/spawn] Creating new pod ${podName}...`);
-        await withTimeout(k8sApi.createNamespacedPod({ namespace, body: podManifest }), 300000); 
+        await withTimeout(k8sApi.createNamespacedPod({ namespace, body: podManifest }), 20000); 
 
         console.log(`[/spawn] Successfully spawned ${podName}`);
         res.json({ success: true, podName }); 
@@ -499,14 +499,14 @@ app.post('/delete', auth, async (req, res) => {
         const existing = await withTimeout(k8sApi.listNamespacedPod({
             namespace,
             labelSelector: `userId=${safeUserId}`
-        }), 30000);
+        }), 5000);
         
         const items = existing?.body?.items || existing?.items || [];
         if (items.length > 0) {
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
                 console.log(`[/delete] Deleting pod ${p.metadata.name}...`);
-                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 30000).catch((err) => {
+                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 5000).catch((err) => {
                     console.error(`[/delete] Failed to delete pod ${p.metadata.name}:`, err.message);
                 });
             }
@@ -535,7 +535,7 @@ app.post('/internal/access-revoked', auth, async (req, res) => {
         const items = existing?.body?.items || existing?.items || [];
         for (const p of items) {
             if (!p?.metadata?.name) continue;
-            await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 15000).catch(() => {});
+            await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 5000).catch(() => {});
         }
         console.log(`[/internal/access-revoked] Deleted pod for ${userId}`);
         res.json({ success: true });
@@ -567,7 +567,7 @@ app.get('/pods', auth, async (req, res) => {
         const pods = await withTimeout(k8sApi.listNamespacedPod({
             namespace,
             labelSelector: 'app=tg-user-bridge'
-        }), 30000);
+        }), 10000);
         const items = pods?.body?.items || pods?.items || [];
         const podStatuses = items.map(p => {
             const labels = p?.metadata?.labels || {};
@@ -597,6 +597,20 @@ function splitLongText(text, maxLength = 4000) {
 
 let userClient = null;
 let transcribe = null;
+let globalAiConfig = null;
+
+async function fetchGlobalConfig() {
+    try {
+        const workerUrl = process.env.WORKER_URL || 'https://whisper.debug.org.ua';
+        const res = await fetch(`${workerUrl}/internal/config?secret=${process.env.BRIDGE_SECRET}`);
+        if (res.ok) {
+            globalAiConfig = await res.json();
+            console.log(`[user] 🛠 Loaded global AI config: provider=${globalAiConfig.provider}`);
+        }
+    } catch (e) {
+        console.warn(`[user] ⚠️ Failed to fetch global config:`, e.message);
+    }
+}
 
 async function handleNewMessage(event) {
     const msg = event.message;
@@ -640,7 +654,7 @@ async function handleNewMessage(event) {
         const mimeType = isVoice ? 'audio/ogg' : 'video/mp4';
         console.log(`[user] 💾 Downloaded ${buffer.length} bytes. Starting transcription...`);
 
-        const { text, duration } = await transcribe(Buffer.from(buffer), mimeType);
+        const { text, duration } = await transcribe(Buffer.from(buffer), mimeType, globalAiConfig);
         
         if (!text || text.trim().length === 0) {
             console.log(`[user] ❌ Transcription returned empty text.`);
@@ -652,23 +666,42 @@ async function handleNewMessage(event) {
         }
 
         console.log(`[user] ✅ Transcribed (${duration.toFixed(1)}s): "${text.slice(0, 100)}${text.length > 100 ? '...' : ''}"`);
+        const timeStr = typeof duration === 'number' ? duration.toFixed(1) : duration;
         
-        let finalText = text;
-        let translationSuffix = "";
+        // 1. Send the transcription result IMMEDIATELY
+        await userClient.editMessage(targetPeer, {
+            message: statusMsg.id,
+            text: `🎤 ${text}\n\n⏱️ ${timeStr}s`,
+            parseMode: 'markdown'
+        }).catch(e => console.error(`[user] Edit message failed:`, e.message));
 
-        // Fetch User Meta for Translation settings
+        console.log(`[user] ✨ Sent transcription. Processing translation in background...`);
+
+        // 2. Fetch User Meta for Translation settings (with timeout)
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
             const workerUrl = process.env.WORKER_URL || 'https://whisper.debug.org.ua';
             console.log(`[user] 🔍 Checking translation settings for user ${TARGET_USER_ID}...`);
-            const metaRes = await fetch(`${workerUrl}/internal/user-meta?userId=${TARGET_USER_ID}&secret=${process.env.BRIDGE_SECRET}`);
+            const metaRes = await fetch(`${workerUrl}/internal/user-meta?userId=${TARGET_USER_ID}&secret=${process.env.BRIDGE_SECRET}`, { 
+                signal: controller.signal 
+            });
+            clearTimeout(timeoutId);
+
             if (metaRes.ok) {
                 const meta = await metaRes.json();
                 if (meta.translateTo && meta.translateTo !== 'original' && meta.translateTo !== 'auto') {
                     console.log(`[user] 🌐 Translating to ${meta.translateTo}...`);
+                    
+                    const translateController = new AbortController();
+                    const translateTimeoutId = setTimeout(() => translateController.abort(), 10000); // 10s timeout for Ollama
+
                     const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://91.224.11.69:11434';
                     const translateRes = await fetch(`${ollamaUrl}/v1/chat/completions`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
+                        signal: translateController.signal,
                         body: JSON.stringify({
                             model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
                             messages: [
@@ -678,41 +711,28 @@ async function handleNewMessage(event) {
                             stream: false
                         })
                     });
+                    clearTimeout(translateTimeoutId);
+
                     if (translateRes.ok) {
                         const tData = await translateRes.json();
                         const translatedText = tData.choices?.[0]?.message?.content;
-                        if (translatedText) {
-                            console.log(`[user] ✅ Translation complete: "${translatedText.slice(0, 50)}..."`);
-                            finalText = translatedText;
-                            translationSuffix = `\n\n---\n🌐 *Original:* ${text}`;
+                        if (translatedText && translatedText.trim() !== text.trim()) {
+                            console.log(`[user] ✅ Translation complete. Sending follow-up...`);
+                            await userClient.sendMessage(targetPeer, {
+                                message: `🌐 *Translation (${meta.translateTo}):*\n${translatedText}`,
+                                replyTo: msgId,
+                                parseMode: 'markdown'
+                            });
                         }
                     } else {
                         console.error(`[user] ❌ Translation service failed: ${translateRes.status}`);
                     }
-                } else {
-                    console.log(`[user] ℹ️ Translation disabled (mode: ${meta.translateTo || 'none'})`);
                 }
-            } else {
-                console.warn(`[user] ⚠️ Could not fetch user meta: ${metaRes.status}`);
             }
         } catch (e) {
-            console.error(`[user] ❌ Translation/Meta error:`, e.message);
+            console.error(`[user] ❌ Translation/Meta error (background):`, e.message);
         }
 
-        const timeStr = typeof duration === 'number' ? duration.toFixed(1) : duration;
-        const fullMsg = `🎤 ${finalText}\n\n⏱️ ${timeStr}s${translationSuffix}`;
-        
-        console.log(`[user] 📤 Sending result to ${targetPeer}...`);
-        await userClient.sendMessage(targetPeer, {
-            message: fullMsg,
-            replyTo: msgId,
-            parseMode: 'markdown'
-        });
-
-        // Remove status message
-        await statusMsg.delete().catch(() => {});
-        console.log(`[user] ✨ Done processing message ${msgId}.`);
-        
         if (WORKER_URL) {
             fetch(`${WORKER_URL}/internal/stats`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -726,14 +746,16 @@ async function handleNewMessage(event) {
 
 async function startUserClient() {
     if (!TG_SESSION) return console.error('[user] No TG_SESSION provided!');
-    userClient = createClient(TG_SESSION, { connectionRetries: 5, onlyThis: true });
-    await userClient.connect();
 
-    // Import transcribe only in USER mode
+    // Initialize config and transcribe
+    await fetchGlobalConfig();
     if (!transcribe) {
         const { transcribe: transcribeFunc } = await import('./transcribe.js');
         transcribe = transcribeFunc;
     }
+
+    userClient = createClient(TG_SESSION, { connectionRetries: 5, onlyThis: true });
+    await userClient.connect();
 
     userClient.addEventHandler(handleNewMessage, new (require('telegram/events/index.js').NewMessage)({ incoming: true, outgoing: false }));
     console.log(`[user] 🚀 Bridge Online for User ID: ${TARGET_USER_ID}. Listening for messages...`);

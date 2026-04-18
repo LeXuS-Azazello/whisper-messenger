@@ -24,7 +24,7 @@ spec:
         - name: NUM_THREADS
           value: "4"
         - name: WHISPER_SECRET
-          value: "whisper-sh-secret-2026"
+          value: "whisper-sh-secret-2026,H@jimeN@maste!"
         resources:
           requests:
             memory: "1Gi"
