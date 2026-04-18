@@ -40,6 +40,20 @@ const DEVICE_MODEL   = process.env.DEVICE_MODEL    || 'Desktop';
 const APP_VERSION    = process.env.APP_VERSION    || '1.0.0';
 const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Linux';
 
+// Helper to create client with consistent parameters
+function createClient(sessionStr, options = {}) {
+    const session = new StringSession(sessionStr || '');
+    const client = new TelegramClient(session, API_ID, API_HASH, {
+        connectionRetries: options.retries || 5,
+        deviceModel: DEVICE_MODEL,
+        appVersion: APP_VERSION,
+        systemVersion: SYSTEM_VERSION,
+        useIPV6: false, // Ensure IPv4 for stability in cluster
+        ...options
+    });
+    return client;
+}
+
 // K8s Client
 let k8sApi = null;
 if (MODE === 'MANAGER') {
@@ -134,13 +148,7 @@ app.post('/send-code', auth, async (req, res) => {
     try {
         const { phone } = req.body;
         console.log(`[/send-code] Initiating for ${phone}`);
-        const session = new StringSession('');
-        const client = new TelegramClient(session, API_ID, API_HASH, { 
-            connectionRetries: 5,
-            deviceModel: DEVICE_MODEL,
-            appVersion: APP_VERSION,
-            systemVersion: SYSTEM_VERSION
-        });
+        const client = createClient('');
         await client.connect();
         const { phoneCodeHash } = await client.sendCode({
             apiId: API_ID,
@@ -152,7 +160,7 @@ app.post('/send-code', auth, async (req, res) => {
                 allowAppHash: true,
             }),
         });
-        authSessions.set(phone, { client, session, phoneCodeHash });
+        authSessions.set(phone, { client, session: client.session, phoneCodeHash });
         console.log(`[/send-code] Success for ${phone}, hash sent`);
         res.json({ success: true });
     } catch (e) { 
@@ -179,7 +187,16 @@ app.post('/verify-code', auth, async (req, res) => {
         
         // Success!
         const sessionStr = s.session.save();
+        
+        // Disconnect immediately to avoid session collision with user pod
+        try { 
+            await s.client.disconnect(); 
+            console.log(`[/verify-code] Manager client disconnected for ${phone}`);
+        } catch (e) {
+            console.warn(`[/verify-code] Disconnect error (ignoring):`, e.message);
+        }
         authSessions.delete(phone);
+        
         console.log(`[/verify-code] SUCCESS! Welcome ${user.firstName} (ID: ${user.id})`);
         res.json({ success: true, session: sessionStr, userId: user.id.toString(), firstName: user.firstName });
     } catch (e) {
@@ -202,7 +219,16 @@ app.post('/verify-password', auth, async (req, res) => {
 
         const user = await s.client.signIn({ password: async () => password });
         const sessionStr = s.session.save();
+        
+        // Disconnect immediately
+        try { 
+            await s.client.disconnect(); 
+            console.log(`[/verify-password] Manager client disconnected for ${key}`);
+        } catch (e) {
+            console.warn(`[/verify-password] Disconnect error (ignoring):`, e.message);
+        }
         authSessions.delete(key);
+
         console.log(`[/verify-password] SUCCESS! Welcome ${user.firstName} (ID: ${user.id})`);
         res.json({ success: true, session: sessionStr, userId: user.id.toString(), firstName: user.firstName });
     } catch (e) {
@@ -214,13 +240,7 @@ app.post('/verify-password', auth, async (req, res) => {
 app.post('/qr-start', auth, async (req, res) => {
     try {
         if (MODE !== 'MANAGER') return res.status(400).send('Not manager');
-        const session = new StringSession('');
-        const client = new TelegramClient(session, API_ID, API_HASH, { 
-            connectionRetries: 3,
-            deviceModel: DEVICE_MODEL,
-            appVersion: APP_VERSION,
-            systemVersion: SYSTEM_VERSION
-        });
+        const client = createClient('', { retries: 3 });
         await client.connect();
         let qrData = null;
         
@@ -245,11 +265,17 @@ app.post('/qr-start', auth, async (req, res) => {
         for (let i=0; i<20; i++) { if (qrData) break; await new Promise(r => setTimeout(r, 500)); }
         if (!qrData) return res.status(500).json({ error: 'QR timeout' });
         
-        authSessions.set(qrData.token, { client, session, status: 'pending' });
+        authSessions.set(qrData.token, { client, session: client.session, status: 'pending' });
         
         loginPromise.then(user => {
             const s = authSessions.get(qrData.token);
-            if (s) { s.status = 'done'; s.user = user; s.sessionStr = session.save(); }
+            if (s) { 
+                s.status = 'done'; 
+                s.user = user; 
+                s.sessionStr = s.client.session.save(); 
+                // Disconnect manager client as it's no longer needed for auth
+                s.client.disconnect().catch(() => {});
+            }
         }).catch(e => { 
             const s = authSessions.get(qrData.token);
             if (s && s.status === 'password_needed') return;
@@ -286,7 +312,7 @@ app.post('/test-tg', auth, async (req, res) => {
         if (!sessionToUse) {
             return res.status(400).json({ success: false, error: 'No TG_SESSION' });
         }
-        const client = new TelegramClient(new StringSession(sessionToUse), API_ID, API_HASH, { connectionRetries: 3, onlyThis: true });
+        const client = createClient(sessionToUse, { connectionRetries: 3, onlyThis: true });
         await client.connect();
         if (!client.connected) {
             return res.status(401).json({ success: false, error: 'Session expired, re-login required' });
@@ -309,7 +335,7 @@ app.post('/test-voice', auth, async (req, res) => {
         if (!sessionToUse) {
             return res.status(400).json({ success: false, error: 'No TG_SESSION' });
         }
-        const client = new TelegramClient(new StringSession(sessionToUse), API_ID, API_HASH, { connectionRetries: 3, onlyThis: true });
+        const client = createClient(sessionToUse, { connectionRetries: 3, onlyThis: true });
         await client.connect();
         if (!client.connected) {
             return res.status(401).json({ success: false, error: 'Session expired, re-login required' });
@@ -370,16 +396,16 @@ app.post('/spawn', auth, async (req, res) => {
             
             const items = existing?.body?.items || existing?.items || [];
             if (items.length > 0) {
-                console.log(`[/spawn] Found ${items.length} existing pods for ${safeUserId}, deleting...`);
+                console.log(`[/spawn] Found ${items.length} existing pods/stale sessions for ${safeUserId}, cleaning up...`);
                 for (const p of items) {
-                    if (!p?.metadata?.name) {
-                        console.warn(`[/spawn] Skipping pod without metadata:`, p);
-                        continue;
-                    }
-                    console.log(`[/spawn] Deleting pod ${p.metadata.name}...`);
+                    if (!p?.metadata?.name) continue;
+                    console.log(`[/spawn] Deleting stale pod ${p.metadata.name}...`);
+                    // Foreground deletion to ensure it's gone before we spawn new one
                     await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 30000)
-                        .catch(e => console.error(`[/spawn] Failed to delete ${p.metadata.name}:`, e.message));
+                        .catch(e => console.error(`[/spawn] Partial delete failure for ${p.metadata.name}:`, e.message));
                 }
+                // Small grace period for K8s to process deletions
+                await new Promise(r => setTimeout(r, 2000));
             }
         } catch (listErr) {
             console.warn(`[/spawn] Could not list/delete existing pods for ${safeUserId} (skipping cleanup):`, listErr.message);
@@ -663,7 +689,7 @@ async function handleNewMessage(event) {
 
 async function startUserClient() {
     if (!TG_SESSION) return console.error('[user] No TG_SESSION provided!');
-    userClient = new TelegramClient(new StringSession(TG_SESSION), API_ID, API_HASH, { connectionRetries: 5 });
+    userClient = createClient(TG_SESSION, { connectionRetries: 5, onlyThis: true });
     await userClient.connect();
 
     // Import transcribe only in USER mode
@@ -715,14 +741,55 @@ function startAccessChecker() {
                              errMsg.includes('USER_ID_INVALID');
             if (isBlocked) {
                 console.log(`[access-check] User removed access: ${errMsg}, notifying manager`);
-                fetch(`${WORKER_URL}/internal/access-revoked`, {
+                fetch(`${process.env.WORKER_URL}/internal/access-revoked`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET })
+                    body: JSON.stringify({ userId: TARGET_USER_ID, secret: process.env.BRIDGE_SECRET })
                 }).catch(() => {});
             }
         }
     }, 60000);
+}
+
+async function runReconciliation() {
+    if (!process.env.WORKER_URL || MODE !== 'MANAGER') return;
+    try {
+        console.log(`[bridge] Starting reconciliation cycle...`);
+        const res = await fetch(`${process.env.WORKER_URL}/internal/active-users?secret=${process.env.BRIDGE_SECRET}`);
+        if (res.ok) {
+            const users = await res.json();
+            console.log(`[bridge] Found ${users.length} active users to check`);
+            
+            // Fetch current pods to see what's actually running
+            const podRes = await fetch(`http://localhost:${PORT}/pods`, {
+                headers: { "x-bridge-secret": process.env.BRIDGE_SECRET }
+            });
+            const runningPods = podRes.ok ? await podRes.json() : [];
+            const runningUserIds = new Set(runningPods.map(p => String(p.userId)));
+
+            for (const user of users) {
+                const uid = String(user.userId);
+                if (!runningUserIds.has(uid)) {
+                    console.log(`[bridge] User ${uid} should be running but no pod found. Spawning...`);
+                    try {
+                        const spawnRes = await fetch(`http://localhost:${PORT}/spawn`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", "x-bridge-secret": process.env.BRIDGE_SECRET },
+                            body: JSON.stringify(user)
+                        });
+                        if (!spawnRes.ok) console.error(`[bridge] Auto-spawn failed for ${uid}:`, await spawnRes.text());
+                    } catch (e) {
+                        console.error(`[bridge] Auto-spawn error for ${uid}:`, e.message);
+                    }
+                }
+            }
+            console.log(`[bridge] Reconciliation cycle complete`);
+        } else {
+            console.error(`[bridge] Failed to fetch active users: ${res.status}`);
+        }
+    } catch (e) {
+        console.error(`[bridge] Reconciliation error:`, e.message);
+    }
 }
 
 // Simple workaround for require.main === module in ESM
@@ -735,40 +802,10 @@ if (isMain) {
             await startUserClient();
             startAccessChecker();
         } else if (MODE === 'MANAGER') {
-            if (WORKER_URL) {
-                setTimeout(async () => {
-                    try {
-                        console.log(`[bridge] Starting reconciliation...`);
-                        const res = await fetch(`${WORKER_URL}/internal/active-users?secret=${SECRET}`);
-                        if (res.ok) {
-                            const users = await res.json();
-                            console.log(`[bridge] Found ${users.length} active users to reconcile`);
-                            for (const user of users) {
-                                try {
-                                    console.log(`[bridge] Spawning pod for ${user.userId}`);
-                                    const spawnRes = await fetch(`${process.env.BRIDGE_URL || `http://localhost:${PORT}`}/spawn`, {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json", "x-bridge-secret": SECRET },
-                                        body: JSON.stringify(user)
-                                    });
-                                    if (!spawnRes.ok) {
-                                        console.error(`[bridge] Failed to spawn for ${user.userId}: ${await spawnRes.text()}`);
-                                    } else {
-                                        console.log(`[bridge] Spawned pod for ${user.userId}`);
-                                    }
-                                } catch (e) {
-                                    console.error(`[bridge] Spawn failed for ${user.userId}: ${e.message}`);
-                                }
-                            }
-                            console.log(`[bridge] Reconciliation complete`);
-                        } else {
-                            console.error(`[bridge] Failed to fetch active users: ${res.status}`);
-                        }
-                    } catch (e) {
-                        console.error(`[bridge] Startup reconciliation failed: ${e.message}`);
-                    }
-                }, 5000);
-            }
+            // Initial reconciliation after 5s
+            setTimeout(runReconciliation, 5000);
+            // Every 5 minutes check all pods
+            setInterval(runReconciliation, 5 * 60 * 1000);
         }
     });
 }
