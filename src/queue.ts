@@ -36,9 +36,13 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
 
       // Default tokens from env if not set for tenant
       if (!token) {
-        if (platform === "whatsapp") token = env.WHATSAPP_TOKEN || "";
-        else if (isThreads) token = ""; // Threads MUST have a user token
-        else token = env.META_PAGE_TOKEN || "";
+        if (platform === "whatsapp") {
+          token = env.META_SYSTEM_USER_TOKEN || env.WHATSAPP_TOKEN || "";
+        } else if (isThreads) {
+          token = env.META_SYSTEM_USER_TOKEN || ""; // Threads MUST have a user token
+        } else {
+          token = env.META_SYSTEM_USER_TOKEN || env.META_PAGE_TOKEN || "";
+        }
       }
 
       if (!token) throw new Error(`Permission denied: No token for ${platform} / ${userId}`);

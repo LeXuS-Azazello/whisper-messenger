@@ -23,6 +23,8 @@ export interface Env {
   META_THREADS_APP_SECRET: string;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
+  META_SYSTEM_USER_TOKEN?: string;
+  META_SYSTEM_USER_ID?: string;
   STATS: KVNamespace;
   // Whisper Config
   WHISPER_PROVIDER?: "cloudflare" | "local" | "ollama";
@@ -56,6 +58,7 @@ export interface HealthChecks {
   TELEGRAM_APP_HASH: boolean;
   AUDIO_QUEUE: boolean;
   AI: boolean;
+  META_SYSTEM_USER_TOKEN?: boolean;
 }
 
 export interface PlatformStats {
