@@ -101,8 +101,13 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
     const { incrementUserStats } = await import("./routes/dashboard");
     await incrementUserStats(userId!, env, platform);
 
+    const flags: Record<string, string> = {
+      en: "🇺🇸", uk: "🇺🇦", ru: "🇷🇺", es: "🇪🇸", de: "🇩🇪", fr: "🇫🇷", zh: "🇨🇳", ja: "🇯🇵"
+    };
+    const langFlag = u?.translateTo ? ` | ${flags[u.translateTo] || u.translateTo}` : "";
+
     const sec = ((Date.now() - start) / 1000).toFixed(1);
-      finalText = `${finalText}\n\n⏱ ${sec}s | 🤖 ${result.model || 'Unknown'}`;
+    finalText = `${finalText}\n\n⏱ ${sec}s${langFlag} | 🤖 ${result.model || 'Unknown'}`;
       const parts = splitLongText(finalText);
 
       // 5. Send Results
