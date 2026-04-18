@@ -40,6 +40,8 @@ export interface Env {
   CLOUDFLARE_GLOBAL_TOKEN?: string;
   CLOUDFLARE_ZONE_ID?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
+  CF_ACCESS_CLIENT_ID?: string;
+  CF_ACCESS_CLIENT_SECRET?: string;
 }
 
 export interface HealthChecks {

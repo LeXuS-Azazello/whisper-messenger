@@ -27,12 +27,12 @@ export async function transcribeWithFallback(
 
   if (provider === "ollama") {
     if (!ollamaUrl) throw new Error("Ollama URL not configured");
-    return transcribeOllama(audio, ollamaUrl, ollamaModel, localSecret);
+    return transcribeOllama(audio, ollamaUrl, ollamaModel, env, localSecret);
   }
   
   if (provider === "local") {
     if (!localUrl) throw new Error("Local Whisper URL not configured");
-    return transcribeLocal(audio, localUrl, localSecret);
+    return transcribeLocal(audio, localUrl, env, localSecret);
   }
   
   return transcribeCloudflare(audio, env, localUrl, localSecret);
@@ -63,7 +63,7 @@ async function transcribeCloudflare(
     console.error(`[whisper] Cloudflare Whisper failed: ${e}`);
     if (fallbackUrl) {
       console.log(`[whisper] Cloudflare failed, falling back to local/ollama`);
-      return transcribeLocal(audio, fallbackUrl, fallbackSecret);
+      return transcribeLocal(audio, fallbackUrl, env, fallbackSecret);
     }
     throw e;
   }
@@ -72,6 +72,7 @@ async function transcribeCloudflare(
 async function transcribeLocal(
   audio: ArrayBuffer,
   url: string,
+  env: Env,
   secret?: string
 ): Promise<WhisperResponse> {
   console.log(`[whisper] Local: Audio size ${audio.byteLength} bytes, URL: ${url}`);
@@ -80,12 +81,19 @@ async function transcribeLocal(
   const blob = new Blob([audio], { type: "audio/ogg" });
   formData.append("file", blob, "audio.ogg");
 
+  const headers: Record<string, string> = {
+    "x-whisper-secret": secret || "",
+  };
+
+  if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {
+    headers["CF-Access-Client-Id"] = env.CF_ACCESS_CLIENT_ID;
+    headers["CF-Access-Client-Secret"] = env.CF_ACCESS_CLIENT_SECRET;
+  }
+
   try {
     const response = await fetch(`${url}/transcribe`, {
       method: "POST",
-      headers: {
-        "x-whisper-secret": secret || "",
-      },
+      headers,
       body: formData,
     });
 
@@ -107,6 +115,7 @@ async function transcribeOllama(
   audio: ArrayBuffer,
   url: string,
   model: string,
+  env: Env,
   secret?: string
 ): Promise<WhisperResponse> {
   console.log(`[whisper] Ollama: Audio size ${audio.byteLength} bytes, URL: ${url}, Model: ${model}`);
@@ -125,13 +134,20 @@ async function transcribeOllama(
     ? { model, audio: base64Audio }
     : { model, prompt: `Transcribe this audio (base64): ${base64Audio}`, stream: false };
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${secret || ""}`,
+  };
+
+  if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {
+    headers["CF-Access-Client-Id"] = env.CF_ACCESS_CLIENT_ID;
+    headers["CF-Access-Client-Secret"] = env.CF_ACCESS_CLIENT_SECRET;
+  }
+
   try {
     const response = await fetch(`${url}${endpoint}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${secret || ""}`,
-      },
+      headers,
       body: JSON.stringify(body),
     });
 

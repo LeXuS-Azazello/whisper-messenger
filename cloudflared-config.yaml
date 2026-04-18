@@ -1,6 +1,8 @@
 [Ingress]
   - hostname: mtproto.debug.org.ua
     service: http://mtproto-bridge-manager:3000
+  - hostname: sherpa-onnx.echovoice.debug.org.ua
+    service: http://sherpa-onnx:8000
   - hostname: ollama.debug.org.ua
     service: http://100.65.0.209:11434
   - service: http_status:404
