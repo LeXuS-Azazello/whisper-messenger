@@ -54,23 +54,32 @@ async function bridgeFetch(url: string, options: any): Promise<Response> {
 
 async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
   const userIdsRaw = await env.STATS.get("users_list");
-  const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
-  const users: UserSession[] = [];
-  for (const id of userIds) {
-    const metaStr = await env.STATS.get(`user_meta_${id}`);
-    if (metaStr) {
-      try {
-        const meta = JSON.parse(metaStr) as UserSession;
-        // Also check if TG session exists
-        const session = await env.STATS.get(`tg_session_${id}`);
-        // @ts-ignore - dynamic property for UI
-        meta.tgAuthenticated = !!session;
-        users.push(meta);
-      } catch (e) {
-        console.error(`Failed to parse user meta for ${id}:`, e);
-      }
-    }
+  let userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
+  
+  // Limit to most recent 50 users to avoid hitting KV limits
+  if (userIds.length > 50) {
+    userIds = userIds.slice(-50);
   }
+
+  const users: UserSession[] = [];
+  
+  // Fetch all meta in parallel
+  const userConfigs = await Promise.all(userIds.map(async (id) => {
+    const metaStr = await env.STATS.get(`user_meta_${id}`);
+    if (!metaStr) return null;
+    try {
+      const meta = JSON.parse(metaStr) as UserSession;
+      // Also check if TG session exists - but maybe we can optimize this too
+      const session = await env.STATS.get(`tg_session_${id}`);
+      // @ts-ignore
+      meta.tgAuthenticated = !!session;
+      return meta;
+    } catch (e) {
+      return null;
+    }
+  }));
+
+  userConfigs.forEach(u => { if(u) users.push(u); });
 
   // Fetch live pod statuses
   let podStatuses: any[] = [];

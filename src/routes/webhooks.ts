@@ -88,7 +88,7 @@ export async function handleTelegram(update: TelegramWebhookUpdate, env: Env): P
     }
   }
 
-  await logError("telegram", `Msg from ${msg.from?.id}: ${msg.text || msg.voice ? '[voice]' : 'empty'}`, env);
+
   const media = msg.voice || msg.audio || msg.video_note;
   if (media && msg.from) {
     const targetId = msg.from.id;

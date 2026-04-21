@@ -30,24 +30,13 @@ export async function logError(platform: string, error: string, env: Env) {
 }
 
 export async function logInfo(platform: string, message: string, env: Env) {
-  try {
-    const errorLog = await env.STATS.get("last_errors");
-    let errors: ErrorLog[] = errorLog ? JSON.parse(errorLog) : [];
-    const newError = {
-      timestamp: new Date().toISOString(),
-      platform,
-      message: `[INFO] ${message}`,
-    };
-    errors.unshift(newError);
-    errors = errors.slice(0, 50);
-    await env.STATS.put("last_errors", JSON.stringify(errors));
-
-    // Notify admin about critical info (like new user sessions)
-    if (env.TELEGRAM_CHAT_ID && env.TELEGRAM_BOT_TOKEN && (message.toLowerCase().includes("new session") || message.toLowerCase().includes("bridge started"))) {
-        await sendTelegramMessage(env.TELEGRAM_CHAT_ID, `ℹ️ <b>Info [${platform}]</b>\n${message}`, env).catch(() => {});
-    }
-  } catch (err) {
-    console.error(`Failed to log info: ${err}`);
+  console.log(`[INFO][${platform}] ${message}`);
+  
+  // Notify admin about critical info (like new user sessions)
+  if (env.TELEGRAM_CHAT_ID && env.TELEGRAM_BOT_TOKEN && (message.toLowerCase().includes("new session") || message.toLowerCase().includes("bridge started"))) {
+    try {
+      await sendTelegramMessage(env.TELEGRAM_CHAT_ID, `ℹ️ <b>Info [${platform}]</b>\n${message}`, env).catch(() => {});
+    } catch (e) {}
   }
 }
 

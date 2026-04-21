@@ -21,7 +21,10 @@ async function transcribe(audioBuffer, mimeType, config = null) {
   const startTime = Date.now();
   
   const provider = config?.provider || 'local';
-  const localUrl = config?.localUrl || WHISPER_SERVER_URL || 'https://whisper-onnx.debug.org.ua';
+  const envUrl = process.env.WHISPER_SERVER_URL;
+  const isInternal = envUrl?.includes('sherpa-onnx') || envUrl?.includes('.svc.cluster.local');
+  
+  const localUrl = (isInternal ? envUrl : config?.localUrl) || WHISPER_SERVER_URL || 'https://whisper-onnx.debug.org.ua';
   const localSecret = config?.localSecret || WHISPER_SECRET || 'whisper-sh-secret-2026';
   const ollamaUrl = config?.ollamaUrl || 'http://100.65.0.209:11434';
   const ollamaModel = config?.model || 'whisper';
