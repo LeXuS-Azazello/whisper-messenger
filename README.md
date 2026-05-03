@@ -14,7 +14,7 @@ A high-performance, scalable solution to transcribe voice messages from **Telegr
     *   **Google OAuth Landing Page**: Beautiful, modern entrance for users.
     *   **Personal User Dashboard**: Users can manage their own connected platforms and settings.
     *   **Admin Control Panel**: Full system visibility, statistics, and real-time Whisper provider toggling.
-*   **Secure Routing**: Cloudflare Tunnel integration for secure communication between worker and the internal K8s cluster.
+*   **Secure Routing**: Kubernetes Ingress integration for secure communication between worker and the internal K8s cluster.
 
 ---
 
@@ -22,11 +22,12 @@ A high-performance, scalable solution to transcribe voice messages from **Telegr
 
 The system consists of three primary components:
 
-1.  **Cloudflare Worker (`/src`)**:
+1.  **Node.js Frontend (`/src`)**:
+    *   Runs on Kubernetes (Node.js/Hono server).
     *   Handles all webhooks (Meta, WhatsApp, Telegram Bot).
     *   Renders Admin and User dashboards.
-    *   Manages user stats and credentials in **Cloudflare KV**.
-    *   Orchestrates transcription via Cloudflare AI or the Local Whisper Server.
+    *   Manages user stats and credentials in **Redis** (via `RedisKV`).
+    *   Orchestrates transcription via Local Whisper Server or Ollama.
 2.  **Shared Whisper Server (`/whisper-server`)**:
     *   FastAPI-based server running **Sherpa ONNX** with `whisper-tiny` model.
     *   Pre-instantiated model for high-speed transcription.
@@ -46,7 +47,7 @@ The system consists of three primary components:
 *   `ADMIN_SECRET`: Password for the admin dashboard.
 *   `SESSION_SECRET`: Key for signing user session cookies (standard HMAC-SHA256).
 *   `BRIDGE_URL`: Public endpoint for the MTProto Manager.
-*   `WHISPER_PROVIDER`: `cloudflare` (default) or `local`.
+*   `WHISPER_PROVIDER`: `qwen3-asr` (default), `cloudflare`, `local`, or `ollama`.
 *   `LOCAL_WHISPER_URL`: Public endpoint for the Whisper-ONNX server.
 *   `LOCAL_WHISPER_SECRET`: Shared secret for Whisper server authentication.
 *   `GOOGLE_CLIENT_ID`: OAuth client ID for the landing page.
@@ -83,11 +84,11 @@ cd mtproto-bridge
 kubectl apply -f k8s.yaml
 ```
 
-### 4. Cloudflare Tunnel
-1.  Install `cloudflared` on the cluster or use the provided `mtproto-bridge/cloudflared.yaml`.
-2.  Add Public Hostnames in Cloudflare Zero Trust Dashboard:
-    *   `mtproto.your-domain.com` -> `http://mtproto-bridge-manager:3000`
-    *   `whisper-onnx.your-domain.com` -> `http://whisper-onnx:8000`
+### 4. Kubernetes Ingress
+1.  Ensure an Ingress Controller (e.g., NGINX) is installed on the cluster.
+2.  Configure DNS A/AAAA records to point to your Ingress LoadBalancer IP:
+    *   `mtproto.your-domain.com`
+    *   `whisper-onnx.your-domain.com`
 
 ### 5. System Tuning (UDP Buffer)
 If QUIC logs show `failed to sufficiently increase receive buffer size`:

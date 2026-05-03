@@ -1,6 +1,6 @@
 {
   "name": "echo-messenger",
-  "version": "1.0.106",
+  "version": "1.0.145",
   "type": "module",
   "description": "Cloudflare Worker for Meta voice message transcription using Whisper (Echo)",
   "main": "src/index.ts",
@@ -12,7 +12,8 @@
     "deploy": "npm run deploy:worker",
     "dev": "wrangler dev",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "start:server": "tsx src/server.ts"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260217.0",
@@ -20,7 +21,9 @@
     "typescript": "^5.7.2",
     "vitest": "^4.0.18",
     "vitest-environment-miniflare": "^2.14.4",
-    "wrangler": "^4.83.0"
+    "wrangler": "^4.83.0",
+    "tsx": "^4.19.2",
+    "@types/node": "^20.17.6"
   },
   "overrides": {
     "undici": "^6.24.1"
@@ -28,6 +31,9 @@
   "dependencies": {
     "jose": "^6.2.2",
     "preact": "^10.29.0",
-    "preact-render-to-string": "^6.6.7"
+    "preact-render-to-string": "^6.6.7",
+    "hono": "^4.6.11",
+    "@hono/node-server": "^1.13.7",
+    "dotenv": "^16.4.5"
   }
 }

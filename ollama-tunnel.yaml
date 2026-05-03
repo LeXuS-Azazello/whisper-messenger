@@ -1,6 +1,0 @@
-tunnel: ollama-tunnel
-credentials-file: /etc/cloudflared/credentials.json
-ingress:
-  - hostname: ollama.debug.org.ua
-    service: http://100.65.0.209:11434
-  - service: http_status:404

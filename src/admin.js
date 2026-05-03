@@ -221,6 +221,9 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (data.provider === 'ollama') {
                 if (providerOllama) providerOllama.checked = true;
                 if (ollamaSection) ollamaSection.style.display = 'block';
+            } else if (data.provider === 'qwen3-asr') {
+                const providerQwen = document.getElementById('provider-qwen3-asr');
+                if (providerQwen) providerQwen.checked = true;
             } else {
                 if (providerCf) providerCf.checked = true;
             }
@@ -272,6 +275,33 @@ document.addEventListener('DOMContentLoaded', function() {
             }).catch(e => {
                 alert('Save failed: ' + e.message);
                 saveWhisperBtn.innerText = 'Save AI Config';
+            });
+        });
+    }
+
+    const pullBtn = document.getElementById('pull-ollama-btn');
+    if (pullBtn) {
+        pullBtn.addEventListener('click', () => {
+            const modelSelect = document.getElementById('ollama-model-select');
+            const urlInput = document.getElementById('ollama-url');
+            const model = modelSelect ? modelSelect.value.trim() : '';
+            const ollamaUrl = urlInput ? urlInput.value.trim() : '';
+            
+            if (!model || !ollamaUrl) return alert("Enter Ollama Base URL and Model name first.");
+            
+            pullBtn.innerText = 'Pulling...';
+            pullBtn.disabled = true;
+            fetch('/admin/ollama-pull', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: ollamaUrl, model: model })
+            }).then(r => r.json()).then(d => {
+                alert(d.success ? `✅ Successfully requested Ollama to pull "${model}"!\n\nThe download has started in the background. Check your Ollama server logs or try using the model in a few minutes.` : '❌ Error: ' + d.error);
+            }).catch(e => {
+                alert('Pull request failed: ' + e.message);
+            }).finally(() => {
+                pullBtn.innerText = 'Pull / Download';
+                pullBtn.disabled = false;
             });
         });
     }

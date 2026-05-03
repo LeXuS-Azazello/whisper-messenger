@@ -1,4 +1,5 @@
 # Plan: Deploy Telegram Bridge + sherpa-onnx to KDC (Kubernetes)
+Do not start local. Only use my kubernetes on my server and cloudflare for DNS or tunnel
 
 ## Target
 KDC Kubernetes cluster `whispermsg` в namespace `debugging-whispermsg`

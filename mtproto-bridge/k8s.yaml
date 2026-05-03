@@ -70,13 +70,7 @@ spec:
         - name: TG_API_HASH
           value: a9ba48d3de86ff6db73b41165ac5ec9a
         - name: WORKER_URL
-          value: https://whisper.debug.org.ua
-        - name: CF_ACCOUNT_ID
-          value: b62058e5d03373722a76f2722b5120a1
-        - name: CF_KV_NAMESPACE_ID
-          value: f4b04260ccfa4f1ea34c4fab2d53ed1d
-        - name: CF_API_TOKEN
-          value: 5-iiz7W_m1F166Lw6GzF6e18LHe_3EAn0C84U5Yj
+          value: https://voicemsg.net
         - name: WHISPER_SERVER_URL
           value: http://sherpa-onnx:8000
         - name: WHISPER_SECRET

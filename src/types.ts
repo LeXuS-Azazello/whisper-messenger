@@ -1,5 +1,11 @@
 /// <reference types="@cloudflare/workers-types/2023-07-01" />
 
+export interface KVLike {
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string | ArrayBuffer | ArrayBufferView | ReadableStream, options?: { expirationTtl?: number; expiration?: number; metadata?: any }): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+
 export interface Env {
   AI: Ai;
   AUDIO_QUEUE: Queue;
@@ -25,9 +31,9 @@ export interface Env {
   GOOGLE_CLIENT_SECRET: string;
   META_SYSTEM_USER_TOKEN?: string;
   META_SYSTEM_USER_ID?: string;
-  STATS: KVNamespace;
+  STATS: KVLike;
   // Whisper Config
-  WHISPER_PROVIDER?: "cloudflare" | "local" | "ollama";
+  WHISPER_PROVIDER?: "cloudflare" | "local" | "ollama" | "qwen3-asr";
   LOCAL_WHISPER_URL?: string;
   LOCAL_WHISPER_SECRET?: string;
   OLLAMA_BASE_URL?: string;
@@ -59,6 +65,7 @@ export interface HealthChecks {
   AUDIO_QUEUE: boolean;
   AI: boolean;
   META_SYSTEM_USER_TOKEN?: boolean;
+  LINE_BOT?: boolean;
 }
 
 export interface PlatformStats {
@@ -66,14 +73,15 @@ export interface PlatformStats {
   instagram: number;
   whatsapp: number;
   telegram: number;
+  line: number;
 }
 
 export interface AudioJob {
   userId?: string;
   senderId: string;
   audioUrl: string;
-  platform: "messenger" | "instagram" | "whatsapp" | "telegram" | "threads";
-  replyToMsgId?: number;
+  platform: "messenger" | "instagram" | "whatsapp" | "telegram" | "threads" | "line";
+  replyToMsgId?: number | string;
 }
 
 export interface MetaMessage {
@@ -81,6 +89,7 @@ export interface MetaMessage {
     id: string;
   };
   message?: {
+    mid?: string;
     attachments?: Array<{
       type: string;
       payload: {
@@ -145,5 +154,8 @@ export interface UserSession {
   threadsUserId?: string;
   whatsappToken?: string;
   whatsappPhoneId?: string;
+  lineToken?: string;
+  lineSecret?: string;
   translateTo?: string;
+  tgAuthenticated?: boolean;
 }

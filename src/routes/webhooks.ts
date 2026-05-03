@@ -31,7 +31,7 @@ export async function handleTelegram(update: TelegramWebhookUpdate, env: Env): P
       const isConnected = !!user.session;
       
       let status = "Not Connected";
-      let buttons = [[{ text: "🔌 Connect Telegram", url: `${env.WORKER_URL}/dashboard` }]];
+      let buttons: any[] = [[{ text: "🔌 Connect Telegram", url: `${env.WORKER_URL}/dashboard` }]];
 
       if (isConnected) {
         // Fetch live status from bridge
@@ -132,14 +132,11 @@ export async function handleMetaMessaging(body: MetaWebhookBody, env: Env): Prom
           console.log(`[webhooks] Skipping audio: page ${pageId} not connected to any user`);
           continue;
         }
-        if (token) {
-            await sendTypingOn(senderId, token, env);
-            await sendMessageSafe(senderId, "⏳ Transcribing...", token, env);
-        }
+        // Typing/Transcribing notification is handled in queue.ts
         let platform = body.object === "instagram" ? "instagram" : "messenger";
         if (isThreads) platform = "threads" as any;
 
-        await env.AUDIO_QUEUE.send({ userId: ownerId, senderId, audioUrl, platform });
+        await env.AUDIO_QUEUE.send({ userId: ownerId, senderId, audioUrl, platform, replyToMsgId: msg.message?.mid });
       }
     }
   }
@@ -176,9 +173,8 @@ export async function handleWhatsApp(body: WhatsAppWebhookBody, env: Env): Promi
           }
           const audioUrl = await getWhatsAppAudioUrl(msg.audio.id, token, env);
           if (audioUrl) {
-            await sendWhatsAppTypingOn(phoneId, msg.from, token, env);
-            await sendWhatsAppMessageSafe(phoneId, msg.from, "⏳ Transcribing...", token, env);
-            await env.AUDIO_QUEUE.send({ userId: ownerId, senderId: msg.from, audioUrl, platform: "whatsapp" });
+            // Typing/Transcribing notification is handled in queue.ts
+            await env.AUDIO_QUEUE.send({ userId: ownerId, senderId: msg.from, audioUrl, platform: "whatsapp", replyToMsgId: msg.id });
           }
         }
       }
@@ -187,3 +183,29 @@ export async function handleWhatsApp(body: WhatsAppWebhookBody, env: Env): Promi
   return new Response("ok");
 }
 
+export async function handleLine(body: any, userId: string, env: Env): Promise<Response> {
+  const userData = await env.STATS.get(`user_meta_${userId}`);
+  if (!userData) return new Response("User not found", { status: 404 });
+
+  const u: UserSession = JSON.parse(userData);
+  if (!u.lineToken) return new Response("LINE not configured", { status: 400 });
+
+  for (const event of body.events ?? []) {
+    if (event.type === "message" && event.message?.type === "audio") {
+      const audioId = event.message.id;
+      const senderId = event.source?.userId;
+      const replyToken = event.message.quoteToken; // using quoteToken as replyToMsgId
+      if (audioId && senderId) {
+        // audioUrl for LINE will just be the audioId. We'll use platform="line" to know how to fetch it.
+        await env.AUDIO_QUEUE.send({ 
+          userId, 
+          senderId, 
+          audioUrl: audioId, 
+          platform: "line", 
+          replyToMsgId: replyToken 
+        });
+      }
+    }
+  }
+  return new Response("ok");
+}

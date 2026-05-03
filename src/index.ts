@@ -3,14 +3,29 @@ import { verifyWebhook } from "./verify";
 import queue from "./queue";
 import { handlePublicAuth } from "./routes/auth";
 import { handleAdmin } from "./routes/admin";
+import { handleInternalRoutes } from "./routes/internal";
 import { handleUserDashboard, incrementUserStats } from "./routes/dashboard";
-import { handleTelegram, handleMetaMessaging, handleWhatsApp } from "./routes/webhooks";
+import { handleTelegram, handleMetaMessaging, handleWhatsApp, handleLine } from "./routes/webhooks";
 import { renderHome } from "./home_ui";
 import { verifySession } from "./session";
+import { RedisKV } from "./redisKV";
+
+function getPublicOrigin(env: Env, fallbackOrigin: string): string {
+  const configured = (env.WORKER_URL || "").trim();
+  if (!configured) return fallbackOrigin;
+  try {
+    return new URL(configured).origin;
+  } catch {
+    return fallbackOrigin;
+  }
+}
 
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(req.url);
+    try {
+      env.STATS = new RedisKV(env.BRIDGE_URL, env.BRIDGE_SECRET);
+      const url = new URL(req.url);
+      const publicOrigin = getPublicOrigin(env, url.origin);
 
     if (url.pathname === "/health") return Response.json({ ok: true });
     
@@ -84,8 +99,8 @@ export default {
     }
 
     if (url.pathname === "/") {
-        if (userId) return Response.redirect(`${url.origin}/dashboard`);
-        return new Response(renderHome(env.GOOGLE_CLIENT_ID, url.origin), { 
+        if (userId) return Response.redirect(`${publicOrigin}/dashboard`);
+        return new Response(renderHome(env.GOOGLE_CLIENT_ID, publicOrigin), { 
             headers: { 
                 "Content-Type": "text/html; charset=utf-8",
                 "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
@@ -94,7 +109,7 @@ export default {
     }
 
     if (url.pathname === "/auth" && userId) {
-        return Response.redirect(`${url.origin}/dashboard`);
+        return Response.redirect(`${publicOrigin}/dashboard`);
     }
 
     // Public Auth Routes
@@ -120,113 +135,8 @@ export default {
     }
 
     // Internal Stats (called by Bridge User Pods)
-    if (url.pathname === "/internal/stats" && req.method === "POST") {
-      const { userId, secret, platform } = await req.json() as any;
-      if (secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
-      await incrementUserStats(userId, env, platform || "telegram");
-      return Response.json({ ok: true });
-    }
-    
-    if (url.pathname === "/internal/user-meta" && req.method === "GET") {
-      const userId = url.searchParams.get("userId");
-      const secret = url.searchParams.get("secret");
-      if (secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
-      const data = await env.STATS.get(`user_meta_${userId}`);
-      return new Response(data, { headers: { "Content-Type": "application/json" } });
-    }
-
-    if (url.pathname === "/internal/config" && req.method === "GET") {
-      const secret = url.searchParams.get("secret");
-      if (secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
-      
-      const provider = await env.STATS.get("config_whisper_provider") || "cloudflare";
-      const model = await env.STATS.get("config_ollama_model") || "qwen3-coder:30b";
-      const localUrl = await env.STATS.get("config_local_whisper_url") || "";
-      const localSecret = await env.STATS.get("config_local_whisper_secret") || "";
-      const ollamaUrl = await env.STATS.get("config_ollama_url") || "";
-      
-      return Response.json({ provider, model, localUrl, localSecret, ollamaUrl });
-    }
-
-    if (url.pathname === "/internal/active-users" && req.method === "GET") {
-      const secret = url.searchParams.get("secret");
-      if (secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
-      
-      const userIdsRaw = await env.STATS.get("users_list");
-      let userIds: string[] = [];
-      try {
-        userIds = userIdsRaw ? JSON.parse(userIdsRaw) : [];
-      } catch (e) {
-        console.error("Failed to parse users_list:", userIdsRaw?.slice(0, 100));
-        return Response.json([]);
-      }
-
-      const users: any[] = [];
-      for (const id of userIds) {
-        const meta = await env.STATS.get(`user_meta_${id}`);
-        if (meta) {
-          try {
-            const u = JSON.parse(meta);
-            if (u && u.isActive) {
-              const session = await env.STATS.get(`tg_session_${id}`);
-              if (session) users.push({ userId: id, session });
-            }
-          } catch (e) {
-            console.error(`Failed to parse user meta for ${id}:`, meta.slice(0, 100));
-          }
-        }
-      }
-      return Response.json(users);
-    }
-
-    if (url.pathname === "/internal/debug-user" && req.method === "GET") {
-      const id = url.searchParams.get("userId");
-      const secret = url.searchParams.get("secret");
-      if (secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
-      
-      const meta = await env.STATS.get(`user_meta_${id}`);
-      const session = await env.STATS.get(`tg_session_${id}`);
-      
-      return Response.json({ 
-        userId: id, 
-        meta: meta ? JSON.parse(meta) : null, 
-        hasSession: !!session,
-        sessionPrefix: session ? session.substring(0, 10) : null
-      });
-    }
-
-    if (url.pathname === "/internal/repair" && req.method === "GET") {
-      const secret = url.searchParams.get("secret");
-      if (secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
-      
-      const userIdsRaw = await env.STATS.get("users_list");
-      const userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
-      const fixed: string[] = [];
-      const failed: string[] = [];
-
-      for (const id of userIds) {
-        const meta = await env.STATS.get(`user_meta_${id}`);
-        if (meta) {
-          try {
-            JSON.parse(meta);
-          } catch (e) {
-            console.warn(`Repairing corrupted meta for ${id}`);
-            const session = await env.STATS.get(`tg_session_${id}`);
-            const defaultMeta = { 
-              userId: id, 
-              isActive: !!session, 
-              session: session || "",
-              transcriptionCount: 0,
-              lastStartedAt: Date.now()
-            };
-            await env.STATS.put(`user_meta_${id}`, JSON.stringify(defaultMeta));
-            fixed.push(id);
-            continue;
-          }
-        }
-      }
-      return Response.json({ success: true, fixed, total: userIds.length });
-    }
+    const internalRes = await handleInternalRoutes(env, req, url);
+    if (internalRes) return internalRes;
 
     if (url.pathname === "/test-whisper" && req.method === "POST") {
         const secret = url.searchParams.get("secret");
@@ -286,6 +196,44 @@ export default {
       }
     }
 
+    // LINE Webhook
+    if (url.pathname.startsWith("/webhooks/line/") && req.method === "POST") {
+        const userId = url.pathname.split("/").pop();
+        if (!userId) return new Response("Missing User ID", { status: 400 });
+
+        const rawBody = await req.text();
+        const signature = req.headers.get("x-line-signature");
+        if (!signature) return new Response("Missing Signature", { status: 400 });
+
+        let body: any;
+        try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
+
+        // Verify webhook signature using HMAC-SHA256
+        const userData = await env.STATS.get(`user_meta_${userId}`);
+        if (userData) {
+            const user: any = JSON.parse(userData);
+            if (user.lineSecret) {
+                const encoder = new TextEncoder();
+                const key = await crypto.subtle.importKey(
+                    'raw',
+                    encoder.encode(user.lineSecret),
+                    { name: 'HMAC', hash: 'SHA-256' },
+                    false,
+                    ['sign']
+                );
+                const expectedSignature = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody));
+                const expectedSignatureBase64 = btoa(String.fromCharCode(...new Uint8Array(expectedSignature)));
+
+                if (signature !== expectedSignatureBase64) {
+                    console.error(`[line] Signature verification failed for user ${userId}`);
+                    return new Response("Invalid Signature", { status: 401 });
+                }
+            }
+        }
+
+        return handleLine(body, userId, env);
+    }
+
     // Telegram Bot Webhook (usually just POST /webhooks/telegram or similar, 
     // but the current code checks body.update_id on ANY POST)
     if (req.method === "POST") {
@@ -304,10 +252,16 @@ export default {
       return new Response("ok");
     }
 
-    return new Response("404");
+      return new Response("404");
+    } catch (e: any) {
+      const { logError } = await import("./logger");
+      await logError("worker_fetch", e.stack || e.message, env);
+      return new Response("Internal Server Error", { status: 500 });
+    }
   },
 
   async queue(batch: MessageBatch<any>, env: Env) {
+    env.STATS = new RedisKV(env.BRIDGE_URL, env.BRIDGE_SECRET);
     return queue(batch, env);
   },
 } satisfies ExportedHandler<Env>;

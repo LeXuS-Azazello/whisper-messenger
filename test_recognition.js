@@ -1,10 +1,9 @@
-
 const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch'); // Assuming it's available or we can use dynamic import
 
 const AUDIO_FILE = 'audio_test.ogg';
-const LOCAL_URL = 'https://whisper-onnx.debug.org.ua/transcribe';
+const LOCAL_URL = 'https://whisper-onnx.voicemsg.net/transcribe';
 const LOCAL_SECRET = 'whisper-sh-secret-2026';
 
 const CLOUDFLARE_API_URL = 'https://api.cloudflare.com/client/v4/accounts/a21fdd02-2e16-4eee-a0cf-3fe5fa835bb8/ai/run/@cf/openai/whisper-tiny-en';

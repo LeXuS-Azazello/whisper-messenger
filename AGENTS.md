@@ -1,4 +1,11 @@
 # Repository Guidelines
+Do not start local. Only use my kubernetes on my server and cloudflare for DNS or tunnel
+Only use one domain "voicemsg.net" else kubernetes services use by internal IP
+
+## Deployment Architecture
+- **Cloudflare Workers**: Handle webhooks and UI (Preact).
+- **Kubernetes Cluster**: Runs MTProto bridge and Whisper server.
+- **Ingress Controller**: Manages TLS termination and routing to services.
 
 ## Project Structure & Module Organization
 Echo Messenger is a multi-tenant voice-to-text bridge connecting Meta (FB/Insta), WhatsApp, and Telegram to Whisper AI.

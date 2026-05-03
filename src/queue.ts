@@ -2,6 +2,7 @@ import { Env, AudioJob, UserSession } from "./types";
 import { sendMessageSafe, sendTypingOn, MetaNonRetryableError } from "./meta";
 import { sendWhatsAppMessageSafe, sendWhatsAppTypingOn } from "./whatsapp";
 import { sendTelegramMessage, sendTelegramTypingOn } from "./telegram";
+import { sendLineTypingOn, sendLineMessageSafe, getLineAudioArrayBuffer } from "./line";
 import { transcribeWithFallback } from "./whisper";
 import { logError } from "./logger";
 
@@ -25,6 +26,8 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
             if (platform === "whatsapp") {
                 token = u.whatsappToken || "";
                 whatsappPhoneId = u.whatsappPhoneId || whatsappPhoneId;
+            } else if (platform === "line") {
+                token = u.lineToken || "";
             } else if (isThreads) {
                 token = u.threadsToken || "";
             } else {
@@ -47,28 +50,55 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
 
       if (!token) throw new Error(`Permission denied: No token for ${platform} / ${userId}`);
 
-      // 2. Notification (Typing...)
-      if (platform === "whatsapp") {
-        await sendWhatsAppTypingOn(whatsappPhoneId, senderId, token, env);
-        await sendWhatsAppMessageSafe(whatsappPhoneId, senderId, "⏳ Transcribing...", token, env);
-      } else if (platform === "telegram") {
-        await sendTelegramTypingOn(Number(senderId), env);
-        await sendTelegramMessage(Number(senderId), "⏳ Transcribing...", env);
-      } else {
-        await sendTypingOn(senderId, token, env, isThreads);
-        await sendMessageSafe(senderId, "⏳ Transcribing...", token, env, isThreads);
+      // 2. Determine model for transcribing message
+      const provider = await env.STATS.get("config_whisper_provider") as "cloudflare" | "local" | "ollama" | "qwen3-asr" || env.WHISPER_PROVIDER || "qwen3-asr";
+      let modelDisplayName = "Unknown";
+
+      if (provider === "cloudflare") {
+        modelDisplayName = "Cloudflare AI";
+      } else if (provider === "local") {
+        modelDisplayName = "Sherpa ONNX";
+      } else if (provider === "qwen3-asr") {
+        modelDisplayName = "Qwen3-ASR";
+      } else if (provider === "ollama") {
+        const kvModel = await env.STATS.get("config_ollama_model");
+        const ollamaModel = kvModel || env.OLLAMA_MODEL || "whisper";
+        modelDisplayName = ollamaModel === "whisper" ? "Ollama (Native)" : `Ollama (${ollamaModel})`;
       }
 
-      // 3. Download Audio
-      const fetchOptions: RequestInit | undefined = platform === "whatsapp"
-        ? { headers: { Authorization: `Bearer ${token}` } }
-        : undefined;
+      const transcribingMessage = `⏳ Transcribing with ${modelDisplayName}...`;
 
-      const audioRes = await fetch(audioUrl, fetchOptions);
-      if (!audioRes.ok) throw new Error(`Audio download failed: ${audioRes.status}`);
-      const audioBuffer = await audioRes.arrayBuffer();
+      // 3. Notification (Typing...)
+      if (platform === "whatsapp") {
+        await sendWhatsAppTypingOn(whatsappPhoneId, senderId, token, env);
+        await sendWhatsAppMessageSafe(whatsappPhoneId, senderId, transcribingMessage, token, env, replyToMsgId);
+      } else if (platform === "telegram") {
+        await sendTelegramTypingOn(Number(senderId), env);
+        await sendTelegramMessage(Number(senderId), transcribingMessage, env);
+      } else if (platform === "line") {
+        await sendLineTypingOn(senderId, token);
+      } else {
+        await sendTypingOn(senderId, token, env, isThreads);
+        await sendMessageSafe(senderId, transcribingMessage, token, env, isThreads, replyToMsgId);
+      }
 
-      // 4. Transcribe
+      // 4. Download Audio
+      let audioBuffer: ArrayBuffer;
+      if (platform === "line") {
+        const buf = await getLineAudioArrayBuffer(audioUrl, token);
+        if (!buf) throw new Error("LINE audio download failed");
+        audioBuffer = buf;
+      } else {
+        const fetchOptions: RequestInit | undefined = platform === "whatsapp"
+          ? { headers: { Authorization: `Bearer ${token}` } }
+          : undefined;
+
+        const audioRes = await fetch(audioUrl, fetchOptions);
+        if (!audioRes.ok) throw new Error(`Audio download failed: ${audioRes.status}`);
+        audioBuffer = await audioRes.arrayBuffer();
+      }
+
+      // 5. Transcribe
       const result = await transcribeWithFallback(audioBuffer, env);
       let finalText = result.text;
 
@@ -107,21 +137,25 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
     const langFlag = u?.translateTo ? ` | ${flags[u.translateTo] || u.translateTo}` : "";
 
     const sec = ((Date.now() - start) / 1000).toFixed(1);
-    finalText = `${finalText}\n\n⏱ ${sec}s${langFlag} | 🤖 ${result.model || 'Unknown'}`;
+    finalText = `${finalText}\n\n🤖 ${result.model || 'Unknown'} | ⏱ ${sec}s${langFlag}`;
       const parts = splitLongText(finalText);
 
       // 5. Send Results
       if (platform === "whatsapp") {
         for (const part of parts) {
-          await sendWhatsAppMessageSafe(whatsappPhoneId, senderId, part, token, env);
+          await sendWhatsAppMessageSafe(whatsappPhoneId, senderId, part, token, env, replyToMsgId);
         }
       } else if (platform === "telegram") {
         for (const part of parts) {
-          await sendTelegramMessage(Number(senderId), part, env, replyToMsgId);
+          await sendTelegramMessage(Number(senderId), part, env, replyToMsgId as number);
+        }
+      } else if (platform === "line") {
+        for (const part of parts) {
+          await sendLineMessageSafe(senderId, part, token, replyToMsgId);
         }
       } else {
         for (const part of parts) {
-          await sendMessageSafe(senderId, part, token, env, isThreads);
+          await sendMessageSafe(senderId, part, token, env, isThreads, replyToMsgId);
         }
       }
 

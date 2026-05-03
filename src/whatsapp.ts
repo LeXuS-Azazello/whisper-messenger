@@ -35,7 +35,8 @@ export async function sendWhatsAppMessageSafe(
   to: string,
   text: string,
   token: string,
-  env: Env
+  env: Env,
+  replyToMsgId?: string | number
 ): Promise<void> {
   await sleep(DELAY);
 
@@ -53,6 +54,7 @@ export async function sendWhatsAppMessageSafe(
       to,
       type: "text",
       text: { body: text },
+      ...(replyToMsgId ? { context: { message_id: String(replyToMsgId) } } : {}),
     }),
   });
 }

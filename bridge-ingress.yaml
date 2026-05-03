@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: echo-bridge
+  namespace: debugging-echovoice
+spec:
+  rules:
+  - host: mtproto.voicemsg.net
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mtproto-bridge-manager
+            port:
+              number: 3000

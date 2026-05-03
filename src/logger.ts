@@ -1,5 +1,5 @@
 import { Env } from "./types";
-import { sendTelegramMessage } from "./telegram";
+import { sendTelegramMessage, sendTelegramRichMessage } from "./telegram";
 
 export interface ErrorLog {
   timestamp: string;
@@ -10,7 +10,13 @@ export interface ErrorLog {
 export async function logError(platform: string, error: string, env: Env) {
   try {
     const errorLog = await env.STATS.get("last_errors");
-    let errors: ErrorLog[] = errorLog ? JSON.parse(errorLog) : [];
+    let errors: ErrorLog[] = [];
+    try {
+      const parsed = errorLog ? JSON.parse(errorLog) : [];
+      errors = Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      errors = [];
+    }
     const newError = {
       timestamp: new Date().toISOString(),
       platform,
@@ -22,7 +28,7 @@ export async function logError(platform: string, error: string, env: Env) {
 
     // Notify admin if Chat ID is configured
     if (env.TELEGRAM_CHAT_ID && env.TELEGRAM_BOT_TOKEN) {
-      await sendTelegramMessage(env.TELEGRAM_CHAT_ID, `🚨 <b>Error [${platform}]</b>\n<pre>${error}</pre>`, env).catch(() => {});
+      await sendTelegramRichMessage(env.TELEGRAM_CHAT_ID, `🚨 <b>Error [${platform}]</b>\n<pre>${error}</pre>`, env).catch(() => {});
     }
   } catch (err) {
     console.error(`Failed to log error: ${err}`);
@@ -35,7 +41,7 @@ export async function logInfo(platform: string, message: string, env: Env) {
   // Notify admin about critical info (like new user sessions)
   if (env.TELEGRAM_CHAT_ID && env.TELEGRAM_BOT_TOKEN && (message.toLowerCase().includes("new session") || message.toLowerCase().includes("bridge started"))) {
     try {
-      await sendTelegramMessage(env.TELEGRAM_CHAT_ID, `ℹ️ <b>Info [${platform}]</b>\n${message}`, env).catch(() => {});
+      await sendTelegramRichMessage(env.TELEGRAM_CHAT_ID, `ℹ️ <b>Info [${platform}]</b>\n${message}`, env).catch(() => {});
     } catch (e) {}
   }
 }

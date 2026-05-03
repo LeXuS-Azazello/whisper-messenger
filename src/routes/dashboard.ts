@@ -87,6 +87,13 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
       return Response.json({ success: true });
     }
+    if (url.pathname === "/dashboard/save-line") {
+      const { lineToken, lineSecret } = await req.json() as any;
+      user.lineToken = lineToken;
+      user.lineSecret = lineSecret;
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+      return Response.json({ success: true });
+    }
     if (url.pathname === "/dashboard/test-wa") {
       try {
         const { whatsappToken, whatsappPhoneId, testRecipient } = await req.json() as any;
@@ -168,6 +175,44 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
         return Response.json({ success: false, error: e.message });
       }
     }
+    if (url.pathname === "/dashboard/test-translation") {
+      const { text, targetLang } = await req.json() as any;
+
+      if (!text || !targetLang) {
+        return Response.json({ success: false, error: "Missing text or target language" }, { status: 400 });
+      }
+
+      try {
+        const ollamaUrl = env.OLLAMA_BASE_URL || "http://100.65.0.209:11434";
+        const ollamaModel = env.OLLAMA_MODEL || "qwen3-coder:30b";
+
+        const translateRes = await fetch(`${ollamaUrl}/v1/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: ollamaModel,
+            messages: [
+              { role: "system", content: `Translate the following text to ${targetLang}. Output ONLY the translated text. Do not add any introductions or explanations.` },
+              { role: "user", content: text }
+            ],
+            stream: false
+          })
+        });
+
+        if (!translateRes.ok) {
+          return Response.json({ success: false, error: `Translation service error: ${translateRes.status}` }, { status: 500 });
+        }
+
+        const data = await translateRes.json() as any;
+        const translated = data.choices?.[0]?.message?.content || "Translation failed";
+
+        return Response.json({ success: true, translated });
+      } catch (e: any) {
+        console.error("[test-translation] Error:", e);
+        return Response.json({ success: false, error: e.message }, { status: 500 });
+      }
+    }
+
     if (url.pathname === "/dashboard/save-settings") {
       const { translateTo } = await req.json() as any;
       user.translateTo = translateTo || undefined;

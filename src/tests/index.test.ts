@@ -216,13 +216,13 @@ describe('Env Type with Multiuser Bridge', () => {
       META_PAGE_TOKEN: 'page_token',
       WHATSAPP_PHONE_NUMBER_ID: 'phone_id',
       WHATSAPP_TOKEN: 'whatsapp_token',
-      BRIDGE_URL: 'https://mtproto.debug.org.ua',
+      BRIDGE_URL: 'https://mtproto.voicemsg.net',
       BRIDGE_SECRET: 'changeme',
-      WORKER_URL: 'https://whisper.debug.org.ua',
+      WORKER_URL: 'https://voicemsg.net',
       ADMIN_SECRET: 'admin_pass'
     };
 
-    expect(env.BRIDGE_URL).toBe('https://mtproto.debug.org.ua');
+    expect(env.BRIDGE_URL).toBe('https://mtproto.voicemsg.net');
     expect(env.BRIDGE_SECRET).toBe('changeme');
     expect(env.ADMIN_SECRET).toBe('admin_pass');
   });
@@ -231,7 +231,7 @@ describe('Email Magic Link Auth', () => {
   it('should generate a valid magic link structure', () => {
     const email = 'test@example.com';
     const token = '123e4567-e89b-12d3-a456-426614174000';
-    const origin = 'https://whisper.debug.org.ua';
+    const origin = 'https://voicemsg.net';
     
     const magicLink = `${origin}/auth/email/verify?token=${token}`;
     const url = new URL(magicLink);
@@ -255,13 +255,13 @@ describe('Email Magic Link Auth', () => {
     
     const mailReq = {
       personalizations: [{ to: [{ email: to }] }],
-      from: { email: 'no-reply@debug.org.ua', name: 'Whisper Messenger' },
+      from: { email: 'no-reply@voicemsg.net', name: 'Whisper Messenger' },
       subject: subject,
       content: [{ type: 'text/html', value: body }]
     };
     
     expect(mailReq.personalizations[0].to[0].email).toBe(to);
-    expect(mailReq.from.email).toBe('no-reply@debug.org.ua');
+    expect(mailReq.from.email).toBe('no-reply@voicemsg.net');
     expect(mailReq.content[0].type).toBe('text/html');
   });
 });
@@ -269,7 +269,7 @@ describe('Meta OAuth Flow', () => {
   it('should construct a valid Facebook login URL', () => {
     const apiVersion = 'v19.0';
     const appId = '963855642778608';
-    const origin = 'https://whisper.debug.org.ua';
+    const origin = 'https://voicemsg.net';
     const redirectUri = encodeURIComponent(`${origin}/auth/meta/callback`);
     
     const fbUrl = `https://www.facebook.com/${apiVersion}/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&scope=pages_messaging,instagram_manage_messages,pages_show_list,instagram_basic,instagram_manage_comments`;

@@ -57,12 +57,18 @@ describe('Google OAuth Callback Integration', () => {
         const formData = new FormData();
         formData.append('credential', 'mock-credential');
 
-        const req = new Request('https://whisper.debug.org.ua/auth/google/callback', {
+        const req = new Request('https://voicemsg.net/auth/google/callback', {
             method: 'POST',
             body: formData
         });
 
-        const response = await handlePublicAuth(env, req, null);
+        const mockCtx: ExecutionContext = {
+            waitUntil: vi.fn(),
+            passThroughOnException: vi.fn(),
+            props: {} as any
+        };
+
+        const response = await handlePublicAuth(env, req, null, mockCtx);
 
         expect(response.status).toBe(200);
         const body = await response.text();
@@ -93,12 +99,13 @@ describe('Google OAuth Callback Integration', () => {
         const formData = new FormData();
         formData.append('credential', 'mock-credential');
 
-        const req = new Request('https://whisper.debug.org.ua/auth/google/callback', {
+        const req = new Request('https://voicemsg.net/auth/google/callback', {
             method: 'POST',
             body: formData
         });
 
-        const response = await handlePublicAuth(env, req, null);
+        const mockCtx: ExecutionContext = { waitUntil: vi.fn(), passThroughOnException: vi.fn(), props: {} as any };
+        const response = await handlePublicAuth(env, req, null, mockCtx);
 
         expect(response.status).toBe(500);
         const text = await response.text();
@@ -107,12 +114,13 @@ describe('Google OAuth Callback Integration', () => {
 
     it('should fail if credential is missing', async () => {
         const formData = new FormData();
-        const req = new Request('https://whisper.debug.org.ua/auth/google/callback', {
+        const req = new Request('https://voicemsg.net/auth/google/callback', {
             method: 'POST',
             body: formData
         });
 
-        const response = await handlePublicAuth(env, req, null);
+        const mockCtx: ExecutionContext = { waitUntil: vi.fn(), passThroughOnException: vi.fn(), props: {} as any };
+        const response = await handlePublicAuth(env, req, null, mockCtx);
 
         expect(response.status).toBe(400);
         expect(await response.text()).toBe('Missing credential');
@@ -154,12 +162,13 @@ describe('Google OAuth Callback Integration', () => {
         const formData = new FormData();
         formData.append('credential', 'mock-credential');
 
-        const req = new Request('https://whisper.debug.org.ua/auth/google/callback', {
+        const req = new Request('https://voicemsg.net/auth/google/callback', {
             method: 'POST',
             body: formData
         });
 
-        const response = await handlePublicAuth(env, req, null);
+        const mockCtx: ExecutionContext = { waitUntil: vi.fn(), passThroughOnException: vi.fn(), props: {} as any };
+        const response = await handlePublicAuth(env, req, null, mockCtx);
 
         expect(response.status).toBe(200);
         const body_reuse = await response.text();

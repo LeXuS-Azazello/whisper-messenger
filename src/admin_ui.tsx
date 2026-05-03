@@ -2,7 +2,408 @@
 import { render } from 'preact-render-to-string';
 import { Env, UserSession, HealthChecks } from './types';
 import { ErrorLog } from './logger';
-import adminCss from './admin.css';
+
+const adminCss = `:root {
+    --primary: #8B5CF6;
+    --primary-glow: rgba(139, 92, 246, 0.4);
+    --bg-dark: #0F172A;
+    --card-bg: rgba(30, 41, 59, 0.7);
+    --text-main: #F1F5F9;
+    --text-dim: #94A3B8;
+    --success: #10B981;
+    --danger: #EF4444;
+    --warning: #F59E0B;
+}
+
+/* Progress Bar */
+#progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: var(--primary);
+    box-shadow: 0 0 10px var(--primary-glow);
+    z-index: 9999;
+    width: 0;
+    transition: width 0.3s ease;
+    display: none;
+}
+
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Outfit', sans-serif;
+    background-color: var(--bg-dark);
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.1) 0px, transparent 50%);
+    color: var(--text-main);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.card {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 24px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.btn:hover {
+    background: #7C3AED;
+    transform: scale(1.02);
+    box-shadow: 0 0 20px var(--primary-glow);
+}
+
+.btn-xs {
+    padding: 0.25rem 0.5rem;
+    font-size: 10px;
+    border-radius: 6px;
+    width: auto;
+    margin: 0;
+    transform: none;
+}
+
+.btn-xs:hover {
+    transform: none;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3rem;
+    animation: fadeInDown 0.8s ease-out;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #fff 0%, var(--primary) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.logo-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--primary);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 20px var(--primary-glow);
+}
+
+.status-badge {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success);
+    padding: 0.5rem 1rem;
+    border-radius: 99px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.status-badge:hover {
+    transform: scale(1.05);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--success);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--success);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.6; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    animation: fadeInUp 0.8s ease-out;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(139, 92, 246, 0.3);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-dim);
+}
+
+.config-list { list-style: none; }
+.config-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.config-item:last-child { border-bottom: none; }
+
+.config-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.875rem;
+    color: var(--text-dim);
+}
+
+.config-value { font-weight: 600; font-size: 0.875rem; }
+.configured { color: var(--success); }
+.missing { color: var(--danger); }
+
+.status-tag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.status-tag.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.status-tag.inactive {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+h2 { margin-bottom: 1rem; }
+
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+}
+
+.input-group {
+    text-align: left;
+    margin-bottom: 1rem;
+}
+
+.input-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-dim);
+}
+
+.input-field {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    font-family: inherit;
+    outline: none;
+    transition: border 0.3s;
+}
+
+.input-field:focus {
+    border-color: var(--primary);
+}
+
+.error-msg {
+    color: var(--danger);
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+}
+
+h1 {
+    margin-bottom: 2rem;
+}
+
+/* Error Logs Styles */
+.error-logs-card {
+    background: rgba(15, 23, 42, 0.4) !important;
+    border-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+.error-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.error-log-item {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 12px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.error-log-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.platform-tag {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.platform-tag.telegram { background: rgba(36, 161, 222, 0.2); color: #24A1DE; }
+.platform-tag.whatsapp { background: rgba(37, 211, 102, 0.2); color: #25D366; }
+.platform-tag.messenger { background: rgba(0, 178, 255, 0.2); color: #00B2FF; }
+.platform-tag.instagram { background: rgba(255, 0, 114, 0.2); color: #FF0072; }
+
+.error-log-time {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.error-log-message {
+    font-size: 13px;
+    color: #f87171;
+    line-height: 1.5;
+    word-break: break-all;
+}
+
+.no-errors {
+    text-align: center;
+    padding: 30px;
+    color: var(--text-dim);
+    font-size: 14px;
+    font-style: italic;
+}
+
+/* Responsive table */
+@media (max-width: 768px) {
+    .user-table th, .user-table td {
+        padding: 5px;
+        font-size: 12px;
+    }
+    .user-table th:nth-child(2), .user-table td:nth-child(2),
+    .user-table th:nth-child(3), .user-table td:nth-child(3),
+    .user-table th:nth-child(6), .user-table td:nth-child(6) {
+        display: none;
+    }
+    .user-table th:nth-child(7), .user-table td:nth-child(7) {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 80px;
+    }
+    .user-table-container {
+        overflow-x: auto;
+    }
+}
+
+/* User Stats in Transcription Card */
+.user-stats-list {
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.user-stats-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.user-stats-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.user-stat-item {
+    padding: 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    transition: all 0.2s;
+}
+
+.user-stat-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.user-info-detail {
+    border-left: 2px solid var(--primary);
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}`;
 
 const ConfigItem = ({ label, active }: { label: string; active: boolean }) => (
     <div class="config-item">
@@ -40,9 +441,7 @@ const UserRow = ({ user }: { user: UserSession }) => (
                 <span class={`status-tag ${user.isActive ? 'active' : 'inactive'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
                     {user.currentStatus || (user.isActive ? 'RUNNING' : 'STOPPED')}
                 </span>
-                {/* @ts-ignore */}
                 <span style={{ fontSize: '9px', color: user.tgAuthenticated ? '#22c55e' : '#ef4444', fontWeight: 'bold' }}>
-                    {/* @ts-ignore */}
                     {user.tgAuthenticated ? 'TG AUTH' : 'TG NEED LOGIN'}
                 </span>
             </div>
@@ -212,6 +611,19 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">
+                                    <span style={{ color: '#00C300' }}>◉</span> LINE
+                                </h3>
+                            </div>
+                            <div style={{ marginTop: '15px' }}>
+                                <p style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
+                                    LINE is configured directly by users in their Dashboard by entering Channel Access Token and Secret. Admin doesn't need global LINE tokens.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">
                                     <span style={{ color: '#8B5CF6' }}>✦</span> Echo AI Provider
                                 </h3>
                                 <span id="whisper-status-tag" class="status-tag active">LOADING...</span>
@@ -226,11 +638,15 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                         <input type="radio" name="whisper_provider" value="local" id="provider-local" />
                                         <span style={{ fontSize: '14px' }}>Local Sherpa ONNX</span>
                                     </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                                        <input type="radio" name="whisper_provider" value="ollama" id="provider-ollama" />
-                                        <span style={{ fontSize: '14px' }}>Ollama</span>
-                                    </label>
-                                </div>
+                                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                         <input type="radio" name="whisper_provider" value="ollama" id="provider-ollama" />
+                                         <span style={{ fontSize: '14px' }}>Ollama</span>
+                                     </label>
+                                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                         <input type="radio" name="whisper_provider" value="qwen3-asr" id="provider-qwen3-asr" />
+                                         <span style={{ fontSize: '14px' }}>Qwen3-ASR</span>
+                                     </label>
+                                 </div>
 
                                 <div id="local-config-section" style={{ display: 'none', marginTop: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
                                     <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>Sherpa ONNX URL:</label>
@@ -242,13 +658,19 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 <div id="ollama-config-section" style={{ display: 'none', marginTop: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
                                     <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>Ollama Base URL:</label>
                                     <input type="text" id="ollama-url" class="input-field" placeholder="http://ollama.example.com:11434" style={{ width: '100%', marginBottom: '10px', background: '#111', color: '#fff', border: '1px solid #333' }} />
-                                    <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '8px' }}>Select Ollama Model:</label>
-                                    <select id="ollama-model-select" class="input-field" style={{ width: '100%', marginBottom: '10px', background: '#111', color: '#fff', border: '1px solid #333' }}>
-                                        <option value="qwen3-coder:30b">Qwen 3 Coder (30B)</option>
-                                        <option value="gemma4:latest">Gemma 4 (8B)</option>
-                                        <option value="llama3.2:1b">Llama 3.2 (1B)</option>
-                                        <option value="whisper">Ollama Whisper (Native)</option>
-                                    </select>
+                                    <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '8px' }}>Select or Enter Ollama Model:</label>
+                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                        <input list="ollama-models-list" id="ollama-model-select" class="input-field" placeholder="E.g., qwen3-coder:30b" style={{ width: '100%', margin: 0, background: '#111', color: '#fff', border: '1px solid #333' }} />
+                                        <datalist id="ollama-models-list">
+                                            <option value="qwen3-coder:30b">Qwen 3 Coder (30B)</option>
+                                            <option value="gemma4:latest">Gemma 4 (8B)</option>
+                                            <option value="llama3.2:1b">Llama 3.2 (1B)</option>
+                                            <option value="whisper">Ollama Whisper (Native)</option>
+                                        </datalist>
+                                        <button class="btn" id="pull-ollama-btn" title="Download model to Ollama server" style={{ width: 'auto', background: '#3B82F6', margin: 0, whiteSpace: 'nowrap', padding: '0 15px', fontSize: '12px', fontWeight: 'bold' }}>
+                                            Pull / Download
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <button class="btn" id="save-whisper-btn" style={{ marginTop: '15px', background: '#8B5CF6', width: '100%', borderRadius: '12px', padding: '10px', fontWeight: '600' }}>Save AI Config</button>
@@ -281,7 +703,11 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 </div>
                                 <div class="stat-box" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '12px', textAlign: 'center' }}>
                                     <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '4px' }}>TELEGRAM</div>
-                                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#24A1DE' }}>{stats.telegram}</div>
+                                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#24A1DE' }}>{stats.telegram || 0}</div>
+                                </div>
+                                <div class="stat-box" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '12px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '4px' }}>LINE</div>
+                                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#00C300' }}>{stats.line || 0}</div>
                                 </div>
                             </div>
                             

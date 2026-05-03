@@ -13,6 +13,16 @@ const SESSION_MAX_AGE = 31536000;
 const EMAIL_VERIFY_TTL = 900;
 const RATE_LIMIT_TTL = 60;
 
+function getPublicOrigin(env: Env, fallbackOrigin: string): string {
+  const configured = (env.WORKER_URL || "").trim();
+  if (!configured) return fallbackOrigin;
+  try {
+    return new URL(configured).origin;
+  } catch {
+    return fallbackOrigin;
+  }
+}
+
 function handleAuthPage(currentUserId: string | null, url: URL): Response {
   const isAuthenticated = !!currentUserId;
   if (isAuthenticated) return new Response("Redirecting...", { status: 302, headers: { "Location": "/dashboard" } });
@@ -163,33 +173,85 @@ async function handleQrCheck(env: Env, token: string | null | undefined, userCoo
   return Response.json(data);
 }
 
-async function handleGoogleCallback(env: Env, formData: FormData, url: URL, currentUserId: string | null | undefined): Promise<Response> {
+async function handleGoogleCallback(
+  env: Env,
+  oauth: { code?: string; credential?: string },
+  url: URL,
+  currentUserId: string | null | undefined
+): Promise<Response> {
+    const publicOrigin = getPublicOrigin(env, url.origin);
     // If already logged in, redirect to dashboard
     if (currentUserId) {
-      return Response.redirect(`${url.origin}/dashboard`, 302);
+      return Response.redirect(`${publicOrigin}/dashboard`, 302);
     }
 
-    const credential = formData.get('credential') as string;
-    if (!credential) return new Response("Missing credential", { status: 400 });
-
     try {
-      // Use Google's tokeninfo endpoint for verification (more compatible with Cloudflare Workers)
-      const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
-      if (!tokenInfoRes.ok) {
-        return new Response("Auth Error: Invalid Google credential", { status: 400 });
+      let sub = "";
+      let email = "";
+      let givenName = "";
+      let name = "";
+
+      if (oauth.credential) {
+        const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(oauth.credential)}`);
+        if (!tokenInfoRes.ok) {
+          const errorText = await tokenInfoRes.text();
+          return new Response(`Token verification failed: ${errorText}`, { status: 400 });
+        }
+
+        const tokenInfo = await tokenInfoRes.json() as any;
+        if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
+          throw new Error("Invalid Google Client ID (audience mismatch)");
+        }
+
+        sub = tokenInfo.sub || "";
+        email = tokenInfo.email || "";
+        givenName = tokenInfo.given_name || tokenInfo.name || (email ? email.split('@')[0] : "Google User");
+        name = tokenInfo.name || givenName;
+      } else if (oauth.code) {
+        const redirectUri = `${publicOrigin}/auth/google/callback`;
+        const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: env.GOOGLE_CLIENT_ID,
+            client_secret: env.GOOGLE_CLIENT_SECRET,
+            code: oauth.code,
+            grant_type: "authorization_code",
+            redirect_uri: redirectUri
+          })
+        });
+
+        if (!tokenRes.ok) {
+          const errorText = await tokenRes.text();
+          return new Response(`Token exchange failed: ${errorText}`, { status: tokenRes.status });
+        }
+
+        const tokenData : any = await tokenRes.json();
+        if (!tokenData.access_token) {
+          return new Response("No access token in response", { status: 400 });
+        }
+
+        const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+          headers: { Authorization: `Bearer ${tokenData.access_token}` }
+        });
+
+        if (!userRes.ok) {
+          const errorText = await userRes.text();
+          return new Response(`User info failed: ${errorText}`, { status: 400 });
+        }
+
+        const userInfo = await userRes.json() as any;
+        sub = userInfo.id || "";
+        email = userInfo.email || "";
+        givenName = userInfo.given_name || userInfo.name || (email ? email.split('@')[0] : "Google User");
+        name = userInfo.name || givenName;
+      } else {
+        return new Response("No Google credential or authorization code provided", { status: 400 });
       }
 
-      const tokenInfo = await tokenInfoRes.json() as { aud: string; sub: string; email: string; given_name?: string; name?: string };
-
-      // Verify audience
-      if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
-        return new Response("Auth Error: Invalid Google Client ID (audience mismatch)", { status: 500 });
+      if (!sub) {
+        return new Response("Google response missing user identifier", { status: 400 });
       }
-
-      const sub = tokenInfo.sub;
-      const email = tokenInfo.email;
-      const givenName = tokenInfo.given_name || tokenInfo.name || email.split('@')[0];
-      const name = tokenInfo.name || givenName;
 
       const userId = `google_${sub}`;
 
@@ -226,7 +288,7 @@ async function handleGoogleCallback(env: Env, formData: FormData, url: URL, curr
     } catch (error) {
       console.error(`[Auth] Google error: ${error}`);
       await logError("auth", `Google auth error: ${error}`, env);
-      return new Response("Auth Error: Invalid Google credential", { status: 400 });
+      return new Response(`Auth Error: ${error}`, { status: 500 });
     }
   }
 
@@ -274,13 +336,15 @@ async function handleEmailVerify(env: Env, token: string | null, url: URL): Prom
 }
 
 async function handleMetaLogin(env: Env, url: URL): Promise<Response> {
-  const redirectUri = encodeURIComponent(`${url.origin}/auth/meta/callback`);
+  const publicOrigin = getPublicOrigin(env, url.origin);
+  const redirectUri = encodeURIComponent(`${publicOrigin}/auth/meta/callback`);
   const fbUrl = `https://www.facebook.com/${env.META_API_VERSION}/dialog/oauth?client_id=${env.META_APP_ID}&redirect_uri=${redirectUri}&scope=pages_messaging,instagram_manage_messages,pages_show_list,instagram_basic,instagram_manage_comments`;
   return Response.redirect(fbUrl, 302);
 }
 
 async function handleMetaCallback(env: Env, code: string, userId: string, url: URL): Promise<Response> {
-  const redirectUri = `${url.origin}/auth/meta/callback`;
+  const publicOrigin = getPublicOrigin(env, url.origin);
+  const redirectUri = `${publicOrigin}/auth/meta/callback`;
   const tokenRes = await fetch(`https://graph.facebook.com/${env.META_API_VERSION}/oauth/access_token?client_id=${env.META_APP_ID}&redirect_uri=${redirectUri}&client_secret=${env.META_APP_SECRET}&code=${code}`);
   const tokenData: any = await tokenRes.json();
   if (!tokenRes.ok) return new Response(`FB Error: ${JSON.stringify(tokenData)}`, { status: 400 });
@@ -318,17 +382,19 @@ async function handleMetaCallback(env: Env, code: string, userId: string, url: U
     await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
   }
 
-  return Response.redirect(`${url.origin}/dashboard`, 302);
+  return Response.redirect(`${publicOrigin}/dashboard`, 302);
 }
 
 async function handleThreadsLogin(env: Env, url: URL): Promise<Response> {
-  const redirectUri = encodeURIComponent(`${url.origin}/auth/threads/callback`);
+  const publicOrigin = getPublicOrigin(env, url.origin);
+  const redirectUri = encodeURIComponent(`${publicOrigin}/auth/threads/callback`);
   const threadsUrl = `https://www.threads.net/oauth/authorize?client_id=${env.META_THREADS_APP_ID}&redirect_uri=${redirectUri}&scope=threads_basic,threads_publish&response_type=code`;
   return Response.redirect(threadsUrl, 302);
 }
 
 async function handleThreadsCallback(env: Env, code: string, userId: string, url: URL): Promise<Response> {
-  const redirectUri = `${url.origin}/auth/threads/callback`;
+  const publicOrigin = getPublicOrigin(env, url.origin);
+  const redirectUri = `${publicOrigin}/auth/threads/callback`;
   const tokenRes = await fetch(`https://graph.threads.net/oauth/access_token?client_id=${env.META_THREADS_APP_ID}&client_secret=${env.META_THREADS_APP_SECRET}&grant_type=authorization_code&redirect_uri=${redirectUri}&code=${code}`);
   const tokenData: any = await tokenRes.json();
   if (!tokenRes.ok) return new Response(`Threads Error: ${JSON.stringify(tokenData)}`, { status: 400 });
@@ -349,7 +415,7 @@ async function handleThreadsCallback(env: Env, code: string, userId: string, url
     await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
   }
 
-  return Response.redirect(`${url.origin}/dashboard`, 302);
+  return Response.redirect(`${publicOrigin}/dashboard`, 302);
 }
 
 function handleLogout(): Response {
@@ -438,9 +504,38 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     return await handleQrCheck(env, token, userCookie, currentUserId || null, ctx);
   }
 
-  if (method === "POST" && pathname === "/auth/google/callback") {
-    const formData = await req.formData();
-    return await handleGoogleCallback(env, formData, url, currentUserId);
+  if (pathname === "/auth/google/callback") {
+    let code: string | undefined;
+    let credential: string | undefined;
+
+    if (method === "GET") {
+      const params = Object.fromEntries(url.searchParams);
+      code = params.code;
+    } else if (method === "POST") {
+      const contentType = (req.headers.get("content-type") || "").toLowerCase();
+      if (contentType.includes("application/json")) {
+        try {
+          const body = await req.json() as any;
+          code = body.code;
+          credential = body.credential;
+        } catch {
+          return Response.json({ error: "Invalid JSON in POST body" }, { status: 400 });
+        }
+      } else {
+        try {
+          const form = await req.formData();
+          code = (form.get("code") as string | null) || undefined;
+          credential = (form.get("credential") as string | null) || undefined;
+        } catch {
+          return Response.json({ error: "Invalid form body" }, { status: 400 });
+        }
+      }
+    }
+
+    if (!code && !credential) {
+      return new Response(`No Google credential or authorization code provided. Method: ${method}`, { status: 400 });
+    }
+    return await handleGoogleCallback(env, { code, credential }, url, currentUserId);
   }
 
   if (method === "POST" && pathname === "/auth/email/send") {
@@ -492,9 +587,9 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     if (!botToken) return new Response("Bot token not configured", { status: 500 });
 
     const data: any = {};
-    for (const [key, value] of url.searchParams.entries()) {
+    url.searchParams.forEach((value, key) => {
       if (key !== 'hash') data[key] = value;
-    }
+    });
 
     const checkString = Object.keys(data)
       .sort()

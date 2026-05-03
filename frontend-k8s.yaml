@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-frontend
+  namespace: debugging-echovoice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-frontend
+  template:
+    metadata:
+      labels:
+        app: echo-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: azazellosaraksh/echo-frontend:latest
+        ports:
+        - containerPort: 3000
+        envFrom:
+        - secretRef:
+            name: echo-secrets
+        env:
+        - name: PORT
+          value: "3000"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-frontend
+  namespace: debugging-echovoice
+  annotations:
+    ovn.kubernetes.io/service_external_ip_from_subnet: ext-public
+    ovn.kubernetes.io/vpc: debugging-llm-proj
+spec:
+  loadBalancerIP: 91.224.11.69
+  selector:
+    app: echo-frontend
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3000
+  - name: https
+    port: 443
+    targetPort: 3000
+  type: LoadBalancer

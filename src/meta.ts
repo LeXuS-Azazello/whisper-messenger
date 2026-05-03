@@ -16,9 +16,9 @@ export async function sendTypingOn(senderId: string, token: string, env: Env, is
   }
 }
 
-export async function sendMessageSafe(senderId: string, text: string, token: string, env: Env, isThreads = false) {
+export async function sendMessageSafe(senderId: string, text: string, token: string, env: Env, isThreads = false, replyToMsgId?: string | number) {
   try {
-    const res = await sendMessage(senderId, text, token, env, isThreads);
+    const res = await sendMessage(senderId, text, token, env, isThreads, replyToMsgId);
     if (!res.ok) {
       const err: any = await res.json();
       if (err.error?.code === 10) throw new MetaNonRetryableError(err.error.message);
@@ -38,11 +38,14 @@ export class MetaNonRetryableError extends Error {
   }
 }
 
-async function sendMessage(senderId: string, text: string, token: string, env: Env, isThreads = false) {
+async function sendMessage(senderId: string, text: string, token: string, env: Env, isThreads = false, replyToMsgId?: string | number) {
   return await fetchGraph(
     {
       recipient: { id: senderId },
-      message: { text },
+      message: { 
+        text,
+        ...(replyToMsgId ? { reply_to: { message_id: String(replyToMsgId) } } : {})
+      },
     },
     token,
     env,

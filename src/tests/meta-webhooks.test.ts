@@ -24,6 +24,7 @@ describe('Meta Webhook Integration Tests', () => {
   const mockCtx: ExecutionContext = {
     waitUntil: vi.fn(),
     passThroughOnException: vi.fn(),
+    props: {} as any
   };
 
   it('should handle Facebook GET verification successfully', async () => {

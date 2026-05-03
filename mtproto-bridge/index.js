@@ -2,23 +2,19 @@
  * MTProto Bridge — Hybrid Manager/User Pod
  */
 
-import 'dotenv/config';
 import express from 'express';
-import { TelegramClient, Api } from 'telegram';
-import { StringSession } from 'telegram/sessions/index.js';
-import * as k8s from '@kubernetes/client-node';
 import fs from 'fs';
-import path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 import dns from 'dns';
-import https from 'https';
+
+// Import refactored modules
+import { MODE, PORT, TARGET_USER_ID, TG_SESSION, redis } from './src/config.js';
+import { auth, checkConnect, createClient } from './src/utils.js';
+import { initK8s, spawnPod, deletePods, listPods, runReconciliation } from './src/k8s.js';
+import { startUserClient, startAccessChecker, getUserClient } from './src/user.js';
+import { sendCode, verifyCode, verifyPassword, qrStart, qrCheck } from './src/auth.js';
 
 dns.setDefaultResultOrder('ipv4first');
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const require = createRequire(import.meta.url);
 
 const app = express();
 app.use((req, res, next) => {
@@ -27,110 +23,16 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 
-// ─── Config ──────────────────────────────────────────────────────────────────
-const MODE       = process.env.MODE || 'MANAGER';
-const API_ID     = parseInt(process.env.TG_API_ID || process.env.TELEGRAM_APP_ID || '0', 10);
-const API_HASH   = process.env.TG_API_HASH || process.env.TELEGRAM_APP_HASH || '';
-const SECRET     = process.env.BRIDGE_SECRET       || 'changeme';
-const PORT       = parseInt(process.env.PORT       || '3000', 10);
-const TARGET_USER_ID = process.env.TARGET_USER_ID || '';
-const TG_SESSION     = process.env.TG_SESSION     || '';
-const WORKER_URL     = process.env.WORKER_URL     || '';
-const DEVICE_MODEL   = process.env.DEVICE_MODEL    || 'Desktop Linux';
-const APP_VERSION    = process.env.APP_VERSION    || '4.15.2';
-const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Ubuntu 24.04';
+// Initialize Kubernetes Client if Manager
+initK8s();
 
-// Helper to create client with consistent parameters
-function createClient(sessionStr, options = {}) {
-    const session = new StringSession(sessionStr || '');
-    const client = new TelegramClient(session, API_ID, API_HASH, {
-        connectionRetries: options.retries || 5,
-        deviceModel: DEVICE_MODEL,
-        appVersion: APP_VERSION,
-        systemVersion: SYSTEM_VERSION,
-        useIPV6: false, // Ensure IPv4 for stability in cluster
-        ...options
-    });
-    return client;
-}
-
-// K8s Client
-let k8sApi = null;
-if (MODE === 'MANAGER') {
-    try {
-        const kc = new k8s.KubeConfig();
-        kc.loadFromDefault();
-        
-        let cluster = kc.getCurrentCluster();
-        console.log(`[bridge] K8s context: ${kc.getCurrentContext()}, Cluster: ${cluster?.name}, Original Server: ${cluster?.server}`);
-        
-        // Override server if BRIDGE_API_SERVER is set (used with hostNetwork)
-        const customServer = process.env.BRIDGE_API_SERVER;
-        if (customServer) {
-            console.log(`[bridge] Overriding K8s server ${cluster?.server} -> ${customServer} (BRIDGE_API_SERVER)`);
-            cluster.server = customServer;
-            cluster.skipTLSVerify = false; // Use in-cluster CA cert
-        } else {
-            console.log(`[bridge] Using default K8s server`);
-        }
-        
-        // Configure HTTPS agent with keep-alive and timeouts to prevent connection stalls
-        const httpsAgent = new https.Agent({
-            keepAlive: true,
-            keepAliveMsecs: 10000,
-            maxSockets: 10,
-            maxFreeSockets: 5,
-            timeout: 60000, // 60s socket timeout
-        });
-        
-        k8sApi = kc.makeApiClient(k8s.CoreV1Api);
-        if (k8sApi && k8sApi.defaultClient) {
-            k8sApi.defaultClient.timeout = 60000;
-        }
-        console.log(`[bridge] K8s initialized. Server: ${cluster?.server}, Namespace: ${process.env.POD_NAMESPACE || 'unknown'}`);
-    } catch (err) {
-        console.error(`[bridge] Failed to initialize K8s client:`, err);
-    }
-}
-
-// ─── Auth Middleware ────────────────────────────────────────────────────────
-function auth(req, res, next) {
-    const s = req.headers['x-bridge-secret'] || req.query.secret;
-    if (s !== SECRET) return res.status(401).json({ error: 'Unauthorized' });
-    next();
-}
-
-const authSessions = new Map();
-
-function withTimeout(promise, ms, name = 'Operation') {
-    let timeoutId;
-    const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error(`${name} timed out after ${ms}ms`)), ms);
-    });
-    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
-}
-
-function checkConnect(host, port) {
-    return new Promise((resolve) => {
-        const socket = new (require('net').Socket)();
-        let finished = false;
-        socket.setTimeout(2000);
-        socket.on('connect', () => { if (!finished) { finished = true; socket.destroy(); resolve(true); } });
-        socket.on('error', () => { if (!finished) { finished = true; socket.destroy(); resolve(false); } });
-        socket.on('timeout', () => { if (!finished) { finished = true; socket.destroy(); resolve(false); } });
-        socket.connect(port, host);
-    });
-}
-
-// ─── Manager Routes ─────────────────────────────────────────────────────────
+// ─── Shared Routes ──────────────────────────────────────────────────────────
 
 app.get('/health', (req, res) => {
-    res.json({ 
-        mode: MODE, 
-        alive: true, 
-        userId: TARGET_USER_ID || null 
-    });
+    res.json({ mode: MODE, alive: true, userId: TARGET_USER_ID || null });
 });
+
+app.get('/env', auth, (req, res) => res.json(process.env));
 
 app.get('/test-net', auth, async (req, res) => {
     const host = req.query.host || 'kubernetes.default.svc';
@@ -140,420 +42,102 @@ app.get('/test-net', auth, async (req, res) => {
     res.json({ host, port, result });
 });
 
-app.get('/env', auth, (req, res) => {
-    res.json(process.env);
-});
+// ─── Redis Proxy Routes ──────────────────────────────────────────────────────
 
-app.post('/send-code', auth, async (req, res) => {
+app.get('/kv/:key', auth, async (req, res) => {
     try {
-        const { phone } = req.body;
-        if (!phone) {
-            console.error(`[/send-code] Missing phone in request body`);
-            return res.status(400).json({ error: 'Missing phone' });
-        }
-        const phoneClean = String(phone).trim();
-        console.log(`[/send-code] Raw Request: ${phoneClean}`);
-        
-        const client = createClient('');
-        await client.connect();
-        
-        console.log(`[/send-code] Invoking Api.auth.SendCode...`);
-        const result = await client.invoke(new Api.auth.SendCode({
-            phoneNumber: phoneClean,
-            apiId: Number(API_ID),
-            apiHash: API_HASH,
-            settings: new Api.CodeSettings({
-                allowFlashcall: false,
-                currentNumber: true,
-                allowAppHash: true,
-            })
-        }));
-
-        console.log(`[/send-code] Result:`, result);
-        const { phoneCodeHash } = result;
-        
-        authSessions.set(phoneClean, { client, session: client.session, phoneCodeHash });
-        res.json({ success: true, phoneCodeHash });
-    } catch (e) { 
-        console.error(`[/send-code] CRITICAL ERROR:`, e); 
-        res.status(500).json({ error: e.message, stack: e.stack }); 
-    }
+        const val = await redis.get(req.params.key);
+        if (val === null) return res.status(404).send('Not found');
+        res.send(val);
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/verify-code', auth, async (req, res) => {
+app.post('/kv/:key', auth, async (req, res) => {
     try {
-        const { phone, code } = req.body;
-        console.log(`[/verify-code] Checking code ${code} for ${phone}`);
-        const s = authSessions.get(phone);
-        if (!s) {
-            console.error(`[/verify-code] No session for ${phone}. Available keys:`, [...authSessions.keys()]);
-            return res.status(404).json({ error: 'Session not found' });
-        }
-        
-        console.log(`[/verify-code] Client found. Type: ${s.client?.constructor?.name}. Has signIn: ${typeof s.client?.signIn === 'function'}`);
-        
-        const user = await s.client.invoke(new Api.auth.SignIn({
-            phoneNumber: String(phone),
-            phoneCodeHash: s.phoneCodeHash,
-            phoneCode: String(code)
-        }));
-        
-        console.log(`[/verify-code] SignIn Success! User ID:`, user.user?.id || user.id);
-        const sessionStr = s.session.save();
-        
-        // Disconnect immediately to avoid session collision with user pod
-        try { 
-            await s.client.disconnect(); 
-            console.log(`[/verify-code] Manager client disconnected for ${phone}`);
-        } catch (e) {
-            console.warn(`[/verify-code] Disconnect error (ignoring):`, e.message);
-        }
-        const telegramUser = user.user || user;
-        const firstName = telegramUser.firstName || "Telegram User";
-        const userId = telegramUser.id?.toString() || "0";
-        
-        console.log(`[/verify-code] SUCCESS! Welcome ${firstName} (ID: ${userId})`);
-        res.json({ success: true, session: sessionStr, userId, firstName });
-    } catch (e) {
-        if (e.message?.includes('SESSION_PASSWORD_NEEDED')) {
-            console.log(`[/verify-code] 2FA required for ${phone}`);
-            return res.json({ success: false, requiresPassword: true });
-        }
-        console.error(`[/verify-code] CRITICAL ERROR:`, e);
-        res.status(500).json({ error: e.message, stack: e.stack });
-    }
+        const val = typeof req.body.value === 'string' ? req.body.value : JSON.stringify(req.body.value);
+        await redis.set(req.params.key, val);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/verify-password', auth, async (req, res) => {
+app.delete('/kv/:key', auth, async (req, res) => {
     try {
-        const { phone, password, token } = req.body;
-        const key = phone || token; // Phone for code flow, token for QR flow
-        console.log(`[/verify-password] Checking password for ${key}`);
-        const s = authSessions.get(key);
-        if (!s) return res.status(404).json({ error: 'Session not found' });
-
-        const user = await s.client.signIn({ password: async () => password });
-        const sessionStr = s.session.save();
-        
-        // Disconnect immediately
-        try { 
-            await s.client.disconnect(); 
-            console.log(`[/verify-password] Manager client disconnected for ${key}`);
-        } catch (e) {
-            console.warn(`[/verify-password] Disconnect error (ignoring):`, e.message);
-        }
-        authSessions.delete(key);
-
-        console.log(`[/verify-password] SUCCESS! Welcome ${user.firstName} (ID: ${user.id})`);
-        res.json({ success: true, session: sessionStr, userId: user.id.toString(), firstName: user.firstName });
-    } catch (e) {
-        console.error(`[/verify-password] error:`, e);
-        res.status(400).json({ error: e.message });
-    }
+        await redis.del(req.params.key);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/qr-start', auth, async (req, res) => {
-    try {
-        if (MODE !== 'MANAGER') return res.status(400).send('Not manager');
-        const client = createClient('', { retries: 3 });
-        await client.connect();
-        let qrData = null;
-        
-        console.log(`[qr-start] Initiating QR code login...`);
-        const loginPromise = client.signInUserWithQrCode(
-            { apiId: API_ID, apiHash: API_HASH }, 
-            {
-                qrCode: async (code) => {
-                    const b64 = code.token.toString('base64url');
-                    qrData = { qrUrl: `tg://login?token=${b64}`, token: b64 };
-                    console.log(`[qr-start] QR generated: ${qrData.qrUrl}`);
-                },
-                password: async () => {
-                    console.log(`[qr-start] 2FA Password required`);
-                    const s = authSessions.get(qrData?.token);
-                    if (s) s.status = 'password_needed';
-                    return ""; 
-                },
-                onError: (err) => {
-                    console.error("[qr-start] Error in sign-in callback:", err.message);
-                }
-            }
-        );
+// ─── Telegram Auth Routes (Manager) ────────────────────────────────────────
 
-        for (let i=0; i<20; i++) { if (qrData) break; await new Promise(r => setTimeout(r, 500)); }
-        if (!qrData) return res.status(500).json({ error: 'QR timeout' });
-        
-        authSessions.set(qrData.token, { client, session: client.session, status: 'pending' });
-        
-        loginPromise.then(user => {
-            const s = authSessions.get(qrData.token);
-            if (s) { 
-                s.status = 'done'; 
-                s.user = user; 
-                s.sessionStr = s.client.session.save(); 
-                // Disconnect manager client as it's no longer needed for auth
-                s.client.disconnect().catch(() => {});
-            }
-        }).catch(e => { 
-            const s = authSessions.get(qrData.token);
-            if (s && s.status === 'password_needed') return;
-            authSessions.delete(qrData.token); 
-        });
-        
-        res.json(qrData);
-    } catch (e) {
-        console.error(`[/qr-start] Error:`, e);
-        res.status(500).json({ error: e.message });
-    }
-});
+app.post('/send-code', auth, sendCode);
+app.post('/verify-code', auth, verifyCode);
+app.post('/verify-password', auth, verifyPassword);
+app.post('/qr-start', auth, qrStart);
+app.get('/qr-check', auth, qrCheck);
 
-app.get('/qr-check', auth, (req, res) => {
-    const s = authSessions.get(req.query.token);
-    if (!s) return res.json({ done: false, expired: true });
-    
-    if (s.status === 'done') {
-        const resp = { done: true, session: s.sessionStr, userId: s.user.id.toString(), firstName: s.user.firstName };
-        authSessions.delete(req.query.token);
-        return res.json(resp);
-    }
-    
-    if (s.status === 'password_needed') {
-        return res.json({ done: false, requiresPassword: true });
-    }
-    
-    res.json({ done: false });
-});
+// ─── Diagnostics Routes ────────────────────────────────────────────────────
 
 app.post('/test-tg', auth, async (req, res) => {
     const start = Date.now();
     try {
         const sessionToUse = req.body.session || TG_SESSION;
-        if (!sessionToUse) {
-            return res.status(400).json({ success: false, error: 'No TG_SESSION' });
-        }
+        if (!sessionToUse) return res.status(400).json({ success: false, error: 'No TG_SESSION' });
+        
         console.log(`[/test-tg] Starting test...`);
         const client = createClient(sessionToUse, { connectionRetries: 1, onlyThis: true });
-        
-        console.log(`[/test-tg] Connecting to Telegram...`);
         await client.connect();
         
-        if (!client.connected) {
-            return res.status(401).json({ success: false, error: 'Session expired, re-login required' });
-        }
+        if (!client.connected) return res.status(401).json({ success: false, error: 'Session expired' });
         
-        console.log(`[/test-tg] Getting self...`);
         const toMe = await client.getMe();
-        
         const msgText = req.body.message || 'Test from bridge!';
-        console.log(`[/test-tg] Sending message to ${toMe.id}...`);
         await client.sendMessage(toMe.id, { message: msgText });
         
-        console.log(`[/test-tg] Disconnecting...`);
-        // Use a timeout for disconnect to avoid hanging the request
-        await Promise.race([
-            client.disconnect(),
-            new Promise(resolve => setTimeout(resolve, 2000))
-        ]);
+        await Promise.race([ client.disconnect(), new Promise(resolve => setTimeout(resolve, 2000)) ]);
         
         const duration = Date.now() - start;
-        console.log(`[/test-tg] Success! Total time: ${duration}ms`);
         return res.json({ success: true, duration });
     } catch (e) {
-        const duration = Date.now() - start;
-        console.error(`[/test-tg] error after ${duration}ms:`, e);
         const isExpired = e.message?.includes('CONNECTION_LAYER_INVALID') || e.message?.includes('SESSION');
-        return res.status(isExpired ? 401 : 500).json({ success: false, error: isExpired ? 'Session expired, re-login required' : e.message });
+        return res.status(isExpired ? 401 : 500).json({ success: false, error: isExpired ? 'Session expired' : e.message });
     }
 });
 
 app.post('/test-voice', auth, async (req, res) => {
     try {
         const sessionToUse = req.body.session || TG_SESSION;
-        if (!sessionToUse) {
-            return res.status(400).json({ success: false, error: 'No TG_SESSION' });
-        }
+        if (!sessionToUse) return res.status(400).json({ success: false, error: 'No TG_SESSION' });
+        
         const client = createClient(sessionToUse, { connectionRetries: 3, onlyThis: true });
         await client.connect();
-        if (!client.connected) {
-            return res.status(401).json({ success: false, error: 'Session expired, re-login required' });
-        }
+        if (!client.connected) return res.status(401).json({ success: false, error: 'Session expired' });
+        
         const toMe = await client.getMe();
-        
-        // Send simple text test first
         await client.sendMessage(toMe.id, { message: '🔊 Voice test' });
-        
-        // Try to send voice using built-in sample URL
-        try {
-            const voiceUrl = 'https://upload.wikimedia.org/wikipedia/commons/7/75/Example.ogg';
-            const voiceRes = await fetch(voiceUrl);
-            if (!voiceRes.ok) throw new Error(`HTTP ${voiceRes.status}`);
-            const voiceBuffer = await voiceRes.arrayBuffer();
-
-            const inputFile = await client.uploadFile(Buffer.from(voiceBuffer), {
-                mimeType: 'audio/ogg',
-                fileName: 'test.ogg'
-            });
-
-            await client.sendMessage(toMe.id, {
-                file: inputFile,
-                attributes: [new Api.DocumentAttributeAudio({ voice: true, duration: 2, title: '' })]
-            });
-        } catch (voiceErr) {
-            console.log('[test-voice] voice send skipped:', voiceErr.message);
-        }
-
         await client.disconnect();
         return res.json({ success: true });
     } catch (e) {
-        console.error('[test-voice] error:', e);
         const isExpired = e.message?.includes('CONNECTION_LAYER_INVALID') || e.message?.includes('SESSION');
-        return res.status(isExpired ? 401 : 500).json({ success: false, error: isExpired ? 'Session expired, re-login required' : e.message });
+        return res.status(isExpired ? 401 : 500).json({ success: false, error: isExpired ? 'Session expired' : e.message });
     }
 });
 
+// ─── K8s Pod Orchestration Routes ──────────────────────────────────────────
+
 app.post('/spawn', auth, async (req, res) => {
-    const { userId, session } = req.body;
-    const safeUserId = String(userId);
-    // Kubernetes names must be lowercase alphanumeric or '-', and starts/ends with alphanumeric.
-    const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    const namespace = process.env.POD_NAMESPACE || 'debugging-echovoice';
-
-    console.log(`[/spawn] Spawning pod for user ${safeUserId}`);
-
     try {
-        // Find and delete any existing pods for this user (with timeout)
-        try {
-            if (!k8sApi) throw new Error('K8s API not initialized');
-            
-            console.log(`[/spawn] Listing pods for ${safeUserId}...`);
-            const existing = await withTimeout(k8sApi.listNamespacedPod({
-                namespace,
-                labelSelector: `userId=${safeUserId}`
-            }), 10000);
-            
-            const items = existing?.body?.items || existing?.items || [];
-            if (items.length > 0) {
-                console.log(`[/spawn] Found ${items.length} existing pods/stale sessions for ${safeUserId}, cleaning up...`);
-                for (const p of items) {
-                    if (!p?.metadata?.name) continue;
-                    console.log(`[/spawn] Deleting stale pod ${p.metadata.name}...`);
-                    // Foreground deletion to ensure it's gone before we spawn new one
-                    await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 10000)
-                        .catch(e => console.error(`[/spawn] Partial delete failure for ${p.metadata.name}:`, e.message));
-                }
-                // Small grace period for K8s to process deletions
-                await new Promise(r => setTimeout(r, 2000));
-            }
-        } catch (listErr) {
-            console.warn(`[/spawn] Could not list/delete existing pods for ${safeUserId} (skipping cleanup):`, listErr.message);
-        }
-
-        const podName = `tg-user-${sanitizedId}-${Date.now().toString().slice(-6)}`;
-        const podManifest = {
-            apiVersion: 'v1',
-            kind: 'Pod',
-            metadata: { name: podName, labels: { app: 'tg-user-bridge', userId: safeUserId } },
-            spec: {
-                containers: [{
-                    name: 'bridge',
-                    image: process.env.BRIDGE_IMAGE || 'azazellosaraksh/debugging-mtproto-bridge:latest',
-                    env: [
-                        { name: 'MODE', value: 'USER' },
-                        { name: 'TARGET_USER_ID', value: safeUserId },
-                        { name: 'TG_SESSION', value: session },
-                        { name: 'TG_API_ID', value: String(API_ID) },
-                        { name: 'TG_API_HASH', value: API_HASH },
-                        { name: 'BRIDGE_SECRET', value: SECRET },
-                        { name: 'WORKER_URL', value: WORKER_URL },
-                        { name: 'WHISPER_SERVER_URL', value: process.env.WHISPER_SERVER_URL || '' },
-                        { name: 'WHISPER_SECRET', value: process.env.WHISPER_SECRET || '' },
-                        { name: 'DEVICE_MODEL', value: process.env.DEVICE_MODEL || DEVICE_MODEL },
-                        { name: 'APP_VERSION', value: process.env.APP_VERSION || APP_VERSION },
-                        { name: 'SYSTEM_VERSION', value: process.env.SYSTEM_VERSION || SYSTEM_VERSION }
-                    ],
-                    resources: { requests: { memory: '128Mi' }, limits: { memory: '256Mi' } }
-                }]
-            }
-        };
-
-        console.log(`[/spawn] Creating new pod ${podName}...`);
-        await withTimeout(k8sApi.createNamespacedPod({ namespace, body: podManifest }), 20000); 
-
-        console.log(`[/spawn] Successfully spawned ${podName}`);
-        res.json({ success: true, podName }); 
-    }
-    catch (err) { 
-        console.error(`[/spawn] Critical error:`, err.body || err.message);
-        res.status(500).json({ error: err.body?.message || err.message }); 
+        const podName = await spawnPod(req.body.userId, req.body.session);
+        res.json({ success: true, podName });
+    } catch(err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
 app.post('/delete', auth, async (req, res) => {
     try {
-        const safeUserId = String(req.body.userId);
-        const namespace = process.env.POD_NAMESPACE || 'debugging-echovoice';
-        
-        console.log(`[/delete] Deleting pods for user ${safeUserId}`);
-        if (!k8sApi) throw new Error('K8s API not initialized');
-        
-        const existing = await withTimeout(k8sApi.listNamespacedPod({
-            namespace,
-            labelSelector: `userId=${safeUserId}`
-        }), 5000);
-        
-        const items = existing?.body?.items || existing?.items || [];
-        if (items.length > 0) {
-            for (const p of items) {
-                if (!p?.metadata?.name) continue;
-                console.log(`[/delete] Deleting pod ${p.metadata.name}...`);
-                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 5000).catch((err) => {
-                    console.error(`[/delete] Failed to delete pod ${p.metadata.name}:`, err.message);
-                });
-            }
-        }
+        await deletePods(req.body.userId);
         res.json({ success: true });
-    }
-    catch (e) { 
-        console.error(`[/delete] K8s error:`, e.body || e);
-        res.status(500).json({ error: e.message }); 
-    }
-});
-
-app.post('/internal/access-revoked', auth, async (req, res) => {
-    if (MODE !== 'MANAGER') return res.status(400).send('Not manager');
-    const { userId } = req.body;
-    console.log(`[/internal/access-revoked] User ${userId} removed access`);
-    try {
-        const safeUserId = String(userId);
-        const namespace = process.env.POD_NAMESPACE || 'debugging-echovoice';
-        
-        const existing = await withTimeout(k8sApi.listNamespacedPod({
-            namespace,
-            labelSelector: `userId=${safeUserId}`
-        }), 15000);
-        
-        const items = existing?.body?.items || existing?.items || [];
-        for (const p of items) {
-            if (!p?.metadata?.name) continue;
-            await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 5000).catch(() => {});
-        }
-        console.log(`[/internal/access-revoked] Deleted pod for ${userId}`);
-        res.json({ success: true });
-    } catch (e) {
-        console.error(`[/internal/access-revoked] Error:`, e.message);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.post('/send', auth, async (req, res) => {
-    if (MODE !== 'USER') return res.status(400).json({ error: 'Not user mode' });
-    const { chatId, text } = req.body;
-    if (!chatId || !text) return res.status(400).json({ error: 'Missing chatId or text' });
-    try {
-        await userClient.sendMessage(chatId, { message: text });
-        res.json({ success: true });
-    } catch (e) {
-        console.error(`[/send] Error:`, e.message);
+    } catch(e) {
         res.status(500).json({ error: e.message });
     }
 });
@@ -561,297 +145,60 @@ app.post('/send', auth, async (req, res) => {
 app.get('/pods', auth, async (req, res) => {
     if (MODE !== 'MANAGER') return res.status(400).json({ error: 'Not manager' });
     try {
-        if (!k8sApi) throw new Error('K8s API not initialized');
-        const namespace = process.env.POD_NAMESPACE || 'debugging-echovoice';
-        console.log(`[/pods] Fetching pods in namespace ${namespace}`);
-        const pods = await withTimeout(k8sApi.listNamespacedPod({
-            namespace,
-            labelSelector: 'app=tg-user-bridge'
-        }), 10000);
-        const items = pods?.body?.items || pods?.items || [];
-        const podStatuses = items.map(p => {
-            const labels = p?.metadata?.labels || {};
-            return {
-                userId: labels.userId,
-                status: p?.status?.phase,
-                startTime: p?.status?.startTime,
-                podName: p?.metadata?.name
-            };
-        });
-        console.log(`[/pods] Returning ${podStatuses.length} pod statuses`);
-        res.json(podStatuses);
-    } catch (e) {
-        console.error(`[/pods] Error:`, e.body || e.message);
+        const statuses = await listPods();
+        res.json(statuses);
+    } catch(e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-// ─── USER MODE Logic ─────────────────────────────────────────────────────────
-function splitLongText(text, maxLength = 4000) {
-    const parts = [];
-    for (let i = 0; i < text.length; i += maxLength) {
-        parts.push(text.slice(i, i + maxLength));
-    }
-    return parts;
-}
-
-let userClient = null;
-let transcribe = null;
-let globalAiConfig = null;
-
-async function fetchGlobalConfig() {
+app.post('/internal/access-revoked', auth, async (req, res) => {
+    if (MODE !== 'MANAGER') return res.status(400).send('Not manager');
     try {
-        const workerUrl = process.env.WORKER_URL || 'https://whisper.debug.org.ua';
-        const res = await fetch(`${workerUrl}/internal/config?secret=${process.env.BRIDGE_SECRET}`);
-        if (res.ok) {
-            globalAiConfig = await res.json();
-            console.log(`[user] 🛠 Loaded global AI config: provider=${globalAiConfig.provider}`);
-        }
-    } catch (e) {
-        console.warn(`[user] ⚠️ Failed to fetch global config:`, e.message);
+        await deletePods(req.body.userId);
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
     }
-}
+});
 
-async function handleNewMessage(event) {
-    const msg = event.message;
-    if (!msg || !msg.isPrivate) {
-        if (msg && !msg.isPrivate) console.log(`[user] Ignoring message in non-private chat ${msg.chatId}.`);
-        return;
-    }
-    console.log(`[user] New private message from ${msg.chatId}: ${msg.message?.slice(0, 50)}...`);
+// ─── Ollama Pull (Background) ──────────────────────────────────────────────
 
-    // In GramJS, media is inside msg.media
-    const mediaDoc = msg.media && msg.media.document;
-    const isVoice = mediaDoc && mediaDoc.attributes && mediaDoc.attributes.some(a => (a.className === 'DocumentAttributeAudio' || a instanceof Api.DocumentAttributeAudio) && a.voice);
-    const isVideoNote = mediaDoc && mediaDoc.attributes && mediaDoc.attributes.some(a => (a.className === 'DocumentAttributeVideo' || a instanceof Api.DocumentAttributeVideo) && a.roundMessage);
+app.post('/ollama-pull', auth, async (req, res) => {
+    const { url, model } = req.body;
+    if (!url || !model) return res.status(400).json({ error: "Missing url or model" });
+    
+    fetch(`${url}/api/pull`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: model, stream: false })
+    }).then(async r => {
+        if (!r.ok) console.error(`[ollama] Pull failed with status: ${r.status}`);
+        else console.log(`[ollama] Pull ${model} finished successfully!`);
+    }).catch(e => console.error(`[ollama] Pull ${model} error:`, e.message));
 
-    if (!isVoice && !isVideoNote && !msg.videoNote && !msg.voice) {
-        console.log(`[user] No supported media found (voice or video note).`);
-        return;
-    }
+    res.json({ success: true, message: `Download started in the background for ${model}` });
+});
 
-    try {
-        const targetPeer = msg.chatId;
-        const msgId = msg.id;
-
-        console.log(`[user] 🎤 Processing voice/video from ${targetPeer} (Msg ID: ${msgId})`);
-
-        // Set typing status
-        const inputPeer = await userClient.getInputEntity(targetPeer);
-        await userClient.invoke(new Api.messages.SetTyping({
-            peer: inputPeer,
-            action: new Api.SendMessageRecordAudioAction()
-        })).catch(() => {});
-
-        console.log(`[user] ⏳ Notifying user and downloading media...`);
-        const statusMsg = await userClient.sendMessage(targetPeer, {
-            message: "⏳ _Transcribing audio..._",
-            replyTo: msgId,
-            parseMode: 'markdown'
-        });
-
-        const buffer = await userClient.downloadMedia(msg.media, { workers: 2 });
-        const mimeType = isVoice ? 'audio/ogg' : 'video/mp4';
-        console.log(`[user] 💾 Downloaded ${buffer.length} bytes. Starting transcription...`);
-
-        const { text, duration } = await transcribe(Buffer.from(buffer), mimeType, globalAiConfig);
-        
-        if (!text || text.trim().length === 0) {
-            console.log(`[user] ❌ Transcription returned empty text.`);
-            await userClient.editMessage(targetPeer, {
-                message: statusMsg.id,
-                text: "❌ Could not transcribe audio (empty result)."
-            }).catch(e => console.error(`[user] Edit status failed:`, e.message));
-            return;
-        }
-
-        console.log(`[user] ✅ Transcribed (${duration.toFixed(1)}s): "${text.slice(0, 100)}${text.length > 100 ? '...' : ''}"`);
-        const timeStr = typeof duration === 'number' ? duration.toFixed(1) : duration;
-        
-        // 1. Send the transcription result IMMEDIATELY
-        await userClient.editMessage(targetPeer, {
-            message: statusMsg.id,
-            text: `🎤 ${text}\n\n⏱️ ${timeStr}s`,
-            parseMode: 'markdown'
-        }).catch(e => console.error(`[user] Edit message failed:`, e.message));
-
-        console.log(`[user] ✨ Sent transcription. Processing translation in background...`);
-
-        // 2. Fetch User Meta for Translation settings (with timeout)
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
-
-            const workerUrl = process.env.WORKER_URL || 'https://whisper.debug.org.ua';
-            console.log(`[user] 🔍 Checking translation settings for user ${TARGET_USER_ID}...`);
-            const metaRes = await fetch(`${workerUrl}/internal/user-meta?userId=${TARGET_USER_ID}&secret=${process.env.BRIDGE_SECRET}`, { 
-                signal: controller.signal 
-            });
-            clearTimeout(timeoutId);
-
-            if (metaRes.ok) {
-                const meta = await metaRes.json();
-                if (meta.translateTo && meta.translateTo !== 'original' && meta.translateTo !== 'auto') {
-                    console.log(`[user] 🌐 Translating to ${meta.translateTo}...`);
-                    
-                    const translateController = new AbortController();
-                    const translateTimeoutId = setTimeout(() => translateController.abort(), 10000); // 10s timeout for Ollama
-
-                    const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://91.224.11.69:11434';
-                    const translateRes = await fetch(`${ollamaUrl}/v1/chat/completions`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        signal: translateController.signal,
-                        body: JSON.stringify({
-                            model: process.env.OLLAMA_MODEL || "qwen3-coder:30b",
-                            messages: [
-                                { role: "system", content: `Translate the following text to ${meta.translateTo}. Output only the translated text, nothing else. If the text is already in ${meta.translateTo}, return it as is.` },
-                                { role: "user", content: text }
-                            ],
-                            stream: false
-                        })
-                    });
-                    clearTimeout(translateTimeoutId);
-
-                    if (translateRes.ok) {
-                        const tData = await translateRes.json();
-                        const translatedText = tData.choices?.[0]?.message?.content;
-                        if (translatedText && translatedText.trim() !== text.trim()) {
-                            console.log(`[user] ✅ Translation complete. Sending follow-up...`);
-                            await userClient.sendMessage(targetPeer, {
-                                message: `🌐 *Translation (${meta.translateTo}):*\n${translatedText}`,
-                                replyTo: msgId,
-                                parseMode: 'markdown'
-                            });
-                        }
-                    } else {
-                        console.error(`[user] ❌ Translation service failed: ${translateRes.status}`);
-                    }
-                }
-            }
-        } catch (e) {
-            console.error(`[user] ❌ Translation/Meta error (background):`, e.message);
-        }
-
-        if (WORKER_URL) {
-            fetch(`${WORKER_URL}/internal/stats`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET })
-            }).catch(e => console.error('[user] Stats notify failed:', e));
-        }
-    } catch (e) { 
-        console.error('[user] Error:', e); 
-    }
-}
-
-async function startUserClient() {
-    if (!TG_SESSION) return console.error('[user] No TG_SESSION provided!');
-
-    // Initialize config and transcribe
-    await fetchGlobalConfig();
-    if (!transcribe) {
-        const { transcribe: transcribeFunc } = await import('./transcribe.js');
-        transcribe = transcribeFunc;
-    }
-
-    userClient = createClient(TG_SESSION, { connectionRetries: 5, onlyThis: true });
-    await userClient.connect();
-
-    userClient.addEventHandler(handleNewMessage, new (require('telegram/events/index.js').NewMessage)({ incoming: true, outgoing: false }));
-    console.log(`[user] 🚀 Bridge Online for User ID: ${TARGET_USER_ID}. Listening for messages...`);
-}
-
+// ─── User Mode Routes ──────────────────────────────────────────────────────
 
 app.get('/check-access', auth, async (req, res) => {
     if (MODE !== 'USER') return res.status(400).send('Not user mode');
+    const userClient = getUserClient();
     if (!userClient) return res.json({ accessible: false, error: 'No client' });
     
     try {
-        await userClient.invoke(new Api.users.GetUsers({
-            id: [TARGET_USER_ID]
-        }));
+        const { Api } = await import('telegram');
+        await userClient.invoke(new Api.users.GetUsers({ id: [TARGET_USER_ID] }));
         res.json({ accessible: true });
     } catch (e) {
         const errMsg = e.errorMessage || e.message || '';
-        const isBlocked = errMsg.includes('USER_IS_BLOCKED') || 
-                         errMsg.includes('PEER_ID_INVALID') || 
-                         errMsg.includes('INPUT_USER_DEACTIVATED') ||
-                         errMsg.includes('USER_ID_INVALID');
-        console.log(`[/check-access] Not accessible: ${errMsg}`);
+        const isBlocked = errMsg.includes('USER_IS_BLOCKED') || errMsg.includes('PEER_ID_INVALID');
         res.json({ accessible: false, blocked: isBlocked, error: errMsg });
     }
 });
 
-let accessCheckInterval = null;
-function startAccessChecker() {
-    if (MODE !== 'USER' || !WORKER_URL) return;
-    
-    accessCheckInterval = setInterval(async () => {
-        if (!userClient) return;
-        try {
-            await userClient.invoke(new Api.users.GetUsers({
-                id: [TARGET_USER_ID]
-            }));
-        } catch (e) {
-            const errMsg = e.errorMessage || e.message || '';
-            const isBlocked = errMsg.includes('USER_IS_BLOCKED') || 
-                             errMsg.includes('PEER_ID_INVALID') || 
-                             errMsg.includes('INPUT_USER_DEACTIVATED') ||
-                             errMsg.includes('USER_ID_INVALID');
-            if (isBlocked) {
-                console.log(`[access-check] User removed access: ${errMsg}, notifying manager`);
-                fetch(`${process.env.WORKER_URL}/internal/access-revoked`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: TARGET_USER_ID, secret: process.env.BRIDGE_SECRET })
-                }).catch(() => {});
-            }
-        }
-    }, 60000);
-}
+// ─── Initialization ────────────────────────────────────────────────────────
 
-async function runReconciliation() {
-    if (!process.env.WORKER_URL || MODE !== 'MANAGER') return;
-    try {
-        console.log(`[bridge] Starting reconciliation cycle...`);
-        const res = await fetch(`${process.env.WORKER_URL}/internal/active-users?secret=${process.env.BRIDGE_SECRET}`);
-        if (res.ok) {
-            const users = await res.json();
-            console.log(`[bridge] Found ${users.length} active users to check`);
-            
-            // Fetch current pods to see what's actually running
-            const podRes = await fetch(`http://localhost:${PORT}/pods`, {
-                headers: { "x-bridge-secret": process.env.BRIDGE_SECRET }
-            });
-            const runningPods = podRes.ok ? await podRes.json() : [];
-            const runningUserIds = new Set(runningPods.map(p => String(p.userId)));
-
-            for (const user of users) {
-                const uid = String(user.userId);
-                if (!runningUserIds.has(uid)) {
-                    console.log(`[bridge] User ${uid} should be running but no pod found. Spawning...`);
-                    try {
-                        const spawnRes = await fetch(`http://localhost:${PORT}/spawn`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json", "x-bridge-secret": process.env.BRIDGE_SECRET },
-                            body: JSON.stringify(user)
-                        });
-                        if (!spawnRes.ok) console.error(`[bridge] Auto-spawn failed for ${uid}:`, await spawnRes.text());
-                    } catch (e) {
-                        console.error(`[bridge] Auto-spawn error for ${uid}:`, e.message);
-                    }
-                }
-            }
-            console.log(`[bridge] Reconciliation cycle complete`);
-        } else {
-            console.error(`[bridge] Failed to fetch active users: ${res.status}`);
-        }
-    } catch (e) {
-        console.error(`[bridge] Reconciliation error:`, e.message);
-    }
-}
-
-// Simple workaround for require.main === module in ESM
 const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
 
 if (isMain) {
@@ -861,9 +208,7 @@ if (isMain) {
             await startUserClient();
             startAccessChecker();
         } else if (MODE === 'MANAGER') {
-            // Initial reconciliation after 5s
             setTimeout(runReconciliation, 5000);
-            // Every 5 minutes check all pods
             setInterval(runReconciliation, 5 * 60 * 1000);
         }
     });
