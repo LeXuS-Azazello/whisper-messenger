@@ -409,6 +409,79 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     return await handleThreadsCallback(env, code, userId, url);
   }
 
+  if (method === "POST" && pathname === "/auth/send-code") {
+    const body = await req.json() as any;
+    const res = await fetch(`http://mtproto-bridge-manager:3000/auth/send-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
+      body: JSON.stringify(body)
+    });
+    return res;
+  }
+
+  if (method === "POST" && pathname === "/auth/verify-code") {
+    const body = await req.json() as any;
+    const res = await fetch(`http://mtproto-bridge-manager:3000/auth/verify-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
+      body: JSON.stringify(body)
+    });
+    if (res.ok) {
+        const data = await res.json() as any;
+        if (data.success && data.userId) {
+            return await createSessionResponse(data.userId, env);
+        }
+        return Response.json(data);
+    }
+    return res;
+  }
+
+  if (method === "POST" && pathname === "/auth/verify-password") {
+    const body = await req.json() as any;
+    const res = await fetch(`http://mtproto-bridge-manager:3000/auth/verify-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
+      body: JSON.stringify(body)
+    });
+    if (res.ok) {
+        const data = await res.json() as any;
+        if (data.success && data.userId) {
+            return await createSessionResponse(data.userId, env);
+        }
+        return Response.json(data);
+    }
+    return res;
+  }
+
+  if (method === "POST" && pathname === "/auth/qr-start") {
+    const res = await fetch(`http://mtproto-bridge-manager:3000/auth/qr-start`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+    });
+    return res;
+  }
+
+  if (method === "GET" && pathname === "/auth/qr-check") {
+    const token = url.searchParams.get("token");
+    const res = await fetch(`http://mtproto-bridge-manager:3000/auth/qr-check?token=${token}`, {
+      headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+    });
+    if (res.ok) {
+        const data = await res.json() as any;
+        if (data.done && data.userId) {
+            // Create session in a way that the frontend can handle
+            // The frontend expects { done: true } then reloads.
+            // But we need to set the cookie.
+            const signedSession = await createSignedSession(data.userId, env.SESSION_SECRET || "default_session_secret");
+            return Response.json({ done: true }, {
+                headers: { "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${SESSION_MAX_AGE}` }
+            });
+        }
+        return Response.json(data);
+    }
+    return res;
+  }
+
   if (method === "GET" && pathname === "/auth/telegram/callback") {
     // Verify Telegram Hash
     const botToken = env.TELEGRAM_BOT_TOKEN;

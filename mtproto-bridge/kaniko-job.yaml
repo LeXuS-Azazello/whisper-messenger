@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kaniko-build
+  namespace: debugging-whispermsg
+spec:
+  template:
+    metadata:
+      labels:
+        app: kaniko
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: kaniko
+          image: gcr.io/kaniko-project/executor:v1.15.0
+          args:
+            - --context=tar
+            - --destination=azazellosaraksh/debugging-mtproto-bridge:latest
+            - --dockerfile=Dockerfile
+          volumeMounts:
+            - name: dockerfile
+              mountPath: /workspace
+      volumes:
+        - name: dockerfile
+          configMap:
+            name: mtproto-dockerfile
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mtproto-dockerfile
+  namespace: debugging-whispermsg
+data:
+  Dockerfile: |
+    FROM node:20-bookworm
+    RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/*
+    WORKDIR /app
+    COPY package*.json ./
+    RUN npm install
+    COPY . .
+    RUN chmod +x entrypoint.sh
+    CMD ["node", "index.js"]
+  package.json: |
+    {
+      "name": "mtproto-bridge",
+      "version": "1.0.0",
+      "main": "index.js",
+      "dependencies": {
+        "express": "^4.18.2",
+        "telegram": "^2.26.22",
+        "input": "^1.0.1"
+      }
+    }
+  index.js: |
+    (сюда нужно вставить полный код index.js - слишком большой)
+  transcribe.js: |
+    (сюда нужно вставить transcribe.js)

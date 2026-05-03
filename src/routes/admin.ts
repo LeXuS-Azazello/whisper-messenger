@@ -41,6 +41,10 @@ const ADMIN_JS_CONTENT = `document.addEventListener('DOMContentLoaded', function
     // --- Original Fetch Wrapper with Loading ---
     const originalFetch = window.fetch;
     window.fetch = function() {
+        if (arguments[0] && typeof arguments[0] === 'string' && arguments[0].includes('qr-check')) {
+             // Don't show progress bar for polling
+             return originalFetch.apply(this, arguments);
+        }
         setLoading(true);
         return originalFetch.apply(this, arguments).finally(() => setLoading(false));
     };
@@ -581,11 +585,32 @@ async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
 
   userConfigs.forEach(u => { if(u) users.push(u); });
 
-  // No live pod statuses as bridge is removed
-  users.forEach(user => {
-    user.isActive = false;
-    user.currentStatus = 'Stopped';
-  });
+  // Fetch live pod statuses from bridge
+  try {
+    const bridgeRes = await fetch("http://mtproto-bridge-manager:3000/pods", {
+      headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+    });
+    if (bridgeRes.ok) {
+      const podStatuses = await bridgeRes.json() as Record<string, any>;
+      users.forEach(user => {
+        const status = podStatuses[user.userId];
+        if (status) {
+          user.isActive = status.status === 'Running';
+          user.currentStatus = status.status;
+          user.lastStartedAt = status.startTime;
+        } else {
+          user.isActive = false;
+          user.currentStatus = 'Stopped';
+        }
+      });
+    }
+  } catch (e) {
+    console.error("Failed to fetch pod statuses from bridge:", e);
+    users.forEach(user => {
+      user.isActive = false;
+      user.currentStatus = 'Error';
+    });
+  }
 
   return users;
 }
@@ -638,8 +663,85 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
       return Response.json({ url: sampleAudioBase64 });
     }
 
+    if (url.pathname === "/admin/tg-status") {
+      const bridgeRes = await fetch(`http://mtproto-bridge-manager:3000/health`, {
+         headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+      });
+      if (bridgeRes.ok) {
+        const data = await bridgeRes.json() as any;
+        return Response.json({ authenticated: data.authenticated, userId: data.userId });
+      }
+      return Response.json({ authenticated: false });
+    }
+
+    if (url.pathname === "/admin/tg-send-code" && req.method === "POST") {
+      const body = await req.json() as any;
+      const res = await fetch(`http://mtproto-bridge-manager:3000/send-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
+        body: JSON.stringify(body)
+      });
+      return res;
+    }
+
+    if (url.pathname === "/admin/tg-verify-code" && req.method === "POST") {
+      const body = await req.json() as any;
+      const res = await fetch(`http://mtproto-bridge-manager:3000/verify-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
+        body: JSON.stringify(body)
+      });
+      return res;
+    }
+
+    if (url.pathname === "/admin/tg-qr-login" && req.method === "POST") {
+      const res = await fetch(`http://mtproto-bridge-manager:3000/qr-start`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+      });
+      return res;
+    }
+
+    if (url.pathname === "/admin/tg-qr-check") {
+      const token = url.searchParams.get("token");
+      const res = await fetch(`http://mtproto-bridge-manager:3000/qr-check?token=${token}`, {
+        headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+      });
+      return res;
+    }
+
+    if (url.pathname === "/admin/tg-logout" && req.method === "POST") {
+      const res = await fetch(`http://mtproto-bridge-manager:3000/logout`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+      });
+      return res;
+    }
+
+    if (url.pathname === "/admin/tg-test-msg" && req.method === "POST") {
+      const res = await fetch(`http://mtproto-bridge-manager:3000/test-tg`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+      });
+      return res;
+    }
+
+    if (url.pathname === "/admin/tg-test-voice" && req.method === "POST") {
+      const res = await fetch(`http://mtproto-bridge-manager:3000/test-voice`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+      });
+      return res;
+    }
+
     if (url.pathname === "/admin/tg-send-text" && req.method === "POST") {
-      return Response.json({ error: "Bridge removed" }, { status: 400 });
+      const body = await req.json() as any;
+      const res = await fetch(`http://mtproto-bridge-manager:3000/kv/test_msg`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
+        body: JSON.stringify({ value: body.message })
+      });
+      return res;
     }
 
 
@@ -714,6 +816,20 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
          const listRaw = await env.STATS.get("users_list") || "[]";
          const list = JSON.parse(listRaw).filter((id: string) => id !== userId);
          await env.STATS.put("users_list", JSON.stringify(list));
+         
+         // Also notify bridge to delete pod
+         await fetch(`http://mtproto-bridge-manager:3000/delete`, {
+           method: "POST",
+           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
+           body: JSON.stringify({ userId })
+         });
+      } else if (action === "restart" || action === "stop") {
+          // Notify bridge to restart/spawn/delete pod
+          await fetch(`http://mtproto-bridge-manager:3000/${action === 'restart' ? 'spawn' : 'delete'}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
+            body: JSON.stringify({ userId })
+          });
       }
       return Response.json({ success: true });
     }

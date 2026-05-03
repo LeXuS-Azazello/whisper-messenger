@@ -1,0 +1,15 @@
+services:
+  bridge:
+    build: .
+    container_name: mtproto-bridge
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./session:/app/session
+    environment:
+      - TG_API_ID=${TG_API_ID}
+      - TG_API_HASH=${TG_API_HASH}
+      - PORT=3000
+      - NODE_ENV=production
+    working_dir: /app
