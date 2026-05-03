@@ -50,6 +50,7 @@ export interface Env {
   CLOUDFLARE_ACCOUNT_ID?: string;
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
+  BRIDGE_SECRET?: string;
 }
 
 export interface HealthChecks {
