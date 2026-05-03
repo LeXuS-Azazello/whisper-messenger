@@ -41,7 +41,7 @@ metadata:
     ovn.kubernetes.io/service_external_ip_from_subnet: ext-public
     ovn.kubernetes.io/vpc: debugging-llm-proj
 spec:
-  loadBalancerIP: 91.224.11.69
+  loadBalancerIP: 91.224.11.33
   selector:
     app: echo-frontend
   ports:

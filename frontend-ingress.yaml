@@ -5,6 +5,7 @@ metadata:
   namespace: debugging-echovoice
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    kubernetes.io/ingress.class: "nginx"
 spec:
   rules:
   - host: voicemsg.net
