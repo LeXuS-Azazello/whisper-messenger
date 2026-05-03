@@ -551,63 +551,7 @@ const ADMIN_JS_CONTENT = `document.addEventListener('DOMContentLoaded', function
     }
 });`;
 
-async function bridgeFetch(url: string, options: any): Promise<Response> {
-  const start = Date.now();
-  try {
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        "Accept": "application/json",
-      }
-    });
-    
-    const duration = Date.now() - start;
-    const contentType = res.headers.get("Content-Type") || "";
-    
-    if (res.ok && contentType.includes("application/json")) {
-      return res;
-    }
 
-    const text = await res.text();
-    console.error(`[bridgeFetch] Error ${res.status} from ${url} (${duration}ms). Body: ${text.slice(0, 200)}`);
-    
-    return new Response(JSON.stringify({ 
-      success: false,
-      error: `Bridge Error ${res.status}`,
-      details: text.slice(0, 500),
-      url: url,
-      duration: `${duration}ms`
-    }), { 
-      status: res.status === 200 ? 502 : res.status,
-      headers: { "Content-Type": "application/json", "X-Bridge-Error": "true" } 
-    });
-  } catch (e: any) {
-    const duration = Date.now() - start;
-    console.error(`[bridgeFetch] Critical Failed ${url} (${duration}ms): ${e.message}`);
-    return new Response(JSON.stringify({ 
-      success: false,
-      error: `Fetch Failed: ${e.message}`,
-      url: url,
-      duration: `${duration}ms`
-    }), { 
-      status: 504, 
-      headers: { "Content-Type": "application/json", "X-Worker-Error": "true" } 
-    });
-  }
-}
-
-async function adminBridgeFetch(env: Env, path: string, payload?: any): Promise<Response> {
-  const options: RequestInit = {
-    headers: { "x-bridge-secret": env.BRIDGE_SECRET }
-  };
-  if (payload !== undefined) {
-    options.method = "POST";
-    options.headers = { ...options.headers, "Content-Type": "application/json" };
-    options.body = JSON.stringify(payload);
-  }
-  return bridgeFetch(`${env.BRIDGE_URL}${path}`, options);
-}
 
 async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
   const userIdsRaw = await env.STATS.get("users_list");
@@ -637,33 +581,10 @@ async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
 
   userConfigs.forEach(u => { if(u) users.push(u); });
 
-  // Fetch live pod statuses
-  let podStatuses: any[] = [];
-  try {
-    const podsRes = await fetch(`${env.BRIDGE_URL}/pods`, {
-      headers: { 'x-bridge-secret': env.BRIDGE_SECRET }
-    });
-    if (podsRes.ok) {
-      const data = await podsRes.json();
-      if (Array.isArray(data)) podStatuses = data;
-    }
-  } catch (e) {
-    console.error('Failed to fetch pod statuses:', e);
-  }
-
-  // Update users with live status
+  // No live pod statuses as bridge is removed
   users.forEach(user => {
-    const pod = Array.isArray(podStatuses) ? podStatuses.find(p => p?.userId === user.userId) : null;
-    if (pod) {
-      user.isActive = pod.status === 'Running';
-      user.currentStatus = pod.status; 
-      if (pod.startTime) {
-        user.lastStartedAt = new Date(pod.startTime).getTime();
-      }
-    } else {
-      user.isActive = false;
-      user.currentStatus = 'Stopped';
-    }
+    user.isActive = false;
+    user.currentStatus = 'Stopped';
   });
 
   return users;
@@ -717,87 +638,9 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
       return Response.json({ url: sampleAudioBase64 });
     }
 
-    // --- Admin Telegram Proxy Routes ---
-    if (url.pathname === "/admin/ping-bridge") {
-      try {
-        const res = await fetch(`${env.BRIDGE_URL}/health`, { headers: { 'x-bridge-secret': env.BRIDGE_SECRET }});
-        const text = await res.text();
-        return new Response(`Bridge: ${res.status} ${text}`);
-      } catch (e) {
-        return new Response(`Worker Error: ${(e as Error).message}`, { status: 500 });
-      }
+    if (url.pathname === "/admin/tg-send-text" && req.method === "POST") {
+      return Response.json({ error: "Bridge removed" }, { status: 400 });
     }
-
-    if (url.pathname === "/admin/tg-status") {
-      const userId = await env.STATS.get("admin_tg_userId");
-      const session = await env.STATS.get("admin_tg_session");
-      const hasPod = userId ? await fetch(`${env.BRIDGE_URL}/health`).then(r => r.ok).catch(() => false) : false;
-      return Response.json({ authenticated: !!session, userId, bridgeAlive: hasPod });
-    }
-
-    const adminTgUserId = await env.STATS.get("admin_tg_userId");
-    const adminTgSession = await env.STATS.get("admin_tg_session");
-    let tgAuthenticated = !!adminTgSession;
-    
-    if (tgAuthenticated && adminTgUserId) {
-      try {
-        const healthRes = await fetch(`${env.BRIDGE_URL}/health`, {
-          headers: { "x-bridge-secret": env.BRIDGE_SECRET }
-        });
-        const healthData: any = await healthRes.json();
-        if (!healthData.alive) {
-          tgAuthenticated = false;
-        }
-      } catch (e) {
-        tgAuthenticated = false;
-      }
-    }
-
-    if (url.pathname === "/admin/tg-send-code" && req.method === "POST") {
-      const { phoneNumber } = await req.json() as any;
-      return adminBridgeFetch(env, "/send-code", { phone: phoneNumber });
-    }
-
-    if (url.pathname === "/admin/tg-verify-code" && req.method === "POST") {
-      const { phoneNumber, code } = await req.json() as any;
-      const res = await adminBridgeFetch(env, "/verify-code", { phone: phoneNumber, code });
-      
-      if (res.ok) {
-        const data: any = await res.clone().json();
-        if (data.success) {
-          await env.STATS.put("admin_tg_userId", data.userId);
-          await env.STATS.put("admin_tg_session", data.session);
-          try {
-            await adminBridgeFetch(env, "/spawn", { userId: data.userId, session: data.session });
-          } catch (e) {
-            await logError("bridge", `Spawn admin pod failed: ${e instanceof Error ? e.message : String(e)}`, env);
-          }
-        }
-      }
-      return res;
-    }
-
-    if (url.pathname === "/admin/tg-qr-login" && req.method === "POST") {
-      return adminBridgeFetch(env, "/qr-start", {});
-    }
-
-    if (url.pathname === "/admin/tg-qr-check") {
-      const token = url.searchParams.get("token");
-      const res = await adminBridgeFetch(env, `/qr-check?token=${token}`);
-      
-      if (res.ok) {
-        const data: any = await res.clone().json();
-        if (data.done) {
-          await env.STATS.put("admin_tg_userId", data.userId);
-          await env.STATS.put("admin_tg_session", data.session);
-        }
-      }
-      return res;
-    }
-
-    if (url.pathname === "/admin/tg-logout" && req.method === "POST") {
-      const userId = await env.STATS.get("admin_tg_userId");
-      if (userId) {
         try {
           await adminBridgeFetch(env, "/delete", { userId });
         } catch (e) {
@@ -884,49 +727,31 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     if (url.pathname === "/admin/ollama-pull" && req.method === "POST") {
       const { url: ollamaUrl, model } = await req.json() as any;
       if (!ollamaUrl || !model) return Response.json({ success: false, error: "Missing url or model" }, { status: 400 });
-      return adminBridgeFetch(env, "/ollama-pull", { url: ollamaUrl, model });
+      // Direct fetch to ollama as we are in K8s
+      try {
+        await fetch(`${ollamaUrl}/api/pull`, {
+          method: "POST",
+          body: JSON.stringify({ name: model, stream: false })
+        });
+        return Response.json({ success: true });
+      } catch (e: any) {
+        return Response.json({ success: false, error: e.message }, { status: 500 });
+      }
     }
 
     if (url.pathname === "/admin/user-action" && req.method === "POST") {
       const { userId, action } = await req.json() as any;
-      if (action === "stop") {
-        await adminBridgeFetch(env, "/delete", { userId });
-        const u = await env.STATS.get(`user_meta_${userId}`);
-        if(u) {
-          const meta = JSON.parse(u);
-          meta.isActive = false;
-          meta.lastStoppedAt = Date.now();
-          await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
-        }
-      } else if (action === "delete") {
-          await adminBridgeFetch(env, "/delete", { userId });
+      if (action === "delete") {
          await env.STATS.delete(`user_meta_${userId}`);
          await env.STATS.delete(`tg_session_${userId}`);
          const listRaw = await env.STATS.get("users_list") || "[]";
          const list = JSON.parse(listRaw).filter((id: string) => id !== userId);
          await env.STATS.put("users_list", JSON.stringify(list));
-      } else if (action === "restart") {
-         const u = await env.STATS.get(`user_meta_${userId}`);
-         if(u) {
-           const meta = JSON.parse(u);
-           const sessionRaw = await env.STATS.get(`tg_session_${userId}`);
-           await adminBridgeFetch(env, "/delete", { userId });
-           if(sessionRaw) {
-              await new Promise(r => setTimeout(r, 1000));
-              const res = await adminBridgeFetch(env, "/spawn", { userId, session: sessionRaw });
-              if (res.ok) {
-                meta.isActive = true;
-                meta.lastStartedAt = Date.now();
-                delete meta.lastStoppedAt;
-              }
-           }
-           await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
-         }
       }
       return Response.json({ success: true });
     }
 
-    return new Response(renderAdminDashboard(checks, env, url.origin, stats, errors, users, tgAuthenticated), {
+    return new Response(renderAdminDashboard(checks, env, url.origin, stats, errors, users, false), {
       headers: { "Content-Type": "text/html; charset=utf-8" }
     });
   } catch (e: any) {

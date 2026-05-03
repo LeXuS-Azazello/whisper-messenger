@@ -23,7 +23,7 @@ function getPublicOrigin(env: Env, fallbackOrigin: string): string {
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
-      env.STATS = new RedisKV(env.BRIDGE_URL, env.BRIDGE_SECRET);
+      env.STATS = new RedisKV(env.REDIS_URL || "redis://redis:6379");
       const url = new URL(req.url);
       const publicOrigin = getPublicOrigin(env, url.origin);
 
@@ -140,7 +140,7 @@ export default {
 
     if (url.pathname === "/test-whisper" && req.method === "POST") {
         const secret = url.searchParams.get("secret");
-        if (!isAdmin && !userId && secret !== env.BRIDGE_SECRET) return new Response("Unauthorized", { status: 401 });
+        if (!isAdmin && !userId) return new Response("Unauthorized", { status: 401 });
         const provider = url.searchParams.get("provider") as "cloudflare" | "local" | "ollama" || "ollama";
         const formData = await req.formData();
         const file = formData.get("file") as File;
@@ -261,7 +261,7 @@ export default {
   },
 
   async queue(batch: MessageBatch<any>, env: Env) {
-    env.STATS = new RedisKV(env.BRIDGE_URL, env.BRIDGE_SECRET);
+    env.STATS = new RedisKV(env.REDIS_URL || "redis://redis:6379");
     return queue(batch, env);
   },
 } satisfies ExportedHandler<Env>;

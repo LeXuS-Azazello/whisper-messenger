@@ -35,27 +35,7 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
   }
   const user: UserSession = JSON.parse(userStats);
 
-  // Fetch live pod status for the user
-  if (user.session) {
-    try {
-      const podsRes = await fetch(`${env.BRIDGE_URL}/pods`, {
-        headers: { 'x-bridge-secret': env.BRIDGE_SECRET }
-      });
-      if (podsRes.ok) {
-        const podStatuses: any[] = await podsRes.json();
-        const pod = podStatuses.find(p => p.userId === userId);
-        if (pod) {
-          user.isActive = pod.status === 'Running';
-          user.currentStatus = pod.status;
-        } else {
-          user.isActive = false;
-          user.currentStatus = 'Stopped';
-        }
-      }
-    } catch (e) {
-      console.error('[dashboard] Failed to fetch pod status:', e);
-    }
-  }
+
 
   if (req.method === "POST") {
     if (url.pathname === "/dashboard/save-meta") {
@@ -112,69 +92,7 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
         return Response.json({ success: false, error: e.message });
       }
     }
-    if (url.pathname === "/dashboard/test-tg") {
-      try {
-        const session = await env.STATS.get(`tg_session_${userId}`);
-        const res = await fetch(`${env.BRIDGE_URL}/test-tg`, {
-          method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-          body: JSON.stringify({ userId, session })
-        });
-        if (!res.ok) {
-           const text = await res.text();
-           return Response.json({ success: false, error: `Bridge error ${res.status}: ${text}` });
-        }
-        return Response.json({ success: true });
-      } catch (e) {
-        return Response.json({ success: false, error: (e as Error).message });
-      }
-    }
-    if (url.pathname === "/dashboard/disconnect-tg") {
-      try {
-        const res = await fetch(`${env.BRIDGE_URL}/delete`, {
-          method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-          body: JSON.stringify({ userId })
-        });
-        if (!res.ok) await logError("bridge", `/dashboard/disconnect-tg: bridge responded ${res.status}`, env);
-      } catch (e: any) {
-        await logError("bridge", `/dashboard/disconnect-tg failed: ${e.message}`, env);
-      }
-      user.session = "";
-      user.isActive = false;
-      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-      await env.STATS.delete(`tg_session_${userId}`);
-      return Response.json({ success: true });
-    }
-    if (url.pathname === "/dashboard/restart-tg") {
-      try {
-        const session = await env.STATS.get(`tg_session_${userId}`);
-        if (!session) return Response.json({ error: "No session found" }, { status: 400 });
 
-        await fetch(`${env.BRIDGE_URL}/delete`, {
-          method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-          body: JSON.stringify({ userId })
-        });
-        
-        await new Promise(r => setTimeout(r, 1000));
-
-        const spawnRes = await fetch(`${env.BRIDGE_URL}/spawn`, {
-          method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-          body: JSON.stringify({ userId, session })
-        });
-
-        if (!spawnRes.ok) {
-           const err = await spawnRes.text();
-           return Response.json({ success: false, error: `Spawn failed: ${err}` });
-        }
-
-        user.isActive = true;
-        user.lastStartedAt = Date.now();
-        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-
-        return Response.json({ success: true });
-      } catch (e: any) {
-        return Response.json({ success: false, error: e.message });
-      }
-    }
     if (url.pathname === "/dashboard/test-translation") {
       const { text, targetLang } = await req.json() as any;
 
