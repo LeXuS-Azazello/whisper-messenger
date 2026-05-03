@@ -81,6 +81,8 @@ spec:
               fieldPath: metadata.namespace
         - name: BRIDGE_IMAGE
           value: azazellosaraksh/debugging-mtproto-bridge:latest
+        - name: REDIS_URL
+          value: redis://redis:6379
         resources:
           requests:
             memory: 512Mi

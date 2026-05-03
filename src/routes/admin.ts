@@ -41,10 +41,6 @@ const ADMIN_JS_CONTENT = `document.addEventListener('DOMContentLoaded', function
     // --- Original Fetch Wrapper with Loading ---
     const originalFetch = window.fetch;
     window.fetch = function() {
-        if (arguments[0] && typeof arguments[0] === 'string' && arguments[0].includes('qr-check')) {
-             // Don't show progress bar for polling
-             return originalFetch.apply(this, arguments);
-        }
         setLoading(true);
         return originalFetch.apply(this, arguments).finally(() => setLoading(false));
     };
@@ -558,290 +554,225 @@ const ADMIN_JS_CONTENT = `document.addEventListener('DOMContentLoaded', function
 
 
 async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
-  const userIdsRaw = await env.STATS.get("users_list");
-  let userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
-  
-  // Limit to most recent 50 users to avoid hitting KV limits
-  if (userIds.length > 50) {
-    userIds = userIds.slice(-50);
-  }
+    const userIdsRaw = await env.STATS.get("users_list");
+    let userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
 
-  const users: UserSession[] = [];
-  
-  // Fetch all meta in parallel
-  const userConfigs = await Promise.all(userIds.map(async (id) => {
-    const metaStr = await env.STATS.get(`user_meta_${id}`);
-    if (!metaStr) return null;
-    try {
-      const meta = JSON.parse(metaStr) as UserSession;
-      // Also check if TG session exists - but maybe we can optimize this too
-      const session = await env.STATS.get(`tg_session_${id}`);
-      meta.tgAuthenticated = !!session;
-      return meta;
-    } catch (e) {
-      return null;
+    // Limit to most recent 50 users to avoid hitting KV limits
+    if (userIds.length > 50) {
+        userIds = userIds.slice(-50);
     }
-  }));
 
-  userConfigs.forEach(u => { if(u) users.push(u); });
+    const users: UserSession[] = [];
 
-  // Fetch live pod statuses from bridge
-  try {
-    const bridgeRes = await fetch("http://mtproto-bridge-manager:3000/pods", {
-      headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
-    });
-    if (bridgeRes.ok) {
-      const podStatuses = await bridgeRes.json() as Record<string, any>;
-      users.forEach(user => {
-        const status = podStatuses[user.userId];
-        if (status) {
-          user.isActive = status.status === 'Running';
-          user.currentStatus = status.status;
-          user.lastStartedAt = status.startTime;
-        } else {
-          user.isActive = false;
-          user.currentStatus = 'Stopped';
+    // Fetch all meta in parallel
+    const userConfigs = await Promise.all(userIds.map(async (id) => {
+        const metaStr = await env.STATS.get(`user_meta_${id}`);
+        if (!metaStr) return null;
+        try {
+            const meta = JSON.parse(metaStr) as UserSession;
+            // Also check if TG session exists - but maybe we can optimize this too
+            const session = await env.STATS.get(`tg_session_${id}`);
+            meta.tgAuthenticated = !!session;
+            return meta;
+        } catch (e) {
+            return null;
         }
-      });
-    }
-  } catch (e) {
-    console.error("Failed to fetch pod statuses from bridge:", e);
-    users.forEach(user => {
-      user.isActive = false;
-      user.currentStatus = 'Error';
-    });
-  }
+    }));
 
-  return users;
+    userConfigs.forEach(u => { if (u) users.push(u); });
+
+    // No live pod statuses as bridge is removed
+    users.forEach(user => {
+        user.isActive = false;
+        user.currentStatus = 'Stopped';
+    });
+
+    return users;
 }
 
 export async function handleAdmin(env: Env, req: Request): Promise<Response> {
-  try {
-    const url = new URL(req.url);
-    const cookieAuth = req.headers.get("Cookie")?.match(/admin_session=([^;]+)/)?.[1];
-    const adminId = cookieAuth ? await verifySession(cookieAuth, env.ADMIN_SECRET) : null;
-    
-    if (req.method === "POST" && url.pathname === "/admin/login") {
-      const formData = await req.formData();
-      const password = formData.get("password")?.toString();
-      if (password === env.ADMIN_SECRET) {
-        const signedAdminSession = await createSignedSession("admin", env.ADMIN_SECRET);
-        return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=${signedAdminSession}; Path=/; HttpOnly; SameSite=Lax;` } });
-      }
-    }
-    
-    if (url.pathname === "/admin/logout") {
-      return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
-    }
-    
-    if (adminId !== "admin") {
-      // If it's an API request, return 401 JSON
-      if (req.method === "POST" || url.pathname.endsWith(".json") || url.pathname.includes("/tg-") || url.pathname.includes("/user-action")) {
-        return new Response(JSON.stringify({ success: false, error: "Unauthorized. Please login." }), { 
-          status: 401, 
-          headers: { "Content-Type": "application/json" } 
+    try {
+        const url = new URL(req.url);
+        const cookieAuth = req.headers.get("Cookie")?.match(/admin_session=([^;]+)/)?.[1];
+        const adminId = cookieAuth ? await verifySession(cookieAuth, env.ADMIN_SECRET) : null;
+
+        if (req.method === "POST" && url.pathname === "/admin/login") {
+            const formData = await req.formData();
+            const password = formData.get("password")?.toString();
+            if (password === env.ADMIN_SECRET) {
+                const signedAdminSession = await createSignedSession("admin", env.ADMIN_SECRET);
+                return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=${signedAdminSession}; Path=/; HttpOnly; SameSite=Lax;` } });
+            }
+        }
+
+        if (url.pathname === "/admin/logout") {
+            return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT` } });
+        }
+
+        if (adminId !== "admin") {
+            // If it's an API request, return 401 JSON
+            if (req.method === "POST" || url.pathname.endsWith(".json") || url.pathname.includes("/tg-") || url.pathname.includes("/user-action")) {
+                return new Response(JSON.stringify({ success: false, error: "Unauthorized. Please login." }), {
+                    status: 401,
+                    headers: { "Content-Type": "application/json" }
+                });
+            }
+            return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+        }
+
+        if (req.method === "POST") {
+            const origin = req.headers.get("Origin");
+            const host = url.hostname;
+            if (origin && !origin.includes(host)) {
+                // Only block if it's definitely a cross-origin request to the API
+                await logError("admin", `Potential CSRF block: Origin=${origin} Host=${host}`, env);
+            }
+        }
+
+        // --- Static Assets Routes ---
+        if (url.pathname === "/admin/js") {
+            return new Response(ADMIN_JS_CONTENT, { headers: { "Content-Type": "application/javascript" } });
+        }
+
+        if (url.pathname === "/admin/sample-audio") {
+            return Response.json({ url: sampleAudioBase64 });
+        }
+
+        if (url.pathname === "/admin/tg-status") {
+            const res = await fetch(`http://mtproto-bridge-manager:3000/status/admin`, {
+                headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+            });
+            return res;
+        }
+
+        if (url.pathname === "/admin/tg-send-code" && req.method === "POST") {
+            const body = await req.json();
+            const res = await fetch(`http://mtproto-bridge-manager:3000/send-code`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
+                body: JSON.stringify(body)
+            });
+            return res;
+        }
+
+        if (url.pathname === "/admin/tg-verify-code" && req.method === "POST") {
+            const body = await req.json();
+            const res = await fetch(`http://mtproto-bridge-manager:3000/verify-code`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
+                body: JSON.stringify(body)
+            });
+            return res;
+        }
+
+        if (url.pathname === "/admin/tg-qr-login" && req.method === "POST") {
+            const res = await fetch(`http://mtproto-bridge-manager:3000/qr-login`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+            });
+            return res;
+        }
+
+        if (url.pathname === "/admin/tg-qr-check") {
+            const token = url.searchParams.get("token");
+            const res = await fetch(`http://mtproto-bridge-manager:3000/qr-check?token=${token}`, {
+                headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+            });
+            return res;
+        }
+
+        if (url.pathname === "/admin/tg-test-msg" && req.method === "POST") {
+            const res = await fetch(`http://mtproto-bridge-manager:3000/test-tg`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+            });
+            return res;
+        }
+
+
+        if (url.pathname === "/admin/users-json") {
+            const users = await fetchUsersWithStatus(env);
+            return Response.json(users);
+        }
+
+        const users = await fetchUsersWithStatus(env);
+        const checks: HealthChecks = {
+            VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
+            META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
+            META_APP_SECRET: Boolean(env.META_APP_SECRET),
+            WHATSAPP_TOKEN: Boolean(env.WHATSAPP_TOKEN),
+            META_API_VERSION: Boolean(env.META_API_VERSION),
+            WHATSAPP_PHONE_NUMBER_ID: Boolean(env.WHATSAPP_PHONE_NUMBER_ID),
+            TELEGRAM_APP_ID: Boolean(env.TELEGRAM_APP_ID),
+            TELEGRAM_APP_HASH: Boolean(env.TELEGRAM_APP_HASH),
+            AUDIO_QUEUE: Boolean(env.AUDIO_QUEUE),
+            AI: Boolean(env.AI),
+        };
+
+        const platforms = ["messenger", "instagram", "whatsapp", "telegram", "line"];
+        const stats: any = {};
+        for (const p of platforms) {
+            const val = await env.STATS.get(`stats_${p}`);
+            stats[p] = parseInt(val || "0", 10);
+        }
+
+        const errors = await getErrors(env);
+
+        if (url.pathname === "/admin/whisper-config") {
+            if (req.method === "GET") {
+                const provider = await env.STATS.get("config_whisper_provider") || "qwen3-asr";
+                const model = await env.STATS.get("config_ollama_model") || "qwen3-coder:30b";
+                const localUrl = await env.STATS.get("config_local_whisper_url") || "";
+                const localSecret = await env.STATS.get("config_local_whisper_secret") || "";
+                const ollamaUrl = await env.STATS.get("config_ollama_url") || "";
+                return Response.json({ provider, model, localUrl, localSecret, ollamaUrl });
+            }
+            if (req.method === "POST") {
+                const { provider, model, localUrl, localSecret, ollamaUrl } = await req.json() as any;
+                if (provider) await env.STATS.put("config_whisper_provider", provider);
+                if (model) await env.STATS.put("config_ollama_model", model);
+                if (localUrl !== undefined) await env.STATS.put("config_local_whisper_url", localUrl);
+                if (localSecret !== undefined) await env.STATS.put("config_local_whisper_secret", localSecret);
+                if (ollamaUrl !== undefined) await env.STATS.put("config_ollama_url", ollamaUrl);
+                return Response.json({ success: true });
+            }
+        }
+
+        if (url.pathname === "/admin/ollama-pull" && req.method === "POST") {
+            const { url: ollamaUrl, model } = await req.json() as any;
+            if (!ollamaUrl || !model) return Response.json({ success: false, error: "Missing url or model" }, { status: 400 });
+            // Direct fetch to ollama as we are in K8s
+            try {
+                await fetch(`${ollamaUrl}/api/pull`, {
+                    method: "POST",
+                    body: JSON.stringify({ name: model, stream: false })
+                });
+                return Response.json({ success: true });
+            } catch (e: any) {
+                return Response.json({ success: false, error: e.message }, { status: 500 });
+            }
+        }
+
+        if (url.pathname === "/admin/user-action" && req.method === "POST") {
+            const { userId, action } = await req.json() as any;
+            if (action === "delete") {
+                await env.STATS.delete(`user_meta_${userId}`);
+                await env.STATS.delete(`tg_session_${userId}`);
+                const listRaw = await env.STATS.get("users_list") || "[]";
+                const list = JSON.parse(listRaw).filter((id: string) => id !== userId);
+                await env.STATS.put("users_list", JSON.stringify(list));
+            }
+            return Response.json({ success: true });
+        }
+
+        return new Response(renderAdminDashboard(checks, env, url.origin, stats, errors, users, false), {
+            headers: { "Content-Type": "text/html; charset=utf-8" }
         });
-      }
-      return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
-    }
-
-    if (req.method === "POST") {
-      const origin = req.headers.get("Origin");
-      const host = url.hostname;
-      if (origin && !origin.includes(host)) {
-         // Only block if it's definitely a cross-origin request to the API
-         await logError("admin", `Potential CSRF block: Origin=${origin} Host=${host}`, env);
-      }
-    }
-
-    // --- Static Assets Routes ---
-    if (url.pathname === "/admin/js") {
-      return new Response(ADMIN_JS_CONTENT, { headers: { "Content-Type": "application/javascript" } });
-    }
-
-    if (url.pathname === "/admin/sample-audio") {
-      return Response.json({ url: sampleAudioBase64 });
-    }
-
-    if (url.pathname === "/admin/tg-status") {
-      const bridgeRes = await fetch(`http://mtproto-bridge-manager:3000/health`, {
-         headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
-      });
-      if (bridgeRes.ok) {
-        const data = await bridgeRes.json() as any;
-        return Response.json({ authenticated: data.authenticated, userId: data.userId });
-      }
-      return Response.json({ authenticated: false });
-    }
-
-    if (url.pathname === "/admin/tg-send-code" && req.method === "POST") {
-      const body = await req.json() as any;
-      const res = await fetch(`http://mtproto-bridge-manager:3000/send-code`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
-        body: JSON.stringify(body)
-      });
-      return res;
-    }
-
-    if (url.pathname === "/admin/tg-verify-code" && req.method === "POST") {
-      const body = await req.json() as any;
-      const res = await fetch(`http://mtproto-bridge-manager:3000/verify-code`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
-        body: JSON.stringify(body)
-      });
-      return res;
-    }
-
-    if (url.pathname === "/admin/tg-qr-login" && req.method === "POST") {
-      const res = await fetch(`http://mtproto-bridge-manager:3000/qr-start`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
-      });
-      return res;
-    }
-
-    if (url.pathname === "/admin/tg-qr-check") {
-      const token = url.searchParams.get("token");
-      const res = await fetch(`http://mtproto-bridge-manager:3000/qr-check?token=${token}`, {
-        headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
-      });
-      return res;
-    }
-
-    if (url.pathname === "/admin/tg-logout" && req.method === "POST") {
-      const res = await fetch(`http://mtproto-bridge-manager:3000/logout`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
-      });
-      return res;
-    }
-
-    if (url.pathname === "/admin/tg-test-msg" && req.method === "POST") {
-      const res = await fetch(`http://mtproto-bridge-manager:3000/test-tg`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
-      });
-      return res;
-    }
-
-    if (url.pathname === "/admin/tg-test-voice" && req.method === "POST") {
-      const res = await fetch(`http://mtproto-bridge-manager:3000/test-voice`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
-      });
-      return res;
-    }
-
-    if (url.pathname === "/admin/tg-send-text" && req.method === "POST") {
-      const body = await req.json() as any;
-      const res = await fetch(`http://mtproto-bridge-manager:3000/kv/test_msg`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
-        body: JSON.stringify({ value: body.message })
-      });
-      return res;
-    }
-
-
-    if (url.pathname === "/admin/users-json") {
-      const users = await fetchUsersWithStatus(env);
-      return Response.json(users);
-    }
-
-    const users = await fetchUsersWithStatus(env);
-    const checks: HealthChecks = {
-      VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
-      META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
-      META_APP_SECRET: Boolean(env.META_APP_SECRET),
-      WHATSAPP_TOKEN: Boolean(env.WHATSAPP_TOKEN),
-      META_API_VERSION: Boolean(env.META_API_VERSION),
-      WHATSAPP_PHONE_NUMBER_ID: Boolean(env.WHATSAPP_PHONE_NUMBER_ID),
-      TELEGRAM_APP_ID: Boolean(env.TELEGRAM_APP_ID),
-      TELEGRAM_APP_HASH: Boolean(env.TELEGRAM_APP_HASH),
-      AUDIO_QUEUE: Boolean(env.AUDIO_QUEUE),
-      AI: Boolean(env.AI),
-    };
-
-    const platforms = ["messenger", "instagram", "whatsapp", "telegram", "line"];
-    const stats: any = {};
-    for (const p of platforms) {
-      const val = await env.STATS.get(`stats_${p}`);
-      stats[p] = parseInt(val || "0", 10);
-    }
-    
-    const errors = await getErrors(env);
-
-    if (url.pathname === "/admin/whisper-config") {
-      if (req.method === "GET") {
-        const provider = await env.STATS.get("config_whisper_provider") || "qwen3-asr";
-        const model = await env.STATS.get("config_ollama_model") || "qwen3-coder:30b";
-        const localUrl = await env.STATS.get("config_local_whisper_url") || "";
-        const localSecret = await env.STATS.get("config_local_whisper_secret") || "";
-        const ollamaUrl = await env.STATS.get("config_ollama_url") || "";
-        return Response.json({ provider, model, localUrl, localSecret, ollamaUrl });
-      }
-      if (req.method === "POST") {
-        const { provider, model, localUrl, localSecret, ollamaUrl } = await req.json() as any;
-        if (provider) await env.STATS.put("config_whisper_provider", provider);
-        if (model) await env.STATS.put("config_ollama_model", model);
-        if (localUrl !== undefined) await env.STATS.put("config_local_whisper_url", localUrl);
-        if (localSecret !== undefined) await env.STATS.put("config_local_whisper_secret", localSecret);
-        if (ollamaUrl !== undefined) await env.STATS.put("config_ollama_url", ollamaUrl);
-        return Response.json({ success: true });
-      }
-    }
-
-    if (url.pathname === "/admin/ollama-pull" && req.method === "POST") {
-      const { url: ollamaUrl, model } = await req.json() as any;
-      if (!ollamaUrl || !model) return Response.json({ success: false, error: "Missing url or model" }, { status: 400 });
-      // Direct fetch to ollama as we are in K8s
-      try {
-        await fetch(`${ollamaUrl}/api/pull`, {
-          method: "POST",
-          body: JSON.stringify({ name: model, stream: false })
+    } catch (e: any) {
+        console.error("CRITICAL ADMIN ERROR:", e);
+        return new Response(`<h1>Admin Rendering Error</h1><p>${e.message}</p><pre>${e.stack}</pre>`, {
+            status: 500,
+            headers: { "Content-Type": "text/html; charset=utf-8" }
         });
-        return Response.json({ success: true });
-      } catch (e: any) {
-        return Response.json({ success: false, error: e.message }, { status: 500 });
-      }
     }
-
-    if (url.pathname === "/admin/user-action" && req.method === "POST") {
-      const { userId, action } = await req.json() as any;
-      if (action === "delete") {
-         await env.STATS.delete(`user_meta_${userId}`);
-         await env.STATS.delete(`tg_session_${userId}`);
-         const listRaw = await env.STATS.get("users_list") || "[]";
-         const list = JSON.parse(listRaw).filter((id: string) => id !== userId);
-         await env.STATS.put("users_list", JSON.stringify(list));
-         
-         // Also notify bridge to delete pod
-         await fetch(`http://mtproto-bridge-manager:3000/delete`, {
-           method: "POST",
-           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
-           body: JSON.stringify({ userId })
-         });
-      } else if (action === "restart" || action === "stop") {
-          // Notify bridge to restart/spawn/delete pod
-          await fetch(`http://mtproto-bridge-manager:3000/${action === 'restart' ? 'spawn' : 'delete'}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
-            body: JSON.stringify({ userId })
-          });
-      }
-      return Response.json({ success: true });
-    }
-
-    return new Response(renderAdminDashboard(checks, env, url.origin, stats, errors, users, false), {
-      headers: { "Content-Type": "text/html; charset=utf-8" }
-    });
-  } catch (e: any) {
-    console.error("CRITICAL ADMIN ERROR:", e);
-    return new Response(`<h1>Admin Rendering Error</h1><p>${e.message}</p><pre>${e.stack}</pre>`, {
-      status: 500,
-      headers: { "Content-Type": "text/html; charset=utf-8" }
-    });
-  }
 }

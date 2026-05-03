@@ -26,11 +26,11 @@ function getPublicOrigin(env: Env, fallbackOrigin: string): string {
 function handleAuthPage(currentUserId: string | null, url: URL): Response {
   const isAuthenticated = !!currentUserId;
   if (isAuthenticated) return new Response("Redirecting...", { status: 302, headers: { "Location": "/dashboard" } });
-  return new Response(renderAuthPage(undefined, isAuthenticated, url.origin), { 
-    headers: { 
+  return new Response(renderAuthPage(undefined, isAuthenticated, url.origin), {
+    headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
-    } 
+    }
   });
 }
 
@@ -44,118 +44,118 @@ async function handleGoogleCallback(
   url: URL,
   currentUserId: string | null | undefined
 ): Promise<Response> {
-    const publicOrigin = getPublicOrigin(env, url.origin);
-    // If already logged in, redirect to dashboard
-    if (currentUserId) {
-      return Response.redirect(`${publicOrigin}/dashboard`, 302);
-    }
-
-    try {
-      let sub = "";
-      let email = "";
-      let givenName = "";
-      let name = "";
-
-      if (oauth.credential) {
-        const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(oauth.credential)}`);
-        if (!tokenInfoRes.ok) {
-          const errorText = await tokenInfoRes.text();
-          return new Response(`Token verification failed: ${errorText}`, { status: 400 });
-        }
-
-        const tokenInfo = await tokenInfoRes.json() as any;
-        if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
-          throw new Error("Invalid Google Client ID (audience mismatch)");
-        }
-
-        sub = tokenInfo.sub || "";
-        email = tokenInfo.email || "";
-        givenName = tokenInfo.given_name || tokenInfo.name || (email ? email.split('@')[0] : "Google User");
-        name = tokenInfo.name || givenName;
-      } else if (oauth.code) {
-        const redirectUri = `${publicOrigin}/auth/google/callback`;
-        const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            client_id: env.GOOGLE_CLIENT_ID,
-            client_secret: env.GOOGLE_CLIENT_SECRET,
-            code: oauth.code,
-            grant_type: "authorization_code",
-            redirect_uri: redirectUri
-          })
-        });
-
-        if (!tokenRes.ok) {
-          const errorText = await tokenRes.text();
-          return new Response(`Token exchange failed: ${errorText}`, { status: tokenRes.status });
-        }
-
-        const tokenData : any = await tokenRes.json();
-        if (!tokenData.access_token) {
-          return new Response("No access token in response", { status: 400 });
-        }
-
-        const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-          headers: { Authorization: `Bearer ${tokenData.access_token}` }
-        });
-
-        if (!userRes.ok) {
-          const errorText = await userRes.text();
-          return new Response(`User info failed: ${errorText}`, { status: 400 });
-        }
-
-        const userInfo = await userRes.json() as any;
-        sub = userInfo.id || "";
-        email = userInfo.email || "";
-        givenName = userInfo.given_name || userInfo.name || (email ? email.split('@')[0] : "Google User");
-        name = userInfo.name || givenName;
-      } else {
-        return new Response("No Google credential or authorization code provided", { status: 400 });
-      }
-
-      if (!sub) {
-        return new Response("Google response missing user identifier", { status: 400 });
-      }
-
-      const userId = `google_${sub}`;
-
-      // Check if user exists
-      const existingRaw = await env.STATS.get(`user_meta_${userId}`);
-      if (!existingRaw) {
-        const user: UserSession = {
-          userId,
-          firstName: givenName,
-          username: name,
-          session: "",
-          platform: "telegram", // Keep as telegram for compatibility
-          transcriptionCount: 0,
-          isActive: true,
-          createdAt: Date.now(),
-          lastActiveAt: Date.now(),
-          email
-        };
-        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-
-        // Add to users_list
-        const listRaw = await env.STATS.get("users_list") || "[]";
-        const list = JSON.parse(listRaw);
-        if (!list.includes(userId)) {
-          list.push(userId);
-          await env.STATS.put("users_list", JSON.stringify(list));
-        }
-      }
-
-      console.log(`[Auth] Creating session for user: ${userId}`);
-      await logError("auth", `User ${userId} authenticated via Google`, env);
-      return await createSessionResponse(userId, env);
-
-    } catch (error) {
-      console.error(`[Auth] Google error: ${error}`);
-      await logError("auth", `Google auth error: ${error}`, env);
-      return new Response(`Auth Error: ${error}`, { status: 500 });
-    }
+  const publicOrigin = getPublicOrigin(env, url.origin);
+  // If already logged in, redirect to dashboard
+  if (currentUserId) {
+    return Response.redirect(`${publicOrigin}/dashboard`, 302);
   }
+
+  try {
+    let sub = "";
+    let email = "";
+    let givenName = "";
+    let name = "";
+
+    if (oauth.credential) {
+      const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(oauth.credential)}`);
+      if (!tokenInfoRes.ok) {
+        const errorText = await tokenInfoRes.text();
+        return new Response(`Token verification failed: ${errorText}`, { status: 400 });
+      }
+
+      const tokenInfo = await tokenInfoRes.json() as any;
+      if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
+        throw new Error("Invalid Google Client ID (audience mismatch)");
+      }
+
+      sub = tokenInfo.sub || "";
+      email = tokenInfo.email || "";
+      givenName = tokenInfo.given_name || tokenInfo.name || (email ? email.split('@')[0] : "Google User");
+      name = tokenInfo.name || givenName;
+    } else if (oauth.code) {
+      const redirectUri = `${publicOrigin}/auth/google/callback`;
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: env.GOOGLE_CLIENT_ID,
+          client_secret: env.GOOGLE_CLIENT_SECRET,
+          code: oauth.code,
+          grant_type: "authorization_code",
+          redirect_uri: redirectUri
+        })
+      });
+
+      if (!tokenRes.ok) {
+        const errorText = await tokenRes.text();
+        return new Response(`Token exchange failed: ${errorText}`, { status: tokenRes.status });
+      }
+
+      const tokenData: any = await tokenRes.json();
+      if (!tokenData.access_token) {
+        return new Response("No access token in response", { status: 400 });
+      }
+
+      const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      });
+
+      if (!userRes.ok) {
+        const errorText = await userRes.text();
+        return new Response(`User info failed: ${errorText}`, { status: 400 });
+      }
+
+      const userInfo = await userRes.json() as any;
+      sub = userInfo.id || "";
+      email = userInfo.email || "";
+      givenName = userInfo.given_name || userInfo.name || (email ? email.split('@')[0] : "Google User");
+      name = userInfo.name || givenName;
+    } else {
+      return new Response("No Google credential or authorization code provided", { status: 400 });
+    }
+
+    if (!sub) {
+      return new Response("Google response missing user identifier", { status: 400 });
+    }
+
+    const userId = `google_${sub}`;
+
+    // Check if user exists
+    const existingRaw = await env.STATS.get(`user_meta_${userId}`);
+    if (!existingRaw) {
+      const user: UserSession = {
+        userId,
+        firstName: givenName,
+        username: name,
+        session: "",
+        platform: "telegram", // Keep as telegram for compatibility
+        transcriptionCount: 0,
+        isActive: true,
+        createdAt: Date.now(),
+        lastActiveAt: Date.now(),
+        email
+      };
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+
+      // Add to users_list
+      const listRaw = await env.STATS.get("users_list") || "[]";
+      const list = JSON.parse(listRaw);
+      if (!list.includes(userId)) {
+        list.push(userId);
+        await env.STATS.put("users_list", JSON.stringify(list));
+      }
+    }
+
+    console.log(`[Auth] Creating session for user: ${userId}`);
+    await logError("auth", `User ${userId} authenticated via Google`, env);
+    return await createSessionResponse(userId, env);
+
+  } catch (error) {
+    console.error(`[Auth] Google error: ${error}`);
+    await logError("auth", `Google auth error: ${error}`, env);
+    return new Response(`Auth Error: ${error}`, { status: 500 });
+  }
+}
 
 async function handleEmailSend(env: Env, body: EmailSendRequest, url: URL): Promise<Response> {
   const { email } = body;
@@ -290,7 +290,7 @@ function handleLogout(): Response {
 async function createSessionResponse(userId: string, env: Env, returnJson: boolean = false): Promise<Response> {
   const signedSession = await createSignedSession(userId, env.SESSION_SECRET || "default_session_secret");
   const cookie = `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${SESSION_MAX_AGE}`;
-  
+
   if (returnJson) {
     return Response.json({ success: true, userId }, {
       headers: { "Set-Cookie": cookie }
@@ -373,7 +373,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     } catch {
       return Response.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    
+
     try {
       return await handleEmailSend(env, body, url);
     } catch (e: any) {
@@ -410,51 +410,37 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   }
 
   if (method === "POST" && pathname === "/auth/send-code") {
-    const body = await req.json() as any;
-    const res = await fetch(`http://mtproto-bridge-manager:3000/auth/send-code`, {
+    const { phone } = await req.json() as any;
+    const res = await fetch(`http://mtproto-bridge-manager:3000/send-code`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ phoneNumber: phone })
     });
     return res;
   }
 
   if (method === "POST" && pathname === "/auth/verify-code") {
-    const body = await req.json() as any;
-    const res = await fetch(`http://mtproto-bridge-manager:3000/auth/verify-code`, {
+    const { phone, code } = await req.json() as any;
+    const res = await fetch(`http://mtproto-bridge-manager:3000/verify-code`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ phoneNumber: phone, code: code })
     });
-    if (res.ok) {
-        const data = await res.json() as any;
-        if (data.success && data.userId) {
-            return await createSessionResponse(data.userId, env);
-        }
-        return Response.json(data);
-    }
     return res;
   }
 
   if (method === "POST" && pathname === "/auth/verify-password") {
     const body = await req.json() as any;
-    const res = await fetch(`http://mtproto-bridge-manager:3000/auth/verify-password`, {
+    const res = await fetch(`http://mtproto-bridge-manager:3000/verify-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
       body: JSON.stringify(body)
     });
-    if (res.ok) {
-        const data = await res.json() as any;
-        if (data.success && data.userId) {
-            return await createSessionResponse(data.userId, env);
-        }
-        return Response.json(data);
-    }
     return res;
   }
 
   if (method === "POST" && pathname === "/auth/qr-start") {
-    const res = await fetch(`http://mtproto-bridge-manager:3000/auth/qr-start`, {
+    const res = await fetch(`http://mtproto-bridge-manager:3000/qr-login`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
     });
@@ -463,88 +449,10 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
   if (method === "GET" && pathname === "/auth/qr-check") {
     const token = url.searchParams.get("token");
-    const res = await fetch(`http://mtproto-bridge-manager:3000/auth/qr-check?token=${token}`, {
+    const res = await fetch(`http://mtproto-bridge-manager:3000/qr-check?token=${token}`, {
       headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
     });
-    if (res.ok) {
-        const data = await res.json() as any;
-        if (data.done && data.userId) {
-            // Create session in a way that the frontend can handle
-            // The frontend expects { done: true } then reloads.
-            // But we need to set the cookie.
-            const signedSession = await createSignedSession(data.userId, env.SESSION_SECRET || "default_session_secret");
-            return Response.json({ done: true }, {
-                headers: { "Set-Cookie": `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${SESSION_MAX_AGE}` }
-            });
-        }
-        return Response.json(data);
-    }
     return res;
-  }
-
-  if (method === "GET" && pathname === "/auth/telegram/callback") {
-    // Verify Telegram Hash
-    const botToken = env.TELEGRAM_BOT_TOKEN;
-    if (!botToken) return new Response("Bot token not configured", { status: 500 });
-
-    const data: any = {};
-    url.searchParams.forEach((value, key) => {
-      if (key !== 'hash') data[key] = value;
-    });
-
-    const checkString = Object.keys(data)
-      .sort()
-      .map(key => `${key}=${data[key]}`)
-      .join('\n');
-
-    const encoder = new TextEncoder();
-    const secretKey = await crypto.subtle.importKey(
-      'raw',
-      await crypto.subtle.digest('SHA-256', encoder.encode(botToken)),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-
-    const signature = await crypto.subtle.sign(
-      'HMAC',
-      secretKey,
-      encoder.encode(checkString)
-    );
-
-    const hexSignature = Array.from(new Uint8Array(signature))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-
-    if (hexSignature !== url.searchParams.get('hash')) {
-      return new Response("Invalid Telegram hash", { status: 403 });
-    }
-
-    const userId = data.id;
-    const existingRaw = await env.STATS.get(`user_meta_${userId}`);
-    if (!existingRaw) {
-      const user: UserSession = {
-        userId,
-        firstName: data.first_name,
-        username: data.username,
-        session: "",
-        platform: "telegram",
-        transcriptionCount: 0,
-        isActive: false,
-        createdAt: Date.now(),
-        lastActiveAt: Date.now()
-      };
-      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-      
-      const listRaw = await env.STATS.get("users_list") || "[]";
-      const list = JSON.parse(listRaw);
-      if (!list.includes(userId)) {
-        list.push(userId);
-        await env.STATS.put("users_list", JSON.stringify(list));
-      }
-    }
-
-    return await createSessionResponse(String(userId), env);
   }
 
   if (pathname === "/auth/logout") {
