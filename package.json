@@ -1,6 +1,6 @@
 {
   "name": "echo-messenger",
-  "version": "1.0.145",
+  "version": "1.0.146",
   "type": "module",
   "description": "Cloudflare Worker for Meta voice message transcription using Whisper (Echo)",
   "main": "src/index.ts",
