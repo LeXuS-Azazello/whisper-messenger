@@ -581,11 +581,35 @@ async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
 
     userConfigs.forEach(u => { if (u) users.push(u); });
 
-    // No live pod statuses as bridge is removed
-    users.forEach(user => {
-        user.isActive = false;
-        user.currentStatus = 'Stopped';
-    });
+    // Fetch live pod statuses from bridge
+    try {
+        const podsRes = await fetch(`http://mtproto-bridge-manager:3000/pods?secret=${env.BRIDGE_SECRET || "changeme"}`, {
+            headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
+        });
+        if (podsRes.ok) {
+            const podStatuses = await podsRes.json() as any[];
+            const podMap = new Map(podStatuses.map(p => [String(p.userId), p]));
+            
+            users.forEach(user => {
+                const pod = podMap.get(String(user.userId));
+                if (pod) {
+                    user.isActive = true;
+                    user.currentStatus = pod.status || 'Running';
+                    user.lastStartedAt = pod.startTime ? new Date(pod.startTime).getTime() : undefined;
+                    user.podName = pod.podName;
+                } else {
+                    user.isActive = false;
+                    user.currentStatus = 'Stopped';
+                }
+            });
+        }
+    } catch (e) {
+        console.warn("[Admin] Failed to fetch pod statuses:", e);
+        users.forEach(user => {
+            user.isActive = false;
+            user.currentStatus = 'Unknown';
+        });
+    }
 
     return users;
 }
@@ -639,44 +663,44 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         }
 
         if (url.pathname === "/admin/tg-status") {
-            const res = await fetch(`http://mtproto-bridge-manager:3000/status/admin`, {
-                headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+            const res = await fetch(`http://mtproto-bridge-manager:3000/health`, {
+                headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
             });
             return res;
         }
 
         if (url.pathname === "/admin/tg-send-code" && req.method === "POST") {
-            const body = await req.json();
+            const { phoneNumber } = await req.json() as any;
             const res = await fetch(`http://mtproto-bridge-manager:3000/send-code`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
-                body: JSON.stringify(body)
+                headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+                body: JSON.stringify({ phone: phoneNumber })
             });
             return res;
         }
 
         if (url.pathname === "/admin/tg-verify-code" && req.method === "POST") {
-            const body = await req.json();
+            const { phoneNumber, code } = await req.json() as any;
             const res = await fetch(`http://mtproto-bridge-manager:3000/verify-code`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` },
-                body: JSON.stringify(body)
+                headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+                body: JSON.stringify({ phone: phoneNumber, code })
             });
             return res;
         }
 
         if (url.pathname === "/admin/tg-qr-login" && req.method === "POST") {
-            const res = await fetch(`http://mtproto-bridge-manager:3000/qr-login`, {
+            const res = await fetch(`http://mtproto-bridge-manager:3000/qr-start`, {
                 method: "POST",
-                headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+                headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
             });
             return res;
         }
 
         if (url.pathname === "/admin/tg-qr-check") {
             const token = url.searchParams.get("token");
-            const res = await fetch(`http://mtproto-bridge-manager:3000/qr-check?token=${token}`, {
-                headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+            const res = await fetch(`http://mtproto-bridge-manager:3000/qr-check?token=${token}&secret=${env.BRIDGE_SECRET || "changeme"}`, {
+                headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
             });
             return res;
         }
@@ -684,7 +708,8 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         if (url.pathname === "/admin/tg-test-msg" && req.method === "POST") {
             const res = await fetch(`http://mtproto-bridge-manager:3000/test-tg`, {
                 method: "POST",
-                headers: { "Authorization": `Bearer ${env.BRIDGE_SECRET || "changeme"}` }
+                headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+                body: JSON.stringify({ message: "Admin test message!" })
             });
             return res;
         }

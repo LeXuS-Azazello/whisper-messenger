@@ -137,6 +137,50 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
       return Response.json({ success: true });
     }
+
+    if (url.pathname === "/dashboard/disconnect-tg") {
+      user.session = "";
+      user.isActive = false;
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+      await env.STATS.delete(`tg_session_${userId}`);
+      
+      // Tell bridge to delete pods
+      await fetch(`http://mtproto-bridge-manager:3000/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+        body: JSON.stringify({ userId })
+      }).catch(e => console.error("[Dashboard] Delete pod error:", e));
+      
+      return Response.json({ success: true });
+    }
+
+    if (url.pathname === "/dashboard/test-tg") {
+      if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
+      const res = await fetch(`http://mtproto-bridge-manager:3000/test-tg`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+        body: JSON.stringify({ session: user.session, message: "Test message from dashboard!" })
+      });
+      return res;
+    }
+
+    if (url.pathname === "/dashboard/restart-tg") {
+      if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
+      
+      // Delete existing and spawn new
+      await fetch(`http://mtproto-bridge-manager:3000/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+        body: JSON.stringify({ userId })
+      }).catch(() => {});
+
+      const res = await fetch(`http://mtproto-bridge-manager:3000/spawn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+        body: JSON.stringify({ userId, session: user.session })
+      });
+      return res;
+    }
   }
 
   return new Response(renderDashboard(user), { headers: { 

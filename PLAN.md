@@ -2,7 +2,7 @@
 Do not start local. Only use my kubernetes on my server and cloudflare for DNS or tunnel
 
 ## Target
-KDC Kubernetes cluster `whispermsg` в namespace `debugging-whispermsg`
+KDC Kubernetes cluster `echovoice` в namespace `debugging-echovoice`
 
 ## Option 1: Docker Compose (legacy, for VM)
 

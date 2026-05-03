@@ -679,27 +679,47 @@ export const renderAuthPage = (error?: string, isAuthenticated: boolean = false,
                         setTimeout(initiateAutoLogin, 500);
                     }
 
-                    function startQrPolling(token) {
-                        qrPollInterval = setInterval(() => {
-                            fetch('/auth/qr-check?token=' + token)
-                                .then(r => r.json())
-                                .then(status => {
-                                    if (status.done) {
-                                        clearInterval(qrPollInterval);
-                                        authFlow.style.display = 'none';
-                                        successMessage.style.display = 'block';
-                                        setTimeout(() => window.location.href = '/dashboard', 1500);
-                                    } else if (status.requiresPassword) {
-                                        clearInterval(qrPollInterval);
-                                        currentQrToken = token;
-                                        qrSection.style.display = 'none';
-                                        simpleStartSection.style.display = 'none';
-                                        passwordSection.style.display = 'block';
-                                    }
-                                })
-                                .catch(() => {});
-                        }, 2500);
-                    }
+                     function startQrPolling(token) {
+                         var timeoutId = setTimeout(function() {
+                             clearInterval(qrPollInterval);
+                             qrSection.style.display = 'none';
+                             alert('QR code expired. Please try again.');
+                             simpleConnectBtn.innerText = 'Connect Telegram';
+                         }, 120000); // 2 minute timeout
+                         
+                         qrPollInterval = setInterval(() => {
+                             fetch('/auth/qr-check?token=' + token)
+                                 .then(r => r.json())
+                                 .then(status => {
+                                     if (status.done) {
+                                         clearInterval(qrPollInterval);
+                                         clearTimeout(timeoutId);
+                                         authFlow.style.display = 'none';
+                                         successMessage.style.display = 'block';
+                                         setTimeout(() => window.location.href = '/dashboard', 1500);
+                                     } else if (status.requiresPassword) {
+                                         clearInterval(qrPollInterval);
+                                         clearTimeout(timeoutId);
+                                         currentQrToken = token;
+                                         qrSection.style.display = 'none';
+                                         simpleStartSection.style.display = 'none';
+                                         passwordSection.style.display = 'block';
+                                     } else if (status.expired) {
+                                         clearInterval(qrPollInterval);
+                                         clearTimeout(timeoutId);
+                                         alert('QR code expired. Please try again.');
+                                         simpleConnectBtn.innerText = 'Connect Telegram';
+                                     }
+                                 })
+                                 .catch(err => {
+                                     console.error('QR check failed:', err);
+                                     clearInterval(qrPollInterval);
+                                     clearTimeout(timeoutId);
+                                     alert('Bridge connection lost. Please refresh and try again.');
+                                     simpleConnectBtn.innerText = 'Connect Telegram';
+                                 });
+                         }, 2500);
+                     }
 
                     tgShowQrBtn.addEventListener('click', function() {
                         qrSection.style.display = 'block';

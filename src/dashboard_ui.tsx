@@ -812,17 +812,43 @@ export const renderDashboard = (user: UserSession) => {
                         };
                     }
 
-                    function startQrPolling(token) {
-                        var interval = setInterval(() => {
-                            fetch('/auth/qr-check?token=' + token).then(r => r.json()).then(s => {
-                                if (s.done) { clearInterval(interval); location.reload(); }
-                                else if (s.requiresPassword) {
-                                    clearInterval(interval);
-                                    alert('2FA Password required. Please use manual login or wait for update.');
-                                }
-                            });
-                        }, 2500);
-                    }
+                     function startQrPolling(token) {
+                         var timeoutId = setTimeout(function() {
+                             clearInterval(interval);
+                             tgQrSection.style.display = 'none';
+                             alert('QR code expired. Please try again.');
+                             simpleConnectBtn.innerText = 'Connect Telegram';
+                         }, 120000); // 2 minute timeout
+                         
+                         var interval = setInterval(() => {
+                             fetch('/auth/qr-check?token=' + token)
+                                 .then(r => r.json())
+                                 .then(s => {
+                                     if (s.done) { 
+                                         clearInterval(interval); 
+                                         clearTimeout(timeoutId);
+                                         location.reload(); 
+                                     }
+                                     else if (s.requiresPassword) {
+                                         clearInterval(interval);
+                                         clearTimeout(timeoutId);
+                                         alert('2FA Password required. Please use manual login or wait for update.');
+                                     } else if (s.expired) {
+                                         clearInterval(interval);
+                                         clearTimeout(timeoutId);
+                                         alert('QR code expired. Please try again.');
+                                         simpleConnectBtn.innerText = 'Connect Telegram';
+                                     }
+                                 })
+                                 .catch(err => {
+                                     console.error('QR check failed:', err);
+                                     clearInterval(interval);
+                                     clearTimeout(timeoutId);
+                                     alert('Bridge connection lost. Please refresh and try again.');
+                                     simpleConnectBtn.innerText = 'Connect Telegram';
+                                 });
+                         }, 2500);
+                     }
 
                     if (simpleConnectBtn) {
                         simpleConnectBtn.onclick = () => {
