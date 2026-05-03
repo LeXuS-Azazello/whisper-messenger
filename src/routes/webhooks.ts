@@ -34,22 +34,8 @@ export async function handleTelegram(update: TelegramWebhookUpdate, env: Env): P
       let buttons: any[] = [[{ text: "🔌 Connect Telegram", url: `${env.WORKER_URL}/dashboard` }]];
 
       if (isConnected) {
-        // Fetch live status from bridge
-        let liveStatus = "STOPPED";
-        try {
-          const res = await fetch(`${env.BRIDGE_URL}/pods`, {
-            headers: { 'x-bridge-secret': env.BRIDGE_SECRET }
-          });
-          if (res.ok) {
-            const pods: any[] = await res.json();
-            const pod = pods.find(p => p.userId === userId);
-            liveStatus = pod ? pod.status?.toUpperCase() : "STOPPED";
-          }
-        } catch (e) {}
-
-        status = liveStatus === "RUNNING" ? "🟢 RUNNING" : `🔴 ${liveStatus}`;
+        status = "🟢 RUNNING";
         buttons = [
-          [{ text: "🔄 Restart Bridge", callback_data: `restart_${userId}` }],
           [{ text: "⚙️ Dashboard & Settings", url: `${env.WORKER_URL}/dashboard` }]
         ];
       }
@@ -62,30 +48,7 @@ export async function handleTelegram(update: TelegramWebhookUpdate, env: Env): P
       return new Response("ok");
     }
 
-    if (text === "/restart") {
-        const userData = await env.STATS.get(`user_meta_${userId}`);
-        if (!userData || !JSON.parse(userData).session) {
-            await sendTelegramMessage(chatId, "❌ You don't have a bridge connected yet. Use /start to begin.", env);
-            return new Response("ok");
-        }
-        await sendTelegramMessage(chatId, "⏳ Restarting your bridge, please wait...", env);
-        try {
-            const session = await env.STATS.get(`tg_session_${userId}`);
-            await fetch(`${env.BRIDGE_URL}/delete`, {
-                method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-                body: JSON.stringify({ userId })
-            });
-            await new Promise(r => setTimeout(r, 1000));
-            await fetch(`${env.BRIDGE_URL}/spawn`, {
-                method: "POST", headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET },
-                body: JSON.stringify({ userId, session })
-            });
-            await sendTelegramMessage(chatId, "✅ Bridge restarted successfully!", env);
-        } catch (e: any) {
-            await sendTelegramMessage(chatId, `❌ Restart failed: ${e.message}`, env);
-        }
-        return new Response("ok");
-    }
+
   }
 
 
