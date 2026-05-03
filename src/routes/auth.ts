@@ -293,7 +293,7 @@ async function createSessionResponse(userId: string, env: Env, returnJson: boole
 
   // Track active session for reconciliation
   try {
-    await env.STATS.setex(`tg_session_${userId}`, SESSION_MAX_AGE, signedSession);
+    await env.STATS.put(`tg_session_${userId}`, signedSession, { expirationTtl: SESSION_MAX_AGE });
   } catch (e) {
     console.warn(`[Auth] Failed to track session for ${userId}:`, e);
   }

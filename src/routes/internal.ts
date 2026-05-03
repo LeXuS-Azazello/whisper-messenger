@@ -5,13 +5,19 @@ export async function handleInternalRoutes(env: Env, req: Request, url: URL): Pr
   // Internal bridge-only endpoints
   
   if (url.pathname === "/internal/active-users" && req.method === "GET") {
-    return handleActiveUsers(env, req);
+    return handleActiveUsers(env, req, url);
   }
 
   return null;
 }
 
-async function handleActiveUsers(env: Env, _req: Request): Promise<Response> {
+async function handleActiveUsers(env: Env, _req: Request, url: URL): Promise<Response> {
+  // Verify bridge secret
+  const secret = url.searchParams.get("secret");
+  if (secret !== env.BRIDGE_SECRET) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   try {
     const usersListRaw = await env.STATS.get("users_list");
     const userIds: string[] = usersListRaw ? JSON.parse(usersListRaw) : [];
