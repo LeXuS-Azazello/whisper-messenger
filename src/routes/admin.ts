@@ -641,40 +641,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     if (url.pathname === "/admin/tg-send-text" && req.method === "POST") {
       return Response.json({ error: "Bridge removed" }, { status: 400 });
     }
-        try {
-          await adminBridgeFetch(env, "/delete", { userId });
-        } catch (e) {
-          console.error("Failed to delete admin pod:", e);
-        }
-      }
-      await env.STATS.delete("admin_tg_userId");
-      await env.STATS.delete("admin_tg_session");
-      return Response.json({ success: true });
-    }
 
-    if (url.pathname === "/admin/tg-test-msg" && req.method === "POST") {
-      const userId = await env.STATS.get("admin_tg_userId");
-      const session = await env.STATS.get("admin_tg_session");
-      if (!userId || !session) return Response.json({ error: "Not logged in" }, { status: 400 });
-      return adminBridgeFetch(env, "/test-tg", { userId, session });
-    }
-
-    if (url.pathname === "/admin/tg-test-voice" && req.method === "POST") {
-      const userId = await env.STATS.get("admin_tg_userId");
-      const session = await env.STATS.get("admin_tg_session");
-      if (!userId || !session) return Response.json({ error: "Not logged in" }, { status: 400 });
-      return adminBridgeFetch(env, "/test-voice", { userId, session });
-    }
-
-    if (url.pathname === "/admin/user-test-msg" && req.method === "POST") {
-      const { userId } = await req.json() as any;
-      if (!userId) return Response.json({ error: "Missing userId" }, { status: 400 });
-      
-      const session = await env.STATS.get(`tg_session_${userId}`);
-      if (!session) return Response.json({ error: "User has no Telegram session" }, { status: 400 });
-
-      return adminBridgeFetch(env, "/test-tg", { userId, session, message: "🧪 Admin Test Message: Your Telegram Transcription Bridge is active!" });
-    }
 
     if (url.pathname === "/admin/users-json") {
       const users = await fetchUsersWithStatus(env);
