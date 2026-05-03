@@ -13,8 +13,7 @@ spec:
       labels:
         app: redis
     spec:
-      hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
+
       containers:
       - name: redis
         image: redis:7-alpine
