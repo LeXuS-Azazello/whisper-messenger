@@ -159,10 +159,15 @@ export async function runReconciliation() {
     if (!process.env.WORKER_URL || MODE !== 'MANAGER') return;
     try {
         console.log(`[bridge] Starting reconciliation cycle...`);
-        const res = await fetch(`${process.env.WORKER_URL}/internal/active-users?secret=${process.env.BRIDGE_SECRET}`);
-        if (res.ok) {
-            const users = await res.json();
-            console.log(`[bridge] Found ${users.length} active users to check`);
+      const res = await fetch(`${process.env.WORKER_URL}/internal/active-users?secret=${process.env.BRIDGE_SECRET}`);
+      if (res.ok) {
+        const users = await res.json();
+        // Handle case where response is not an array
+        if (!Array.isArray(users)) {
+          console.error(`[bridge] Invalid response from active-users: expected array, got ${typeof users}`);
+          return;
+        }
+        console.log(`[bridge] Found ${users.length} active users to check`);
             
             const runningPods = await listPods().catch(() => []);
             const runningUserIds = new Set(runningPods.map(p => String(p.userId)));

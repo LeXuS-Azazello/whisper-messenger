@@ -291,6 +291,13 @@ async function createSessionResponse(userId: string, env: Env, returnJson: boole
   const signedSession = await createSignedSession(userId, env.SESSION_SECRET || "default_session_secret");
   const cookie = `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${SESSION_MAX_AGE}`;
 
+  // Track active session for reconciliation
+  try {
+    await env.STATS.setex(`tg_session_${userId}`, SESSION_MAX_AGE, signedSession);
+  } catch (e) {
+    console.warn(`[Auth] Failed to track session for ${userId}:`, e);
+  }
+
   if (returnJson) {
     return Response.json({ success: true, userId }, {
       headers: { "Set-Cookie": cookie }

@@ -51,8 +51,10 @@ spec:
       labels:
         app: mtproto-bridge-manager
     spec:
-      hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
+      # hostNetwork removed to allow pod-to-pod networking (Redis, Whisper, etc.)
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        kubernetes.io/os: linux
       serviceAccountName: mtproto-bridge-sa
       containers:
       - name: bridge
@@ -60,21 +62,48 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
+          # Add readiness probe for proper startup detection
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
         env:
         - name: MODE
           value: MANAGER
-        - name: BRIDGE_SECRET
-          value: changeme
         - name: TG_API_ID
-          value: '13867088'
+          value: "13867088"
         - name: TG_API_HASH
-          value: a9ba48d3de86ff6db73b41165ac5ec9a
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: TELEGRAM_APP_HASH
+              optional: false
+        - name: BRIDGE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: BRIDGE_SECRET
+              optional: false
         - name: WORKER_URL
-          value: https://voicemsg.net
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: WORKER_URL
+              optional: false
         - name: WHISPER_SERVER_URL
-          value: http://sherpa-onnx:8000
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: LOCAL_WHISPER_URL
+              optional: false
         - name: WHISPER_SECRET
-          value: whisper-sh-secret-2026
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: LOCAL_WHISPER_SECRET
+              optional: false
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
@@ -85,11 +114,11 @@ spec:
           value: redis://redis:6379
         resources:
           requests:
-            memory: 512Mi
-            cpu: 250m
+            memory: "512Mi"
+            cpu: "250m"
           limits:
-            memory: 1Gi
-            cpu: 500m
+            memory: "1Gi"
+            cpu: "500m"
         livenessProbe:
           httpGet:
             path: /health
