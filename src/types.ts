@@ -7,8 +7,8 @@ export interface KVLike {
 }
 
 export interface Env {
-  AI: Ai;
-  AUDIO_QUEUE: Queue;
+  AI: any;
+  AUDIO_QUEUE: any;
   VERIFY_TOKEN: string;
   META_API_VERSION: string;
   META_PAGE_TOKEN: string;
@@ -37,7 +37,7 @@ export interface Env {
   LOCAL_WHISPER_SECRET?: string;
   OLLAMA_BASE_URL?: string;
   OLLAMA_MODEL?: string;
-
+  
   // SMTP Config
   EMAIL_FROM?: string;
   SMTP_HOST?: string;
@@ -50,6 +50,7 @@ export interface Env {
   CLOUDFLARE_ACCOUNT_ID?: string;
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
+  BRIDGE_SECRET?: string;
 }
 
 export interface HealthChecks {
