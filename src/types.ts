@@ -158,4 +158,5 @@ export interface UserSession {
   lineSecret?: string;
   translateTo?: string;
   tgAuthenticated?: boolean;
+  podName?: string;
 }

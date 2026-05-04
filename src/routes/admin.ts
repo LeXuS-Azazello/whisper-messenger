@@ -440,6 +440,7 @@ const ADMIN_JS_CONTENT = `document.addEventListener('DOMContentLoaded', function
                         <span class="status-tag \${u.isActive ? 'active' : 'inactive'}" style="font-size: 10px; padding: 2px 6px">
                             \${u.currentStatus || (u.isActive ? 'RUNNING' : 'STOPPED')}
                         </span>
+                        \${u.podName ? \`<div style="font-size: 9px; color: #8B5CF6; margin-top: 2px; font-weight: bold; font-family: monospace">\${u.podName}</div>\` : ''}
                         <span style="font-size: 9px; color: \${u.tgAuthenticated ? '#22c55e' : '#ef4444'}; font-weight: bold">
                             \${u.tgAuthenticated ? 'TG AUTH' : 'TG NEED LOGIN'}
                         </span>

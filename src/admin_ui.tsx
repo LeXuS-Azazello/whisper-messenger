@@ -441,6 +441,11 @@ const UserRow = ({ user }: { user: UserSession }) => (
                 <span class={`status-tag ${user.isActive ? 'active' : 'inactive'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
                     {user.currentStatus || (user.isActive ? 'RUNNING' : 'STOPPED')}
                 </span>
+                {user.podName && (
+                    <div style={{ fontSize: '9px', color: '#8B5CF6', marginTop: '2px', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                        {user.podName}
+                    </div>
+                )}
                 <span style={{ fontSize: '9px', color: user.tgAuthenticated ? '#22c55e' : '#ef4444', fontWeight: 'bold' }}>
                     {user.tgAuthenticated ? 'TG AUTH' : 'TG NEED LOGIN'}
                 </span>
@@ -739,6 +744,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                             <div id={`info-box-${u.userId}`} class="user-info-detail" style={{ display: 'none', marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', fontSize: '11px' }}>
                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                                     <div><span style={{ color: 'var(--text-dim)' }}>UID:</span> <code style={{ color: '#fff' }}>{u.userId}</code></div>
+                                                    <div><span style={{ color: 'var(--text-dim)' }}>Pod:</span> <span style={{ color: '#8B5CF6', fontWeight: 'bold' }}>{u.podName || 'n/a'}</span></div>
                                                     <div><span style={{ color: 'var(--text-dim)' }}>Phone:</span> <span style={{ color: '#fff' }}>{u.phone || 'n/a'}</span></div>
                                                     <div><span style={{ color: 'var(--text-dim)' }}>Status:</span> <span style={{ color: u.isActive ? '#22c55e' : '#ef4444' }}>{u.currentStatus || (u.isActive ? 'Running' : 'Stopped')}</span></div>
                                                     <div><span style={{ color: 'var(--text-dim)' }}>Created:</span> <span style={{ color: '#fff' }}>{new Date(u.createdAt).toLocaleDateString()}</span></div>
