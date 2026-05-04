@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir \
     fastapi \
     uvicorn \
     transformers \
-    torch \
+    torch --index-url https://download.pytorch.org/whl/cpu \
     librosa \
     soundfile \
     qwen-asr

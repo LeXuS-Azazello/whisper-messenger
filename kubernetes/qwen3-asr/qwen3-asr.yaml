@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
       - name: qwen3-asr
-        image: azazellosaraksh/qwen3-asr:latest
+        image: azazellosaraksh/qwen3-asr:cpu-latest
         ports:
         - containerPort: 11434
         env:
