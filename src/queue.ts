@@ -50,22 +50,8 @@ export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
 
       if (!token) throw new Error(`Permission denied: No token for ${platform} / ${userId}`);
 
-      // 2. Determine model for transcribing message
-      const provider = await env.STATS.get("config_whisper_provider") as "cloudflare" | "local" | "ollama" | "qwen3-asr" || env.WHISPER_PROVIDER || "qwen3-asr";
-      let modelDisplayName = "Unknown";
-
-      if (provider === "cloudflare") {
-        modelDisplayName = "Cloudflare AI";
-      } else if (provider === "local") {
-        modelDisplayName = "Sherpa ONNX";
-      } else if (provider === "qwen3-asr") {
-        modelDisplayName = "Qwen3-ASR";
-      } else if (provider === "ollama") {
-        const kvModel = await env.STATS.get("config_ollama_model");
-        const ollamaModel = kvModel || env.OLLAMA_MODEL || "whisper";
-        modelDisplayName = ollamaModel === "whisper" ? "Ollama (Native)" : `Ollama (${ollamaModel})`;
-      }
-
+      // 2. Determine model for transcribing message (always Qwen3-ASR)
+      const modelDisplayName = "Qwen3-ASR";
       const transcribingMessage = `⏳ Transcribing with ${modelDisplayName}...`;
 
       // 3. Notification (Typing...)

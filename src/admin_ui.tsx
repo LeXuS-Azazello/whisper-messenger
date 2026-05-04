@@ -636,47 +636,12 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                             <div style={{ marginTop: '10px' }}>
                                 <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                                        <input type="radio" name="whisper_provider" value="cloudflare" id="provider-cf" /> 
-                                        <span style={{ fontSize: '14px' }}>Cloudflare AI</span>
+                                        <input type="radio" name="whisper_provider" value="qwen3-asr" id="provider-qwen3-asr" checked readOnly />
+                                        <span style={{ fontSize: '14px' }}>Qwen3-ASR</span>
                                     </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                                        <input type="radio" name="whisper_provider" value="local" id="provider-local" />
-                                        <span style={{ fontSize: '14px' }}>Local Sherpa ONNX</span>
-                                    </label>
-                                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                                         <input type="radio" name="whisper_provider" value="ollama" id="provider-ollama" />
-                                         <span style={{ fontSize: '14px' }}>Ollama</span>
-                                     </label>
-                                     <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                                         <input type="radio" name="whisper_provider" value="qwen3-asr" id="provider-qwen3-asr" />
-                                         <span style={{ fontSize: '14px' }}>Qwen3-ASR</span>
-                                     </label>
-                                 </div>
-
-                                <div id="local-config-section" style={{ display: 'none', marginTop: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                                    <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>Sherpa ONNX URL:</label>
-                                    <input type="text" id="local-whisper-url" class="input-field" placeholder="http://sherpa-onnx.example.com" style={{ width: '100%', marginBottom: '10px', background: '#111', color: '#fff', border: '1px solid #333' }} />
-                                    <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>Sherpa Secret:</label>
-                                    <input type="password" id="local-whisper-secret" class="input-field" placeholder="secret" style={{ width: '100%', background: '#111', color: '#fff', border: '1px solid #333' }} />
                                 </div>
 
-                                <div id="ollama-config-section" style={{ display: 'none', marginTop: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                                    <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>Ollama Base URL:</label>
-                                    <input type="text" id="ollama-url" class="input-field" placeholder="http://ollama.example.com:11434" style={{ width: '100%', marginBottom: '10px', background: '#111', color: '#fff', border: '1px solid #333' }} />
-                                    <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '8px' }}>Select or Enter Ollama Model:</label>
-                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                                        <input list="ollama-models-list" id="ollama-model-select" class="input-field" placeholder="E.g., qwen3-coder:30b" style={{ width: '100%', margin: 0, background: '#111', color: '#fff', border: '1px solid #333' }} />
-                                        <datalist id="ollama-models-list">
-                                            <option value="qwen3-coder:30b">Qwen 3 Coder (30B)</option>
-                                            <option value="gemma4:latest">Gemma 4 (8B)</option>
-                                            <option value="llama3.2:1b">Llama 3.2 (1B)</option>
-                                            <option value="whisper">Ollama Whisper (Native)</option>
-                                        </datalist>
-                                        <button class="btn" id="pull-ollama-btn" title="Download model to Ollama server" style={{ width: 'auto', background: '#3B82F6', margin: 0, whiteSpace: 'nowrap', padding: '0 15px', fontSize: '12px', fontWeight: 'bold' }}>
-                                            Pull / Download
-                                        </button>
-                                    </div>
-                                </div>
+
 
                                 <button class="btn" id="save-whisper-btn" style={{ marginTop: '15px', background: '#8B5CF6', width: '100%', borderRadius: '12px', padding: '10px', fontWeight: '600' }}>Save AI Config</button>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>

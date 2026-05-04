@@ -746,8 +746,13 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
 
         if (url.pathname === "/admin/whisper-config") {
             if (req.method === "GET") {
-                const provider = await env.STATS.get("config_whisper_provider") || "qwen3-asr";
+                let provider = await env.STATS.get("config_whisper_provider");
+                // Only qwen3-asr is supported; fallback if old value
+                if (!provider || provider !== 'qwen3-asr') {
+                    provider = 'qwen3-asr';
+                }
                 const model = await env.STATS.get("config_ollama_model") || "qwen3-coder:30b";
+                // Legacy fields (unused)
                 const localUrl = await env.STATS.get("config_local_whisper_url") || "";
                 const localSecret = await env.STATS.get("config_local_whisper_secret") || "";
                 const ollamaUrl = await env.STATS.get("config_ollama_url") || "";
@@ -755,11 +760,12 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
             }
             if (req.method === "POST") {
                 const { provider, model, localUrl, localSecret, ollamaUrl } = await req.json() as any;
-                if (provider) await env.STATS.put("config_whisper_provider", provider);
+                // Only allow qwen3-asr provider
+                if (provider === 'qwen3-asr') {
+                    await env.STATS.put("config_whisper_provider", provider);
+                }
                 if (model) await env.STATS.put("config_ollama_model", model);
-                if (localUrl !== undefined) await env.STATS.put("config_local_whisper_url", localUrl);
-                if (localSecret !== undefined) await env.STATS.put("config_local_whisper_secret", localSecret);
-                if (ollamaUrl !== undefined) await env.STATS.put("config_ollama_url", ollamaUrl);
+                // Ignore legacy fields
                 return Response.json({ success: true });
             }
         }

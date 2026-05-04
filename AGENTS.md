@@ -1,3 +1,25 @@
+# Critical Deployment Rules
+my domain is voicemsg.net 
+
+**NEVER** run or test on localhost. All deployment must use remote server the Kubernetes server only.
+
+## Kubernetes Access
+```bash
+# Login and configure kubectl
+kube-dc login --domain kube-dc.cloud --org debugging
+
+# Switch to project context
+kube-dc use kube-dc.cloud/debugging/echovoice
+```
+
+## Cloudflare Access
+**NEVER** use browser login for Cloudflare. Only use console:
+```bash
+wrangler login
+```
+
+---
+
 # Repository Guidelines
 Do not start local. Only use my kubernetes on my server and cloudflare for DNS or tunnel
 Only use one domain "voicemsg.net" else kubernetes services use by internal IP
@@ -5,38 +27,27 @@ Only use one domain "voicemsg.net" else kubernetes services use by internal IP
 ## Deployment Architecture
 - **Cloudflare Workers**: Handle webhooks and UI (Preact).
 - **Kubernetes Cluster**: Runs MTProto bridge and Whisper server.
-- **Ingress Controller**: Manages TLS termination and routing to services.
 
 ## Project Structure & Module Organization
 Echo Messenger is a multi-tenant voice-to-text bridge connecting Meta (FB/Insta), WhatsApp, and Telegram to Whisper AI.
 
-- **Cloudflare Worker (`src/`)**: Main entry point handling webhooks, Preact-based UI (Admin/User dashboards), and orchestration.
-- **MTProto Bridge (`mtproto-bridge/`)**: Node.js service in Kubernetes using GramJS for personal Telegram account access.
-- **Whisper Server (`whisper-server/`)**: Python FastAPI server running Sherpa ONNX for high-performance audio transcription.
 - **Kubernetes Configs (`kubernetes/`)**: Infrastructure definitions for Whisper and ingress controllers.
 
 ## Build, Test, and Development Commands
 ### Root (Cloudflare Worker)
-- **Dev**: `npm run dev` (Wrangler local dev)
-- **Test**: `npm run test` (Vitest unit tests)
 - **Deploy**: `npm run deploy:worker` (Increments version and deploys to Cloudflare)
 - **Full Deploy**: `npm run deploy:all` (Worker + MTProto bridge)
 
-### MTProto Bridge
-- **Dev**: `npm run dev` in `mtproto-bridge/`
-- **Test**: `npm run test` in `mtproto-bridge/`
-- **Build/Push**: `./build.sh` (Updates Docker image)
 
 ## Coding Style & Naming Conventions
 - **Language**: TypeScript (ESNext) with strict mode enabled.
 - **UI Framework**: Preact with JSX (`jsxImportSource: preact`).
-- **Testing**: Vitest for both Worker and Bridge.
+- **Testing**: onnly on remote server Vitest for both Worker and Bridge.
 - **Naming**: CamelCase for functions/variables, PascalCase for components.
 
 ## Testing Guidelines
 - Use **Vitest** for all new tests.
 - Worker tests should mock Cloudflare KV and AI bindings using `miniflare`.
-- Bridge tests use `supertest` for API endpoint verification.
 
 ## Commit & Pull Request Guidelines
 - Follow semantic versioning for releases (e.g., `1.0.15`).

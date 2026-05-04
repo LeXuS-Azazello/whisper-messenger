@@ -92,18 +92,6 @@ spec:
               name: whisper-messenger-env
               key: WORKER_URL
               optional: false
-        - name: WHISPER_SERVER_URL
-          valueFrom:
-            secretKeyRef:
-              name: whisper-messenger-env
-              key: LOCAL_WHISPER_URL
-              optional: false
-        - name: WHISPER_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: whisper-messenger-env
-              key: LOCAL_WHISPER_SECRET
-              optional: false
         - name: QWEN_ASR_URL
           value: "http://qwen3-asr:11434"
         - name: POD_NAMESPACE

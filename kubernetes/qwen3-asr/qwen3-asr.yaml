@@ -35,6 +35,10 @@ spec:
           value: "Qwen/Qwen3-ASR-0.6B"
         - name: TRANSFORMERS_CACHE
           value: "/root/.cache"
+        - name: HF_HOME
+          value: "/root/.cache"
+        - name: HF_HUB_CACHE
+          value: "/root/.cache/hub"
         volumeMounts:
         - name: qwen3-asr-data
           mountPath: /root/.cache
@@ -45,17 +49,24 @@ spec:
           limits:
             cpu: "4"
             memory: "8Gi"
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 11434
+          # Give it 10 minutes (60 * 10s) to download the model on first run
+          failureThreshold: 60
+          periodSeconds: 10
         livenessProbe:
           httpGet:
             path: /health
             port: 11434
-          initialDelaySeconds: 60
+          initialDelaySeconds: 10
           periodSeconds: 30
         readinessProbe:
           httpGet:
             path: /health
             port: 11434
-          initialDelaySeconds: 30
+          initialDelaySeconds: 5
           periodSeconds: 10
       volumes:
       - name: qwen3-asr-data
