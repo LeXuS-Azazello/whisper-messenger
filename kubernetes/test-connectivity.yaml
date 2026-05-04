@@ -1,0 +1,15 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-qwen-connectivity
+  namespace: debugging-echovoice
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      containers:
+      - name: curl
+        image: curlimages/curl:latest
+        command: ["curl", "-v", "--connect-timeout", "5", "http://qwen3-asr.debugging-whispermsg.svc.cluster.local:11434/v1/models"]
+      restartPolicy: Never
+  backoffLimit: 0

@@ -104,6 +104,8 @@ spec:
               name: whisper-messenger-env
               key: LOCAL_WHISPER_SECRET
               optional: false
+        - name: QWEN_ASR_URL
+          value: "http://qwen3-asr:11434"
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:

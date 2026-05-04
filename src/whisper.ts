@@ -210,24 +210,13 @@ async function transcribeQwenASR(
 ): Promise<WhisperResponse> {
   console.log(`[whisper] Qwen3-ASR: Audio size ${audio.byteLength} bytes, URL: ${url}`);
 
-  let binary = "";
-  const bytes = new Uint8Array(audio);
-  const CHUNK_SIZE = 8192;
-  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
-    const chunk = bytes.subarray(i, i + CHUNK_SIZE);
-    // @ts-expect-error - apply with Uint8Array is faster but TS complains about spread limits
-    binary += String.fromCharCode.apply(null, chunk);
-  }
-  const base64Audio = btoa(binary);
-
-  const body = {
-    model: "qwen3-asr",
-    audio: base64Audio,
-    language: "auto" // Qwen supports automatic language detection
-  };
+  const formData = new FormData();
+  const blob = new Blob([audio], { type: "audio/ogg" });
+  formData.append("file", blob, "audio.ogg");
+  formData.append("model", "qwen3-asr");
+  formData.append("language", "auto");
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     "Authorization": `Bearer ${secret || ""}`,
   };
 
@@ -243,7 +232,7 @@ async function transcribeQwenASR(
     const response = await fetch(`${url}/v1/audio/transcriptions`, {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: formData,
       signal: controller.signal
     });
     clearTimeout(timeoutId);

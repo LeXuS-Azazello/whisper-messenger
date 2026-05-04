@@ -33,6 +33,9 @@ async function transcribe(audioBuffer, mimeType, config = null) {
 
   if (provider === 'local') {
     return transcribeLocal(audioBuffer, mimeType, localUrl, localSecret, startTime);
+  } else if (provider === 'qwen3-asr') {
+    const qwenUrl = config?.qwenUrl || process.env.QWEN_ASR_URL || 'http://qwen3-asr:11434';
+    return transcribeQwen(audioBuffer, mimeType, qwenUrl, localSecret, startTime);
   } else if (provider === 'ollama') {
     return transcribeOllama(audioBuffer, mimeType, ollamaUrl, ollamaModel, startTime);
   } else if (provider === 'cloudflare') {
@@ -44,6 +47,27 @@ async function transcribe(audioBuffer, mimeType, config = null) {
   }
 
   return transcribeLocal(audioBuffer, mimeType, localUrl, localSecret, startTime);
+}
+
+async function transcribeQwen(audioBuffer, mimeType, url, secret, startTime) {
+    const formData = new FormData();
+    const blob = new Blob([audioBuffer], { type: mimeType });
+    formData.append('file', blob, 'audio.ogg');
+    formData.append('model', 'qwen3-asr');
+
+    const response = await fetch(`${url}/v1/audio/transcriptions`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${secret}` },
+        body: formData
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Qwen3-ASR error (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    return { text: data.text || data.transcription || '', duration: (Date.now() - startTime) / 1000 };
 }
 
 async function transcribeLocal(audioBuffer, mimeType, url, secret, startTime) {

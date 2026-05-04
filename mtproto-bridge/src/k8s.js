@@ -95,6 +95,7 @@ export async function spawnPod(userId, session) {
                     { name: 'WORKER_URL', value: WORKER_URL },
                     { name: 'WHISPER_SERVER_URL', value: process.env.WHISPER_SERVER_URL || '' },
                     { name: 'WHISPER_SECRET', value: process.env.WHISPER_SECRET || '' },
+                    { name: 'QWEN_ASR_URL', value: process.env.QWEN_ASR_URL || 'http://qwen3-asr:11434' },
                     { name: 'DEVICE_MODEL', value: process.env.DEVICE_MODEL || DEVICE_MODEL },
                     { name: 'APP_VERSION', value: process.env.APP_VERSION || APP_VERSION },
                     { name: 'SYSTEM_VERSION', value: process.env.SYSTEM_VERSION || SYSTEM_VERSION }

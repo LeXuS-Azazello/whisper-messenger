@@ -8,7 +8,32 @@ export async function handleInternalRoutes(env: Env, req: Request, url: URL): Pr
     return handleActiveUsers(env, req, url);
   }
 
+  if (url.pathname === "/internal/config" && req.method === "GET") {
+    return handleConfig(env, req, url);
+  }
+
   return null;
+}
+
+async function handleConfig(env: Env, _req: Request, url: URL): Promise<Response> {
+  const secret = url.searchParams.get("secret");
+  if (secret !== env.BRIDGE_SECRET) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const provider = await env.STATS.get("config_whisper_provider") || "qwen3-asr";
+  const model = await env.STATS.get("config_ollama_model") || "whisper";
+  const localUrl = await env.STATS.get("config_local_whisper_url") || "";
+  const localSecret = await env.STATS.get("config_local_whisper_secret") || "";
+  const ollamaUrl = await env.STATS.get("config_ollama_url") || "";
+
+  return Response.json({
+    provider,
+    model,
+    localUrl,
+    localSecret,
+    ollamaUrl
+  });
 }
 
 async function handleActiveUsers(env: Env, _req: Request, url: URL): Promise<Response> {
