@@ -1,26 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: echo-frontend
+  name: redis
   namespace: debugging-echovoice
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: echo-frontend
+      app: redis
   template:
     metadata:
       labels:
-        app: echo-frontend
+        app: redis
     spec:
       containers:
-      - name: frontend
-        image: azazellosaraksh/echo-frontend:latest
+      - name: redis
+        image: redis:7-alpine
         ports:
-        - containerPort: 3000
-        env:
-        - name: PORT
-          value: "3000"
+        - containerPort: 6379
         resources:
           requests:
             cpu: "100m"
@@ -32,16 +29,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: echo-frontend
+  name: redis
   namespace: debugging-echovoice
 spec:
   selector:
-    app: echo-frontend
+    app: redis
   ports:
-  - port: 80
-    targetPort: 3000
-    name: http
-  - port: 443
-    targetPort: 3000
-    name: https
+  - port: 6379
+    targetPort: 6379
   type: ClusterIP

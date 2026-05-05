@@ -1,14 +1,7 @@
-# Simple Dockerfile - no local models, uses external whisper-server
-FROM node:20-bookworm
-
-RUN apt-get update && apt-get install -y ffmpeg wget bzip2 && rm -rf /var/lib/apt/*
-
+FROM node:20-alpine
 WORKDIR /app
-
 COPY package*.json ./
-RUN npm install
-
+RUN npm ci --omit=dev
 COPY . .
-
-RUN chmod +x entrypoint.sh
-CMD ["./entrypoint.sh"]
+ENV NODE_ENV=production
+CMD ["node", "index.js"]
