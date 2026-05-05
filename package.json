@@ -7,9 +7,9 @@
   "scripts": {
     "build": "npx wrangler deploy --dry-run",
     "deploy:worker": "npm version patch && npx wrangler deploy",
-    "deploy:k8s": "npm version patch && bash build-frontend.sh && kubectl rollout restart deployment echo-frontend -n debugging-echovoice",
-    "deploy:server": "npm version patch && bash mtproto-bridge/build.sh && kubectl rollout restart deployment mtproto-bridge-manager -n debugging-echovoice",
-    "deploy:all": "npm version patch && bash build-frontend.sh && bash mtproto-bridge/build.sh && kubectl rollout restart deployment echo-frontend mtproto-bridge-manager -n debugging-echovoice",
+    "deploy:k8s": "npm version patch && kubectl rollout restart deployment echo-frontend -n debugging-echovoice",
+    "deploy:server": "npm version patch && kubectl rollout restart deployment mtproto-bridge-manager -n debugging-echovoice",
+    "deploy:all": "npm version patch && kubectl rollout restart deployment echo-frontend mtproto-bridge-manager -n debugging-echovoice",
     "deploy": "npm run deploy:k8s",
     "dev": "wrangler dev",
     "test": "vitest run",
