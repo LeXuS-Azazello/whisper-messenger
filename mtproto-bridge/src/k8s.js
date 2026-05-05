@@ -33,6 +33,7 @@ export function initK8s() {
         
         k8sApi = kc.makeApiClient(k8s.CoreV1Api);
         if (k8sApi && k8sApi.defaultClient) {
+            k8sApi.defaultClient.request.agent = httpsAgent;
             k8sApi.defaultClient.timeout = 60000;
         }
         console.log(`[bridge] K8s initialized. Server: ${cluster?.server}, Namespace: ${process.env.POD_NAMESPACE || 'unknown'}`);
