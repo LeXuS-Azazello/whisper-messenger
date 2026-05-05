@@ -59,7 +59,7 @@ export async function spawnPod(userId, session) {
         const existing = await withTimeout(k8sApi.listNamespacedPod({
             namespace,
             labelSelector: `userId=${safeUserId}`
-        }), 10000);
+        }), 30000);
         
         const items = existing?.body?.items || existing?.items || [];
         if (items.length > 0) {
@@ -67,10 +67,10 @@ export async function spawnPod(userId, session) {
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
                 console.log(`[/spawn] Deleting stale pod ${p.metadata.name}...`);
-                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 10000)
+                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 30000)
                     .catch(e => console.error(`[/spawn] Partial delete failure for ${p.metadata.name}:`, e.message));
             }
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 5000));
         }
     } catch (listErr) {
         console.warn(`[/spawn] Could not list/delete existing pods for ${safeUserId} (skipping cleanup):`, listErr.message);
@@ -104,7 +104,7 @@ export async function spawnPod(userId, session) {
     };
 
     console.log(`[/spawn] Creating new pod ${podName}...`);
-    await withTimeout(k8sApi.createNamespacedPod({ namespace, body: podManifest }), 20000); 
+    await withTimeout(k8sApi.createNamespacedPod({ namespace, body: podManifest }), 60000); 
 
     console.log(`[/spawn] Successfully spawned ${podName}`);
     return podName;
