@@ -9,7 +9,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: kubevirt
+  storageClassName: local-path
 ---
 apiVersion: apps/v1
 kind: StatefulSet

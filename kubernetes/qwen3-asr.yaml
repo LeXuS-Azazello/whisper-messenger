@@ -9,7 +9,7 @@ spec:
   resources:
     requests:
       storage: 50Gi
-  storageClassName: kubevirt
+  storageClassName: local-path
 ---
 apiVersion: apps/v1
 kind: Deployment
