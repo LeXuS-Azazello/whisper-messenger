@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-frontend
+  namespace: debugging-voicemsg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-frontend
+  template:
+    metadata:
+      labels:
+        app: echo-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: azazellosaraksh/debugging-mtproto-bridge:v2
+        ports:
+        - containerPort: 3000
+        env:
+        - name: MODE
+          value: "FRONTEND"
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: QWEN_ASR_URL
+          value: "http://qwen3-asr:80"
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-frontend
+  namespace: debugging-voicemsg
+spec:
+  type: LoadBalancer
+  selector:
+    app: echo-frontend
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
