@@ -44,11 +44,11 @@ spec:
           mountPath: /root/.cache
         resources:
           requests:
-            cpu: "1000m"
-            memory: "2Gi"
-          limits:
             cpu: "4"
             memory: "8Gi"
+          limits:
+            cpu: "16"
+            memory: "48Gi"
         startupProbe:
           httpGet:
             path: /health

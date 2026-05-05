@@ -413,6 +413,7 @@ export const renderDashboard = (user: UserSession) => {
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <title>My Dashboard - Whisper Messenger</title>
+                <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
                 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet" />
@@ -422,14 +423,10 @@ export const renderDashboard = (user: UserSession) => {
             <body class="dashboard-page">
                 <div class="container">
                     <header>
-                        <div class="logo">
-                            <div class="logo-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-                                </svg>
-                            </div>
-                            WHISPER DASHBOARD
-                        </div>
+                                <div class="logo">
+                                    <img src="/favicon.svg" alt="Logo" style={{ width: '32px', height: '32px', borderRadius: '8px' }} />
+                                    WHISPER DASHBOARD
+                                </div>
                         <div class="user-greeting" style={{ fontSize: '14px', color: 'var(--text-dim)' }}>
                             Welcome, <span style={{ color: 'white', fontWeight: '600' }}>{user.firstName}</span>
                             <button id="logout-btn" style={{ marginLeft: '15px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }}>Logout</button>
