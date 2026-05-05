@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: messenger-client-{user-id}
+  namespace: debugging-voicemsg
+spec:
+  template:
+    spec:
+      serviceAccountName: mtproto-bridge-sa
+      containers:
+      - name: messenger-client
+        image: azazellosaraksh/debugging-mtproto-bridge:v2
+        env:
+        - name: MODE
+          value: "CLIENT"
+        - name: USER_ID
+          value: "{user-id}"
+        - name: MESSENGER
+          value: "{telegram|whatsapp|meta}"
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "1000m"
+            memory: "2Gi"
+      restartPolicy: Never

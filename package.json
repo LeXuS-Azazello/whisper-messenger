@@ -1,15 +1,15 @@
 {
-  "name": "echo-messenger",
+  "name": "voicemsg-info",
   "version": "1.0.182",
   "type": "module",
-  "description": "Cloudflare Worker for Meta voice message transcription using Whisper (Echo)",
+  "description": "Cloudflare Worker for Meta voice message transcription ",
   "main": "src/index.ts",
   "scripts": {
     "build": "npx wrangler deploy --dry-run",
     "deploy:worker": "npm version patch && npx wrangler deploy",
-    "deploy:k8s": "npm version patch && kubectl rollout restart deployment echo-frontend -n debugging-echovoice",
-    "deploy:server": "npm version patch && kubectl rollout restart deployment mtproto-bridge-manager -n debugging-echovoice",
-    "deploy:all": "npm version patch && kubectl rollout restart deployment echo-frontend mtproto-bridge-manager -n debugging-echovoice",
+    "deploy:k8s": "npm version patch && kubectl rollout restart deployment echo-frontend -n debugging-voicemsg",
+    "deploy:server": "npm version patch && kubectl rollout restart deployment mtproto-bridge-manager -n debugging-voicemsg",
+    "deploy:all": "npm version patch && kubectl rollout restart deployment echo-frontend mtproto-bridge-manager -n debugging-voicemsg",
     "deploy": "npm run deploy:k8s",
     "dev": "wrangler dev",
     "test": "vitest run",
@@ -17,7 +17,6 @@
     "start:server": "tsx src/server.ts"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260217.0",
     "@types/ioredis": "^4.28.10",
     "@types/node": "^20.17.6",
     "miniflare": "^4.20260217.0",

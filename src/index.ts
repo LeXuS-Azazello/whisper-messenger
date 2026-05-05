@@ -6,7 +6,7 @@ import { handleAdmin } from "./routes/admin";
 import { handleInternalRoutes } from "./routes/internal";
 import { handleUserDashboard, incrementUserStats } from "./routes/dashboard";
 import { handleTelegram, handleMetaMessaging, handleWhatsApp, handleLine } from "./routes/webhooks";
-import { renderHome } from "./home_ui";
+import { renderHome } from "./components/home/Home";
 import { verifySession } from "./session";
 
 function getPublicOrigin(env: Env, fallbackOrigin: string): string {

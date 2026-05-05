@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: voicemsg-ingress
+  namespace: debugging-voicemsg
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - voicemsg.net
+    secretName: voicemsg-tls
+  rules:
+  - host: voicemsg.net
+    http:
+      paths:
+      - path: /webhooks
+        pathType: Prefix
+        backend:
+          service:
+            name: mtproto-bridge-manager
+            port:
+              number: 3000
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: mtproto-bridge-manager
+            port:
+              number: 3000

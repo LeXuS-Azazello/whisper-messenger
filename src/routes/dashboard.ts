@@ -1,5 +1,5 @@
 import { Env, UserSession } from "../types";
-import { renderDashboard } from "../dashboard_ui";
+import { renderDashboard } from "../components/dashboard/Dashboard";
 import { logError } from "../logger";
 import { verifySession } from "../session";
 
@@ -15,7 +15,7 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
 
   let userStats = await env.STATS.get(`user_meta_${userId}`);
   
-  // Retry strategy for CF KV eventual consistency (waits up to 1500ms)
+  
   if (!userStats) {
     for (let i = 0; i < 3; i++) {
       await new Promise(r => setTimeout(r, 500));

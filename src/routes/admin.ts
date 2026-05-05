@@ -1,6 +1,7 @@
 import { Env, UserSession, HealthChecks } from "../types";
 import { ErrorLog, getErrors, logError } from "../logger";
-import { renderAdminDashboard, renderAdminLogin } from "../admin_ui";
+import { renderAdminDashboard } from "../components/admin/AdminDashboard";
+import { renderAdminLogin } from "../components/admin/AdminLogin";
 import { createSignedSession, verifySession } from "../session";
 import { sampleAudioBase64 } from "../sample_audio";
 

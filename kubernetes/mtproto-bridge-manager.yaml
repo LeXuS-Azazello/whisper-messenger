@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mtproto-bridge-sa
+  namespace: debugging-voicemsg
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-manager-role
+  namespace: debugging-voicemsg
+rules:
+- apiGroups: [""]
+  resources: ["pods", "persistentvolumeclaims", "services"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mtproto-bridge-rb
+  namespace: debugging-voicemsg
+subjects:
+- kind: ServiceAccount
+  name: mtproto-bridge-sa
+  namespace: debugging-voicemsg
+roleRef:
+  kind: Role
+  name: pod-manager-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mtproto-bridge-manager
+  namespace: debugging-voicemsg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mtproto-bridge-manager
+  template:
+    metadata:
+      labels:
+        app: mtproto-bridge-manager
+    spec:
+      serviceAccountName: mtproto-bridge-sa
+      containers:
+      - name: mtproto-bridge
+        image: azazellosaraksh/debugging-mtproto-bridge:v2
+        ports:
+        - containerPort: 3000
+        env:
+        - name: MODE
+          value: "MANAGER"
+        - name: TG_API_ID
+          value: "13867088"
+        - name: TG_API_HASH
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: TELEGRAM_APP_HASH
+        - name: BRIDGE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: BRIDGE_SECRET
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: QWEN_ASR_URL
+          value: "http://qwen3-asr:80"
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mtproto-bridge-manager
+  namespace: debugging-voicemsg
+spec:
+  selector:
+    app: mtproto-bridge-manager
+  ports:
+  - port: 3000
+    targetPort: 3000

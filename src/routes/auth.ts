@@ -1,5 +1,5 @@
 import { Env, UserSession } from "../types";
-import { renderAuthPage } from "../auth_ui";
+import { renderAuthPage } from "../components/auth/Auth";
 import { logError } from "../logger";
 import { createSignedSession } from "../session";
 
