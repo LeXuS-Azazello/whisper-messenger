@@ -9,15 +9,8 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Install Python dependencies
-# Using a single RUN to keep image layers clean
-RUN pip install --no-cache-dir \
-    fastapi \
-    uvicorn \
-    transformers \
-    torch --index-url https://download.pytorch.org/whl/cpu \
-    librosa \
-    soundfile \
-    qwen-asr
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir fastapi uvicorn transformers librosa soundfile qwen-asr
 
 # Copy server script
 COPY server.py .
