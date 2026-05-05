@@ -26,8 +26,8 @@ export function initK8s() {
         const httpsAgent = new https.Agent({
             keepAlive: true,
             keepAliveMsecs: 10000,
-            maxSockets: 10,
-            maxFreeSockets: 5,
+            maxSockets: 50,
+            maxFreeSockets: 20,
             timeout: 60000, 
         });
         
@@ -67,7 +67,7 @@ export async function spawnPod(userId, session) {
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
                 console.log(`[/spawn] Deleting stale pod ${p.metadata.name}...`);
-                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 30000)
+                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace }), 30000, `Delete pod ${p.metadata.name}`)
                     .catch(e => console.error(`[/spawn] Partial delete failure for ${p.metadata.name}:`, e.message));
             }
             await new Promise(r => setTimeout(r, 5000));
