@@ -8,7 +8,6 @@ import { handleUserDashboard, incrementUserStats } from "./routes/dashboard";
 import { handleTelegram, handleMetaMessaging, handleWhatsApp, handleLine } from "./routes/webhooks";
 import { renderHome } from "./home_ui";
 import { verifySession } from "./session";
-import { RedisKV } from "./redisKV";
 
 function getPublicOrigin(env: Env, fallbackOrigin: string): string {
   const configured = (env.WORKER_URL || "").trim();
@@ -23,181 +22,46 @@ function getPublicOrigin(env: Env, fallbackOrigin: string): string {
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
-      env.STATS = new RedisKV(env.REDIS_URL || "redis://redis:6379");
       const url = new URL(req.url);
       const publicOrigin = getPublicOrigin(env, url.origin);
 
-    if (url.pathname === "/health") return Response.json({ ok: true });
-    
-    // Proxy for Ollama (OpenAI compatible and native)
-    if (url.pathname.startsWith("/v1/") || url.pathname.startsWith("/api/") || url.pathname === "/chat/completions") {
-        const ollamaBase = env.OLLAMA_BASE_URL || "http://91.224.11.69:11434";
-        let targetPath = url.pathname;
-        if (targetPath === "/chat/completions") targetPath = "/v1/chat/completions";
-        
-        const targetUrl = new URL(targetPath, ollamaBase);
-        url.searchParams.forEach((v, k) => targetUrl.searchParams.set(k, v));
+      if (url.pathname === "/health") return Response.json({ ok: true });
 
-        const headers = new Headers(req.headers);
-        headers.set("Host", new URL(ollamaBase).host);
+      // Proxy all non-webhook requests to Kubernetes backend
+      // Only handle webhook authentication here, proxy everything else
+      if (url.pathname === "/webhooks/meta" || url.pathname === "/webhooks/whatsapp") {
+        if (req.method === "GET") {
+          const mode = url.searchParams.get("hub.mode");
+          const token = url.searchParams.get("hub.verify_token");
+          const challenge = url.searchParams.get("hub.challenge");
 
-        try {
-            const response = await fetch(targetUrl.toString(), {
-                method: req.method,
-                headers: headers,
-                body: req.method !== "GET" && req.method !== "HEAD" ? await req.blob() : null,
-                redirect: "follow"
-            });
-
-            const newHeaders = new Headers(response.headers);
-            newHeaders.set("Access-Control-Allow-Origin", "*");
-            newHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-            newHeaders.set("Access-Control-Allow-Headers", "*");
-
-            return new Response(response.body, {
-                status: response.status,
-                statusText: response.statusText,
-                headers: newHeaders
-            });
-        } catch (e) {
-            return Response.json({ error: (e as Error).message }, { status: 502 });
+          if (mode === "subscribe" && token === env.VERIFY_TOKEN) {
+            console.log("[webhooks] Meta verification successful");
+            return new Response(challenge);
+          }
+          console.warn("[webhooks] Meta verification failed");
+          return new Response("Forbidden", { status: 403 });
         }
-    }
 
-    if (req.method === "OPTIONS") {
-        return new Response(null, {
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Max-Age": "86400",
-            }
-        });
-    }
+        if (req.method === "POST") {
+          const rawBody = await req.text();
+          const verifyError = await verifyWebhook(req, rawBody, env);
+          if (verifyError) return verifyError;
 
-    // Signed session from cookie (handle multiple cookies and edge cases)
-    const cookieHeader = req.headers.get('Cookie') || '';
-    const cookies = Object.fromEntries(cookieHeader.split(';').map(c => {
-      const [k, ...v] = c.trim().split('=');
-      return [k, v.join('=')];
-    }));
-    
-    let sessionCookie = cookies['session'];
-    if (sessionCookie && sessionCookie.startsWith('"') && sessionCookie.endsWith('"')) {
-      sessionCookie = sessionCookie.substring(1, sessionCookie.length - 1);
-    }
-    
-    const userId = sessionCookie ? await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret") : null;
-    
-    // Constant-time comparison for admin session to prevent timing attacks
-    const adminCookie = req.headers.get('Cookie')?.match(/admin_session=([^;]+)/)?.[1];
-    let isAdmin = false;
-    if (adminCookie && env.ADMIN_SECRET) {
-      if (adminCookie.length === env.ADMIN_SECRET.length) {
-        isAdmin = adminCookie === env.ADMIN_SECRET;
-      }
-    }
+          let body: any;
+          try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
 
-    if (url.pathname === "/") {
-        if (userId) return Response.redirect(`${publicOrigin}/dashboard`);
-        return new Response(renderHome(env.GOOGLE_CLIENT_ID, publicOrigin), { 
-            headers: { 
-                "Content-Type": "text/html; charset=utf-8",
-                "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
-            } 
-        });
-    }
-
-    if (url.pathname === "/auth" && userId) {
-        return Response.redirect(`${publicOrigin}/dashboard`);
-    }
-
-    // Public Auth Routes
-    if (url.pathname.startsWith("/auth")) {
-      const res = await handlePublicAuth(env, req, userId, ctx);
-      const contentType = res.headers.get("Content-Type");
-      if (contentType?.includes("text/html")) {
-        const newRes = new Response(res.body, res);
-        newRes.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
-        return newRes;
-      }
-      return res;
-    }
-
-    // Admin Routes
-    if (url.pathname.startsWith("/admin")) {
-      return handleAdmin(env, req);
-    }
-
-    // User Dashboard Routes
-    if (url.pathname.startsWith("/dashboard")) {
-      return handleUserDashboard(env, req, userId);
-    }
-
-    // Internal Stats (called by Bridge User Pods)
-    const internalRes = await handleInternalRoutes(env, req, url);
-    if (internalRes) return internalRes;
-
-    if (url.pathname === "/test-whisper" && req.method === "POST") {
-        const secret = url.searchParams.get("secret");
-        if (!isAdmin && !userId) return new Response("Unauthorized", { status: 401 });
-        const provider = url.searchParams.get("provider") as "cloudflare" | "local" | "ollama" || "ollama";
-        const formData = await req.formData();
-        const file = formData.get("file") as File;
-        if (!file) return new Response("Missing file", { status: 400 });
-        
-        try {
-            const buffer = await file.arrayBuffer();
-            
-            // Temporary override just for this test
-            const originalProvider = await env.STATS.get("config_whisper_provider");
-            await env.STATS.put("config_whisper_provider", provider);
-            
-            const start = Date.now();
-            const { transcribeWithFallback } = await import("./whisper");
-            const result = await transcribeWithFallback(buffer, env);
-            const elapsed = (Date.now() - start) / 1000;
-            
-            // Restore provider
-            if (originalProvider) await env.STATS.put("config_whisper_provider", originalProvider);
-            
-            return Response.json({ success: true, provider, elapsed, text: result.text });
-        } catch (e: any) {
-            console.error(`[/test-whisper] Error: ${e.message}`, e);
-            return Response.json({ success: false, error: e.message }, { status: 500 });
+          // Forward to Kubernetes backend
+          return fetch(`https://bridge.voicemsg.net${url.pathname}${url.search}`, {
+            method: req.method,
+            headers: req.headers,
+            body: rawBody
+          });
         }
-    }
-
-    // Standard Webhooks (Meta, WhatsApp, Telegram Bot)
-    if (url.pathname === "/webhooks/meta" || url.pathname === "/webhooks/whatsapp") {
-      if (req.method === "GET") {
-        const mode = url.searchParams.get("hub.mode");
-        const token = url.searchParams.get("hub.verify_token");
-        const challenge = url.searchParams.get("hub.challenge");
-
-        if (mode === "subscribe" && token === env.VERIFY_TOKEN) {
-          console.log("[webhooks] Meta verification successful ✓");
-          return new Response(challenge);
-        }
-        console.warn("[webhooks] Meta verification failed: token mismatch or missing params");
-        return new Response("Forbidden", { status: 403 });
       }
 
-      if (req.method === "POST") {
-        const rawBody = await req.text();
-        const verifyError = await verifyWebhook(req, rawBody, env);
-        if (verifyError) return verifyError;
-
-        let body: any;
-        try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
-
-        if (body.object === "whatsapp_business_account") return handleWhatsApp(body, env);
-        if (body.object === "page" || body.object === "instagram" || body.object === "threads") return handleMetaMessaging(body, env);
-      }
-    }
-
-    // LINE Webhook
-    if (url.pathname.startsWith("/webhooks/line/") && req.method === "POST") {
+      // Telegram webhook
+      if (url.pathname.startsWith("/webhooks/line/")) {
         const userId = url.pathname.split("/").pop();
         if (!userId) return new Response("Missing User ID", { status: 400 });
 
@@ -208,60 +72,65 @@ export default {
         let body: any;
         try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
 
-        // Verify webhook signature using HMAC-SHA256
-        const userData = await env.STATS.get(`user_meta_${userId}`);
+        const userData = await env.STATS?.get(`user_meta_${userId}`);
         if (userData) {
-            const user: any = JSON.parse(userData);
-            if (user.lineSecret) {
-                const encoder = new TextEncoder();
-                const key = await crypto.subtle.importKey(
-                    'raw',
-                    encoder.encode(user.lineSecret),
-                    { name: 'HMAC', hash: 'SHA-256' },
-                    false,
-                    ['sign']
-                );
-                const expectedSignature = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody));
-                const expectedSignatureBase64 = btoa(String.fromCharCode(...new Uint8Array(expectedSignature)));
-
-                if (signature !== expectedSignatureBase64) {
-                    console.error(`[line] Signature verification failed for user ${userId}`);
-                    return new Response("Invalid Signature", { status: 401 });
-                }
+          const user: any = JSON.parse(userData);
+          if (user.lineSecret) {
+            const encoder = new TextEncoder();
+            const key = await crypto.subtle.importKey(
+              'raw', encoder.encode(user.lineSecret),
+              { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+            );
+            const expectedSignature = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody));
+            const expectedSignatureBase64 = btoa(String.fromCharCode(...new Uint8Array(expectedSignature)));
+            if (signature !== expectedSignatureBase64) {
+              console.error(`[line] Signature verification failed for user ${userId}`);
+              return new Response("Invalid Signature", { status: 401 });
             }
+          }
         }
-
-        return handleLine(body, userId, env);
-    }
-
-    // Telegram Bot Webhook (usually just POST /webhooks/telegram or similar, 
-    // but the current code checks body.update_id on ANY POST)
-    if (req.method === "POST") {
-      const rawBody = await req.text();
-      let body: any;
-      try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
-
-      if (body.update_id) {
-        return handleTelegram(body, env);
+        return fetch(`https://bridge.voicemsg.net${url.pathname}`, {
+          method: req.method,
+          headers: req.headers,
+          body: rawBody
+        });
       }
-      
-      // Fallback for other POSTs that might be webhooks
-      if (body.object === "whatsapp_business_account") return handleWhatsApp(body, env);
-      if (body.object === "page" || body.object === "instagram" || body.object === "threads") return handleMetaMessaging(body, env);
 
-      return new Response("ok");
-    }
+      // Proxy all other requests to Kubernetes backend
+      const backendUrl = `https://bridge.voicemsg.net${url.pathname}${url.search}`;
+      const backendReq = new Request(backendUrl, {
+        method: req.method,
+        headers: req.headers,
+        body: req.body,
+        redirect: "manual"
+      });
 
-      return new Response("404");
+      // Add X-Forwarded-For
+      backendReq.headers.set("X-Forwarded-For", req.headers.get("CF-Connecting-IP") || "");
+      backendReq.headers.set("X-Real-IP", req.headers.get("CF-Connecting-IP") || "");
+
+      let response = await fetch(backendReq);
+
+      // Handle redirects
+      if (response.status === 301 || response.status === 302) {
+        let location = response.headers.get("Location");
+        if (location) {
+          location = location.replace("https://bridge.voicemsg.net", publicOrigin);
+          const newHeaders = new Headers(response.headers);
+          newHeaders.set("Location", location);
+          return new Response(response.body, { status: response.status, headers: newHeaders });
+        }
+      }
+
+      return response;
     } catch (e: any) {
-      const { logError } = await import("./logger");
-      await logError("worker_fetch", e.stack || e.message, env);
+      console.error("Worker error:", e.stack || e.message);
       return new Response("Internal Server Error", { status: 500 });
     }
   },
 
   async queue(batch: MessageBatch<any>, env: Env) {
-    env.STATS = new RedisKV(env.REDIS_URL || "redis://redis:6379");
     return queue(batch, env);
   },
 } satisfies ExportedHandler<Env>;
+

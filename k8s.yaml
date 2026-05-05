@@ -72,11 +72,11 @@ spec:
           subPath: redis.conf
         resources:
           requests:
+            cpu: "25m"
+            memory: "64Mi"
+          limits:
             cpu: "50m"
             memory: "128Mi"
-          limits:
-            cpu: "100m"
-            memory: "256Mi"
         livenessProbe:
           tcpSocket:
             port: 6379
@@ -168,7 +168,7 @@ spec:
             cpu: "1000m"
             memory: "4Gi"
           limits:
-            cpu: "3000m"
+            cpu: "2000m"
             memory: "8Gi"
         livenessProbe:
           httpGet:
@@ -189,7 +189,7 @@ spec:
           claimName: qwen3-asr-pvc
 
 # -----------------------------------------------------------------------------
-# MTPROTO BRIDGE MANAGER
+# MTPROTO BRIDGE MANAGER - OPTIMIZED FOR LOW CPU
 # -----------------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
@@ -250,11 +250,11 @@ spec:
               fieldPath: metadata.namespace
         resources:
           requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
             cpu: "100m"
             memory: "128Mi"
-          limits:
-            cpu: "200m"
-            memory: "256Mi"
         livenessProbe:
           httpGet:
             path: /health

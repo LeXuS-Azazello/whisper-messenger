@@ -1,45 +1,39 @@
-import { KVLike } from "./types";
-import Redis from "ioredis";
+export interface KVLike {
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+  delete(key: string): Promise<void>;
+}
 
+// Simple KV stub for Cloudflare Workers (ioredis not supported)
 export class RedisKV implements KVLike {
-    private redis: Redis;
-
-    constructor(connectionString: string) {
-        // connectionString can be "redis://redis:6379" or just the host
-        this.redis = new Redis(connectionString);
-        
-        this.redis.on('error', (err) => {
-            console.error('[RedisKV] Redis error:', err);
-        });
+  private data = new Map<string, string>();
+  
+  constructor(redisURL: string) {
+    console.log('[RedisKV] Using in-memory KV (Cloudflare Workers compatible)');
+  }
+  
+  async get(key: string): Promise<string | null> {
+    try {
+      return this.data.get(key) || null;
+    } catch (e) {
+      console.error(`[RedisKV] get error for ${key}:`, e);
+      return null;
     }
-
-    async get(key: string): Promise<string | null> {
-        try {
-            return await this.redis.get(key);
-        } catch (e) {
-            console.error(`[RedisKV] get error for ${key}:`, e);
-            return null;
-        }
+  }
+  
+  async put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void> {
+    try {
+      this.data.set(key, value);
+    } catch (e) {
+      console.error(`[RedisKV] put error for ${key}:`, e);
     }
-
-    async put(key: string, value: string | ArrayBuffer | ArrayBufferView | ReadableStream, options?: { expirationTtl?: number }): Promise<void> {
-        try {
-            const strValue = typeof value === 'string' ? value : JSON.stringify(value);
-            if (options?.expirationTtl) {
-                await this.redis.set(key, strValue, 'EX', options.expirationTtl);
-            } else {
-                await this.redis.set(key, strValue);
-            }
-        } catch (e) {
-            console.error(`[RedisKV] put error for ${key}:`, e);
-        }
+  }
+  
+  async delete(key: string): Promise<void> {
+    try {
+      this.data.delete(key);
+    } catch (e) {
+      console.error(`[RedisKV] delete error for ${key}:`, e);
     }
-
-    async delete(key: string): Promise<void> {
-        try {
-            await this.redis.del(key);
-        } catch (e) {
-            console.error(`[RedisKV] delete error for ${key}:`, e);
-        }
-    }
+  }
 }
