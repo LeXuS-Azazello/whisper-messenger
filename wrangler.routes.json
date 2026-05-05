@@ -1,16 +1,14 @@
-{
-  "routes": [
-    {
-      "pattern": "voicemsg.net/*",
-      "zone_id": "1280e0d037895d7342ea21be9cf3d453"
-    },
-    {
-      "pattern": "bridge.voicemsg.net/*", 
-      "zone_id": "1280e0d037895d7342ea21be9cf3d453"
-    },
-    {
-      "pattern": "app.voicemsg.net/*",
-      "zone_id": "1280e0d037895d7342ea21be9cf3d453"
-    }
-  ]
-}
+[
+  {
+    "pattern": "voicemsg.net/*",
+    "zone_id": "1280e0d037895d7342ea21be9cf3d453"
+  },
+  {
+    "pattern": "bridge.voicemsg.net/*",
+    "zone_id": "1280e0d037895d7342ea21be9cf3d453"
+  },
+  {
+    "pattern": "app.voicemsg.net/*", 
+    "zone_id": "1280e0d037895d7342ea21be9cf3d453"
+  }
+]
