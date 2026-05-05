@@ -371,7 +371,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: bridge.voicemsg.net
+  - host: voicemsg.net
     http:
       paths:
       - path: /
