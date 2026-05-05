@@ -10,6 +10,6 @@ spec:
       containers:
       - name: curl
         image: curlimages/curl:latest
-        command: ["curl", "-v", "--connect-timeout", "5", "http://qwen3-asr.debugging-whispermsg.svc.cluster.local:11434/v1/models"]
+        command: ["curl", "-v", "--connect-timeout", "5", "http://qwen3-asr.debugging-echovoice.svc.cluster.local:11434/v1/models"]
       restartPolicy: Never
   backoffLimit: 0
