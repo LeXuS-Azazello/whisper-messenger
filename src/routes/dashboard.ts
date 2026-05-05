@@ -156,12 +156,13 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
 
     if (url.pathname === "/dashboard/test-tg") {
       if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-      const res = await fetch(`http://mtproto-bridge-manager:3000/test-tg`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
-        body: JSON.stringify({ session: user.session, message: "Test message from dashboard!" })
-      });
-      return res;
+       const res = await fetch(`http://mtproto-bridge-manager:3000/test-tg`, {
+         method: "POST",
+         headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+         body: JSON.stringify({ session: user.session, message: "Test message from dashboard!" })
+       });
+       const data = await res.json().catch(() => ({ error: "Bridge error" }));
+       return Response.json(data, { status: res.status });
     }
 
     if (url.pathname === "/dashboard/restart-tg") {
@@ -174,12 +175,13 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
         body: JSON.stringify({ userId })
       }).catch(() => {});
 
-      const res = await fetch(`http://mtproto-bridge-manager:3000/spawn`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
-        body: JSON.stringify({ userId, session: user.session })
-      });
-      return res;
+       const res = await fetch(`http://mtproto-bridge-manager:3000/spawn`, {
+         method: "POST",
+         headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+         body: JSON.stringify({ userId, session: user.session })
+       });
+       const data = await res.json().catch(() => ({ error: "Bridge error" }));
+       return Response.json(data, { status: res.status });
     }
   }
 
