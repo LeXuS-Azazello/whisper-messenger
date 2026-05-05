@@ -1,92 +1,68 @@
 #!/bin/bash
 # =============================================================================
-# CLOUDFLARE TUNNEL & DNS SETUP SCRIPT
+# CLOUDFLARE TUNNEL SETUP - Docker Container
 # =============================================================================
 # Domain: voicemsg.net
-# Purpose: Configure Cloudflare tunnel and DNS for Kubernetes services
+# Purpose: Start Cloudflare tunnel using Docker (no systemd needed)
+# Token: eyJhIjoiZmZhMjc2NTFhNjQ3ZDM3YTcxZmIzYWVhZTk2OWM3NjIiLCJ0Ijoi...
 # =============================================================================
 
 set -e
 
-echo "🚀 Setting up Cloudflare tunnel and DNS for voicemsg.net..."
-
-# Step 1: Login to Cloudflare (if not already logged in)
-echo "🔐 Checking Cloudflare authentication..."
-wrangler login --scopes=account:read,user:read,zone:read,zone:edit,dns:edit,tunnel:create,tunnel:edit,token:create 2>/dev/null || true
-
-# Step 2: Create Cloudflare Tunnel
-echo "🌐 Creating Cloudflare tunnel..."
-TUNNEL_NAME="echo-messenger-tunnel"
-
-# Create tunnel and save credentials
-TUNNEL_JSON=$(cloudflared tunnel create $TUNNEL_NAME --url http://localhost:80 2>&1 || echo '{"uuid":"temp-uuid"}')
-TUNNEL_ID=$(echo $TUNNEL_JSON | python3 -c "import sys,json; print(json.load(sys.stdin).get('uuid','temp-id'))" 2>/dev/null || echo "temp-tunnel-id")
-
-echo "✅ Tunnel created: $TUNNEL_NAME (ID: $TUNNEL_ID)"
-
-# Step 3: Configure DNS Records
-echo "📝 Configuring DNS records..."
-
-# Main domain - Cloudflare Worker
-wrangler route create "voicemsg.net" \
-  --zone voicemsg.net \
-  2>/dev/null || echo "Worker route may already exist"
-
-# Bridge subdomain - Kubernetes Ingress
-cloudflared tunnel route dns $TUNNEL_ID bridge.voicemsg.net 2>/dev/null || \
-  echo "⚠️  Manual DNS setup needed for bridge.voicemsg.net"
-
-# Frontend subdomain
-cloudflared tunnel route dns $TUNNEL_ID app.voicemsg.net 2>/dev/null || \
-  echo "⚠️  Manual DNS setup needed for app.voicemsg.net"
-
-echo "✅ DNS records configured"
-
-# Step 4: Create Cloudflare Worker Routes
-echo "⚙️  Configuring Cloudflare Worker routes..."
-
-# Create Worker with proper route
-cat > /tmp/worker-route.json << 'EOF'
-{
-  "pattern": "voicemsg.net/*",
-  "scriptName": "echo-messenger-proxy"
-}
-EOF
-
-echo "✅ Worker routes configured"
-
-# Step 5: Verify Setup
-echo "🔍 Verifying configuration..."
-
-echo ""
-echo "📋 Configuration Summary:"
-echo "   ──────────────────────────────────────"
-echo "   Domain:         voicemsg.net"
-echo "   Tunnel:         $TUNNEL_NAME"
-echo "   Bridge:         bridge.voicemsg.net → Kubernetes Ingress"
-echo "   Frontend:       app.voicemsg.net → Cloudflare Worker"
-echo "   Worker:         voicemsg.net → Proxy to Kubernetes"
-echo "   ASR Service:    qwen3-asr (internal only)"
-echo "   Redis:          redis (internal only)"
-echo "   Namespace:      debugging-echovoice"
-echo "   ──────────────────────────────────────"
+echo "============================================="
+echo "  CLOUDFLARE TUNNEL SETUP (Docker)"
+echo "============================================="
 echo ""
 
-# Save tunnel credentials for Kubernetes
-echo "💾 Saving tunnel credentials..."
-cloudflared tunnel token $TUNNEL_ID > /tmp/tunnel-token.txt 2>/dev/null || \
-  echo "Use: cloudflared tunnel token $TUNNEL_ID to get token"
+TUNNEL_TOKEN="eyJhIjoiZmZhMjc2NTFhNjQ3ZDM3YTcxZmIzYWVhZTk2OWM3NjIiLCJ0IjoiM2Y5ZGViYTEtNjdmOC00MDg2LWI2ZDAtZjE2NzU5Y2NhOWQ2IiwicyI6IlI4Z1ZIODdjRWN0UjZQTEozdlAvcFJFQm1LTmVyUWx3YTJCSjR6UVFRRG89In0="
 
-echo ""
-echo "✅ Setup complete!"
-echo ""
-echo "Next steps:"
-echo "  1. kubectl apply -f k8s.yaml"
-echo "  2. Update CLOUDFLARED_TOKEN in k8s.yaml if needed"
-echo "  3. npm run deploy:worker (to deploy Cloudflare Worker)"
-echo "  4. Verify: curl https://voicemsg.net/health"
+echo "Step 1: Stop existing tunnel container..."
+docker stop cloudflared-tunnel 2>/dev/null || true
+docker rm cloudflared-tunnel 2>/dev/null || true
+echo "✅ Stopped existing container"
 echo ""
 
-# Export tunnel ID for reference
-export TUNNEL_ID=$TUNNEL_ID
-echo "TUNNEL_ID=$TUNNEL_ID"
+echo "Step 2: Pull latest cloudflared image..."
+docker pull cloudflare/cloudflared:latest
+echo "✅ Image pulled"
+echo ""
+
+echo "Step 3: Start tunnel container..."
+docker run -d \
+  --name cloudflared-tunnel \
+  --restart unless-stopped \
+  cloudflare/cloudflared:latest \
+  tunnel \
+  --no-autoupdate \
+  run \
+  --token "${TUNNEL_TOKEN}"
+
+echo "✅ Tunnel container started"
+echo ""
+
+echo "Step 4: Wait for tunnel to connect..."
+sleep 5
+
+if docker logs cloudflared-tunnel 2>&1 | grep -q "Connection established"; then
+    echo "✅ Tunnel connected successfully!"
+else
+    echo "⚠️  Tunnel may still be connecting..."
+    echo "   Check logs: docker logs cloudflared-tunnel"
+fi
+
+echo ""
+echo "============================================="
+echo "  TUNNEL STATUS"
+echo "============================================="
+docker ps --filter "name=cloudflared-tunnel" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+echo ""
+echo "To view logs: docker logs -f cloudflared-tunnel"
+echo "To stop: docker stop cloudflared-tunnel"
+echo "============================================="
+echo ""
+echo "📋 Next Steps:"
+echo "   1. Update k8s.yaml with CLOUDFLARED_TOKEN"
+echo "   2. kubectl apply -f k8s.yaml"
+echo "   3. npm run deploy:worker"
+echo "============================================="
+
