@@ -59,10 +59,10 @@ export async function spawnPod(userId, session) {
         console.log(`[/spawn] Listing pods for ${safeUserId}...`);
         const existing = await withTimeout(k8sApi.listNamespacedPod({
             namespace,
-            labelSelector: `userId=${safeUserId}`
         }), 30000);
         
-        const items = existing?.body?.items || existing?.items || [];
+        const allItems = existing?.body?.items || existing?.items || [];
+        const items = allItems.filter(p => p.metadata.labels?.userId === safeUserId);
         if (items.length > 0) {
             console.log(`[/spawn] Found ${items.length} existing pods/stale sessions for ${safeUserId}, cleaning up...`);
             for (const p of items) {
@@ -119,10 +119,10 @@ export async function deletePods(userId) {
     console.log(`[/delete] Deleting pods for user ${safeUserId}`);
     const existing = await withTimeout(k8sApi.listNamespacedPod({
         namespace,
-        labelSelector: `userId=${safeUserId}`
     }), 5000);
     
-    const items = existing?.body?.items || existing?.items || [];
+    const allItems = existing?.body?.items || existing?.items || [];
+    const items = allItems.filter(p => p.metadata.labels?.userId === safeUserId);
     if (items.length > 0) {
         for (const p of items) {
             if (!p?.metadata?.name) continue;
@@ -140,7 +140,6 @@ export async function listPods() {
     console.log(`[/pods] Fetching pods in namespace ${namespace}`);
     const pods = await withTimeout(k8sApi.listNamespacedPod({
         namespace,
-        labelSelector: 'app=tg-user-bridge'
     }), 10000);
     
     const items = pods?.body?.items || pods?.items || [];
