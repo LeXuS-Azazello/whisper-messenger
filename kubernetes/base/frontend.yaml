@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: echo-frontend
-  namespace: debugging-testcrash-cloud
 spec:
   replicas: 1
   selector:
@@ -25,25 +24,14 @@ spec:
           value: "redis://redis:6379"
         - name: QWEN_ASR_URL
           value: "http://qwen3-asr:80"
-        resources:
-          requests:
-            cpu: "200m"
-            memory: "512Mi"
-          limits:
-            cpu: "500m"
-            memory: "1Gi"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: echo-frontend
-  namespace: debugging-testcrash-cloud
 spec:
-  type: ClusterIP
   selector:
     app: echo-frontend
   ports:
   - port: 80
     targetPort: 3000
-    protocol: TCP
-    name: http

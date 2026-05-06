@@ -2,13 +2,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: mtproto-bridge-sa
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: pod-manager-role
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 rules:
 - apiGroups: [""]
   resources: ["pods"]
@@ -24,11 +24,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: mtproto-bridge-rb
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 subjects:
 - kind: ServiceAccount
   name: mtproto-bridge-sa
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 roleRef:
   kind: Role
   name: pod-manager-role
@@ -39,7 +39,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: redis
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 spec:
   selector:
     app: redis
@@ -52,7 +52,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: redis-config
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 data:
   redis.conf: |
     maxmemory 512mb
@@ -65,7 +65,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: redis
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 spec:
   replicas: 1
   revisionHistoryLimit: 3
@@ -113,7 +113,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: qwen3-asr
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 spec:
   selector:
     app: qwen3-asr
@@ -130,7 +130,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: qwen3-asr-pvc
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 spec:
   accessModes:
     - ReadWriteOnce
@@ -143,7 +143,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: qwen3-asr
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 spec:
   replicas: 1
   revisionHistoryLimit: 3
@@ -215,7 +215,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mtproto-bridge-manager
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 spec:
   replicas: 1
   revisionHistoryLimit: 3
@@ -302,7 +302,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mtproto-bridge-manager
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 spec:
   selector:
     app: mtproto-bridge-manager
@@ -316,7 +316,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: user-pod-template
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 data:
   pod-template.yaml: |
     apiVersion: v1
@@ -362,7 +362,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: mtproto-bridge-ingress
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
@@ -387,7 +387,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: mtproto-bridge-network-policy
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 spec:
   podSelector:
     matchLabels:

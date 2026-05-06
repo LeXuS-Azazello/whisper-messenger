@@ -2,13 +2,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: mtproto-bridge-manager
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: pod-creator
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 rules:
 - apiGroups: [""]
   resources: ["pods", "services", "persistentvolumeclaims"]
@@ -21,11 +21,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: mtproto-manager-binding
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 subjects:
 - kind: ServiceAccount
   name: mtproto-bridge-manager
-  namespace: debugging-voicemsg
+  namespace: debugging-testcrash-cloud
 roleRef:
   kind: Role
   name: pod-creator
