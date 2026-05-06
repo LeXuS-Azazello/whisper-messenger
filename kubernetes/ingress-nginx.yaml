@@ -1,31 +1,3 @@
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: ingress-nginx
-rules:
-- apiGroups: [""]
-  resources: ["configmaps", "endpoints", "nodes", "pods", "secrets", "services", "namespaces"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["networking.k8s.io"]
-  resources: ["ingresses", "ingresses/status", "services", "endpoints", "ingresses/finalizers"]
-  verbs: ["get", "list", "watch", "update", "patch", "create", "delete"]
-- apiGroups: ["networking.k8s.io"]
-  resources: ["ingressclasses"]
-  verbs: ["get", "list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: ingress-nginx
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: ingress-nginx
-subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: debugging-testcrash-cloud
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,7 +13,6 @@ spec:
       labels:
         app: ingress-nginx
     spec:
-      serviceAccountName: default
       containers:
       - name: nginx
         image: registry.k8s.io/ingress-nginx/controller:v1.9.4
@@ -69,6 +40,8 @@ kind: Service
 metadata:
   name: ingress-nginx-controller
   namespace: debugging-testcrash-cloud
+  annotations:
+    ovn.kubernetes.io/service_external_ip_from_subnet: ext-cloud
 spec:
   type: LoadBalancer
   ports:
