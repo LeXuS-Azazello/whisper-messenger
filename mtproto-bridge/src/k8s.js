@@ -51,7 +51,7 @@ export async function spawnPod(userId, session) {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
     const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    const namespace = process.env.POD_NAMESPACE || 'debugging-voicemsg';
+    const namespace = process.env.POD_NAMESPACE || 'debugging-trash-cloud';
 
     console.log(`[/spawn] Spawning pod for user ${safeUserId}`);
 
@@ -117,7 +117,7 @@ export async function spawnPod(userId, session) {
 export async function deletePods(userId) {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
-    const namespace = process.env.POD_NAMESPACE || 'debugging-voicemsg';
+    const namespace = process.env.POD_NAMESPACE || 'debugging-trash-cloud';
     
     console.log(`[/delete] Deleting pods for user ${safeUserId}`);
     const existing = await withTimeout(k8sApi.listNamespacedPod({
@@ -139,7 +139,7 @@ export async function deletePods(userId) {
 
 export async function listPods() {
     if (!k8sApi) throw new Error('K8s API not initialized');
-    const namespace = process.env.POD_NAMESPACE || 'debugging-voicemsg';
+    const namespace = process.env.POD_NAMESPACE || 'debugging-trash-cloud';
     console.log(`[/pods] Fetching pods in namespace ${namespace}`);
     const pods = await withTimeout(k8sApi.listNamespacedPod({
         namespace,

@@ -2,13 +2,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: mtproto-bridge-sa
-  namespace: debugging-voicemsg
+  namespace: debugging-trash-cloud
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: pod-manager-role
-  namespace: debugging-voicemsg
+  namespace: debugging-trash-cloud
 rules:
 - apiGroups: [""]
   resources: ["pods", "persistentvolumeclaims", "services"]
@@ -18,11 +18,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: mtproto-bridge-rb
-  namespace: debugging-voicemsg
+  namespace: debugging-trash-cloud
 subjects:
 - kind: ServiceAccount
   name: mtproto-bridge-sa
-  namespace: debugging-voicemsg
+  namespace: debugging-trash-cloud
 roleRef:
   kind: Role
   name: pod-manager-role
@@ -32,7 +32,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mtproto-bridge-manager
-  namespace: debugging-voicemsg
+  namespace: debugging-trash-cloud
 spec:
   replicas: 1
   selector:
@@ -80,7 +80,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mtproto-bridge-manager
-  namespace: debugging-voicemsg
+  namespace: debugging-trash-cloud
 spec:
   selector:
     app: mtproto-bridge-manager

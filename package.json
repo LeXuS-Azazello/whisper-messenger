@@ -7,9 +7,9 @@
   "scripts": {
     "build": "npx wrangler deploy --dry-run",
     "deploy:worker": "npm version patch && npx wrangler deploy",
-    "deploy:k8s": "npm version patch && kubectl rollout restart deployment echo-frontend -n debugging-voicemsg",
-    "deploy:server": "npm version patch && kubectl rollout restart deployment mtproto-bridge-manager -n debugging-voicemsg",
-    "deploy:all": "npm version patch && kubectl rollout restart deployment echo-frontend mtproto-bridge-manager -n debugging-voicemsg",
+    "deploy:k8s": "npm version patch && kubectl rollout restart deployment echo-frontend -n debugging-trash-cloud",
+    "deploy:server": "npm version patch && kubectl rollout restart deployment mtproto-bridge-manager -n debugging-trash-cloud",
+    "deploy:all": "npm version patch && kubectl rollout restart deployment echo-frontend mtproto-bridge-manager -n debugging-trash-cloud",
     "deploy": "npm run deploy:k8s",
     "dev": "wrangler dev",
     "test": "vitest run",
