@@ -1,43 +1,25 @@
----
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: ingress-nginx
-  namespace: debugging-testcrash-cloud
 rules:
 - apiGroups: [""]
-  resources: ["configmaps", "pods", "services", "endpoints", "secrets", "namespaces"]
+  resources: ["configmaps", "endpoints", "nodes", "pods", "secrets", "services", "namespaces"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["networking.k8s.io"]
-  resources: ["ingresses", "ingresses/status"]
-  verbs: ["get", "list", "watch", "update", "patch", "create"]
-- apiGroups: ["discovery.k8s.io"]
-  resources: ["endpointslices"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: [""]
-  resources: ["services/status"]
-  verbs: ["get", "update"]
-- apiGroups: ["coordination.k8s.io"]
-  resources: ["leases"]
-  verbs: ["get", "list", "watch", "update", "patch", "create"]
-- apiGroups: [""]
-  resources: ["events"]
-  verbs: ["create", "patch"]
-- apiGroups: [""]
-  resources: ["nodes"]
-  verbs: ["get", "list", "watch"]
+  resources: ["ingresses", "ingresses/status", "services", "endpoints", "ingresses/finalizers"]
+  verbs: ["get", "list", "watch", "update", "patch", "create", "delete"]
 - apiGroups: ["networking.k8s.io"]
   resources: ["ingressclasses"]
   verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
   name: ingress-nginx
-  namespace: debugging-testcrash-cloud
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
+  kind: ClusterRole
   name: ingress-nginx
 subjects:
 - kind: ServiceAccount
@@ -59,36 +41,21 @@ spec:
       labels:
         app: ingress-nginx
     spec:
-      hostNetwork: true
+      serviceAccountName: default
       containers:
       - name: nginx
         image: registry.k8s.io/ingress-nginx/controller:v1.9.4
-        env:
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
         args:
         - /nginx-ingress-controller
         - --election-id=ingress-nginx-leader
         - --controller-class=k8s.io/ingress-nginx
         - --ingress-class=nginx
-        - --configmap=ingress-nginx-controller
-        - --watch-namespace=debugging-testcrash-cloud
-        - --report-node-internal-ip-address
-        - --publish-service=debugging-testcrash-cloud/voicemsg-ingress-ext
         - --enable-ssl-passthrough
         ports:
         - name: http
           containerPort: 80
-          protocol: TCP
         - name: https
           containerPort: 443
-          protocol: TCP
         resources:
           limits:
             cpu: 500m
@@ -103,24 +70,13 @@ metadata:
   name: ingress-nginx-controller
   namespace: debugging-testcrash-cloud
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   ports:
   - name: http
     port: 80
     targetPort: 80
-    protocol: TCP
   - name: https
     port: 443
     targetPort: 443
-    protocol: TCP
   selector:
     app: ingress-nginx
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ingress-nginx-controller
-  namespace: debugging-testcrash-cloud
-data:
-  main-snippet: |
-    client_max_body_size 10m;

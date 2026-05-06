@@ -1,19 +1,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: voicemsg-public
+  name: voicemsg-lb
   namespace: debugging-testcrash-cloud
   annotations:
     ovn.kubernetes.io/load_balancer_ip: "91.224.11.40"
 spec:
   type: LoadBalancer
-  loadBalancerIP: "91.224.11.40"
   ports:
   - name: http
     port: 80
-    targetPort: 3000
-  - name: https
-    port: 443
     targetPort: 3000
   selector:
     app: echo-frontend
