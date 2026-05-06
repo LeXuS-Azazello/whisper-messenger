@@ -39,7 +39,7 @@ metadata:
   name: echo-frontend
   namespace: debugging-voicemsg
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: echo-frontend
   ports:

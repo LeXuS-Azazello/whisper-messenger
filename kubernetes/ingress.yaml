@@ -15,20 +15,13 @@ spec:
   - host: voicemsg.net
     http:
       paths:
-      - path: /
+      - path: /static
         pathType: Prefix
         backend:
           service:
             name: echo-frontend
             port:
               number: 80
-      - path: /webhooks
-        pathType: Prefix
-        backend:
-          service:
-            name: mtproto-bridge-manager
-            port:
-              number: 3000
       - path: /api
         pathType: Prefix
         backend:
@@ -36,3 +29,17 @@ spec:
             name: mtproto-bridge-manager
             port:
               number: 3000
+      - path: /webhooks
+        pathType: Prefix
+        backend:
+          service:
+            name: mtproto-bridge-manager
+            port:
+              number: 3000
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: echo-frontend
+            port:
+              number: 80
