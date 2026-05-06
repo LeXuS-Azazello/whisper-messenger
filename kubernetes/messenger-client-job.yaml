@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: messenger-client-{user-id}
-  namespace: debugging-trash-cloud
+  namespace: debugging-testcrash-cloud
 spec:
   template:
     spec:
