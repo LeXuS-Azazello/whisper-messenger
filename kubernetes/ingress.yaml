@@ -1,17 +1,18 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: testcrash-ingress
+  name: voicemsg-ingress
   namespace: debugging-testcrash-cloud
   annotations:
+    kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   tls:
     - hosts:
-        - testcrash-cloud.voicemsg.net
+        - voicemsg.net
       secretName: voicemsg-tls
   rules:
-    - host: testcrash-cloud.voicemsg.net
+    - host: voicemsg.net
       http:
         paths:
           - path: /
