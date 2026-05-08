@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: voicemsg-ingress
-  namespace: debugging-testcrash-pub
+  namespace: debugging-testcrash-cloud
   annotations:
     kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/rewrite-target: /

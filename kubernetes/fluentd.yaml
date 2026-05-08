@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: fluentd
-  namespace: debugging-testcrash-pub
+  namespace: debugging-testcrash-cloud
 spec:
   selector:
     matchLabels:
