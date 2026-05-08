@@ -3,36 +3,8 @@ import fs from 'fs';
 import { render } from 'preact-render-to-string';
 import type { HealthChecks, UserSession, Env } from '../../types';
 import type { ErrorLog } from '../../logger';
+
 import { ConfigItem, formatUptime, UserRow, ErrorLogItem } from './Admin.utils.tsx';
-
-
-const cssPath = new URL('./Admin.css', import.meta.url);
-const adminCss = fs.readFileSync(cssPath, 'utf-8');
-
-const ConfigItem = ({ label, active }: { label: string; active: boolean }) => (
-    <div class="config-item">
-        <span class="config-label">{label}</span>
-        <span class={`config-value ${active ? 'configured' : 'missing'}`}>
-            {active ? 'ACTIVE' : 'MISSING'}
-        </span>
-    </div>
-);
-
-const formatUptime = (startedAt?: number) => {
-    if (!startedAt) return '-';
-    const seconds = Math.floor((Date.now() - startedAt) / 1000);
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    if (hours < 24) return `${hours}h ${remainingMinutes}m`;
-    const days = Math.floor(hours / 24);
-    const remainingHours = hours % 24;
-    return `${days}d ${remainingHours}h`;
-};
-
-const UserRow = ({ user }: { user: UserSession }) => (
     <tr class="user-row" data-userid={user.userId}>
         <td>
             <div style={{ fontWeight: '600' }}>{user.firstName}</div>
