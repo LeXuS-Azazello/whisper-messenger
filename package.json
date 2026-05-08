@@ -1,6 +1,6 @@
 {
   "name": "voicemsg-info",
-  "version": "1.0.183",
+  "version": "1.0.184",
   "type": "module",
   "description": "Cloudflare Worker for Meta voice message transcription ",
   "main": "src/index.ts",
