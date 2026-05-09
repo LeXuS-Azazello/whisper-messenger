@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 // Mock frontend assets that use 'document' or other browser APIs
 vi.mock('../admin.js', () => ({ default: 'mock-admin-js-content' }));
-vi.mock('../admin.css', () => ({ default: 'mock-admin-css-content' }));
+vi.mock('../components/admin/Admin.css', () => ({ default: 'mock-admin-css-content' }));
 
 import worker from '../index';
 import { Env } from '../types';

@@ -328,7 +328,7 @@ async function createSessionResponse(userId: string, env: Env, returnJson: boole
   });
 }
 
-export async function handlePublicAuth(env: Env, req: Request, currentUserId: string | null, ctx: ExecutionContext): Promise<Response> {
+export async function handlePublicAuth(env: Env, req: Request, currentUserId: string | null, ctx: { waitUntil: (p: Promise<any>) => void }): Promise<Response> {
   const url = new URL(req.url);
   const method = req.method;
   const pathname = url.pathname;
@@ -418,7 +418,8 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
   if (method === "POST" && pathname === "/auth/send-code") {
     const { phone } = await req.json() as any;
-    const bridgeRes = await fetch(`http://mtproto-bridge-manager:3000/send-code`, {
+    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+    const bridgeRes = await fetch(`${bridgeUrl}/send-code`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -440,7 +441,8 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
   if (method === "POST" && pathname === "/auth/verify-code") {
     const { phone, code } = await req.json() as any;
-    const bridgeRes = await fetch(`http://mtproto-bridge-manager:3000/verify-code`, {
+    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+    const bridgeRes = await fetch(`${bridgeUrl}/verify-code`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -483,10 +485,10 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
   if (method === "POST" && pathname === "/auth/verify-password") {
     const body = await req.json() as any;
-    const bridgeRes = await fetch(`http://mtproto-bridge-manager:3000/verify-password`, {
+    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+    const bridgeRes = await fetch(`${bridgeUrl}/verify-password`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         "x-bridge-secret": env.BRIDGE_SECRET || "changeme"
       },
       body: JSON.stringify(body)
@@ -524,61 +526,63 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     });
   }
 
-   if (method === "POST" && pathname === "/auth/qr-start") {
-     const bridgeRes = await fetch(`http://mtproto-bridge-manager:3000/qr-start`, {
-       method: "POST",
-       headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
-     });
-     const body = await bridgeRes.clone().arrayBuffer();
-     const headers: Record<string, string> = {};
-     bridgeRes.headers.forEach((value, key) => {
-       headers[key] = value;
-     });
-     return new Response(body, {
-       status: bridgeRes.status,
-       statusText: bridgeRes.statusText,
-       headers
-     });
-   }
+if (method === "POST" && pathname === "/auth/qr-start") {
+    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+    const bridgeRes = await fetch(`${bridgeUrl}/qr-start`, {
+      method: "POST",
+      headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
+    });
+    const body = await bridgeRes.clone().arrayBuffer();
+    const headers: Record<string, string> = {};
+    bridgeRes.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+    return new Response(body, {
+      status: bridgeRes.status,
+      statusText: bridgeRes.statusText,
+      headers
+    });
+  }
 
-   if (method === "GET" && pathname === "/auth/qr-check") {
-     const token = url.searchParams.get("token");
-     const bridgeRes = await fetch(`http://mtproto-bridge-manager:3000/qr-check?token=${token}&secret=${env.BRIDGE_SECRET || "changeme"}`, {
-       headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
-     });
+  if (method === "GET" && pathname === "/auth/qr-check") {
+    const token = url.searchParams.get("token");
+    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+    const bridgeRes = await fetch(`${bridgeUrl}/qr-check?token=${token}&secret=${env.BRIDGE_SECRET || "changeme"}`, {
+      headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
+    });
 
-     if (bridgeRes.ok && currentUserId) {
-       const data = await bridgeRes.clone().json() as BridgeUserData;
-       if (data.done && data.session) {
-         const userData = await env.STATS.get(`user_meta_${currentUserId}`);
-         if (userData) {
-           const user: UserSession = JSON.parse(userData);
-           user.session = data.session;
-           user.isActive = true;
-           user.firstName = data.firstName || user.firstName;
-           await env.STATS.put(`user_meta_${currentUserId}`, JSON.stringify(user));
-           await env.STATS.put(`tg_session_${currentUserId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
+    if (bridgeRes.ok && currentUserId) {
+      const data = await bridgeRes.clone().json() as BridgeUserData;
+      if (data.done && data.session) {
+        const userData = await env.STATS.get(`user_meta_${currentUserId}`);
+        if (userData) {
+          const user: UserSession = JSON.parse(userData);
+          user.session = data.session;
+          user.isActive = true;
+          user.firstName = data.firstName || user.firstName;
+          await env.STATS.put(`user_meta_${currentUserId}`, JSON.stringify(user));
+          await env.STATS.put(`tg_session_${currentUserId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
 
-           ctx.waitUntil(fetch(`${getPublicOrigin(env, url.origin)}/spawn`, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json', 'x-bridge-secret': env.BRIDGE_SECRET || 'changeme' },
-             body: JSON.stringify({ userId: currentUserId, session: data.session })
-           }).catch(e => console.error("[Auth] Spawn error:", e)));
-         }
-       }
-     }
+          ctx.waitUntil(fetch(`${getPublicOrigin(env, url.origin)}/spawn`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-bridge-secret': env.BRIDGE_SECRET || 'changeme' },
+            body: JSON.stringify({ userId: currentUserId, session: data.session })
+          }).catch(e => console.error("[Auth] Spawn error:", e)));
+        }
+      }
+    }
 
-     const respBody = await bridgeRes.clone().arrayBuffer();
-     const respHeaders: Record<string, string> = {};
-     bridgeRes.headers.forEach((value, key) => {
-       respHeaders[key] = value;
-     });
-     return new Response(respBody, {
-       status: bridgeRes.status,
-       statusText: bridgeRes.statusText,
-       headers: respHeaders
-     });
-   }
+    const respBody = await bridgeRes.clone().arrayBuffer();
+    const respHeaders: Record<string, string> = {};
+    bridgeRes.headers.forEach((value, key) => {
+      respHeaders[key] = value;
+    });
+    return new Response(respBody, {
+      status: bridgeRes.status,
+      statusText: bridgeRes.statusText,
+      headers: respHeaders
+    });
+  }
 
   if (pathname === "/auth/logout") {
     return handleLogout();

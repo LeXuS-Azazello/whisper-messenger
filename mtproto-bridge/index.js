@@ -204,6 +204,8 @@ const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpa
 if (isMain) {
     app.listen(PORT, async () => {
         console.log(`[bridge] ${MODE} on ${PORT}`);
+        const bridgeUrl = process.env.BRIDGE_URL || `http://localhost:${PORT}`;
+        console.log(`[bridge] Public URL: ${bridgeUrl}`);
         if (MODE === 'USER') {
             await startUserClient();
             startAccessChecker();

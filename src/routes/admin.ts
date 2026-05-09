@@ -585,7 +585,8 @@ async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
 
     // Fetch live pod statuses from bridge
     try {
-        const podsRes = await fetch(`http://mtproto-bridge-manager:3000/pods?secret=${env.BRIDGE_SECRET || "changeme"}`, {
+        const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+        const podsRes = await fetch(`${bridgeUrl}/pods?secret=${env.BRIDGE_SECRET || "changeme"}`, {
             headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
         });
         if (podsRes.ok) {
@@ -619,6 +620,7 @@ async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
 export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     try {
         const url = new URL(req.url);
+        const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
         const cookieAuth = req.headers.get("Cookie")?.match(/admin_session=([^;]+)/)?.[1];
         const adminId = cookieAuth ? await verifySession(cookieAuth, env.ADMIN_SECRET) : null;
 
@@ -665,7 +667,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         }
 
         if (url.pathname === "/admin/tg-status") {
-            const res = await fetch(`http://mtproto-bridge-manager:3000/health`, {
+            const res = await fetch(`${bridgeUrl}/health`, {
                 headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
             });
             return res;
@@ -673,7 +675,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
 
         if (url.pathname === "/admin/tg-send-code" && req.method === "POST") {
             const { phoneNumber } = await req.json() as any;
-            const res = await fetch(`http://mtproto-bridge-manager:3000/send-code`, {
+            const res = await fetch(`${bridgeUrl}/send-code`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
                 body: JSON.stringify({ phone: phoneNumber })
@@ -683,7 +685,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
 
         if (url.pathname === "/admin/tg-verify-code" && req.method === "POST") {
             const { phoneNumber, code } = await req.json() as any;
-            const res = await fetch(`http://mtproto-bridge-manager:3000/verify-code`, {
+            const res = await fetch(`${bridgeUrl}/verify-code`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
                 body: JSON.stringify({ phone: phoneNumber, code })
@@ -692,7 +694,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         }
 
         if (url.pathname === "/admin/tg-qr-login" && req.method === "POST") {
-            const res = await fetch(`http://mtproto-bridge-manager:3000/qr-start`, {
+            const res = await fetch(`${bridgeUrl}/qr-start`, {
                 method: "POST",
                 headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
             });
@@ -701,14 +703,14 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
 
         if (url.pathname === "/admin/tg-qr-check") {
             const token = url.searchParams.get("token");
-            const res = await fetch(`http://mtproto-bridge-manager:3000/qr-check?token=${token}&secret=${env.BRIDGE_SECRET || "changeme"}`, {
+            const res = await fetch(`${bridgeUrl}/qr-check?token=${token}&secret=${env.BRIDGE_SECRET || "changeme"}`, {
                 headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
             });
             return res;
         }
 
         if (url.pathname === "/admin/tg-test-msg" && req.method === "POST") {
-            const res = await fetch(`http://mtproto-bridge-manager:3000/test-tg`, {
+            const res = await fetch(`${bridgeUrl}/test-tg`, {
                 method: "POST",
                 headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
                 body: JSON.stringify({ message: "Admin test message!" })

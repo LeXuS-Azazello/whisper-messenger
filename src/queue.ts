@@ -6,7 +6,7 @@ import { sendLineTypingOn, sendLineMessageSafe, getLineAudioArrayBuffer } from "
 import { transcribeWithFallback } from "./whisper";
 import { logError } from "./logger";
 
-export default async function queue(batch: MessageBatch<AudioJob>, env: Env) {
+export default async function queue(batch: any, env: Env) {
   for (const message of batch.messages) {
     const { userId, senderId, audioUrl, platform, replyToMsgId } = message.body;
     const start = Date.now();

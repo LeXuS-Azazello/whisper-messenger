@@ -25,6 +25,20 @@ spec:
           value: "redis://redis:6379"
         - name: QWEN_ASR_URL
           value: "http://qwen3-asr:80"
+        - name: BRIDGE_URL
+          value: "http://mtproto-bridge-manager:3000"
+        - name: BRIDGE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: BRIDGE_SECRET
+              optional: true
+        - name: SESSION_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: SESSION_SECRET
+              optional: true
         resources:
           requests:
             cpu: "200m"

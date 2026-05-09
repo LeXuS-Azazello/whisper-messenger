@@ -1,4 +1,4 @@
-import { Env } from "./types";
+import { Env, ExecutionContext, MessageBatch } from "./types";
 import { verifyWebhook } from "./verify";
 import queue from "./queue";
 import { handlePublicAuth } from "./routes/auth";
@@ -8,6 +8,14 @@ import { handleUserDashboard, incrementUserStats } from "./routes/dashboard";
 import { handleTelegram, handleMetaMessaging, handleWhatsApp, handleLine } from "./routes/webhooks";
 import { renderHome } from "./components/home/Home";
 import { verifySession } from "./session";
+
+/**
+ * Resolves the bridge URL for forwarding internal requests.
+ * Uses BRIDGE_URL env var, falls back to internal K8s service name.
+ */
+function getBridgeUrl(env: Env): string {
+  return (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager:3000";
+}
 
 function getPublicOrigin(env: Env, fallbackOrigin: string): string {
   const configured = (env.WORKER_URL || "").trim();
@@ -19,16 +27,28 @@ function getPublicOrigin(env: Env, fallbackOrigin: string): string {
   }
 }
 
+/**
+ * Check if the request path starts with a given prefix.
+ * Handles both "/admin" and "/admin/something" correctly.
+ */
+function pathStartsWith(pathname: string, prefix: string): boolean {
+  if (pathname === prefix) return true;
+  if (pathname.startsWith(prefix + "/")) return true;
+  return false;
+}
+
 export default {
-  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: { waitUntil: (p: Promise<any>) => void; passThroughOnException: () => void }): Promise<Response> {
     try {
       const url = new URL(req.url);
       const publicOrigin = getPublicOrigin(env, url.origin);
+      const bridgeUrl = getBridgeUrl(env);
 
+      // Health check
       if (url.pathname === "/health") return Response.json({ ok: true });
 
-      // Proxy all non-webhook requests to Kubernetes backend
-      // Only handle webhook authentication here, proxy everything else
+      // ─── Webhook routes (verify + forward to bridge) ──────────────────────────
+
       if (url.pathname === "/webhooks/meta" || url.pathname === "/webhooks/whatsapp") {
         if (req.method === "GET") {
           const mode = url.searchParams.get("hub.mode");
@@ -51,8 +71,9 @@ export default {
           let body: any;
           try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
 
-          // Forward to Kubernetes backend
-          return fetch(`https://bridge.voicemsg.net${url.pathname}${url.search}`, {
+          // Forward verified webhook to bridge
+          const webhookPath = url.pathname + url.search;
+          return fetch(`${bridgeUrl}${webhookPath}`, {
             method: req.method,
             headers: req.headers,
             body: rawBody
@@ -89,48 +110,113 @@ export default {
             }
           }
         }
-        return fetch(`https://bridge.voicemsg.net${url.pathname}`, {
+
+        // Forward LINE webhook to bridge
+        return fetch(`${bridgeUrl}${url.pathname}`, {
           method: req.method,
           headers: req.headers,
           body: rawBody
         });
       }
 
-      // Proxy all other requests to Kubernetes backend
-      const backendUrl = `https://bridge.voicemsg.net${url.pathname}${url.search}`;
-      const backendReq = new Request(backendUrl, {
-        method: req.method,
-        headers: req.headers,
-        body: req.body,
-        redirect: "manual"
-      });
+      // ─── Telegram Bot Webhook (for Telegram updates, not LINE) ────────────────
+      if (url.pathname.startsWith("/webhooks/telegram")) {
+        const rawBody = await req.text();
+        let body: any;
+        try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
 
-      // Add X-Forwarded-For
-      backendReq.headers.set("X-Forwarded-For", req.headers.get("CF-Connecting-IP") || "");
-      backendReq.headers.set("X-Real-IP", req.headers.get("CF-Connecting-IP") || "");
-
-      let response = await fetch(backendReq);
-
-      // Handle redirects
-      if (response.status === 301 || response.status === 302) {
-        let location = response.headers.get("Location");
-        if (location) {
-          location = location.replace("https://bridge.voicemsg.net", publicOrigin);
-          const newHeaders = new Headers(response.headers);
-          newHeaders.set("Location", location);
-          return new Response(response.body, { status: response.status, headers: newHeaders });
+        const update = body;
+        if (update.message || update.callback_query) {
+          await handleTelegram(update, env);
         }
+        return new Response("ok");
       }
 
-      return response;
+      // ─── Meta Threads Webhook ──────────────────────────────────────────────
+      if (url.pathname.startsWith("/webhooks/threads")) {
+        const rawBody = await req.text();
+        let body: any;
+        try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
+
+        return await handleMetaMessaging(body, env);
+      }
+
+      // ─── Internal routes (bridge ↔ worker communication) ────────────────────
+      if (pathStartsWith(url.pathname, "/internal")) {
+        const internalResponse = await handleInternalRoutes(env, req, url);
+        if (internalResponse) return internalResponse;
+        // Fall through to 404
+      }
+
+      // ─── Auth routes ────────────────────────────────────────────────────────
+      if (pathStartsWith(url.pathname, "/auth")) {
+        // Extract userId from session cookie
+        const sessionCookie = req.headers.get("Cookie")?.match(/session=([^;]+)/)?.[1];
+        let currentUserId: string | null = null;
+        if (sessionCookie) {
+          currentUserId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
+        }
+
+        return await handlePublicAuth(env, req, currentUserId, ctx);
+      }
+
+      // ─── Dashboard routes (authenticated) ──────────────────────────────────
+      if (pathStartsWith(url.pathname, "/dashboard")) {
+        const sessionCookie = req.headers.get("Cookie")?.match(/session=([^;]+)/)?.[1];
+        let currentUserId: string | null = null;
+        if (sessionCookie) {
+          currentUserId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
+        }
+
+        if (!currentUserId) {
+          return new Response(null, {
+            status: 302,
+            headers: { "Location": "/auth" }
+          });
+        }
+
+        return await handleUserDashboard(env, req, currentUserId);
+      }
+
+      // ─── Admin routes ──────────────────────────────────────────────────────
+      if (pathStartsWith(url.pathname, "/admin")) {
+        return await handleAdmin(env, req);
+      }
+
+      // ─── Bridge API proxy (spawn, delete, etc.) ────────────────────────────
+      // These endpoints are called by the frontend JS and need to reach the bridge
+      if (url.pathname === "/spawn" || url.pathname === "/delete-pod") {
+        const bridgeReq = new Request(`${bridgeUrl}${url.pathname}${url.search}`, {
+          method: req.method,
+          headers: req.headers,
+          body: req.body,
+          redirect: "manual"
+        });
+        bridgeReq.headers.set("x-bridge-secret", env.BRIDGE_SECRET || "changeme");
+        bridgeReq.headers.set("x-forwarded-for", req.headers.get("CF-Connecting-IP") || "");
+        return await fetch(bridgeReq);
+      }
+
+      // ─── Home page (/) ──────────────────────────────────────────────────────
+      if (url.pathname === "/") {
+        return new Response(renderHome(env.GOOGLE_CLIENT_ID || "", publicOrigin), {
+          headers: { "Content-Type": "text/html; charset=utf-8" }
+        });
+      }
+
+      // ─── Default: redirect to home ──────────────────────────────────────────
+      return new Response(null, {
+        status: 302,
+        headers: { "Location": "/" }
+      });
+
     } catch (e: any) {
       console.error("Worker error:", e.stack || e.message);
       return new Response("Internal Server Error", { status: 500 });
     }
   },
 
-  async queue(batch: MessageBatch<any>, env: Env) {
+  async queue(batch: any, env: Env) {
     return queue(batch, env);
   },
-} satisfies ExportedHandler<Env>;
-
+} as any;

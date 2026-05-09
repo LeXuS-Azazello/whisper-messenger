@@ -1,33 +1,23 @@
 {
-  "name": "voicemsg-info",
+  "name": "voicemsg-frontend",
   "version": "1.0.185",
   "type": "module",
-  "description": "Cloudflare Worker for Meta voice message transcription ",
+  "description": "Frontend server for Echo Messenger - Multi-Platform Voice Transcription",
   "main": "src/index.ts",
   "scripts": {
-    "build": "npx wrangler deploy --dry-run",
-    "deploy:worker": "npm version patch && npx wrangler deploy",
-    "deploy:k8s": "npm version patch && kubectl rollout restart deployment echo-frontend -n debugging-voicemsg",
-    "deploy:server": "npm version patch && kubectl rollout restart deployment mtproto-bridge-manager -n debugging-voicemsg",
-    "deploy:all": "npm version patch && kubectl rollout restart deployment echo-frontend mtproto-bridge-manager -n debugging-voicemsg",
-    "deploy": "npm run deploy:k8s",
-    "dev": "wrangler dev",
+    "build": "npx tsc --noEmit",
+    "start": "tsx src/server.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start:server": "tsx src/server.ts"
+    "start:server": "tsx src/server.ts",
+    "deploy:k8s": "kubectl apply -k kubernetes/base/ && kubectl apply -f kubernetes/frontend.yaml && kubectl rollout restart deployment echo-frontend -n debugging-testcrash-cloud"
   },
   "devDependencies": {
     "@types/ioredis": "^4.28.10",
     "@types/node": "^20.17.6",
-    "miniflare": "^4.20260217.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^4.0.18",
-    "vitest-environment-miniflare": "^2.14.4",
-    "wrangler": "^4.83.0"
-  },
-  "overrides": {
-    "undici": "^6.24.1"
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
@@ -37,5 +27,8 @@
     "jose": "^6.2.2",
     "preact": "^10.29.0",
     "preact-render-to-string": "^6.6.7"
+  },
+  "overrides": {
+    "undici": "^6.24.1"
   }
 }

@@ -3,7 +3,7 @@ import fs from 'fs';
 import { render } from 'preact-render-to-string';
 import type { HealthChecks, UserSession, Env } from '../../types';
 import type { ErrorLog } from '../../logger';
-import { ConfigItem, formatUptime, UserRow, ErrorLogItem } from './Admin.utils.tsx';
+import { ConfigItem, formatUptime, UserRow, ErrorLogItem } from './Admin.utils';
 
 const cssPath = new URL('./Admin.css', import.meta.url);
 const adminCss = fs.readFileSync(cssPath, 'utf-8');

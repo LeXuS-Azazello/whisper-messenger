@@ -1,9 +1,18 @@
-/// <reference types="@cloudflare/workers-types/2023-07-01" />
-
 export interface KVLike {
   get(key: string): Promise<string | null>;
   put(key: string, value: string | ArrayBuffer | ArrayBufferView | ReadableStream, options?: { expirationTtl?: number; expiration?: number; metadata?: any }): Promise<void>;
   delete(key: string): Promise<void>;
+}
+
+/** Local ExecutionContext equivalent (subset of Cloudflare's ExecutionContext) */
+export interface ExecutionContext {
+  waitUntil(promise: Promise<any>): void;
+  passThroughOnException(): void;
+}
+
+/** Local MessageBatch equivalent (subset of Cloudflare's MessageBatch) */
+export interface MessageBatch<T> {
+  messages: Array<{ body: T }>;
 }
 
 export interface Env {
@@ -51,6 +60,7 @@ export interface Env {
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
   BRIDGE_SECRET?: string;
+  BRIDGE_URL?: string;
 }
 
 export interface HealthChecks {

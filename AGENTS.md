@@ -10,16 +10,9 @@ namespace: debugging-testcrash-pub
 kube-dc login --domain kube-dc.cloud --org debugging
 
 # Switch to project context
-kube-dc use kube-dc.cloud/debugging/voicemsg
+kube-dc use kube-dc.cloud/debugging/testcrash-cloud
 ```
 
-## Cloudflare Access
-**NEVER** use browser login for Cloudflare. Only use console:
-```bash
-wrangler login
-```
-
----
 
 # Repository Guidelines
 Do not start local. Only use my remote kubernetes on my server and cloudflare for DNS or tunnel

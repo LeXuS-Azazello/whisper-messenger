@@ -38,6 +38,8 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
 
 
   if (req.method === "POST") {
+    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+
     if (url.pathname === "/dashboard/save-meta") {
       const { metaToken } = await req.json() as any;
       if (metaToken) {
@@ -144,19 +146,19 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
       await env.STATS.delete(`tg_session_${userId}`);
       
-      // Tell bridge to delete pods
-      await fetch(`http://mtproto-bridge-manager:3000/delete`, {
+// Tell bridge to delete pods
+      await fetch(`${bridgeUrl}/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
         body: JSON.stringify({ userId })
       }).catch(e => console.error("[Dashboard] Delete pod error:", e));
-      
+
       return Response.json({ success: true });
     }
 
     if (url.pathname === "/dashboard/test-tg") {
       if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-       const res = await fetch(`http://mtproto-bridge-manager:3000/test-tg`, {
+       const res = await fetch(`${bridgeUrl}/test-tg`, {
          method: "POST",
          headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
          body: JSON.stringify({ session: user.session, message: "Test message from dashboard!" })
@@ -167,15 +169,15 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
 
     if (url.pathname === "/dashboard/restart-tg") {
       if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-      
+
       // Delete existing and spawn new
-      await fetch(`http://mtproto-bridge-manager:3000/delete`, {
+      await fetch(`${bridgeUrl}/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
         body: JSON.stringify({ userId })
       }).catch(() => {});
 
-       const res = await fetch(`http://mtproto-bridge-manager:3000/spawn`, {
+       const res = await fetch(`${bridgeUrl}/spawn`, {
          method: "POST",
          headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
          body: JSON.stringify({ userId, session: user.session })
