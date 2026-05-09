@@ -21,6 +21,8 @@ spec:
   selector:
     matchLabels:
       app: qwen3-asr
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
@@ -28,15 +30,15 @@ spec:
     spec:
       containers:
       - name: qwen3-asr
-        image: qwenllm/qwen3-asr:latest
+        image: ollama/ollama:latest
         ports:
-        - containerPort: 80
-          name: http
-        - containerPort: 50051
-          name: grpc
+        - containerPort: 11434
+          name: ollama
         env:
-        - name: MODEL_NAME
-          value: "Qwen/Qwen3-ASR-0.6B"
+        - name: OLLAMA_MODEL
+          value: "qwen3:0.6b"
+        - name: OLLAMA_KEEP_ALIVE
+          value: "24h"
         resources:
           requests:
             cpu: "8000m"
@@ -46,7 +48,7 @@ spec:
             memory: "32Gi"
         volumeMounts:
         - name: cache
-          mountPath: /data/shared/Qwen3-ASR
+          mountPath: /root/.ollama
       volumes:
       - name: cache
         persistentVolumeClaim:
@@ -61,9 +63,7 @@ spec:
   selector:
     app: qwen3-asr
   ports:
-  - port: 80
-    targetPort: 80
-    name: http
-  - port: 50051
-    targetPort: 50051
-    name: grpc
+  - name: ollama
+    port: 11434
+    targetPort: 11434
+    name: ollama

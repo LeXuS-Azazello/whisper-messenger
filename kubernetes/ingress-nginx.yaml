@@ -44,12 +44,16 @@ metadata:
     ovn.kubernetes.io/service_external_ip_from_subnet: ext-cloud
 spec:
   type: LoadBalancer
+  externalIPs:
+  - 91.224.11.104
   ports:
   - name: http
     port: 80
     targetPort: 80
+    protocol: TCP
   - name: https
     port: 443
     targetPort: 443
+    protocol: TCP
   selector:
     app: ingress-nginx
