@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "start:server": "tsx src/server.ts",
-    "deploy:k8s": "kubectl apply -k kubernetes/base/ && kubectl apply -f kubernetes/frontend.yaml && kubectl apply -f kubernetes/mtproto-bridge-manager.yaml && kubectl apply -f kubernetes/ingress.yaml && kubectl apply -f kubernetes/eip-ingress.yaml && kubectl rollout restart deployment echo-frontend -n debugging-testcrash-cloud",
+    "deploy:k8s": "kubectl apply -k kubernetes/base/ && kubectl apply -f kubernetes/frontend.yaml && kubectl apply -f kubernetes/mtproto-bridge-manager.yaml && kubectl apply -f kubernetes/ingress-nginx.yaml && kubectl apply -f kubernetes/ingress.yaml && (kubectl apply -f kubernetes/eip-ingress.yaml || echo 'Skipping EIP') && kubectl rollout restart deployment echo-frontend -n debugging-testcrash-cloud",
     "deploy:full": "bash scripts/deploy-with-tunnel.sh",
     "tunnel:start": "cloudflared tunnel run --config cloudflared/config.yaml 3f9deba1-67f8-4086-b6d0-f16759cca9d6",
     "tunnel:setup": "bash scripts/setup-cloudflared.sh",

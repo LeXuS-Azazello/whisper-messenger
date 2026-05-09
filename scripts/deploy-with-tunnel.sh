@@ -47,7 +47,7 @@ echo "  - Applying Qwen3-ASR..."
 kubectl apply -f kubernetes/qwen3-asr.yaml -n "$NAMESPACE"
 
 echo "  - Applying external & floating IPs..."
-kubectl apply -f kubernetes/eip-ingress.yaml -n "$NAMESPACE"
+kubectl apply -f kubernetes/eip-ingress.yaml -n "$NAMESPACE" || echo "  ⚠ EIP already exists or no permission to patch, skipping..."
 
 echo "  - Applying ingress controller..."
 kubectl apply -f kubernetes/ingress-nginx.yaml -n "$NAMESPACE"
@@ -56,11 +56,11 @@ echo "  - Applying ingress rules..."
 kubectl apply -f kubernetes/ingress.yaml -n "$NAMESPACE"
 
 echo "  - Applying monitoring..."
-kubectl apply -f kubernetes/grafana.yaml -n "$NAMESPACE"
-kubectl apply -f kubernetes/prometheus.yaml -n "$NAMESPACE"
+kubectl apply -f kubernetes/grafana.yaml -n "$NAMESPACE" || echo "  ⚠ Monitoring failed"
+kubectl apply -f kubernetes/prometheus.yaml -n "$NAMESPACE" || echo "  ⚠ Monitoring failed"
 
 echo "  - Applying Fluentd..."
-kubectl apply -f kubernetes/fluentd.yaml -n "$NAMESPACE"
+kubectl apply -f kubernetes/fluentd.yaml -n "$NAMESPACE" || echo "  ⚠ Fluentd failed"
 
 echo "  - Applying RBAC..."
 kubectl apply -f kubernetes/rbac.yaml -n "$NAMESPACE"
