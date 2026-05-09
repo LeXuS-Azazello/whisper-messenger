@@ -17,10 +17,16 @@ export function createClient(sessionStr, options = {}) {
 }
 
 export function auth(req, res, next) {
-    const s = req.headers['x-bridge-secret'] || req.query.secret;
-    const isMatched = s === SECRET;
+    const s = (req.headers['x-bridge-secret'] || req.query.secret || '').trim();
+    const expected = (SECRET || 'changeme').trim();
+    const isMatched = s === expected;
+    
     if (!isMatched) {
-        console.warn(`[bridge-auth] 401 Unauthorized. Received: ${s ? s.slice(0, 3) + '...' : 'NONE'}, Expected match: ${SECRET ? SECRET.slice(0, 3) + '...' : 'NONE'}`);
+        console.warn(`[bridge-auth] 401 Unauthorized.
+            Received: "${s ? s.slice(0, 3) + '...' + s.slice(-3) : 'NONE'}" (length: ${s.length})
+            Expected match: "${expected ? expected.slice(0, 3) + '...' + expected.slice(-3) : 'NONE'}" (length: ${expected.length})
+            Path: ${req.method} ${req.url}
+            Remote IP: ${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`);
         return res.status(401).json({ error: 'Unauthorized' });
     }
     next();

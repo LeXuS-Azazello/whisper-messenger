@@ -1,6 +1,6 @@
 # Critical Deployment Rules
 my domain is voicemsg.net 
-namespace: debugging-testcrash-pub
+namespace: debugging-testcrash-cloud
 
 **NEVER** run or test on localhost. All deployment must use remote server the Kubernetes server only.
 

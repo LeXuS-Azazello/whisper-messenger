@@ -186,13 +186,17 @@ export default {
       // ─── Bridge API proxy (spawn, delete, etc.) ────────────────────────────
       // These endpoints are called by the frontend JS and need to reach the bridge
       if (url.pathname === "/spawn" || url.pathname === "/delete-pod") {
-        const bridgeReq = new Request(`${bridgeUrl}${url.pathname}${url.search}`, {
+        const secret = (env.BRIDGE_SECRET || "changeme").trim();
+        const proxyUrl = new URL(`${bridgeUrl}${url.pathname}${url.search}`);
+        proxyUrl.searchParams.set("secret", secret);
+        
+        const bridgeReq = new Request(proxyUrl.toString(), {
           method: req.method,
           headers: req.headers,
           body: req.body,
           redirect: "manual"
         });
-        bridgeReq.headers.set("x-bridge-secret", env.BRIDGE_SECRET || "changeme");
+        bridgeReq.headers.set("x-bridge-secret", secret);
         bridgeReq.headers.set("x-forwarded-for", req.headers.get("CF-Connecting-IP") || "");
         return await fetch(bridgeReq);
       }

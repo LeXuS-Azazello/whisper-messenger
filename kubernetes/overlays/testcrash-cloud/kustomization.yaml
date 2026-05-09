@@ -4,7 +4,7 @@ kind: Kustomization
 resources:
 - ../../base
 
-namespace: debugging-testcrash-pub
+namespace: debugging-testcrash-cloud
 
 patches:
 - target:
@@ -13,7 +13,7 @@ patches:
   patch: |-
     - op: replace
       path: /spec/rules/0/host
-      value: testcrash-pub.voicemsg.net
+      value: voicemsg.net
 
 # Exclude heavy qwen3-asr during testing
 # resources:

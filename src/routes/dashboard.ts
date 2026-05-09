@@ -147,9 +147,10 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       await env.STATS.delete(`tg_session_${userId}`);
       
 // Tell bridge to delete pods
-      await fetch(`${bridgeUrl}/delete`, {
+      const secret = (env.BRIDGE_SECRET || "changeme").trim();
+      await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+        headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
         body: JSON.stringify({ userId })
       }).catch(e => console.error("[Dashboard] Delete pod error:", e));
 
@@ -158,9 +159,10 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
 
     if (url.pathname === "/dashboard/test-tg") {
       if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-       const res = await fetch(`${bridgeUrl}/test-tg`, {
+       const secret = (env.BRIDGE_SECRET || "changeme").trim();
+       const res = await fetch(`${bridgeUrl}/test-tg?secret=${secret}`, {
          method: "POST",
-         headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+         headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
          body: JSON.stringify({ session: user.session, message: "Test message from dashboard!" })
        });
        const data = await res.json().catch(() => ({ error: "Bridge error" }));
@@ -171,15 +173,16 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
 
       // Delete existing and spawn new
-      await fetch(`${bridgeUrl}/delete`, {
+      const secret = (env.BRIDGE_SECRET || "changeme").trim();
+      await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+        headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
         body: JSON.stringify({ userId })
       }).catch(() => {});
 
-       const res = await fetch(`${bridgeUrl}/spawn`, {
+       const res = await fetch(`${bridgeUrl}/spawn?secret=${secret}`, {
          method: "POST",
-         headers: { "Content-Type": "application/json", "x-bridge-secret": env.BRIDGE_SECRET || "changeme" },
+         headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
          body: JSON.stringify({ userId, session: user.session })
        });
        const data = await res.json().catch(() => ({ error: "Bridge error" }));
