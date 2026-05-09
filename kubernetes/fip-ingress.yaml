@@ -1,0 +1,18 @@
+apiVersion: kube-dc.com/v1
+kind: EIp
+metadata:
+  name: voicemsg-fip-eip
+  namespace: debugging-testcrash-cloud
+spec:
+  externalNetworkType: public
+---
+apiVersion: kube-dc.com/v1
+kind: FIp
+metadata:
+  name: voicemsg-frontend-fip
+  namespace: debugging-testcrash-cloud
+spec:
+  externalNetworkType: public
+  vmTarget:
+    vmName: voicemsg-frontend
+    interfaceName: vpc_net_0

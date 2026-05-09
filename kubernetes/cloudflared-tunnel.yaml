@@ -1,0 +1,130 @@
+# Cloudflared tunnel - runs inside the K8s cluster to proxy traffic
+# from Cloudflare edge to internal services
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflared-tunnel-credentials
+  namespace: debugging-testcrash-cloud
+type: Opaque
+# s field must be base64-encoded as cloudflared expects
+stringData:
+  credentials.json: |
+    {"a":"ffa27651a647d37a71fb3aeae969c762","s":"ZWYjYWQxOWdFdFlXWTFaaTAwTkdJeExXSmxaVE10T1RZNU5HVmxPREExWmpNMCJ9","t":"965dcbfb-e458-4acc-8900-816ad881cd01"}
+---
+# ConfigMap with cloudflared ingress rules
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: debugging-testcrash-cloud
+data:
+   config.yaml: |
+     tunnel: 965dcbfe-4458-4acc-8900-816ad881cd01
+     token: eyJhIjoiZmZhMjc2NTFhNjQ3ZDM3YTcxZmIzYWVhZTk2OWM3NjIiLCJ0IjoiOTY1ZGNiZmUtNDQ1OC00YWNjLTg5MDAtODE2YWQ4ODFjZDAxIiwicyI6IlpXTmpZV1ExT1dFdFlXWTFaaTAwTkdJeExXSmxaVE10T1RZNU5HVmxPREExWmpNMCJ9
+
+     ingress:
+      - hostname: voicemsg.net
+        service: http://echo-frontend.debugging-testcrash-cloud.svc.cluster.local:80
+        originRequest:
+          connectTimeout: 30s
+          tlsTimeout: 10s
+          httpHostHeader: voicemsg.net
+      - hostname: bridge.voicemsg.net
+        service: http://mtproto-bridge-manager.debugging-testcrash-cloud.svc.cluster.local:3000
+        originRequest:
+          connectTimeout: 30s
+          httpHostHeader: bridge.voicemsg.net
+          noTLSVerify: true
+      - hostname: asr.voicemsg.net
+        service: http://qwen3-asr.debugging-testcrash-cloud.svc.cluster.local:11434
+        originRequest:
+          connectTimeout: 120s
+          httpHostHeader: asr.voicemsg.net
+          noTLSVerify: true
+      - hostname: grafana.voicemsg.net
+        service: http://grafana.debugging-testcrash-cloud.svc.cluster.local:3000
+        originRequest:
+          connectTimeout: 30s
+          httpHostHeader: grafana.voicemsg.net
+          noTLSVerify: true
+      - service: http_status:404
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: debugging-testcrash-cloud
+  labels:
+    app: cloudflared
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: cloudflared
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      containers:
+      - name: cloudflared
+        image: cloudflare/cloudflared:latest
+        args:
+        - tunnel
+        - --no-autoupdate
+        - --config
+        - /etc/cloudflared/config/config.yaml
+        - run
+        ports:
+        - name: metrics
+          containerPort: 20241
+        volumeMounts:
+        - name: tunnel-creds
+          mountPath: /etc/cloudflared/credentials
+          readOnly: true
+        - name: tunnel-config
+          mountPath: /etc/cloudflared/config
+          readOnly: true
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /ready
+            port: 20241
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 20241
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: tunnel-creds
+        secret:
+          secretName: cloudflared-tunnel-credentials
+      - name: tunnel-config
+        configMap:
+          name: cloudflared-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudflared-metrics
+  namespace: debugging-testcrash-cloud
+spec:
+  type: ClusterIP
+  selector:
+    app: cloudflared
+  ports:
+  - name: metrics
+    port: 20243
+    targetPort: 20241

@@ -18,7 +18,11 @@ export function createClient(sessionStr, options = {}) {
 
 export function auth(req, res, next) {
     const s = req.headers['x-bridge-secret'] || req.query.secret;
-    if (s !== SECRET) return res.status(401).json({ error: 'Unauthorized' });
+    const isMatched = s === SECRET;
+    if (!isMatched) {
+        console.warn(`[bridge-auth] 401 Unauthorized. Received: ${s ? s.slice(0, 3) + '...' : 'NONE'}, Expected match: ${SECRET ? SECRET.slice(0, 3) + '...' : 'NONE'}`);
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     next();
 }
 

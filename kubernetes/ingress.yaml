@@ -6,10 +6,16 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
 spec:
+  ingressClassName: nginx
   tls:
     - hosts:
         - voicemsg.net
+        - "*.voicemsg.net"
       secretName: voicemsg-tls
   rules:
     - host: voicemsg.net
@@ -22,3 +28,33 @@ spec:
                 name: echo-frontend
                 port:
                   number: 80
+    - host: bridge.voicemsg.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mtproto-bridge-manager
+                port:
+                  number: 3000
+    - host: asr.voicemsg.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: qwen3-asr
+                port:
+                  number: 11434
+    - host: grafana.voicemsg.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000

@@ -5,6 +5,7 @@ import { logger } from "hono/logger";
 import { readFileSync } from "fs";
 import { Env } from "./types";
 import worker from "./index";
+import { RedisKV } from "./redisKV";
 import "dotenv/config";
 
 const app = new Hono();
@@ -25,6 +26,22 @@ app.get("/favicon.svg", async (_c) => {
   }
 });
 
+// Serve static assets from src/ui/css and src/ui/js
+app.get("/assets/:type/:file", async (c) => {
+  const type = c.req.param("type"); // css or js
+  const file = c.req.param("file");
+  try {
+    const assetPath = new URL(`./ui/${type}/${file}`, import.meta.url);
+    const data = readFileSync(assetPath);
+    const contentType = type === "css" ? "text/css" : "application/javascript";
+    return new Response(data, {
+      headers: { "Content-Type": contentType, "Cache-Control": "public, max-age=3600" }
+    });
+  } catch {
+    return new Response("Asset not found", { status: 404 });
+  }
+});
+
 // Mock ExecutionContext for Hono
 const createCtx = () => ({
   waitUntil: (promise: Promise<any>) => {
@@ -37,6 +54,7 @@ app.all("*", async (c) => {
   const env: Env = {
     ...((typeof process !== 'undefined' ? process.env : {}) as any),
     AI: undefined, // Cloudflare AI not available in Node.js, will use local fallback
+    STATS: new RedisKV(process.env.REDIS_URL),
   } as any;
 
   // Convert Hono request to Web Standard Request

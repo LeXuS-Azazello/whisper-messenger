@@ -171,7 +171,7 @@ export default {
         if (!currentUserId) {
           return new Response(null, {
             status: 302,
-            headers: { "Location": "/auth" }
+            headers: { "Location": "/" }
           });
         }
 

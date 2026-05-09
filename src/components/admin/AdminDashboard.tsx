@@ -1,13 +1,11 @@
 /** @jsxImportSource preact */
+import React from 'preact/compat';
 import fs from 'fs';
 import { render } from 'preact-render-to-string';
 import type { HealthChecks, UserSession, Env } from '../../types';
 import type { ErrorLog } from '../../logger';
 
 import { ConfigItem, formatUptime, UserRow, ErrorLogItem } from './Admin.utils';
-
-const cssPath = new URL('./Admin.css', import.meta.url);
-const adminCss = fs.readFileSync(cssPath, 'utf-8');
 
 export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: string, stats: any, errors: ErrorLog[], users: UserSession[] = [], tgAuthenticated: boolean = false) => {
     return "<!DOCTYPE html>" + render(
@@ -19,8 +17,8 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
                 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+                <link rel="stylesheet" href="/assets/css/admin.css" />
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-                <style dangerouslySetInnerHTML={{ __html: adminCss }} />
             </head>
             <body>
                 <div id="progress-bar"></div>
@@ -304,7 +302,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                         </div>
                     </div>
                 </div>
-                <script src={`/admin/js?v=${Date.now()}`}></script>
+                <script src="/assets/js/admin.js"></script>
             </body>
         </html>
     );

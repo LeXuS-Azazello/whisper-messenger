@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: azazellosaraksh/debugging-mtproto-bridge:v2
+        image: azazellosaraksh/debugging-mtproto-bridge:v6
         ports:
         - containerPort: 3000
         env:
@@ -38,6 +38,24 @@ spec:
             secretKeyRef:
               name: whisper-messenger-env
               key: SESSION_SECRET
+              optional: true
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: GOOGLE_CLIENT_ID
+              optional: true
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: GOOGLE_CLIENT_SECRET
+              optional: true
+        - name: WORKER_URL
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: WORKER_URL
               optional: true
         resources:
           requests:

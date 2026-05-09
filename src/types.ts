@@ -158,6 +158,8 @@ export interface UserSession {
   lastStartedAt?: number;
   lastStoppedAt?: number;
   transcriptionCount: number;
+  passwordHash?: string;
+  emailVerified?: boolean;
   metaToken?: string;
   instagramId?: string;
   threadsToken?: string;

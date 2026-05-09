@@ -1,3 +1,4 @@
+# Ingress Controller - serves as the entry point for voicemsg.net
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,7 +42,7 @@ metadata:
   name: ingress-nginx-controller
   namespace: debugging-testcrash-cloud
   annotations:
-    ovn.kubernetes.io/service_external_ip_from_subnet: ext-cloud
+    service.nlb.kube-dc.com/bind-on-eip: "voicemsg-eip"
 spec:
   type: LoadBalancer
   externalIPs:

@@ -1,4 +1,5 @@
 /** @jsxImportSource preact */
+import React from 'preact/compat';
 import { render } from 'preact-render-to-string';
 
 export const SparklesIcon = ({ size = 24, color = "currentColor", strokeWidth = 2 }) => (

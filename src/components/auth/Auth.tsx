@@ -1,10 +1,6 @@
 /** @jsxImportSource preact */
-import fs from 'fs';
+import React from 'preact/compat';
 import { render } from 'preact-render-to-string';
-
-
-const cssPath = new URL('./Auth.css', import.meta.url);
-const authCss = fs.readFileSync(cssPath, 'utf-8');
 
 export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin?: string) => {
     if (isAuthenticated) {
@@ -30,8 +26,8 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
                 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet" />
+                <link rel="stylesheet" href="/assets/css/auth.css" />
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-                <style dangerouslySetInnerHTML={{ __html: authCss }} />
             </head>
             <body class="auth-page">
                 <div class="login-container">
@@ -110,11 +106,80 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                                 <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
                             </div>
 
+                            {/* Email Authentication Section */}
+                            <div id="email-auth-section" style={{ textAlign: 'center', marginBottom: '20px' }}>
+                                <button class="btn" id="show-email-auth-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)', width: '100%', marginBottom: '15px' }}>
+                                    Login with Email & Password
+                                </button>
+                            </div>
+
+                            <div id="email-login-section" style={{ display: 'none' }}>
+                                <div class="input-group">
+                                    <label class="input-label">Email</label>
+                                    <input type="email" id="email-input" class="input-field" placeholder="your@email.com" />
+                                </div>
+                                <div class="input-group">
+                                    <label class="input-label">Password</label>
+                                    <input type="password" id="password-input" class="input-field" placeholder="Your password" />
+                                </div>
+                                <button class="btn" id="email-login-btn" style={{ background: '#22c55e' }}>Login</button>
+                                <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                                    <button id="show-forgot-password-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
+                                        Forgot password?
+                                    </button>
+                                </div>
+                                <div style={{ textAlign: 'center', marginTop: '15px' }}>
+                                    <button id="show-register-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
+                                        Don't have an account? Register
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="email-register-section" style={{ display: 'none' }}>
+                                <div class="input-group">
+                                    <label class="input-label">First Name</label>
+                                    <input type="text" id="register-firstname-input" class="input-field" placeholder="Your first name" />
+                                </div>
+                                <div class="input-group">
+                                    <label class="input-label">Email</label>
+                                    <input type="email" id="register-email-input" class="input-field" placeholder="your@email.com" />
+                                </div>
+                                <div class="input-group">
+                                    <label class="input-label">Password</label>
+                                    <input type="password" id="register-password-input" class="input-field" placeholder="Min 6 characters" />
+                                </div>
+                                <button class="btn" id="email-register-btn" style={{ background: '#8B5CF6' }}>Register</button>
+                                <div style={{ textAlign: 'center', marginTop: '15px' }}>
+                                    <button id="back-to-login-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
+                                        Already have an account? Login
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="forgot-password-section" style={{ display: 'none' }}>
+                                <div class="input-group">
+                                    <label class="input-label">Email</label>
+                                    <input type="email" id="forgot-email-input" class="input-field" placeholder="your@email.com" />
+                                </div>
+                                <button class="btn" id="forgot-password-btn" style={{ background: '#f59e0b' }}>Send Reset Link</button>
+                                <div style={{ textAlign: 'center', marginTop: '15px' }}>
+                                    <button id="back-to-login-from-forgot-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
+                                        Back to Login
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="reset-password-section" style={{ display: 'none' }}>
+                                <div class="input-group">
+                                    <label class="input-label">New Password</label>
+                                    <input type="password" id="reset-password-input" class="input-field" placeholder="Min 6 characters" />
+                                </div>
+                                <button class="btn" id="reset-password-btn" style={{ background: '#22c55e' }}>Reset Password</button>
+                            </div>
+
                             <button class="btn" id="tg-show-qr-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }}>
                                 Login with QR Code
                             </button>
-
-                            {/* Removed redundant Telegram Widget that caused "Bot domain invalid" error. Using MTProto login above instead. */}
 
                             <div id="qr-section" style={{ display: 'none', marginTop: '25px', textAlign: 'center' }}>
                                 <div id="qr-code-container" style={{ background: 'white', padding: '15px', borderRadius: '12px', display: 'inline-block', marginBottom: '15px' }}></div>
@@ -140,221 +205,11 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                         </div>
                     </div>
                 </div>
-
-                <script dangerouslySetInnerHTML={{
-                    __html: `
-                    var tgPhoneInput = document.getElementById('tg-phone-input');
-                    var tgCodeInput = document.getElementById('tg-code-input');
-                    var tgPasswordInput = document.getElementById('tg-password-input');
-                    var tgSendCodeBtn = document.getElementById('tg-send-code-btn');
-                    var tgVerifyBtn = document.getElementById('tg-verify-btn');
-                    var tgPasswordBtn = document.getElementById('tg-password-btn');
-                    var phoneSection = document.getElementById('phone-section');
-                    var codeSection = document.getElementById('code-section');
-                    var passwordSection = document.getElementById('password-section');
-                    var qrSection = document.getElementById('qr-section');
-                    var tgShowQrBtn = document.getElementById('tg-show-qr-btn');
-                    var authFlow = document.getElementById('auth-flow');
-                    var successMessage = document.getElementById('success-message');
-                    var qrCodeContainer = document.getElementById('qr-code-container');
-                    var qrStatus = document.getElementById('qr-status');
-                    var currentPhone = '';
-                    var currentQrToken = '';
-                    var qrPollInterval = null;
-
-                    tgSendCodeBtn.addEventListener('click', function() {
-                        var phone = tgPhoneInput.value.trim();
-                        if (!phone) return alert('Enter phone number');
-                        tgSendCodeBtn.innerText = 'Sending...';
-                        fetch('/auth/send-code', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ phone: phone })
-                        })
-                        .then(r => r.json())
-                        .then(data => {
-                            if (data.success) {
-                                currentPhone = phone;
-                                phoneSection.style.display = 'none';
-                                codeSection.style.display = 'block';
-                            } else {
-                                alert('Error: ' + data.error);
-                                tgSendCodeBtn.innerText = 'Send Verification Code';
-                            }
-                        })
-                        .catch(err => alert('Network error'));
-                    });
-
-                    tgVerifyBtn.addEventListener('click', function() {
-                        var code = tgCodeInput.value.trim();
-                        if (!code) return alert('Enter code');
-                        tgVerifyBtn.innerText = 'Verifying...';
-                        fetch('/auth/verify-code', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ phone: currentPhone, code: code })
-                        }).then(r => {
-                            if (r.status === 302 || r.redirected) {
-                                window.location.href = '/dashboard';
-                            } else {
-                                return r.json().then(data => {
-                                    if (data.success) {
-                                        window.location.href = '/dashboard';
-                                    } else if (data.requiresPassword) {
-                                        codeSection.style.display = 'none';
-                                        passwordSection.style.display = 'block';
-                                    } else {
-                                        alert('Error: ' + (data.error || 'Check the logs'));
-                                        tgVerifyBtn.innerText = 'Confirm & Connect';
-                                    }
-                                });
-                            }
-                        }).catch(err => alert('Network error'));
-                    });
-
-                    tgPasswordBtn.addEventListener('click', function() {
-                        var pwd = tgPasswordInput.value.trim();
-                        if (!pwd) return alert('Enter password');
-                        tgPasswordBtn.innerText = 'Unlocking...';
-                        
-                        var body = { password: pwd };
-                        if (currentPhone) body.phone = currentPhone;
-                        if (currentQrToken) body.token = currentQrToken;
-
-                        fetch('/auth/verify-password', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(body)
-                        }).then(r => {
-                            if (r.status === 302 || r.redirected) {
-                                window.location.href = '/dashboard';
-                            } else {
-                                return r.json().then(data => {
-                                    if (data.success) {
-                                        window.location.href = '/dashboard';
-                                    } else {
-                                        alert('Login failed: ' + (data.error || 'Invalid password'));
-                                        tgPasswordBtn.innerText = 'Unlock Account';
-                                    }
-                                });
-                            }
-                        }).catch(err => alert('Network error'));
-                    });
-
-                    var simpleConnectBtn = document.getElementById('tg-simple-connect-btn');
-                    var manualBtn = document.getElementById('show-manual-btn');
-                    var simpleStartSection = document.getElementById('simple-start-section');
-
-                    manualBtn.addEventListener('click', function() {
-                        simpleStartSection.style.display = 'none';
-                        phoneSection.style.display = 'block';
-                        tgShowQrBtn.style.display = 'block';
-                    });
-
-                    function initiateAutoLogin() {
-                        simpleConnectBtn.innerText = 'Initializing...';
-                        fetch('/auth/qr-start', { method: 'POST' })
-                            .then(r => r.json())
-                            .then(data => {
-                                if (data.qrUrl) {
-                                    // Start polling first
-                                    startQrPolling(data.token);
-                                    // Then open app
-                                    window.location.href = data.qrUrl;
-                                    simpleConnectBtn.innerText = 'Check your Telegram App';
-                                    
-                                    // Also show QR as backup if they didn't have app or it failed
-                                    setTimeout(() => {
-                                        qrSection.style.display = 'block';
-                                        qrCodeContainer.innerHTML = '';
-                                        new QRCode(qrCodeContainer, {
-                                            text: data.qrUrl,
-                                            width: 200, height: 200
-                                        });
-                                    }, 2000);
-                                }
-                            });
-                    }
-
-                    simpleConnectBtn.addEventListener('click', initiateAutoLogin);
-                    
-                    // Auto-initiate if requested via URL
-                    if (new URLSearchParams(window.location.search).get('auto') === 'true') {
-                        setTimeout(initiateAutoLogin, 500);
-                    }
-
-                     function startQrPolling(token) {
-                         var timeoutId = setTimeout(function() {
-                             clearInterval(qrPollInterval);
-                             qrSection.style.display = 'none';
-                             alert('QR code expired. Please try again.');
-                             simpleConnectBtn.innerText = 'Connect Telegram';
-                         }, 120000); // 2 minute timeout
-                         
-                         qrPollInterval = setInterval(() => {
-                             fetch('/auth/qr-check?token=' + token)
-                                 .then(r => r.json())
-                                 .then(status => {
-                                     if (status.done) {
-                                         clearInterval(qrPollInterval);
-                                         clearTimeout(timeoutId);
-                                         authFlow.style.display = 'none';
-                                         successMessage.style.display = 'block';
-                                         setTimeout(() => window.location.href = '/dashboard', 1500);
-                                     } else if (status.requiresPassword) {
-                                         clearInterval(qrPollInterval);
-                                         clearTimeout(timeoutId);
-                                         currentQrToken = token;
-                                         qrSection.style.display = 'none';
-                                         simpleStartSection.style.display = 'none';
-                                         passwordSection.style.display = 'block';
-                                     } else if (status.expired) {
-                                         clearInterval(qrPollInterval);
-                                         clearTimeout(timeoutId);
-                                         alert('QR code expired. Please try again.');
-                                         simpleConnectBtn.innerText = 'Connect Telegram';
-                                     }
-                                 })
-                                 .catch(err => {
-                                     console.error('QR check failed:', err);
-                                     clearInterval(qrPollInterval);
-                                     clearTimeout(timeoutId);
-                                     alert('Bridge connection lost. Please refresh and try again.');
-                                     simpleConnectBtn.innerText = 'Connect Telegram';
-                                 });
-                         }, 2500);
-                     }
-
-                    tgShowQrBtn.addEventListener('click', function() {
-                        qrSection.style.display = 'block';
-                        tgShowQrBtn.style.display = 'none';
-                        fetch('/auth/qr-start', { method: 'POST' })
-                            .then(r => r.json())
-                            .then(data => {
-                                if (data.token) {
-                                    qrCodeContainer.innerHTML = '';
-                                    new QRCode(qrCodeContainer, {
-                                        text: data.qrUrl,
-                                        width: 220,
-                                        height: 220,
-                                        colorDark : "#000000",
-                                        colorLight : "#ffffff",
-                                        correctLevel : QRCode.CorrectLevel.H
-                                    });
-                                    
-                                    var tgAppLink = document.getElementById('tg-app-link');
-                                    if (tgAppLink) {
-                                        tgAppLink.href = data.qrUrl;
-                                        tgAppLink.style.display = 'inline-flex';
-                                    }
-
-                                    startQrPolling(data.token);
-                                } else {
-                                    alert('Failed to get QR token');
-                                }
-                            })
-                            .catch(err => alert('Bridge connection error'));
-                    });
-                    `
-                }} />
+                <script src="/assets/js/auth.js"></script>
+            </body>
+        </html>
+    );
+};
             </body>
         </html>
     );

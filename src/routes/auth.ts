@@ -1,12 +1,44 @@
 import { Env, UserSession } from "../types";
-import { renderAuthPage } from "../components/auth/Auth";
 import { logError } from "../logger";
 import { createSignedSession } from "../session";
+
+async function sendEmail(env: Env, to: string, subject: string, htmlBody: string): Promise<boolean> {
+  try {
+    const mailReq = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: env.EMAIL_FROM || 'no-reply@voicemsg.net', name: 'Voice Messenger' },
+      subject: subject,
+      content: [{ type: 'text/html', value: htmlBody }]
+    };
+
+    const response = await fetch('https://api.mailchannels.net/tx/v1/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mailReq)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Email] Send failed:', errorText);
+      return false;
+    }
+
+    console.log('[Email] Sent successfully to:', to);
+    return true;
+  } catch (error) {
+    console.error('[Email] Send error:', error);
+    return false;
+  }
+}
 
 interface SendCodeRequest { phone: string; }
 interface VerifyCodeRequest { phone: string; code: string; }
 interface VerifyPasswordRequest { phone?: string; token?: string; password: string; }
 interface EmailSendRequest { email: string; }
+interface RegisterRequest { email: string; password: string; firstName: string; }
+interface LoginRequest { email: string; password: string; }
+interface ForgotPasswordRequest { email: string; }
+interface ResetPasswordRequest { token: string; password: string; }
 interface BridgeUserData { userId: string; firstName: string; session: string; phone?: string; success?: boolean; error?: string; done?: boolean; }
 
 const SESSION_MAX_AGE = 31536000;
@@ -23,16 +55,7 @@ function getPublicOrigin(env: Env, fallbackOrigin: string): string {
   }
 }
 
-function handleAuthPage(currentUserId: string | null, url: URL): Response {
-  const isAuthenticated = !!currentUserId;
-  if (isAuthenticated) return new Response("Redirecting...", { status: 302, headers: { "Location": "/dashboard" } });
-  return new Response(renderAuthPage(undefined, isAuthenticated, url.origin), {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
-    }
-  });
-}
+// handleAuthPage removed as requested. Redirect to / or /dashboard instead.
 
 
 
@@ -169,6 +192,20 @@ async function handleEmailSend(env: Env, body: EmailSendRequest, url: URL): Prom
   await env.STATS.put(`email_verify_${token}`, email, { expirationTtl: EMAIL_VERIFY_TTL });
   await env.STATS.put(rateKey, "1", { expirationTtl: RATE_LIMIT_TTL });
 
+  const publicOrigin = getPublicOrigin(env, url.origin);
+  const verifyLink = `${publicOrigin}/auth/email/verify?token=${token}`;
+  const htmlBody = `
+    <h2>Email Verification</h2>
+    <p>Please click the link below to verify your email address:</p>
+    <a href="${verifyLink}">Verify Email</a>
+    <p>This link will expire in 15 minutes.</p>
+  `;
+
+  const emailSent = await sendEmail(env, email, "Verify Your Email", htmlBody);
+  if (!emailSent) {
+    return Response.json({ error: "Failed to send email" }, { status: 500 });
+  }
+
   return Response.json({ success: true });
 }
 
@@ -182,11 +219,19 @@ async function handleEmailVerify(env: Env, token: string | null, url: URL): Prom
   const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
   const existingRaw = await env.STATS.get(`user_meta_${userId}`);
-  if (!existingRaw) {
+  if (existingRaw) {
+    // Update existing user to mark email as verified
+    const user: UserSession = JSON.parse(existingRaw);
+    user.emailVerified = true;
+    user.email = email;
+    await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+  } else {
+    // Create new user (legacy behavior)
     const user: UserSession = {
-      userId, firstName: email.split("@")[0],
+      userId, firstName: email.split("@")[0], email,
       session: "", platform: "telegram", transcriptionCount: 0,
-      isActive: false, createdAt: Date.now(), lastActiveAt: Date.now()
+      isActive: false, createdAt: Date.now(), lastActiveAt: Date.now(),
+      emailVerified: true
     };
     await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
     const listRaw = await env.STATS.get("users_list") || "[]";
@@ -197,7 +242,194 @@ async function handleEmailVerify(env: Env, token: string | null, url: URL): Prom
     }
   }
 
-  return new Response("ok", { status: 200 });
+  return new Response("Email verified successfully", { status: 200 });
+}
+
+async function handleRegister(env: Env, body: RegisterRequest, url: URL): Promise<Response> {
+  const { email, password, firstName } = body;
+
+  if (!email || !email.includes("@") || !password || password.length < 6 || !firstName) {
+    return Response.json({ error: "Invalid input. Email, password (min 6 chars), and first name required." }, { status: 400 });
+  }
+
+  const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
+
+  // Check if user already exists
+  const existingRaw = await env.STATS.get(`user_meta_${userId}`);
+  if (existingRaw) {
+    const existingUser: UserSession = JSON.parse(existingRaw);
+    if (existingUser.emailVerified) {
+      return Response.json({ error: "User already exists and is verified" }, { status: 409 });
+    }
+    // Allow re-registration if not verified
+  }
+
+  // Hash the password
+  const passwordHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
+  const passwordHashHex = Array.from(new Uint8Array(passwordHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  const user: UserSession = {
+    userId,
+    firstName,
+    email,
+    passwordHash: passwordHashHex,
+    session: "",
+    platform: "telegram",
+    transcriptionCount: 0,
+    isActive: false,
+    createdAt: Date.now(),
+    lastActiveAt: Date.now(),
+    emailVerified: false
+  };
+
+  await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+
+  // Add to users_list if not already there
+  const listRaw = await env.STATS.get("users_list") || "[]";
+  const list = JSON.parse(listRaw);
+  if (!list.includes(userId)) {
+    list.push(userId);
+    await env.STATS.put("users_list", JSON.stringify(list));
+  }
+
+  // Send verification email
+  const token = crypto.randomUUID();
+  await env.STATS.put(`email_verify_${token}`, email, { expirationTtl: EMAIL_VERIFY_TTL });
+
+  const publicOrigin = getPublicOrigin(env, url.origin);
+  const verifyLink = `${publicOrigin}/auth/email/verify?token=${token}`;
+  const htmlBody = `
+    <h2>Welcome to Voice Messenger!</h2>
+    <p>Please click the link below to verify your email address:</p>
+    <a href="${verifyLink}">Verify Email</a>
+    <p>This link will expire in 15 minutes.</p>
+  `;
+
+  const emailSent = await sendEmail(env, email, "Verify Your Email", htmlBody);
+  if (!emailSent) {
+    return Response.json({ error: "Registration successful but failed to send verification email" }, { status: 500 });
+  }
+
+  return Response.json({ success: true, message: "Registration successful. Please check your email to verify your account." });
+}
+
+async function handleLogin(env: Env, body: LoginRequest, url: URL): Promise<Response> {
+  const { email, password } = body;
+
+  if (!email || !email.includes("@") || !password) {
+    return Response.json({ error: "Email and password required" }, { status: 400 });
+  }
+
+  const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
+  const userRaw = await env.STATS.get(`user_meta_${userId}`);
+
+  if (!userRaw) {
+    return Response.json({ error: "Invalid email or password" }, { status: 401 });
+  }
+
+  const user: UserSession = JSON.parse(userRaw);
+
+  if (!user.passwordHash) {
+    return Response.json({ error: "This account uses a different login method" }, { status: 401 });
+  }
+
+  // Hash the provided password and compare
+  const passwordHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
+  const passwordHashHex = Array.from(new Uint8Array(passwordHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  if (passwordHashHex !== user.passwordHash) {
+    return Response.json({ error: "Invalid email or password" }, { status: 401 });
+  }
+
+  if (!user.emailVerified) {
+    return Response.json({ error: "Please verify your email before logging in" }, { status: 403 });
+  }
+
+  console.log(`[Auth] Login successful for user: ${userId}`);
+  await logError("auth", `User ${userId} logged in with email`, env);
+  return await createSessionResponse(userId, env);
+}
+
+async function handleForgotPassword(env: Env, body: ForgotPasswordRequest, url: URL): Promise<Response> {
+  const { email } = body;
+
+  if (!email || !email.includes("@")) {
+    return Response.json({ error: "Valid email required" }, { status: 400 });
+  }
+
+  const rateKey = `rate_forgot_${email}`;
+  const rateLimit = await env.STATS.get(rateKey);
+  if (rateLimit) return Response.json({ error: "Too many requests, try again later" }, { status: 429 });
+
+  const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
+  const userRaw = await env.STATS.get(`user_meta_${userId}`);
+
+  if (!userRaw) {
+    // Don't reveal if email exists or not for security
+    return Response.json({ success: true, message: "If the email exists, a reset link has been sent." });
+  }
+
+  const user: UserSession = JSON.parse(userRaw);
+  if (!user.passwordHash || !user.emailVerified) {
+    // Don't reveal account status
+    return Response.json({ success: true, message: "If the email exists, a reset link has been sent." });
+  }
+
+  // Generate reset token
+  const resetToken = crypto.randomUUID();
+  await env.STATS.put(`password_reset_${resetToken}`, userId, { expirationTtl: EMAIL_VERIFY_TTL });
+  await env.STATS.put(rateKey, "1", { expirationTtl: RATE_LIMIT_TTL });
+
+  const publicOrigin = getPublicOrigin(env, url.origin);
+  const resetLink = `${publicOrigin}/auth/reset-password?token=${resetToken}`;
+  const htmlBody = `
+    <h2>Password Reset</h2>
+    <p>You requested a password reset for your Voice Messenger account.</p>
+    <p>Click the link below to reset your password:</p>
+    <a href="${resetLink}">Reset Password</a>
+    <p>This link will expire in 15 minutes.</p>
+    <p>If you didn't request this, please ignore this email.</p>
+  `;
+
+  const emailSent = await sendEmail(env, email, "Reset Your Password", htmlBody);
+  if (!emailSent) {
+    return Response.json({ error: "Failed to send reset email" }, { status: 500 });
+  }
+
+  return Response.json({ success: true, message: "If the email exists, a reset link has been sent." });
+}
+
+async function handleResetPassword(env: Env, body: ResetPasswordRequest, url: URL): Promise<Response> {
+  const { token, password } = body;
+
+  if (!token || !password || password.length < 6) {
+    return Response.json({ error: "Valid token and password (min 6 chars) required" }, { status: 400 });
+  }
+
+  const userId = await env.STATS.get(`password_reset_${token}`);
+  if (!userId) {
+    return Response.json({ error: "Invalid or expired reset token" }, { status: 400 });
+  }
+
+  const userRaw = await env.STATS.get(`user_meta_${userId}`);
+  if (!userRaw) {
+    return Response.json({ error: "User not found" }, { status: 404 });
+  }
+
+  const user: UserSession = JSON.parse(userRaw);
+
+  // Hash the new password
+  const passwordHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
+  const passwordHashHex = Array.from(new Uint8Array(passwordHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  user.passwordHash = passwordHashHex;
+  await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+  await env.STATS.delete(`password_reset_${token}`);
+
+  console.log(`[Auth] Password reset successful for user: ${userId}`);
+  await logError("auth", `User ${userId} reset password`, env);
+
+  return Response.json({ success: true, message: "Password reset successful. You can now log in with your new password." });
 }
 
 async function handleMetaLogin(env: Env, url: URL): Promise<Response> {
@@ -333,8 +565,11 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   const method = req.method;
   const pathname = url.pathname;
 
-  if (method === "GET" && pathname === "/auth") {
-    return handleAuthPage(currentUserId, url);
+  if (method === "GET" && (pathname === "/auth" || pathname === "/auth/reset-password")) {
+    return new Response(null, {
+      status: 302,
+      headers: { "Location": currentUserId ? "/dashboard" : "/" }
+    });
   }
 
 
@@ -394,6 +629,70 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     return await handleEmailVerify(env, token, url);
   }
 
+  if (method === "POST" && pathname === "/auth/register") {
+    let body: RegisterRequest;
+    try {
+      body = await req.json() as RegisterRequest;
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    try {
+      return await handleRegister(env, body, url);
+    } catch (e: any) {
+      console.error("[auth] Register error:", e);
+      return Response.json({ error: e.message || "Internal auth error" }, { status: 500 });
+    }
+  }
+
+  if (method === "POST" && pathname === "/auth/login") {
+    let body: LoginRequest;
+    try {
+      body = await req.json() as LoginRequest;
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    try {
+      return await handleLogin(env, body, url);
+    } catch (e: any) {
+      console.error("[auth] Login error:", e);
+      return Response.json({ error: e.message || "Internal auth error" }, { status: 500 });
+    }
+  }
+
+  if (method === "POST" && pathname === "/auth/forgot-password") {
+    let body: ForgotPasswordRequest;
+    try {
+      body = await req.json() as ForgotPasswordRequest;
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    try {
+      return await handleForgotPassword(env, body, url);
+    } catch (e: any) {
+      console.error("[auth] Forgot password error:", e);
+      return Response.json({ error: e.message || "Internal auth error" }, { status: 500 });
+    }
+  }
+
+  if (method === "POST" && pathname === "/auth/reset-password") {
+    let body: ResetPasswordRequest;
+    try {
+      body = await req.json() as ResetPasswordRequest;
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    try {
+      return await handleResetPassword(env, body, url);
+    } catch (e: any) {
+      console.error("[auth] Reset password error:", e);
+      return Response.json({ error: e.message || "Internal auth error" }, { status: 500 });
+    }
+  }
+
   if (method === "GET" && pathname === "/auth/meta/login") {
     return await handleMetaLogin(env, url);
   }
@@ -417,8 +716,8 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   }
 
   if (method === "POST" && pathname === "/auth/send-code") {
-    const { phone } = await req.json() as any;
     const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+    console.log(`[Auth] Proxying /send-code to ${bridgeUrl}. Secret set: ${!!env.BRIDGE_SECRET}`);
     const bridgeRes = await fetch(`${bridgeUrl}/send-code`, {
       method: "POST",
       headers: {
@@ -427,6 +726,10 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
       },
       body: JSON.stringify({ phone })
     });
+    
+    if (!bridgeRes.ok) {
+        console.error(`[Auth] Bridge /send-code failed: ${bridgeRes.status} ${bridgeRes.statusText}`);
+    }
     const body = await bridgeRes.clone().arrayBuffer();
     const headers: Record<string, string> = {};
     bridgeRes.headers.forEach((value, key) => {
@@ -528,10 +831,15 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
 if (method === "POST" && pathname === "/auth/qr-start") {
     const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+    console.log(`[Auth] Proxying /qr-start to ${bridgeUrl}. Secret set: ${!!env.BRIDGE_SECRET}`);
     const bridgeRes = await fetch(`${bridgeUrl}/qr-start`, {
       method: "POST",
       headers: { "x-bridge-secret": env.BRIDGE_SECRET || "changeme" }
     });
+    
+    if (!bridgeRes.ok) {
+        console.error(`[Auth] Bridge /qr-start failed: ${bridgeRes.status} ${bridgeRes.statusText}`);
+    }
     const body = await bridgeRes.clone().arrayBuffer();
     const headers: Record<string, string> = {};
     bridgeRes.headers.forEach((value, key) => {

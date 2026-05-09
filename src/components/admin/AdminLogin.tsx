@@ -1,12 +1,10 @@
 /** @jsxImportSource preact */
+import React from 'preact/compat';
 import fs from 'fs';
 import { render } from 'preact-render-to-string';
 import type { HealthChecks, UserSession, Env } from '../../types';
 import type { ErrorLog } from '../../logger';
 import { ConfigItem, formatUptime, UserRow, ErrorLogItem } from './Admin.utils';
-
-const cssPath = new URL('./Admin.css', import.meta.url);
-const adminCss = fs.readFileSync(cssPath, 'utf-8');
 
 export const renderAdminLogin = (error?: string) => {
     return "<!DOCTYPE html>" + render(
@@ -14,7 +12,7 @@ export const renderAdminLogin = (error?: string) => {
             <head>
                 <meta charset="UTF-8" />
                 <title>Admin Login</title>
-                <style dangerouslySetInnerHTML={{ __html: adminCss }} />
+                <link rel="stylesheet" href="/assets/css/admin.css" />
             </head>
             <body>
                 <div class="login-container">
