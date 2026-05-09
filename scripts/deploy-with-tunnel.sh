@@ -20,7 +20,7 @@ echo ""
 
 # Step 2: Cloudflared Login
 echo ">>> [2/7] Running cloudflared tunnel login..."
-if ! cloudflared tunnel token echo-messenger-tunnel >/dev/null 2>&1; then
+if ! cloudflared tunnel list >/dev/null 2>&1; then
   cloudflared tunnel login 2>&1 || echo "cloudflared login skipped"
 fi
 echo ""
@@ -59,46 +59,57 @@ echo "  - Applying monitoring..."
 kubectl apply -f kubernetes/grafana.yaml -n "$NAMESPACE" || echo "  ⚠ Monitoring failed"
 kubectl apply -f kubernetes/prometheus.yaml -n "$NAMESPACE" || echo "  ⚠ Monitoring failed"
 
-echo "  - Applying Fluentd..."
-kubectl apply -f kubernetes/fluentd.yaml -n "$NAMESPACE" || echo "  ⚠ Fluentd failed"
-
 echo "  - Applying RBAC..."
 kubectl apply -f kubernetes/rbac.yaml -n "$NAMESPACE"
 
 echo ""
 
-# Step 5: Create Cloudflare Tunnel
-echo ">>> [5/7] Setting up Cloudflare tunnel..."
+# Step 5: Setup Kubernetes-based Tunnel
+echo ">>> [5/7] Setting up Kubernetes-based Cloudflare tunnel..."
 
-TUNNEL_EXISTS=$(cloudflared tunnel list 2>/dev/null | grep -c "echo-messenger-tunnel" || echo "0")
-if [ "$TUNNEL_EXISTS" -eq 0 ]; then
-  echo "  - Creating new tunnel..."
-  cloudflared tunnel create echo-messenger-tunnel
-else
-  echo "  - Tunnel already exists"
+TUNNEL_NAME="echo-messenger-tunnel"
+TUNNEL_ID=$(cloudflared tunnel list | grep "$TUNNEL_NAME" | awk '{print $1}' || echo "")
+
+if [ -z "$TUNNEL_ID" ]; then
+  echo "  - Creating new tunnel: $TUNNEL_NAME"
+  TUNNEL_ID=$(cloudflared tunnel create "$TUNNEL_NAME" | grep -oP 'Created tunnel \K[a-f0-9-]+')
 fi
 
-echo "  - Saving tunnel credentials..."
-cloudflared tunnel token echo-messenger-tunnel > cloudflared/credentials.json
+echo "  - Tunnel ID: $TUNNEL_ID"
 
-echo "  - Setting up DNS routes..."
-cloudflared tunnel route dns echo-messenger-tunnel "$DOMAIN" || true
-cloudflared tunnel route dns echo-messenger-tunnel "bridge.$DOMAIN" || true
-cloudflared tunnel route dns echo-messenger-tunnel "asr.$DOMAIN" || true
-cloudflared tunnel route dns echo-messenger-tunnel "grafana.$DOMAIN" || true
+# Get credentials file path (usually ~/.cloudflared/ID.json)
+CREDS_FILE="$HOME/.cloudflared/$TUNNEL_ID.json"
+
+if [ -f "$CREDS_FILE" ]; then
+  echo "  - Creating Kubernetes secret for tunnel credentials..."
+  kubectl create secret generic cloudflared-tunnel-credentials \
+    --from-file=credentials.json="$CREDS_FILE" \
+    --namespace "$NAMESPACE" \
+    --dry-run=client -o yaml | kubectl apply -f -
+else
+  echo "  ⚠ Could not find credentials file at $CREDS_FILE"
+  echo "  Trying to use token from cloudflared tunnel token..."
+  TOKEN=$(cloudflared tunnel token "$TUNNEL_NAME")
+  # Decode token (it's base64 encoded JSON)
+  DECODED_JSON=$(echo "$TOKEN" | base64 -d)
+  echo "  - Creating Kubernetes secret from token..."
+  kubectl create secret generic cloudflared-tunnel-credentials \
+    --from-literal=credentials.json="$DECODED_JSON" \
+    --namespace "$NAMESPACE" \
+    --dry-run=client -o yaml | kubectl apply -f -
+fi
+
+echo "  - Applying tunnel deployment..."
+kubectl apply -f kubernetes/cloudflared-tunnel.yaml -n "$NAMESPACE"
 
 echo ""
 
-# Step 6: Start tunnel
-echo ">>> [6/7] Starting Cloudflare tunnel..."
-nohup cloudflared tunnel run --config cloudflared/config.yaml 3f9deba1-67f8-4086-b6d0-f16759cca9d6 > /tmp/cloudflared.log 2>&1 &
-echo "  Tunnel started in background (PID: $!)"
-sleep 3
-if ps aux | grep cloudflared | grep -q "3f9deba1"; then
-  echo "  ✓ Tunnel is running"
-else
-  echo "  ⚠ Tunnel may not be running - check /tmp/cloudflared.log"
-fi
+# Step 6: DNS Routes
+echo ">>> [6/7] Updating DNS routes..."
+cloudflared tunnel route dns "$TUNNEL_NAME" "$DOMAIN" || true
+cloudflared tunnel route dns "$TUNNEL_NAME" "bridge.$DOMAIN" || true
+cloudflared tunnel route dns "$TUNNEL_NAME" "asr.$DOMAIN" || true
+cloudflared tunnel route dns "$TUNNEL_NAME" "grafana.$DOMAIN" || true
 
 echo ""
 
@@ -112,13 +123,7 @@ echo "--- Services ---"
 kubectl get svc -n "$NAMESPACE"
 echo ""
 echo "--- Ingresses ---"
-kubectl get ingress -n "$NAMESPACE" 2>/dev/null || true
-echo ""
-echo "--- External IPs ---"
-kubectl get eip -n "$NAMESPACE" 2>/dev/null || echo "EIP CRD not available"
-echo ""
-echo "--- Floating IPs ---"
-kubectl get fip -n "$NAMESPACE" 2>/dev/null || echo "FIP CRD not available"
+kubectl get ingress -n "$NAMESPACE"
 echo ""
 
 echo "========================================"
@@ -131,7 +136,3 @@ echo "  https://bridge.voicemsg.net  - Bridge manager"
 echo "  https://asr.voicemsg.net     - ASR service"
 echo "  https://grafana.voicemsg.net - Grafana dashboard"
 echo ""
-echo "Logs:"
-echo "  kubectl logs -n $NAMESPACE -l app=echo-frontend -f"
-echo "  kubectl logs -n $NAMESPACE -l app=mtproto-bridge-manager -f"
-echo "  tail -f /tmp/cloudflared.log"

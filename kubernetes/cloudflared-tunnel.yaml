@@ -1,17 +1,4 @@
 # Cloudflared tunnel - runs inside the K8s cluster to proxy traffic
-# from Cloudflare edge to internal services
-apiVersion: v1
-kind: Secret
-metadata:
-  name: cloudflared-tunnel-credentials
-  namespace: debugging-testcrash-cloud
-type: Opaque
-# s field must be base64-encoded as cloudflared expects
-stringData:
-  credentials.json: |
-    {"a":"ffa27651a647d37a71fb3aeae969c762","s":"ZWYjYWQxOWdFdFlXWTFaaTAwTkdJeExXSmxaVE10T1RZNU5HVmxPREExWmpNMCJ9","t":"965dcbfb-e458-4acc-8900-816ad881cd01"}
----
-# ConfigMap with cloudflared ingress rules
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -19,8 +6,8 @@ metadata:
   namespace: debugging-testcrash-cloud
 data:
    config.yaml: |
-     tunnel: 965dcbfe-4458-4acc-8900-816ad881cd01
-     token: eyJhIjoiZmZhMjc2NTFhNjQ3ZDM3YTcxZmIzYWVhZTk2OWM3NjIiLCJ0IjoiOTY1ZGNiZmUtNDQ1OC00YWNjLTg5MDAtODE2YWQ4ODFjZDAxIiwicyI6IlpXTmpZV1ExT1dFdFlXWTFaaTAwTkdJeExXSmxaVE10T1RZNU5HVmxPREExWmpNMCJ9
+     tunnel: echo-messenger-tunnel
+     credentials-file: /etc/cloudflared/credentials/credentials.json
 
      ingress:
       - hostname: voicemsg.net
@@ -110,6 +97,7 @@ spec:
       volumes:
       - name: tunnel-creds
         secret:
+          # This secret is created dynamically by the deploy script
           secretName: cloudflared-tunnel-credentials
       - name: tunnel-config
         configMap:
