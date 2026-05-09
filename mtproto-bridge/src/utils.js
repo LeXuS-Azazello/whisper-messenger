@@ -17,19 +17,25 @@ export function createClient(sessionStr, options = {}) {
 }
 
 export function auth(req, res, next) {
-    const s = (req.headers['x-bridge-secret'] || req.query.secret || '').trim();
-    const expected = (SECRET || 'changeme').trim();
-    const isMatched = s === expected;
-    
-    if (!isMatched) {
-        console.warn(`[bridge-auth] 401 Unauthorized.
-            Received: "${s ? s.slice(0, 3) + '...' + s.slice(-3) : 'NONE'}" (length: ${s.length})
-            Expected match: "${expected ? expected.slice(0, 3) + '...' + expected.slice(-3) : 'NONE'}" (length: ${expected.length})
-            Path: ${req.method} ${req.url}
-            Remote IP: ${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`);
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    next();
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const pathname = url.pathname;
+  // Allow public auth routes without secret
+  if (pathname.startsWith('/auth')) {
+    return next();
+  }
+  const s = (req.headers['x-bridge-secret'] || req.query.secret || '').trim();
+  const expected = (SECRET || 'changeme').trim();
+  const isMatched = s === expected;
+  
+  if (!isMatched) {
+    console.warn(`[bridge-auth] 401 Unauthorized.
+        Received: "${s ? s.slice(0, 3) + '...' + s.slice(-3) : 'NONE'}" (length: ${s.length})
+        Expected match: "${expected ? expected.slice(0, 3) + '...' + expected.slice(-3) : 'NONE'}" (length: ${expected.length})
+        Path: ${req.method} ${req.url}
+        Remote IP: ${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`);
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
 }
 
 export function withTimeout(promise, ms, name = 'Operation') {
