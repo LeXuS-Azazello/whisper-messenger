@@ -6,7 +6,7 @@ metadata:
   namespace: debugging-testcrash-cloud
 data:
    config.yaml: |
-     tunnel: echo-messenger-tunnel
+     tunnel: 3f9deba1-67f8-4086-b6d0-f16759cca9d6
      credentials-file: /etc/cloudflared/credentials/credentials.json
 
      ingress:
@@ -58,7 +58,8 @@ spec:
     spec:
       containers:
       - name: cloudflared
-        image: cloudflare/cloudflared:latest
+        image: cloudflare/cloudflared:2026.3.0
+        imagePullPolicy: Always
         args:
         - tunnel
         - --no-autoupdate

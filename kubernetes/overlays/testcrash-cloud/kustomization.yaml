@@ -14,7 +14,3 @@ patches:
     - op: replace
       path: /spec/rules/0/host
       value: voicemsg.net
-
-# Exclude heavy qwen3-asr during testing
-# resources:
-# - ../../qwen3-asr  # Uncomment when ready to deploy ASR

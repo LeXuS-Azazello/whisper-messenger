@@ -1,4 +1,5 @@
 /** @jsxImportSource preact */
+import React from 'preact/compat';
 import { render } from 'preact-render-to-string';
 import type { UserSession } from '../../types';
 import type { ErrorLog } from '../../logger';

@@ -15,7 +15,9 @@ kube-dc login --domain kube-dc.cloud --org debugging 2>&1 || echo "Already logge
 kube-dc use kube-dc.cloud/debugging/testcrash-cloud 2>&1 || true
 echo ""
 
-echo ">>> Applying base resources (Redis + Frontend)..."
+# Single kustomize apply covers: frontend, redis, network-policy,
+# bridge manager (with RBAC), qwen3-asr, ingress, ingress-nginx, tg-client
+echo ">>> Applying base resources via kustomize..."
 kubectl apply -k kubernetes/base/ -n "$NAMESPACE"
 echo ""
 
@@ -23,15 +25,7 @@ echo ">>> Applying secrets..."
 kubectl apply -f kubernetes/whisper-messenger-env-secret.yaml -n "$NAMESPACE"
 echo ""
 
-echo ">>> Applying bridge manager..."
-kubectl apply -f kubernetes/mtproto-bridge-manager.yaml -n "$NAMESPACE"
-echo ""
-
-echo ">>> Applying Qwen3-ASR..."
-kubectl apply -f kubernetes/qwen3-asr.yaml -n "$NAMESPACE"
-echo ""
-
-echo ">>> Applying monitoring..."
+echo ">>> Applying monitoring (outside base — optional)..."
 kubectl apply -f kubernetes/grafana.yaml -n "$NAMESPACE"
 kubectl apply -f kubernetes/prometheus.yaml -n "$NAMESPACE"
 echo ""
@@ -40,20 +34,8 @@ echo ">>> Applying Fluentd..."
 kubectl apply -f kubernetes/fluentd.yaml -n "$NAMESPACE"
 echo ""
 
-echo ">>> Applying RBAC..."
-kubectl apply -f kubernetes/rbac.yaml -n "$NAMESPACE"
-echo ""
-
-echo ">>> Applying EIP (External IP)..."
+echo ">>> Applying External IP..."
 kubectl apply -f kubernetes/eip-ingress.yaml -n "$NAMESPACE"
-echo ""
-
-echo ">>> Applying ingress controller with EIP..."
-kubectl apply -f kubernetes/ingress-nginx.yaml -n "$NAMESPACE"
-echo ""
-
-echo ">>> Applying ingress rules..."
-kubectl apply -f kubernetes/ingress.yaml -n "$NAMESPACE"
 echo ""
 
 echo ">>> Applying Cloudflared tunnel agent..."

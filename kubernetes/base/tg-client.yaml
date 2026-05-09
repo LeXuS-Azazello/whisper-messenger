@@ -1,0 +1,59 @@
+# ConfigMap: User Pod Template for tg-client
+# Used by mtproto-bridge-manager to spawn per-user Telegram client pods
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tg-client-pod-template
+  namespace: debugging-testcrash-cloud
+data:
+  pod-template.json: |
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "labels": {
+          "app": "tg-user-bridge"
+        }
+      },
+      "spec": {
+        "serviceAccountName": "mtproto-bridge-sa",
+        "containers": [{
+          "name": "tg-client",
+          "image": "azazellosaraksh/debugging-tg-client:latest",
+          "env": [
+            { "name": "MODE", "value": "USER" },
+            { "name": "TG_API_ID", "valueFrom": {"configMapKeyRef": {"name": "whisper-messenger-env", "key": "TELEGRAM_APP_ID"}} },
+            { "name": "TG_API_HASH", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "TELEGRAM_APP_HASH"}} },
+            { "name": "TG_SESSION", "value": "" },
+            { "name": "TARGET_USER_ID", "value": "" },
+            { "name": "WORKER_URL", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "WORKER_URL"}} },
+            { "name": "BRIDGE_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "BRIDGE_SECRET"}} },
+            { "name": "REDIS_URL", "value": "redis://redis:6379" },
+            { "name": "OLLAMA_BASE_URL", "value": "http://qwen3-asr:11434" }
+          ],
+          "resources": {
+            "requests": { "cpu": "50m", "memory": "128Mi" },
+            "limits": { "cpu": "200m", "memory": "256Mi" }
+          }
+        }],
+        "restartPolicy": "Always"
+      }
+    }
+---
+# Service for accessing tg-client pods (for health checks, access verification)
+apiVersion: v1
+kind: Service
+metadata:
+  name: tg-client
+  namespace: debugging-testcrash-cloud
+  labels:
+    app: tg-client
+spec:
+  clusterIP: None
+  selector:
+    app: tg-user-bridge
+  ports:
+  - name: http
+    port: 3001
+    targetPort: 3001
+    protocol: TCP

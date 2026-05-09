@@ -14,20 +14,22 @@
 │              │                │                │                    │
 │   ┌──────────▼───────┐  ┌────▼─────┐  ┌──────▼──────┐             │
 │   │  K8s: Frontend   │  │ K8s:     │  │ K8s:        │             │
-│   │  (Hono + Preact)  │  │ Bridge   │  │ Qwen3-ASR   │             │
+│   │  (Hono + Preact) │  │ Bridge   │  │ Qwen3-ASR   │             │
 │   │  - Routes         │  │ Manager  │  │ (Ollama)    │             │
 │   │  - Auth           │  │          │  │             │             │
 │   │  - Dashboard      │  │  :3000   │  │  :11434     │             │
-│   │  - Admin          │  │          │  │             │             │
-│   │  - Webhooks       │  └────┬─────┘  └──────┬──────┘             │
-│   │  - Bridge proxy   │       │                │                    │
+│   │  - Webhooks       │  │          │  │             │             │
+│   │  - Bridge proxy   │  └────┬─────┘  └──────┬──────┘             │
 │   └────────┬──────────┘       │                │                    │
 │            │                  │                │                    │
 │   ┌────────▼──────────┐  ┌────▼────────────────▼──────┐             │
-│   │ K8s: Redis        │  │ K8s: User Pods (dynamic)    │             │
-│   │ (Session store)   │  │  - telegram MTProto clients │             │
+│   │ K8s: Redis        │  │ K8s: tg-client PODs        │             │
+│   │ (Session store)   │  │  - MTProto per-user client  │             │
 │   │  :6379            │  │  - spawned per user session  │             │
-│   └───────────────────┘  └─────────────────────────────┘             │
+│   └───────────────────┘  │  - voice → Qwen3-ASR       │             │
+│                          │  - transcription + translate │             │
+│                          │  - reply via Telegram API    │             │
+│                          └─────────────────────────────┘             │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -54,31 +56,40 @@
 - **Secrets needed**: `WORKER_URL`, `BRIDGE_URL`, `BRIDGE_SECRET`, `SESSION_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `META_*`, `VERIFY_TOKEN`, etc.
 
 ### 2. MTProto Bridge Manager (Kubernetes)
-- **Role**: Manages Telegram user sessions, spawns/terminates per-user bridge pods
-- **Path**: `mtproto-bridge/index.js` — Express.js server
+- **Role**: Manages Telegram user sessions, spawns/terminates per-user tg-client PODs
+- **Path**: `mtproto-bridge/index.js` — Express.js server (MANAGER mode only)
 - **Image**: `azazellosaraksh/debugging-mtproto-bridge:v2`
-- **Mode**: `MANAGER` (when `MODE=MANAGER` env var is set)
+- **Mode**: `MODE=MANAGER`
 - **Endpoints**:
   - `/health` — Health check
   - `/send-code`, `/verify-code`, `/verify-password` — Telegram auth
   - `/qr-start`, `/qr-check` — QR code login flow
-  - `/spawn` — Create user bridge pod
-  - `/delete` — Terminate user bridge pod
-  - `/pods` — List all active pods
+  - `/spawn` — Create tg-client user POD
+  - `/delete` — Terminate tg-client user POD
+  - `/pods` — List all active tg-client PODs
   - `/test-tg` — Send test Telegram message
   - `/internal/active-users` — List active users (bridge secret required)
   - `/internal/config` — Get whisper config (bridge secret required)
 - **Secrets needed**: `BRIDGE_SECRET`, `TELEGRAM_APP_HASH`, `WORKER_URL`, `REDIS_URL`
 
-### 3. User Bridge Pods (Dynamic, per-user)
-- **Role**: Maintain persistent MTProto connection for each Telegram user
-- **Image**: Same as bridge manager (`azazellosaraksh/debugging-mtproto-bridge:v2`)
-- **Mode**: `USER` (spawned dynamically by manager)
-- **Network policy**: Can only reach Redis, Qwen3-ASR, and internet (ports 80/443)
+### 3. tg-client — Per-User Telegram Client (NEW)
+- **Role**: Maintains persistent MTProto connection per user, listens for voice messages, transcribes via Qwen3-ASR
+- **Path**: `tg-client/src/` — Standalone Node.js/Express process
+- **Image**: `azazellosaraksh/debugging-tg-client:latest`
+- **Mode**: `MODE=USER` (spawned dynamically by bridge manager)
+- **Behavior**:
+  - Connects to Telegram MTProto API with user's session
+  - Listens for incoming private voice messages
+  - Downloads audio → sends to Qwen3-ASR → sends transcription back
+  - Optionally translates transcription via Ollama
+  - Reports stats back to Frontend
+- **Port**: 3001
+- **Secrets needed**: `TG_SESSION`, `TARGET_USER_ID`, `TG_API_ID`, `TG_API_HASH`, `WORKER_URL`, `BRIDGE_SECRET`, `REDIS_URL`, `OLLAMA_BASE_URL`
+- **Network**: Can reach Redis, Qwen3-ASR, internet (443/80)
 
 ### 4. Qwen3-ASR Transcription Service (Kubernetes)
 - **Role**: Speech-to-text transcription using Qwen3-ASR model via Ollama
-- **Path**: `src/whisper.ts` — calls `OLLAMA_BASE_URL/v1/audio/transcriptions`
+- **Path**: `src/whisper.ts` — Frontend worker queue consumer; `tg-client/src/telegramClient.js` — tg-client direct transcription
 - **Image**: `azazellosaraksh/debugging-qwen3-asr:latest`
 - **Storage**: 50Gi persistent volume for model storage
 - **Note**: Currently experiencing `ImagePullBackOff` — image may need to be rebuilt/pulled
@@ -87,11 +98,11 @@
 - **Role**: Session storage, user metadata, stats, KV-like data store
 - **Image**: `redis:7-alpine`
 - **Port**: 6379 (ClusterIP)
-- **StatefulSet** with 10Gi persistent volume
+- **Deployment**: 10Gi persistent volume
 
 ### 6. Ingress / TLS
 - **Host**: `voicemsg.net`
-- **TLS**: Let's Encrypt (`voicemsg-tls` secret)
+- **TLS**: Let's Encrypt
 - **Class**: nginx
 - **Paths**: All paths (`/`) route to `echo-frontend` service on port 80
 
@@ -100,93 +111,81 @@
 ### Telegram User Connection:
 1. User visits `voicemsg.net` → Frontend serves landing page
 2. User clicks "Connect Telegram" → QR code auth or phone number flow
-3. Frontend calls bridge `/qr-start` or `/send-code` → bridge sends Telegram code
-4. User verifies → bridge creates Telegram client session
-5. Frontend calls `/spawn` → bridge manager creates user pod with session
-6. User pod maintains persistent connection to Telegram servers
-7. Voice messages received → bridge forwards to Frontend webhook
-8. Frontend queues audio → Qwen3-ASR transcribes → result sent back via Telegram
+3. Frontend calls bridge `/send-code` or `/qr-start` → bridge sends Telegram code
+4. User verifies → bridge creates Telegram session string
+5. Frontend calls `/spawn` → bridge manager creates tg-client POD with session
+6. **tg-client POD** maintains persistent MTProto connection to Telegram servers
+7. Voice messages received → tg-client downloads audio → transcribes via Qwen3-ASR → sends reply via Telegram API
+8. Stats reported back to Frontend via `/internal/stats`
 
 ### Webhook Processing:
 1. Meta/WhatsApp sends webhook → Frontend verifies signature
-2. Frontend forwards verified payload to bridge `/webhooks/meta` or `/webhooks/whatsapp`
-3. Bridge queues audio job → Frontend picks up via `queue` consumer
-4. Frontend calls Qwen3-ASR → gets transcription → sends reply
-
-## Environment Variables (Secrets)
-
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `WORKER_URL` | Public URL of the frontend server | `https://voicemsg.net` |
-| `BRIDGE_URL` | Internal bridge URL (K8s service) | `http://mtproto-bridge-manager:3000` |
-| `BRIDGE_SECRET` | Auth secret for bridge API | *(random)* |
-| `SESSION_SECRET` | Secret for signing user sessions | *(random)* |
-| `ADMIN_SECRET` | Admin panel password | *(random)* |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID | *(from Google Cloud)* |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth secret | *(from Google Cloud)* |
-| `META_APP_ID` | Facebook App ID | *(from Meta Developers)* |
-| `META_APP_SECRET` | Facebook App Secret | *(from Meta Developers)* |
-| `META_PAGE_TOKEN` | Facebook Page Access Token | *(from Meta)* |
-| `META_API_VERSION` | Meta Graph API version | `v21.0` |
-| `VERIFY_TOKEN` | Webhook verify token | *(random)* |
-| `TELEGRAM_APP_ID` | Telegram API app ID | `13867088` |
-| `TELEGRAM_APP_HASH` | Telegram API app hash | *(from Telegram)* |
-| `REDIS_URL` | Redis connection URL | `redis://redis:6379` |
-| `OLLAMA_BASE_URL` | Qwen3-ASR/Ollama URL | `http://qwen3-asr:11434` |
+2. Frontend queues audio job → Frontend `queue` consumer picks it up
+3. Frontend calls Qwen3-ASR → gets transcription → sends reply via platform API
 
 ## Project Structure
 
 ```
 .
-├── src/
-│   ├── index.ts              # Main frontend entry (route dispatcher)
-│   ├── types.ts              # TypeScript interfaces (includes ExecutionContext, MessageBatch)
-│   ├── session.ts            # HMAC session signing/verification
-│   ├── verify.ts             # Meta webhook signature verification
-│   ├── queue.ts              # Audio job queue consumer
-│   ├── whisper.ts            # Qwen3-ASR transcription
-│   ├── logger.ts             # Error logging
-│   ├── redisKV.ts            # Redis KV adapter
-│   ├── telegram.ts           # Telegram bot API
-│   ├── meta.ts               # Meta/Facebook Messenger API
-│   ├── whatsapp.ts           # WhatsApp Cloud API
-│   ├── line.ts               # LINE Messaging API
-│   ├── server.ts             # Hono dev server (also production entry)
-│   ├── routes/               # Route handlers
-│   │   ├── auth.ts           # Authentication routes
-│   │   ├── admin.ts          # Admin panel routes
-│   │   ├── dashboard.ts      # User dashboard routes
-│   │   ├── webhooks.ts       # Webhook handlers
-│   │   └── internal.ts       # Internal bridge routes
-│   └── components/           # Preact SSR components
-│       ├── home/             # Landing page
-│       ├── auth/             # Auth flow UI
-│       ├── dashboard/        # User dashboard
-│       └── admin/            # Admin panel
-├── mtproto-bridge/           # Telegram MTProto bridge
-│   ├── index.js              # Bridge Express server
-│   ├── src/                  # Bridge modules
-│   │   ├── config.js         # Configuration
-│   │   ├── auth.js           # Telegram auth
-│   │   ├── k8s.js            # Kubernetes pod management
-│   │   ├── user.js           # User session/client
-│   │   └── utils.js          # Utilities
-│   └── Dockerfile            # Bridge container
+├── src/                          # Frontend (Cloudflare Worker)
+│   ├── index.ts                  # Main entry / route dispatcher
+│   ├── types.ts                  # TypeScript interfaces
+│   ├── queue.ts                  # Audio job queue consumer
+│   ├── whisper.ts                # Qwen3-ASR transcription (frontend side)
+│   ├── telegram.ts               # Telegram Bot API (notifications)
+│   ├── meta.ts                   # Meta/Facebook Messenger API
+│   ├── whatsapp.ts               # WhatsApp Cloud API
+│   ├── line.ts                   # LINE Messaging API
+│   ├── server.ts                 # Hono dev server
+│   ├── routes/                   # Route handlers
+│   ├── controllers/              # Controller logic
+│   └── components/               # Preact SSR components
+│
+├── mtproto-bridge/               # MTProto Bridge Manager
+│   ├── index.js                  # Express.js server (MANAGER mode)
+│   ├── src/
+│   │   ├── config.js             # Configuration + Redis
+│   │   ├── auth.js               # Telegram auth (send-code, verify, QR)
+│   │   ├── k8s.js                # K8s pod orchestration (spawn/delete tg-client PODs)
+│   │   └── utils.js              # Utilities (Telegram client factory, auth middleware)
+│   └── package.json
+│
+├── tg-client/                    # NEW: Per-user Telegram client engine
+│   ├── src/
+│   │   ├── index.js              # Entry point (Express + user client init)
+│   │   ├── telegramClient.js     # MTProto listener, voice → Qwen3-ASR pipeline
+│   │   ├── config.js             # Config + Redis connection
+│   │   └── utils.js              # Telegram client factory
+│   └── package.json
+│
 ├── kubernetes/
-│   ├── base/                 # Base K8s manifests
-│   │   ├── frontend.yaml     # Frontend Deployment + Service
-│   │   ├── redis.yaml        # Redis StatefulSet + PVC + Service
-│   │   └── kustomization.yaml
+│   ├── base/                     # Kustomize base
+│   │   ├── kustomization.yaml    # Base resources
+│   │   ├── frontend.yaml         # Frontend Deployment + Service
+│   │   ├── redis.yaml            # Redis StatefulSet + PVC + Service
+│   │   ├── qwen3-asr.yaml        # Qwen3-ASR (Ollama) Deployment + Service + PVC
+│   │   ├── mtproto-bridge-manager.yaml  # Bridge Manager + RBAC + ServiceAccount
+│   │   ├── ingress.yaml          # Ingress rules for voicemsg.net
+│   │   ├── ingress-nginx.yaml    # Ingress controller (nginx)
+│   │   ├── network-policy.yaml   # NetworkPolicy for user pods
+│   │   ├── tg-client.yaml        # tg-client POD ConfigMap template
+│   │   └── rbac.yaml            # RBAC for bridge manager
 │   ├── overlays/
-│   │   ├── testcrash-cloud/  # Test overlay
+│   │   ├── testcrash-cloud/
 │   │   │   └── kustomization.yaml
-│   │   └── voicemsg/         # Production overlay
+│   │   └── voicemsg/
 │   │       └── kustomization.yaml
-│   ├── k8s.yaml              # All-in-one manifest (non-Redis resources)
-│   ├── frontend.yaml         # Frontend-only manifest
-│   ├── ingress.yaml          # Ingress for voicemsg.net
-│   ├── mtproto-bridge-manager.yaml  # Bridge manager
-│   └── whisper-messenger-env-secret.yaml
+│   ├── whisper-messenger-env-secret.yaml  # Opaque secret with all env vars
+│   ├── cloudflared-tunnel.yaml            # Cloudflare tunnel deployment
+│   ├── grafana.yaml                       # Grafana monitoring
+│   ├── prometheus.yaml                    # Prometheus monitoring
+│   ├── fluentd.yaml                       # Log collection
+│   └── ...                                # (EIPs, FIPs, issuer, netcheck — not in base)
+│
+├── scripts/
+│   ├── deploy.sh                  # Standard deployment script
+│   └── deploy-with-tunnel.sh     # Full deployment with Cloudflare tunnel
+│
 ├── package.json
 ├── tsconfig.json
 └── vitest.config.ts
@@ -196,7 +195,7 @@
 
 ### Prerequisites
 - `kubectl` configured with access to the cluster
-- Docker hub credentials for pushing images (if rebuilding bridge)
+- Docker hub credentials for pushing images (if rebuilding bridge/tg-client)
 
 ### Deploy to Kubernetes
 ```bash
@@ -205,30 +204,40 @@ kube-dc login --domain kube-dc.cloud --org debugging
 kube-dc use kube-dc.cloud/debugging/testcrash-cloud
 
 # Option A: Deploy with kustomize (recommended)
-kubectl apply -k kubernetes/base/
-kubectl apply -f kubernetes/frontend.yaml
-kubectl apply -f kubernetes/mtproto-bridge-manager.yaml
-kubectl apply -f kubernetes/ingress.yaml
+kubectl apply -k kubernetes/base/ -n debugging-testcrash-cloud
 
 # Option B: Deploy with scripts
-bash scripts/kapply.sh
+bash scripts/deploy.sh
 
 # Restart frontend after code changes
 kubectl rollout restart deployment echo-frontend -n debugging-testcrash-cloud
 ```
 
+### Build and Push tg-client Image
+```bash
+cd tg-client
+docker build -t azazellosaraksh/debugging-tg-client:latest .
+docker push azazellosaraksh/debugging-tg-client:latest
+```
+
 ### Local Development
 ```bash
-# Start bridge locally (separate terminal)
+# Start bridge manager locally (separate terminal)
 cd mtproto-bridge && npm start
 
 # Set env vars
 export REDIS_URL=redis://localhost:6379
-export BRIDGE_URL=http://localhost:16000
+export BRIDGE_URL=http://localhost:3000
 export BRIDGE_SECRET=my-secret
 export WORKER_URL=http://localhost:3000
 # ... set other required env vars
 
 # Start frontend server
 cd src && npx tsx server.ts
+
+# Start tg-client locally (separate terminal, MODE=USER)
+export MODE=USER
+export TARGET_USER_ID=12345
+export TG_SESSION=<your session string>
+cd tg-client && npm start
 ```

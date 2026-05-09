@@ -2,7 +2,12 @@
 import React from 'preact/compat';
 import { render } from 'preact-render-to-string';
 
-export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin?: string) => {
+interface Message {
+    type: 'error' | 'success' | 'warning' | 'info';
+    text: string;
+}
+
+export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin?: string, successMessage?: string) => {
     if (isAuthenticated) {
         return "<!DOCTYPE html>" + render(
             <html lang="en">
@@ -16,6 +21,118 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
             </html>
         );
     }
+
+    // Email verification success page
+    if (successMessage === 'verified') {
+        return "<!DOCTYPE html>" + render(
+            <html lang="en">
+                <head>
+                    <meta charSet="UTF-8" />
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                    <title>Email Verified - Echo Messenger</title>
+                    <link rel="preconnect" href="https://fonts.googleapis.com" />
+                    <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+                    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet" />
+                    <link rel="stylesheet" href="/assets/css/auth.css" />
+                </head>
+                <body class="auth-page">
+                    <div class="login-container">
+                        <div class="card" style={{ maxWidth: '480px', textAlign: 'center' }}>
+                            <div class="success-icon">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                            <h2 style={{ marginBottom: '1rem', fontSize: '1.75rem' }}>Email Verified!</h2>
+                            <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', lineHeight: '1.6' }}>
+                                Your email has been successfully verified. You can now log in to your account and start using Echo Messenger.
+                            </p>
+                            <a href="/auth" class="btn" style={{ maxWidth: '280px', margin: '0 auto' }}>
+                                Continue to Login
+                            </a>
+                        </div>
+                    </div>
+                </body>
+            </html>
+        );
+    }
+
+    // Registration success page
+    if (successMessage === 'registered') {
+        return "<!DOCTYPE html>" + render(
+            <html lang="en">
+                <head>
+                    <meta charSet="UTF-8" />
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                    <title>Registration Successful - Echo Messenger</title>
+                    <link rel="preconnect" href="https://fonts.googleapis.com" />
+                    <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+                    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet" />
+                    <link rel="stylesheet" href="/assets/css/auth.css" />
+                </head>
+                <body class="auth-page">
+                    <div class="login-container">
+                        <div class="card" style={{ maxWidth: '480px', textAlign: 'center' }}>
+                            <div class="success-icon">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                            <h2 style={{ marginBottom: '1rem', fontSize: '1.75rem' }}>Registration Successful!</h2>
+                            <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', lineHeight: '1.6' }}>
+                                Your account has been created. Please check your email inbox and verify your email address to activate your account.
+                            </p>
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                <a href="/auth" class="btn" style={{ maxWidth: '200px' }}>
+                                    Go to Login
+                                </a>
+                                <button onclick="window.location.reload()" class="btn btn-secondary" style={{ maxWidth: '200px' }}>
+                                    Check Email Again
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </body>
+            </html>
+        );
+    }
+
+    // Reset password success page
+    if (successMessage === 'reset') {
+        return "<!DOCTYPE html>" + render(
+            <html lang="en">
+                <head>
+                    <meta charSet="UTF-8" />
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                    <title>Password Reset - Echo Messenger</title>
+                    <link rel="preconnect" href="https://fonts.googleapis.com" />
+                    <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+                    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet" />
+                    <link rel="stylesheet" href="/assets/css/auth.css" />
+                </head>
+                <body class="auth-page">
+                    <div class="login-container">
+                        <div class="card" style={{ maxWidth: '480px', textAlign: 'center' }}>
+                            <div class="success-icon">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                            <h2 style={{ marginBottom: '1rem', fontSize: '1.75rem' }}>Password Reset Complete</h2>
+                            <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', lineHeight: '1.6' }}>
+                                Your password has been successfully reset. You can now log in with your new password.
+                            </p>
+                            <a href="/auth" class="btn" style={{ maxWidth: '280px', margin: '0 auto' }}>
+                                Sign In
+                            </a>
+                        </div>
+                    </div>
+                </body>
+            </html>
+        );
+    }
+
+    const displayError = error || '';
 
     return "<!DOCTYPE html>" + render(
         <html lang="en">
@@ -31,10 +148,10 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
             </head>
             <body class="auth-page">
                 <div class="login-container">
-                    <div class="card login-card" style={{ maxWidth: '450px' }}>
-                        <div class="logo" style={{ justifyContent: 'center', marginBottom: '20px' }}>
+                    <div class="card">
+                        <div class="logo">
                             <div class="logo-icon">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                                     <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                                     <line x1="12" y1="19" x2="12" y2="23" />
@@ -44,164 +161,243 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                             ECHO
                         </div>
 
-                        <h2 style={{ textAlign: 'center', marginBottom: '10px' }}>Connect Your account</h2>
-                        <p style={{ textAlign: 'center', color: 'var(--text-dim)', fontSize: '14px', marginBottom: '30px' }}>
-                            Transcribe voice messages automatically in your personal Telegram chats.
-                        </p>
+                        <h2>Connect Your Account</h2>
+                        <p>Transcribe voice messages automatically in your personal Telegram chats.</p>
 
-                        {error && <div class="error-msg" style={{ marginBottom: '20px' }}>{error}</div>}
+                        {displayError && (
+                            <div class="message error" id="error-message">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                                </svg>
+                                {displayError}
+                            </div>
+                        )}
 
                         <div id="auth-flow">
-                            {/* Simple Step 1: Initialize Connection */}
-                            <div id="simple-start-section" style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '48px', marginBottom: '10px' }}>🚀</div>
-                                <h3 style={{ marginBottom: '15px' }}>One-Click Connection</h3>
-                                <p style={{ fontSize: '14px', color: 'var(--text-dim)', marginBottom: '25px' }}>
-                                    We'll open your Telegram app to authorize the connection securelly.
+                            {/* Step 1: Simple Telegram Connection */}
+                            <div id="simple-start-section" class="auth-section active">
+                                <div style={{ fontSize: '48px', marginBottom: '1rem', textAlign: 'center' }}>🚀</div>
+                                <h3 style={{ textAlign: 'center', marginBottom: '0.75rem', fontSize: '1.25rem' }}>One-Click Connection</h3>
+                                <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.938rem', marginBottom: '1.5rem', lineHeight: '1.5' }}>
+                                    We'll open your Telegram app to authorize the connection securely.
                                 </p>
-                                <button class="btn" id="tg-simple-connect-btn" style={{ background: 'linear-gradient(135deg, #24A1DE, #1C92D2)', height: '56px', fontSize: '16px', fontWeight: '800' }}>
+                                <button class="btn btn-telegram" id="tg-simple-connect-btn" style={{ height: '56px', fontSize: '1.125rem', fontWeight: '700' }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                                    </svg>
                                     Connect Telegram Now
                                 </button>
 
-                                <div style={{ marginTop: '20px' }}>
-                                    <button id="show-manual-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
-                                        Alternative login (Phone number / QR)
+                                <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                                    <button id="show-manual-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '0.875rem', cursor: 'pointer', textDecoration: 'underline' }}>
+                                        Use phone number or QR code instead
                                     </button>
                                 </div>
                             </div>
 
-                            <div id="phone-section" style={{ display: 'none' }}>
+                            {/* Phone Number Section */}
+                            <div id="phone-section" class="auth-section">
                                 <div class="input-group">
                                     <label class="input-label">Phone Number</label>
-                                    <input type="tel" id="tg-phone-input" class="input-field" placeholder="+66 85 093 2800" />
+                                    <input type="tel" id="tg-phone-input" class="input-field" placeholder="+66 85 093 2800" autoComplete="tel" />
                                 </div>
-                                <button class="btn" id="tg-send-code-btn" style={{ background: '#8B5CF6' }}>Send Verification Code</button>
+                                <button class="btn btn-telegram" id="tg-send-code-btn">
+                                    <span class="btn-text">Send Verification Code</span>
+                                </button>
+                                <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                                    <button id="back-to-simple-btn" class="btn-secondary" style={{ background: 'none', border: 'none', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                                        ← Back
+                                    </button>
+                                </div>
                             </div>
 
-                            <div id="code-section" style={{ display: 'none', marginTop: '20px' }}>
+                            {/* Verification Code Section */}
+                            <div id="code-section" class="auth-section">
                                 <div class="input-group">
                                     <label class="input-label">Verification Code</label>
-                                    <input type="text" id="tg-code-input" class="input-field" placeholder="12345" />
+                                    <input type="text" id="tg-code-input" class="input-field" placeholder="Enter 5-digit code" autoComplete="one-time-code" maxLength="5" />
                                 </div>
-                                <button class="btn" id="tg-verify-btn" style={{ background: '#22c55e' }}>Confirm & Connect</button>
-                                <p style={{ fontSize: '12px', marginTop: '10px', color: 'var(--text-dim)', textAlign: 'center' }}>
-                                    Check your Telegram app for the code.
+                                <button class="btn btn-success" id="tg-verify-btn">
+                                    <span class="btn-text">Confirm & Connect</span>
+                                </button>
+                                <p style={{ fontSize: '0.813rem', marginTop: '0.75rem', color: 'var(--text-dim)', textAlign: 'center' }}>
+                                    Check your Telegram app for the verification code.
                                 </p>
+                                <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                                    <button id="back-to-phone-btn" class="btn-secondary" style={{ background: 'none', border: 'none', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
+                                        ← Use different number
+                                    </button>
+                                </div>
                             </div>
 
-                            <div id="password-section" style={{ display: 'none', marginTop: '20px' }}>
+                            {/* Password Section (2FA) */}
+                            <div id="password-section" class="auth-section">
                                 <div class="input-group">
-                                    <label class="input-label">Cloud Password (2FA)</label>
-                                    <input type="password" id="tg-password-input" class="input-field" placeholder="Your password" />
+                                    <label class="input-label">Two-Factor Authentication</label>
+                                    <div class="input-wrapper">
+                                        <input type="password" id="tg-password-input" class="input-field" placeholder="Your 2FA password" autoComplete="current-password" />
+                                    </div>
                                 </div>
-                                <button class="btn" id="tg-password-btn" style={{ background: '#8B5CF6' }}>Unlock Account</button>
-                                <p style={{ fontSize: '12px', marginTop: '10px', color: 'var(--text-dim)', textAlign: 'center' }}>
+                                <button class="btn" id="tg-password-btn">
+                                    <span class="btn-text">Unlock Account</span>
+                                </button>
+                                <p style={{ fontSize: '0.813rem', marginTop: '0.75rem', color: 'var(--text-dim)', textAlign: 'center' }}>
                                     Your account is protected with Two-Factor Authentication.
                                 </p>
                             </div>
 
-                            <div style={{ margin: '30px 0', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
-                                <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>OR</span>
-                                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
+                            {/* QR Code Section */}
+                            <div id="qr-section" class="auth-section" style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+                                <div class="qr-container">
+                                    <div id="qr-code-container" style={{ marginBottom: '1rem' }}></div>
+                                    <p style={{ fontSize: '0.813rem', color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
+                                        Scan with Telegram app: Settings → Devices → Scan QR
+                                    </p>
+                                    <a id="tg-app-link" href="#" target="_blank" rel="noopener" class="tg-app-link" style={{ display: 'none' }}>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M22 2L11 13"></path>
+                                            <path d="M22 2l-7 20-4-9-9-4 20-7z"></path>
+                                        </svg>
+                                        Open Telegram App
+                                    </a>
+                                </div>
+                                <p id="qr-status" style={{ fontSize: '0.938rem', fontWeight: '500', color: 'var(--primary)' }}>Initializing QR code...</p>
                             </div>
 
+                            {/* Divider */}
+                            <div class="section-divider">OR</div>
+
                             {/* Email Authentication Section */}
-                            <div id="email-auth-section" style={{ textAlign: 'center', marginBottom: '20px' }}>
-                                <button class="btn" id="show-email-auth-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)', width: '100%', marginBottom: '15px' }}>
+                            <div id="email-auth-section" class="auth-section" style={{ textAlign: 'center' }}>
+                                <button class="btn btn-secondary" id="show-email-auth-btn" style={{ width: '100%', padding: '1rem' }}>
                                     Login with Email & Password
                                 </button>
                             </div>
 
-                            <div id="email-login-section" style={{ display: 'none' }}>
+                            {/* Email Login Section */}
+                            <div id="email-login-section" class="auth-section">
                                 <div class="input-group">
-                                    <label class="input-label">Email</label>
-                                    <input type="email" id="email-input" class="input-field" placeholder="your@email.com" />
+                                    <label class="input-label">Email Address</label>
+                                    <input type="email" id="email-input" class="input-field" placeholder="your@email.com" autoComplete="email" />
                                 </div>
                                 <div class="input-group">
                                     <label class="input-label">Password</label>
-                                    <input type="password" id="password-input" class="input-field" placeholder="Your password" />
+                                    <div class="input-wrapper">
+                                        <input type="password" id="password-input" class="input-field" placeholder="Your password" autoComplete="current-password" />
+                                    </div>
                                 </div>
-                                <button class="btn" id="email-login-btn" style={{ background: '#22c55e' }}>Login</button>
-                                <div style={{ textAlign: 'center', marginTop: '10px' }}>
-                                    <button id="show-forgot-password-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
+                                <button class="btn btn-success" id="email-login-btn">
+                                    <span class="btn-text">Sign In</span>
+                                </button>
+                                <div class="form-options" style={{ flexDirection: 'column', gap: '0.75rem' }}>
+                                    <label style={{ cursor: 'pointer' }}>
+                                        <input type="checkbox" id="remember-me" style={{ marginRight: '0.5rem' }} /> Keep me signed in
+                                    </label>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', fontSize: '0.875rem' }}>
+                                    <button id="show-forgot-password-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', textDecoration: 'underline' }}>
                                         Forgot password?
                                     </button>
-                                </div>
-                                <div style={{ textAlign: 'center', marginTop: '15px' }}>
-                                    <button id="show-register-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
-                                        Don't have an account? Register
+                                    <button id="show-register-btn" style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: '600' }}>
+                                        Create account
                                     </button>
                                 </div>
                             </div>
 
-                            <div id="email-register-section" style={{ display: 'none' }}>
+                            {/* Email Register Section */}
+                            <div id="email-register-section" class="auth-section">
                                 <div class="input-group">
                                     <label class="input-label">First Name</label>
-                                    <input type="text" id="register-firstname-input" class="input-field" placeholder="Your first name" />
+                                    <input type="text" id="register-firstname-input" class="input-field" placeholder="Your first name" autoComplete="given-name" />
                                 </div>
                                 <div class="input-group">
-                                    <label class="input-label">Email</label>
-                                    <input type="email" id="register-email-input" class="input-field" placeholder="your@email.com" />
+                                    <label class="input-label">Email Address</label>
+                                    <input type="email" id="register-email-input" class="input-field" placeholder="your@email.com" autoComplete="email" />
                                 </div>
                                 <div class="input-group">
                                     <label class="input-label">Password</label>
-                                    <input type="password" id="register-password-input" class="input-field" placeholder="Min 6 characters" />
+                                    <div class="input-wrapper">
+                                        <input type="password" id="register-password-input" class="input-field" placeholder="Min 6 characters" autoComplete="new-password" />
+                                    </div>
+                                    <div class="password-strength" id="password-strength" style={{ display: 'none' }}>
+                                        <div class="password-strength-bar" id="strength-bar"></div>
+                                    </div>
+                                    <div class="password-strength-text" id="strength-text"></div>
                                 </div>
-                                <button class="btn" id="email-register-btn" style={{ background: '#8B5CF6' }}>Register</button>
-                                <div style={{ textAlign: 'center', marginTop: '15px' }}>
-                                    <button id="back-to-login-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
-                                        Already have an account? Login
+                                <button class="btn btn-primary" id="email-register-btn" style={{ background: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)' }}>
+                                    <span class="btn-text">Create Account</span>
+                                </button>
+                                <div class="form-footer">
+                                    Already have an account?{" "}
+                                    <button id="back-to-login-btn" style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: '600', fontSize: 'inherit' }}>
+                                        Sign in
                                     </button>
                                 </div>
                             </div>
 
-                            <div id="forgot-password-section" style={{ display: 'none' }}>
+                            {/* Forgot Password Section */}
+                            <div id="forgot-password-section" class="auth-section">
+                                <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.938rem' }}>
+                                    Enter your email address and we'll send you a link to reset your password.
+                                </p>
                                 <div class="input-group">
-                                    <label class="input-label">Email</label>
-                                    <input type="email" id="forgot-email-input" class="input-field" placeholder="your@email.com" />
+                                    <label class="input-label">Email Address</label>
+                                    <input type="email" id="forgot-email-input" class="input-field" placeholder="your@email.com" autoComplete="email" />
                                 </div>
-                                <button class="btn" id="forgot-password-btn" style={{ background: '#f59e0b' }}>Send Reset Link</button>
-                                <div style={{ textAlign: 'center', marginTop: '15px' }}>
-                                    <button id="back-to-login-from-forgot-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
-                                        Back to Login
+                                <button class="btn btn-warning" id="forgot-password-btn">
+                                    <span class="btn-text">Send Reset Link</span>
+                                </button>
+                                <div class="form-footer">
+                                    <button id="back-to-login-from-forgot-btn" style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: '600', fontSize: 'inherit' }}>
+                                        ← Back to login
                                     </button>
                                 </div>
                             </div>
 
-                            <div id="reset-password-section" style={{ display: 'none' }}>
+                            {/* Reset Password Section */}
+                            <div id="reset-password-section" class="auth-section">
+                                <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.938rem' }}>
+                                    Enter your new password below.
+                                </p>
                                 <div class="input-group">
                                     <label class="input-label">New Password</label>
-                                    <input type="password" id="reset-password-input" class="input-field" placeholder="Min 6 characters" />
+                                    <div class="input-wrapper">
+                                        <input type="password" id="reset-password-input" class="input-field" placeholder="Min 6 characters" autoComplete="new-password" />
+                                    </div>
                                 </div>
-                                <button class="btn" id="reset-password-btn" style={{ background: '#22c55e' }}>Reset Password</button>
+                                <button class="btn btn-success" id="reset-password-btn">
+                                    <span class="btn-text">Reset Password</span>
+                                </button>
                             </div>
 
-                            <button class="btn" id="tg-show-qr-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                Login with QR Code
-                            </button>
-
-                            <div id="qr-section" style={{ display: 'none', marginTop: '25px', textAlign: 'center' }}>
-                                <div id="qr-code-container" style={{ background: 'white', padding: '15px', borderRadius: '12px', display: 'inline-block', marginBottom: '15px' }}></div>
-                                <div style={{ marginBottom: '15px' }}>
-                                    <a id="tg-app-link" href="#" class="btn btn-sm" style={{ background: '#24A1DE', display: 'inline-flex', alignItems: 'center', gap: '8px', width: 'auto', padding: '8px 16px', borderRadius: '20px', textDecoration: 'none', color: 'white', fontWeight: '600' }}>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" /></svg>
-                                        Open in Telegram App
-                                    </a>
-                                </div>
-                                <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '5px' }}>Open Telegram &gt; Settings &gt; Devices &gt; Scan QR</p>
-                                <p id="qr-status" style={{ fontSize: '14px', color: '#8B5CF6', fontWeight: '600' }}>Waiting for scan...</p>
+                            {/* QR Button (from manual flow) */}
+                            <div style={{ marginTop: '1.5rem' }}>
+                                <button class="btn btn-secondary" id="tg-show-qr-btn" style={{ width: '100%' }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                                        <rect x="3" y="3" width="7" height="7"></rect>
+                                        <rect x="14" y="3" width="7" height="7"></rect>
+                                        <rect x="14" y="14" width="7" height="7"></rect>
+                                        <rect x="3" y="14" width="7" height="7"></rect>
+                                    </svg>
+                                    Login with QR Code
+                                </button>
                             </div>
+
                         </div>
 
-                        <div id="success-message" style={{ display: 'none', textAlign: 'center', padding: '20px 0' }}>
-                            <div style={{ width: '60px', height: '60px', background: '#22c55e', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
+                        {/* Success Message (for Telegram connection) */}
+                        <div id="success-message" style={{ display: 'none' }}>
+                            <div class="success-view">
+                                <div class="success-icon">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </div>
+                                <h3>Successfully Connected!</h3>
+                                <p>Your account is now connected. You'll be redirected to your dashboard shortly.</p>
                             </div>
-                            <h3>Successfully Connected!</h3>
-                            <p style={{ color: 'var(--text-dim)', marginTop: '10px' }}>Ваш аккаунт подключен. Теперь бот будет автоматически расшифровывать голосовые сообщения.</p>
                         </div>
                     </div>
                 </div>

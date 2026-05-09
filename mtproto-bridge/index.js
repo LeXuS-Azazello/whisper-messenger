@@ -1,5 +1,8 @@
 /**
- * MTProto Bridge — Hybrid Manager/User Pod
+ * MTProto Bridge — Manager-only (orchestrates tg-client PODs)
+ * 
+ * tg-client runs as a separate POD/process per user.
+ * This process only handles auth, pod orchestration, and admin routes.
  */
 
 import express from 'express';
@@ -7,11 +10,9 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dns from 'dns';
 
-// Import refactored modules
 import { MODE, PORT, TARGET_USER_ID, TG_SESSION, redis } from './src/config.js';
 import { auth, checkConnect, createClient } from './src/utils.js';
 import { initK8s, spawnPod, deletePods, listPods, runReconciliation } from './src/k8s.js';
-import { startUserClient, startAccessChecker, getUserClient } from './src/user.js';
 import { sendCode, verifyCode, verifyPassword, qrStart, qrCheck } from './src/auth.js';
 
 dns.setDefaultResultOrder('ipv4first');
@@ -26,8 +27,6 @@ app.use(express.json());
 // Initialize Kubernetes Client if Manager
 initK8s();
 
-// ─── Shared Routes ──────────────────────────────────────────────────────────
-
 app.get('/health', (req, res) => {
     res.json({ mode: MODE, alive: true, userId: TARGET_USER_ID || null });
 });
@@ -41,8 +40,6 @@ app.get('/test-net', auth, async (req, res) => {
     const result = await checkConnect(host, port);
     res.json({ host, port, result });
 });
-
-// ─── Redis Proxy Routes ──────────────────────────────────────────────────────
 
 app.get('/kv/:key', auth, async (req, res) => {
     try {
@@ -67,15 +64,11 @@ app.delete('/kv/:key', auth, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ─── Telegram Auth Routes (Manager) ────────────────────────────────────────
-
 app.post('/send-code', auth, sendCode);
 app.post('/verify-code', auth, verifyCode);
 app.post('/verify-password', auth, verifyPassword);
 app.post('/qr-start', auth, qrStart);
 app.get('/qr-check', auth, qrCheck);
-
-// ─── Diagnostics Routes ────────────────────────────────────────────────────
 
 app.post('/test-tg', auth, async (req, res) => {
     const start = Date.now();
@@ -122,8 +115,6 @@ app.post('/test-voice', auth, async (req, res) => {
     }
 });
 
-// ─── K8s Pod Orchestration Routes ──────────────────────────────────────────
-
 app.post('/spawn', auth, async (req, res) => {
     try {
         const podName = await spawnPod(req.body.userId, req.body.session);
@@ -162,8 +153,6 @@ app.post('/internal/access-revoked', auth, async (req, res) => {
     }
 });
 
-// ─── Ollama Pull (Background) ──────────────────────────────────────────────
-
 app.post('/ollama-pull', auth, async (req, res) => {
     const { url, model } = req.body;
     if (!url || !model) return res.status(400).json({ error: "Missing url or model" });
@@ -179,26 +168,6 @@ app.post('/ollama-pull', auth, async (req, res) => {
     res.json({ success: true, message: `Download started in the background for ${model}` });
 });
 
-// ─── User Mode Routes ──────────────────────────────────────────────────────
-
-app.get('/check-access', auth, async (req, res) => {
-    if (MODE !== 'USER') return res.status(400).send('Not user mode');
-    const userClient = getUserClient();
-    if (!userClient) return res.json({ accessible: false, error: 'No client' });
-    
-    try {
-        const { Api } = await import('telegram');
-        await userClient.invoke(new Api.users.GetUsers({ id: [TARGET_USER_ID] }));
-        res.json({ accessible: true });
-    } catch (e) {
-        const errMsg = e.errorMessage || e.message || '';
-        const isBlocked = errMsg.includes('USER_IS_BLOCKED') || errMsg.includes('PEER_ID_INVALID');
-        res.json({ accessible: false, blocked: isBlocked, error: errMsg });
-    }
-});
-
-// ─── Initialization ────────────────────────────────────────────────────────
-
 const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
 
 if (isMain) {
@@ -206,10 +175,8 @@ if (isMain) {
         console.log(`[bridge] ${MODE} on ${PORT}`);
         const bridgeUrl = process.env.BRIDGE_URL || `http://localhost:${PORT}`;
         console.log(`[bridge] Public URL: ${bridgeUrl}`);
-        if (MODE === 'USER') {
-            await startUserClient();
-            startAccessChecker();
-        } else if (MODE === 'MANAGER') {
+        if (MODE === 'MANAGER') {
+            // MANAGER: orchestrates tg-client PODs via K8s
             setTimeout(runReconciliation, 5000);
             setInterval(runReconciliation, 5 * 60 * 1000);
         }

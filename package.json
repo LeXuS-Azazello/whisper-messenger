@@ -1,39 +1,18 @@
 {
-  "name": "voicemsg-frontend",
-  "version": "1.0.186",
-  "type": "module",
-  "description": "Frontend server for Echo Messenger - Multi-Platform Voice Transcription",
-  "main": "src/index.ts",
+  "name": "echo-messenger",
+  "version": "2.0.0",
+  "private": true,
   "scripts": {
-    "build": "npx tsc --noEmit",
-    "start": "tsx src/server.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "start:server": "tsx src/server.ts",
-    "deploy:k8s": "kubectl apply -k kubernetes/base/ && kubectl apply -f kubernetes/frontend.yaml && kubectl apply -f kubernetes/mtproto-bridge-manager.yaml && kubectl apply -f kubernetes/ingress-nginx.yaml && kubectl apply -f kubernetes/ingress.yaml && (kubectl apply -f kubernetes/eip-ingress.yaml || echo 'Skipping EIP') && kubectl rollout restart deployment echo-frontend -n debugging-testcrash-cloud",
-    "deploy:full": "bash scripts/deploy-with-tunnel.sh",
-    "tunnel:start": "cloudflared tunnel run --config cloudflared/config.yaml 3f9deba1-67f8-4086-b6d0-f16759cca9d6",
-    "tunnel:setup": "bash scripts/setup-cloudflared.sh",
-    "wrangler:login": "wrangler login"
+    "start": "node --watch --conditions=worker src/index.ts",
+    "dev": "npx tsx src/server.ts",
+    "test": "npx vitest run",
+    "deploy:k8s": "bash scripts/deploy.sh",
+    "deploy:tunnel": "bash scripts/deploy-with-tunnel.sh",
+    "deploy:full": "bash scripts/deploy-with-tunnel.sh"
   },
-  "devDependencies": {
-    "@types/ioredis": "^4.28.10",
-    "@types/node": "^20.17.6",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
-    "vitest": "^4.0.18"
-  },
+  "type": "module",
   "dependencies": {
-    "@hono/node-server": "^1.13.7",
-    "dotenv": "^16.4.5",
-    "hono": "^4.6.11",
-    "ioredis": "^5.10.1",
-    "jose": "^6.2.2",
-    "preact": "^10.29.0",
-    "preact-render-to-string": "^6.6.7",
-    "react": "^18.3.1"
-  },
-  "overrides": {
-    "undici": "^6.24.1"
+    "@preact/signals": "^1.2.3",
+    "@preact/router": "^4.1.1"
   }
 }

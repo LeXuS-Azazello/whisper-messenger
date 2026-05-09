@@ -496,23 +496,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     body: JSON.stringify({ userId: userId })
                 }).then(r => r.json()).then(d => {
                     if (d.success) alert('Test message sent to ' + userId);
-                    else alert('Error: ' + d.error);
+                    else alert('Error: ' + d.error || 'Not implemented');
                 }).finally(() => { btn.disabled = false; });
             } else if (btn.classList.contains('restart-btn')) {
-                if (!confirm('Restart pod for ' + userId + '?')) return;
-                fetch('/admin/restart-pod', {
+                if (!confirm('Restart pod for ' + userId + '? This will stop and restart the session without deleting data.')) return;
+                fetch('/admin/user-action', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: userId })
+                    body: JSON.stringify({ userId: userId, action: 'restart' })
                 }).then(r => r.json()).then(d => {
                     if (d.success) refreshUsers();
                     else alert('Error: ' + d.error);
                 });
             } else if (btn.classList.contains('deactivate-btn')) {
-                var isDeactivate = btn.title.includes('Stop');
-                if (!confirm((isDeactivate ? 'Stop pod' : 'Delete user') + ' for ' + userId + '?')) return;
-                fetch('/admin/deactivate-user', {
+                var text = btn.title || btn.innerText;
+                var action = text.includes('Stop') ? 'stop' : 'delete';
+                if (!confirm((action === 'stop' ? 'Stop pod' : 'Delete user') + ' for ' + userId + '?')) return;
+                fetch('/admin/user-action', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: userId })
+                    body: JSON.stringify({ userId: userId, action: action })
                 }).then(r => r.json()).then(d => {
                     if (d.success) refreshUsers();
                     else alert('Error: ' + d.error);

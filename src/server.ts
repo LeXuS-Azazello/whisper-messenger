@@ -16,7 +16,7 @@ app.use("*", cors());
 // Serve favicon directly from filesystem (no bridge proxy needed)
 app.get("/favicon.svg", async (_c) => {
   try {
-    const faviconPath = new URL("./favicon.svg", import.meta.url);
+    const faviconPath = new URL("../favicon.svg", import.meta.url);
     const data = readFileSync(faviconPath);
     return new Response(data, {
       headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" }
@@ -71,5 +71,6 @@ console.log(`Frontend server starting on port ${port}...`);
 
 serve({
   fetch: app.fetch,
-  port
+  port,
+  hostname: "0.0.0.0"
 });

@@ -53,7 +53,7 @@ export async function spawnPod(userId, session) {
     const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
     const namespace = process.env.POD_NAMESPACE || 'debugging-testcrash-cloud';
 
-    console.log(`[/spawn] Spawning pod for user ${safeUserId}`);
+    console.log(`[/spawn] Spawning tg-client pod for user ${safeUserId}`);
 
     try {
         console.log(`[/spawn] Listing pods for ${safeUserId}...`);
@@ -78,36 +78,50 @@ export async function spawnPod(userId, session) {
     }
 
     const podName = `tg-user-${sanitizedId}-${Date.now().toString().slice(-6)}`;
-        const podManifest = {
+    const podManifest = {
         apiVersion: 'v1',
         kind: 'Pod',
-        metadata: { name: podName, labels: { app: 'tg-user-bridge', userId: safeUserId } },
+        metadata: { 
+            name: podName, 
+            labels: { 
+                app: 'tg-user-bridge', 
+                userId: safeUserId 
+            } 
+        },
         spec: {
+            serviceAccountName: 'mtproto-bridge-sa',
             containers: [{
-                name: 'bridge',
-                image: process.env.BRIDGE_IMAGE || 'azazellosaraksh/debugging-mtproto-bridge:latest',
+                name: 'tg-client',
+                image: process.env.TG_CLIENT_IMAGE || 'azazellosaraksh/debugging-tg-client:latest',
+                ports: [{ containerPort: 3001 }],
                 env: [
                     { name: 'MODE', value: 'USER' },
                     { name: 'TARGET_USER_ID', value: safeUserId },
                     { name: 'TG_SESSION', value: session },
                     { name: 'TG_API_ID', value: String(API_ID) },
                     { name: 'TG_API_HASH', value: API_HASH },
-                    { name: 'BRIDGE_SECRET', value: SECRET },
                     { name: 'WORKER_URL', value: WORKER_URL },
-                    { name: 'QWEN_ASR_URL', value: process.env.QWEN_ASR_URL || 'http://qwen3-asr:11434' },
+                    { name: 'BRIDGE_SECRET', value: SECRET },
+                    { name: 'REDIS_URL', value: process.env.REDIS_URL || 'redis://redis:6379' },
+                    { name: 'OLLAMA_BASE_URL', value: process.env.QWEN_ASR_URL || 'http://qwen3-asr:11434' },
                     { name: 'DEVICE_MODEL', value: process.env.DEVICE_MODEL || DEVICE_MODEL },
                     { name: 'APP_VERSION', value: process.env.APP_VERSION || APP_VERSION },
                     { name: 'SYSTEM_VERSION', value: process.env.SYSTEM_VERSION || SYSTEM_VERSION }
                 ],
                 resources: {
                     requests: { cpu: '50m', memory: '128Mi' },
-                    limits: { cpu: '100m', memory: '256Mi' }
+                    limits: { cpu: '200m', memory: '256Mi' }
+                },
+                livenessProbe: {
+                    httpGet: { path: '/health', port: 3001 },
+                    initialDelaySeconds: 10,
+                    periodSeconds: 30
                 }
             }]
         }
     };
 
-    console.log(`[/spawn] Creating new pod ${podName}...`);
+    console.log(`[/spawn] Creating new tg-client pod ${podName}...`);
     await withTimeout(k8sApi.createNamespacedPod({ namespace, body: podManifest }), 60000); 
 
     console.log(`[/spawn] Successfully spawned ${podName} in namespace ${namespace}`);
@@ -119,7 +133,7 @@ export async function deletePods(userId) {
     const safeUserId = String(userId);
     const namespace = process.env.POD_NAMESPACE || 'debugging-testcrash-cloud';
     
-    console.log(`[/delete] Deleting pods for user ${safeUserId}`);
+    console.log(`[/delete] Deleting tg-client pods for user ${safeUserId}`);
     const existing = await withTimeout(k8sApi.listNamespacedPod({
         namespace,
     }), 5000);
@@ -140,7 +154,7 @@ export async function deletePods(userId) {
 export async function listPods() {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const namespace = process.env.POD_NAMESPACE || 'debugging-testcrash-cloud';
-    console.log(`[/pods] Fetching pods in namespace ${namespace}`);
+    console.log(`[/pods] Fetching tg-client pods in namespace ${namespace}`);
     const pods = await withTimeout(k8sApi.listNamespacedPod({
         namespace,
     }), 10000);
@@ -160,16 +174,15 @@ export async function listPods() {
 export async function runReconciliation() {
     if (!process.env.WORKER_URL || MODE !== 'MANAGER') return;
     try {
-        console.log(`[bridge] Starting reconciliation cycle...`);
-      const res = await fetch(`${process.env.WORKER_URL}/internal/active-users?secret=${process.env.BRIDGE_SECRET}`);
-      if (res.ok) {
-        const users = await res.json();
-        // Handle case where response is not an array
-        if (!Array.isArray(users)) {
-          console.error(`[bridge] Invalid response from active-users: expected array, got ${typeof users}`);
-          return;
-        }
-        console.log(`[bridge] Found ${users.length} active users to check`);
+        console.log(`[bridge] Starting tg-client reconciliation cycle...`);
+        const res = await fetch(`${process.env.WORKER_URL}/internal/active-users?secret=${process.env.BRIDGE_SECRET}`);
+        if (res.ok) {
+            const users = await res.json();
+            if (!Array.isArray(users)) {
+                console.error(`[bridge] Invalid response from active-users: expected array, got ${typeof users}`);
+                return;
+            }
+            console.log(`[bridge] Found ${users.length} active users to check`);
             
             const runningPods = await listPods().catch(() => []);
             const runningUserIds = new Set(runningPods.map(p => String(p.userId)));
@@ -177,7 +190,7 @@ export async function runReconciliation() {
             for (const user of users) {
                 const uid = String(user.userId);
                 if (!runningUserIds.has(uid)) {
-                    console.log(`[bridge] User ${uid} should be running but no pod found. Spawning...`);
+                    console.log(`[bridge] User ${uid} should be running but no tg-client pod found. Spawning...`);
                     try {
                         await spawnPod(uid, user.session);
                     } catch (e) {
@@ -185,7 +198,7 @@ export async function runReconciliation() {
                     }
                 }
             }
-            console.log(`[bridge] Reconciliation cycle complete`);
+            console.log(`[bridge] tg-client reconciliation cycle complete`);
         } else {
             console.error(`[bridge] Failed to fetch active users: ${res.status}`);
         }

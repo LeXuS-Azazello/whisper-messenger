@@ -12,8 +12,14 @@ echo ">>> Authenticate cloudflared with Cloudflare account"
 cloudflared tunnel login
 
 # Create the tunnel (or use existing one)
-TUNNEL_ID="9dc709ab-af10-4c4c-8227-d5066909a67c"
-echo ">>> Using tunnel: $TUNNEL_ID"
+TUNNEL_NAME="echo-messenger-tunnel"
+echo ">>> Looking for tunnel: $TUNNEL_NAME"
+TUNNEL_ID=$(cloudflared tunnel list | grep -w "$TUNNEL_NAME" | awk '{print $1}' | head -n 1 || echo "")
+
+if [ -z "$TUNNEL_ID" ]; then
+  echo ">>> Creating new tunnel: $TUNNEL_NAME"
+  TUNNEL_ID=$(cloudflared tunnel create "$TUNNEL_NAME" | grep -oP 'Created tunnel \K[a-f0-9-]+')
+fi
 
 # Download credentials
 echo ">>> Downloading tunnel credentials"

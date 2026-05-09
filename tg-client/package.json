@@ -1,0 +1,23 @@
+{
+  "name": "tg-client",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Per-user Telegram client engine - listens for voice messages and transcribes them",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "ioredis": "^5.10.1",
+    "telegram": "^2.26.22"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

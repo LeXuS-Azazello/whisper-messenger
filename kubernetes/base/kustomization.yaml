@@ -4,5 +4,16 @@ kind: Kustomization
 resources:
 - frontend.yaml
 - redis.yaml
+- network-policy.yaml
+- mtproto-bridge-manager.yaml
+- qwen3-asr.yaml
+- ingress.yaml
+- ingress-nginx.yaml
+- tg-client.yaml
+
+# Monitoring (optional — comment out to exclude)
+- grafana.yaml
+- prometheus.yaml
+- fluentd.yaml
 
 namespace: debugging-testcrash-cloud

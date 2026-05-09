@@ -1,28 +1,216 @@
 document.addEventListener('DOMContentLoaded', function() {
-    var tgPhoneInput = document.getElementById('tg-phone-input');
-    var tgCodeInput = document.getElementById('tg-code-input');
-    var tgPasswordInput = document.getElementById('tg-password-input');
-    var tgSendCodeBtn = document.getElementById('tg-send-code-btn');
-    var tgVerifyBtn = document.getElementById('tg-verify-btn');
-    var tgPasswordBtn = document.getElementById('tg-password-btn');
-    var phoneSection = document.getElementById('phone-section');
-    var codeSection = document.getElementById('code-section');
-    var passwordSection = document.getElementById('password-section');
-    var qrSection = document.getElementById('qr-section');
-    var tgShowQrBtn = document.getElementById('tg-show-qr-btn');
-    var authFlow = document.getElementById('auth-flow');
-    var successMessage = document.getElementById('success-message');
-    var qrCodeContainer = document.getElementById('qr-code-container');
-    var qrStatus = document.getElementById('qr-status');
-    var currentPhone = '';
-    var currentQrToken = '';
-    var qrPollInterval = null;
+    // Elements
+    const tgPhoneInput = document.getElementById('tg-phone-input');
+    const tgCodeInput = document.getElementById('tg-code-input');
+    const tgPasswordInput = document.getElementById('tg-password-input');
+    const tgSendCodeBtn = document.getElementById('tg-send-code-btn');
+    const tgVerifyBtn = document.getElementById('tg-verify-btn');
+    const tgPasswordBtn = document.getElementById('tg-password-btn');
+    const phoneSection = document.getElementById('phone-section');
+    const codeSection = document.getElementById('code-section');
+    const passwordSection = document.getElementById('password-section');
+    const qrSection = document.getElementById('qr-section');
+    const tgShowQrBtn = document.getElementById('tg-show-qr-btn');
+    const authFlow = document.getElementById('auth-flow');
+    const successMessage = document.getElementById('success-message');
+    const qrCodeContainer = document.getElementById('qr-code-container');
+    const qrStatus = document.getElementById('qr-status');
 
+    // Email auth elements
+    const showEmailAuthBtn = document.getElementById('show-email-auth-btn');
+    const emailLoginSection = document.getElementById('email-login-section');
+    const emailRegisterSection = document.getElementById('email-register-section');
+    const forgotPasswordSection = document.getElementById('forgot-password-section');
+    const resetPasswordSection = document.getElementById('reset-password-section');
+    const emailAuthSection = document.getElementById('email-auth-section');
+
+    // Email form elements
+    const emailInput = document.getElementById('email-input');
+    const passwordInput = document.getElementById('password-input');
+    const emailLoginBtn = document.getElementById('email-login-btn');
+
+    const registerFirstNameInput = document.getElementById('register-firstname-input');
+    const registerEmailInput = document.getElementById('register-email-input');
+    const registerPasswordInput = document.getElementById('register-password-input');
+    const emailRegisterBtn = document.getElementById('email-register-btn');
+
+    const forgotEmailInput = document.getElementById('forgot-email-input');
+    const forgotPasswordBtn = document.getElementById('forgot-password-btn');
+
+    const resetPasswordInput = document.getElementById('reset-password-input');
+    const resetPasswordBtn = document.getElementById('reset-password-btn');
+
+    // Navigation buttons
+    const manualBtn = document.getElementById('show-manual-btn');
+    const simpleConnectBtn = document.getElementById('tg-simple-connect-btn');
+    const simpleStartSection = document.getElementById('simple-start-section');
+    const showRegisterBtn = document.getElementById('show-register-btn');
+    const backToLoginBtn = document.getElementById('back-to-login-btn');
+    const showForgotPassBtn = document.getElementById('show-forgot-password-btn');
+    const backToLoginFromForgotBtn = document.getElementById('back-to-login-from-forgot-btn');
+    const backToPhoneBtn = document.getElementById('back-to-phone-btn');
+    const backToSimpleBtn = document.getElementById('back-to-simple-btn');
+
+    // State
+    let currentPhone = '';
+    let currentQrToken = '';
+    let qrPollInterval = null;
+    let qrTimeoutId = null;
+
+    // Utility functions
+    function showMessage(type, text, containerId = 'auth-flow', prepend = false) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        const messageHtml = `
+            <div class="message ${type}" style="${prepend ? 'margin-bottom: 1rem;' : ''}">
+                ${type === 'error' ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>' : ''}
+                ${type === 'success' ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+                ${type === 'warning' ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>' : ''}
+                ${text}
+            </div>
+        `;
+
+        if (prepend) {
+            container.insertAdjacentHTML('afterbegin', messageHtml);
+        } else {
+            // Remove existing messages
+            container.querySelectorAll('.message').forEach(el => el.remove());
+            container.insertAdjacentHTML('afterbegin', messageHtml);
+        }
+    }
+
+    function clearMessages(containerId = 'auth-flow') {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.querySelectorAll('.message').forEach(el => el.remove());
+        }
+    }
+
+    function setButtonLoading(btn, loading, defaultText = '') {
+        if (!btn) return;
+        const textSpan = btn.querySelector('.btn-text');
+        if (loading) {
+            btn.disabled = true;
+            if (textSpan) {
+                textSpan.innerHTML = '<span class="loading-spinner"></span> Please wait...';
+            } else {
+                btn.dataset.originalText = btn.innerText;
+                btn.innerText = 'Please wait...';
+            }
+        } else {
+            btn.disabled = false;
+            if (textSpan) {
+                textSpan.innerText = defaultText || btn.dataset.originalText || 'Submit';
+            } else {
+                btn.innerText = defaultText || btn.dataset.originalText || 'Submit';
+            }
+        }
+    }
+
+    function showSection(sectionId) {
+        document.querySelectorAll('.auth-section').forEach(el => {
+            el.style.display = 'none';
+        });
+        const target = document.getElementById(sectionId);
+        if (target) {
+            target.style.display = 'block';
+        }
+    }
+
+    function calculatePasswordStrength(password) {
+        let score = 0;
+        if (password.length >= 8) score++;
+        if (password.length >= 12) score++;
+        if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
+        if (/\d/.test(password)) score++;
+        if (/[^a-zA-Z0-9]/.test(password)) score++;
+
+        if (score <= 2) return { level: 'weak', text: 'Weak' };
+        if (score <= 3) return { level: 'medium', text: 'Medium' };
+        return { level: 'strong', text: 'Strong' };
+    }
+
+    // Telegram Simple Connect
+    if (simpleConnectBtn) {
+        simpleConnectBtn.addEventListener('click', function() {
+            this.disabled = true;
+            this.innerHTML = '<span class="loading-spinner"></span> Initializing...';
+
+            fetch('/auth/qr-start', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.qrUrl) {
+                        currentQrToken = data.token;
+                        startQrPolling(data.token);
+
+                        // Redirect to Telegram
+                        window.location.href = data.qrUrl;
+
+                        // Also show QR as backup
+                        setTimeout(() => {
+                            if (qrSection) qrSection.style.display = 'block';
+                            qrCodeContainer.innerHTML = '';
+                            new QRCode(qrCodeContainer, {
+                                text: data.qrUrl,
+                                width: 200,
+                                height: 200
+                            });
+                            simpleConnectBtn.innerText = 'Check your Telegram app';
+                        }, 2000);
+                    } else {
+                        throw new Error('Failed to get QR code');
+                    }
+                })
+                .catch(err => {
+                    console.error('QR start error:', err);
+                    showMessage('error', 'Failed to initialize Telegram connection. Please try again.', 'auth-flow');
+                    simpleConnectBtn.disabled = false;
+                    simpleConnectBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg> Connect Telegram Now';
+                });
+        });
+    }
+
+    // Manual phone auth flow
+    if (manualBtn) {
+        manualBtn.addEventListener('click', () => {
+            simpleStartSection.style.display = 'none';
+            showSection('phone-section');
+            if (tgShowQrBtn) tgShowQrBtn.style.display = 'block';
+            clearMessages();
+        });
+    }
+
+    if (backToSimpleBtn) {
+        backToSimpleBtn.addEventListener('click', () => {
+            showSection('simple-start-section');
+            phoneSection.style.display = 'none';
+            clearMessages();
+        });
+    }
+
+    if (backToPhoneBtn) {
+        backToPhoneBtn.addEventListener('click', () => {
+            showSection('phone-section');
+            codeSection.style.display = 'none';
+            clearMessages();
+        });
+    }
+
+    // Send code
     if (tgSendCodeBtn) {
         tgSendCodeBtn.addEventListener('click', function() {
-            var phone = tgPhoneInput.value.trim();
-            if (!phone) return alert('Enter phone number');
-            tgSendCodeBtn.innerText = 'Sending...';
+            const phone = tgPhoneInput.value.trim();
+            if (!phone) {
+                showMessage('error', 'Please enter your phone number', 'auth-flow');
+                tgPhoneInput.classList.add('error');
+                return;
+            }
+            tgPhoneInput.classList.remove('error');
+
+            setButtonLoading(this, true);
+            clearMessages();
+
             fetch('/auth/send-code', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -32,164 +220,177 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.success) {
                     currentPhone = phone;
-                    phoneSection.style.display = 'none';
-                    codeSection.style.display = 'block';
+                    showSection('code-section');
+                    showMessage('success', 'Verification code sent! Check your Telegram app.', 'auth-flow');
                 } else {
-                    alert('Error: ' + data.error);
-                    tgSendCodeBtn.innerText = 'Send Verification Code';
+                    showMessage('error', data.error || 'Failed to send code', 'auth-flow');
                 }
             })
-            .catch(err => alert('Network error'));
+            .catch(err => {
+                showMessage('error', 'Network error. Please try again.', 'auth-flow');
+            })
+            .finally(() => {
+                setButtonLoading(this, false, 'Send Verification Code');
+            });
         });
     }
 
+    // Verify code
     if (tgVerifyBtn) {
         tgVerifyBtn.addEventListener('click', function() {
-            var code = tgCodeInput.value.trim();
-            if (!code) return alert('Enter code');
-            tgVerifyBtn.innerText = 'Verifying...';
+            const code = tgCodeInput.value.trim();
+            if (!code) {
+                showMessage('error', 'Please enter the verification code', 'auth-flow');
+                tgCodeInput.classList.add('error');
+                return;
+            }
+            tgCodeInput.classList.remove('error');
+
+            setButtonLoading(this, true);
+            clearMessages();
+
             fetch('/auth/verify-code', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: currentPhone, code: code })
-            }).then(r => {
+            })
+            .then(r => {
                 if (r.status === 302 || r.redirected) {
                     window.location.href = '/dashboard';
-                } else {
-                    return r.json().then(data => {
-                        if (data.success) {
-                            window.location.href = '/dashboard';
-                        } else if (data.requiresPassword) {
-                            codeSection.style.display = 'none';
-                            passwordSection.style.display = 'block';
-                        } else {
-                            alert('Error: ' + (data.error || 'Check the logs'));
-                            tgVerifyBtn.innerText = 'Confirm & Connect';
-                        }
-                    });
+                    return;
                 }
-            }).catch(err => alert('Network error'));
+                return r.json().then(data => {
+                    if (data.success) {
+                        showMessage('success', 'Successfully connected! Redirecting...', 'auth-flow');
+                        setTimeout(() => window.location.href = '/dashboard', 1500);
+                    } else if (data.requiresPassword) {
+                        showSection('password-section');
+                        showMessage('warning', 'Two-factor authentication is enabled. Please enter your password.', 'auth-flow');
+                    } else {
+                        showMessage('error', data.error || 'Verification failed. Please try again.', 'auth-flow');
+                    }
+                });
+            })
+            .catch(err => {
+                showMessage('error', 'Network error. Please try again.', 'auth-flow');
+            })
+            .finally(() => {
+                setButtonLoading(this, false, 'Confirm & Connect');
+            });
         });
     }
 
+    // Verify password (2FA)
     if (tgPasswordBtn) {
         tgPasswordBtn.addEventListener('click', function() {
-            var pwd = tgPasswordInput.value.trim();
-            if (!pwd) return alert('Enter password');
-            tgPasswordBtn.innerText = 'Unlocking...';
-            
-            var body = { password: pwd };
+            const pwd = tgPasswordInput.value.trim();
+            if (!pwd) {
+                showMessage('error', 'Please enter your password', 'auth-flow');
+                tgPasswordInput.classList.add('error');
+                return;
+            }
+            tgPasswordInput.classList.remove('error');
+
+            setButtonLoading(this, true);
+            clearMessages();
+
+            const body = { password: pwd };
             if (currentPhone) body.phone = currentPhone;
             if (currentQrToken) body.token = currentQrToken;
 
             fetch('/auth/verify-password', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
-            }).then(r => {
+            })
+            .then(r => {
                 if (r.status === 302 || r.redirected) {
                     window.location.href = '/dashboard';
-                } else {
-                    return r.json().then(data => {
-                        if (data.success) {
-                            window.location.href = '/dashboard';
-                        } else {
-                            alert('Login failed: ' + (data.error || 'Invalid password'));
-                            tgPasswordBtn.innerText = 'Unlock Account';
-                        }
-                    });
+                    return;
                 }
-            }).catch(err => alert('Network error'));
+                return r.json().then(data => {
+                    if (data.success) {
+                        showMessage('success', 'Successfully connected! Redirecting...', 'auth-flow');
+                        setTimeout(() => window.location.href = '/dashboard', 1500);
+                    } else {
+                        showMessage('error', data.error || 'Invalid password', 'auth-flow');
+                        tgPasswordInput.classList.add('error');
+                    }
+                });
+            })
+            .catch(err => {
+                showMessage('error', 'Network error. Please try again.', 'auth-flow');
+            })
+            .finally(() => {
+                setButtonLoading(this, false, 'Unlock Account');
+            });
         });
     }
 
-    var simpleConnectBtn = document.getElementById('tg-simple-connect-btn');
-    var manualBtn = document.getElementById('show-manual-btn');
-    var simpleStartSection = document.getElementById('simple-start-section');
-
-    if (manualBtn) {
-        manualBtn.addEventListener('click', function() {
-            simpleStartSection.style.display = 'none';
-            phoneSection.style.display = 'block';
-            tgShowQrBtn.style.display = 'block';
-        });
-    }
-
+    // QR Code flow
     function startQrPolling(token) {
-        var timeoutId = setTimeout(function() {
+        clearTimeout(qrTimeoutId);
+        clearInterval(qrPollInterval);
+
+        qrTimeoutId = setTimeout(() => {
             clearInterval(qrPollInterval);
             qrSection.style.display = 'none';
-            alert('QR code expired. Please try again.');
-            if (simpleConnectBtn) simpleConnectBtn.innerText = 'Connect Telegram';
-        }, 120000); // 2 minute timeout
-        
+            showMessage('warning', 'QR code expired. Please try again.', 'auth-flow');
+            if (simpleConnectBtn) {
+                simpleConnectBtn.disabled = false;
+                simpleConnectBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg> Connect Telegram Now';
+            }
+        }, 120000);
+
         qrPollInterval = setInterval(() => {
             fetch('/auth/qr-check?token=' + token)
                 .then(r => r.json())
                 .then(status => {
                     if (status.done) {
                         clearInterval(qrPollInterval);
-                        clearTimeout(timeoutId);
+                        clearTimeout(qrTimeoutId);
                         authFlow.style.display = 'none';
                         successMessage.style.display = 'block';
                         setTimeout(() => window.location.href = '/dashboard', 1500);
                     } else if (status.requiresPassword) {
                         clearInterval(qrPollInterval);
-                        clearTimeout(timeoutId);
+                        clearTimeout(qrTimeoutId);
                         currentQrToken = token;
                         qrSection.style.display = 'none';
                         simpleStartSection.style.display = 'none';
-                        passwordSection.style.display = 'block';
+                        showSection('password-section');
+                        showMessage('warning', 'Two-factor authentication required. Please enter your password.', 'auth-flow');
                     } else if (status.expired) {
                         clearInterval(qrPollInterval);
-                        clearTimeout(timeoutId);
-                        alert('QR code expired. Please try again.');
-                        if (simpleConnectBtn) simpleConnectBtn.innerText = 'Connect Telegram';
+                        clearTimeout(qrTimeoutId);
+                        showMessage('warning', 'QR code expired. Please try again.', 'auth-flow');
+                        if (simpleConnectBtn) {
+                            simpleConnectBtn.disabled = false;
+                            simpleConnectBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg> Connect Telegram Now';
+                        }
                     }
                 })
                 .catch(err => {
                     console.error('QR check failed:', err);
                     clearInterval(qrPollInterval);
-                    clearTimeout(timeoutId);
-                    alert('Bridge connection lost. Please refresh and try again.');
-                    if (simpleConnectBtn) simpleConnectBtn.innerText = 'Connect Telegram';
+                    clearTimeout(qrTimeoutId);
+                    showMessage('error', 'Connection lost. Please refresh and try again.', 'auth-flow');
+                    if (simpleConnectBtn) {
+                        simpleConnectBtn.disabled = false;
+                        simpleConnectBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg> Connect Telegram Now';
+                    }
                 });
         }, 2500);
-    }
-
-    function initiateAutoLogin() {
-        if (!simpleConnectBtn) return;
-        simpleConnectBtn.innerText = 'Initializing...';
-        fetch('/auth/qr-start', { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-                if (data.qrUrl) {
-                    startQrPolling(data.token);
-                    window.location.href = data.qrUrl;
-                    simpleConnectBtn.innerText = 'Check your Telegram App';
-                    
-                    setTimeout(() => {
-                        qrSection.style.display = 'block';
-                        qrCodeContainer.innerHTML = '';
-                        new QRCode(qrCodeContainer, {
-                            text: data.qrUrl,
-                            width: 200, height: 200
-                        });
-                    }, 2000);
-                }
-            });
-    }
-
-    if (simpleConnectBtn) {
-        simpleConnectBtn.addEventListener('click', initiateAutoLogin);
-    }
-    
-    if (new URLSearchParams(window.location.search).get('auto') === 'true') {
-        setTimeout(initiateAutoLogin, 500);
     }
 
     if (tgShowQrBtn) {
         tgShowQrBtn.addEventListener('click', function() {
             qrSection.style.display = 'block';
             tgShowQrBtn.style.display = 'none';
+            simpleStartSection.style.display = 'none';
+
+            setButtonLoading(this, true);
+
             fetch('/auth/qr-start', { method: 'POST' })
                 .then(r => r.json())
                 .then(data => {
@@ -199,12 +400,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             text: data.qrUrl,
                             width: 220,
                             height: 220,
-                            colorDark : "#000000",
-                            colorLight : "#ffffff",
-                            correctLevel : QRCode.CorrectLevel.H
+                            colorDark: "#000000",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.H
                         });
 
-                        var tgAppLink = document.getElementById('tg-app-link');
+                        const tgAppLink = document.getElementById('tg-app-link');
                         if (tgAppLink) {
                             tgAppLink.href = data.qrUrl;
                             tgAppLink.style.display = 'inline-flex';
@@ -212,68 +413,98 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         startQrPolling(data.token);
                     } else {
-                        alert('Failed to get QR token');
+                        showMessage('error', 'Failed to generate QR code', 'auth-flow');
+                        tgShowQrBtn.style.display = 'block';
                     }
                 })
-                .catch(err => alert('Bridge connection error'));
+                .catch(err => {
+                    showMessage('error', 'Bridge connection error', 'auth-flow');
+                    tgShowQrBtn.style.display = 'block';
+                })
+                .finally(() => {
+                    setButtonLoading(tgShowQrBtn, false, 'Login with QR Code');
+                });
         });
     }
 
-    // Email Authentication Handlers
-    var showEmailAuthBtn = document.getElementById('show-email-auth-btn');
-    var emailLoginSection = document.getElementById('email-login-section');
-    var emailRegisterSection = document.getElementById('email-register-section');
-    var forgotPasswordSection = document.getElementById('forgot-password-section');
-    var resetPasswordSection = document.getElementById('reset-password-section');
-    var emailAuthSection = document.getElementById('email-auth-section');
-
+    // Email authentication sections navigation
     if (showEmailAuthBtn) {
-        showEmailAuthBtn.addEventListener('click', function() {
+        showEmailAuthBtn.addEventListener('click', () => {
             emailAuthSection.style.display = 'none';
-            emailLoginSection.style.display = 'block';
+            showSection('email-login-section');
+            clearMessages();
         });
     }
 
-    var showRegisterBtn = document.getElementById('show-register-btn');
     if (showRegisterBtn) {
-        showRegisterBtn.addEventListener('click', function() {
-            emailLoginSection.style.display = 'none';
-            emailRegisterSection.style.display = 'block';
+        showRegisterBtn.addEventListener('click', () => {
+            showSection('email-register-section');
+            clearMessages();
         });
     }
 
-    var backToLoginBtn = document.getElementById('back-to-login-btn');
     if (backToLoginBtn) {
-        backToLoginBtn.addEventListener('click', function() {
-            emailRegisterSection.style.display = 'none';
-            emailLoginSection.style.display = 'block';
+        backToLoginBtn.addEventListener('click', () => {
+            showSection('email-login-section');
+            clearMessages();
         });
     }
 
-    var showForgotPassBtn = document.getElementById('show-forgot-password-btn');
     if (showForgotPassBtn) {
-        showForgotPassBtn.addEventListener('click', function() {
-            emailLoginSection.style.display = 'none';
-            forgotPasswordSection.style.display = 'block';
+        showForgotPassBtn.addEventListener('click', () => {
+            showSection('forgot-password-section');
+            clearMessages();
         });
     }
 
-    var backToLoginFromForgotBtn = document.getElementById('back-to-login-from-forgot-btn');
     if (backToLoginFromForgotBtn) {
-        backToLoginFromForgotBtn.addEventListener('click', function() {
-            forgotPasswordSection.style.display = 'none';
-            emailLoginSection.style.display = 'block';
+        backToLoginFromForgotBtn.addEventListener('click', () => {
+            showSection('email-login-section');
+            clearMessages();
         });
     }
 
-    var emailLoginBtn = document.getElementById('email-login-btn');
+    // Password strength indicator
+    if (registerPasswordInput) {
+        registerPasswordInput.addEventListener('input', function() {
+            const strength = calculatePasswordStrength(this.value);
+            const strengthBar = document.getElementById('strength-bar');
+            const strengthText = document.getElementById('strength-text');
+            const strengthContainer = document.getElementById('password-strength');
+
+            if (this.value.length === 0) {
+                strengthContainer.style.display = 'none';
+                return;
+            }
+
+            strengthContainer.style.display = 'block';
+            strengthBar.className = 'password-strength-bar ' + strength.level;
+            strengthText.innerText = strength.text;
+            strengthText.style.color = strength.level === 'weak' ? 'var(--danger)' :
+                                       strength.level === 'medium' ? 'var(--warning)' : 'var(--success)';
+        });
+    }
+
+    // Email login
     if (emailLoginBtn) {
         emailLoginBtn.addEventListener('click', function() {
-            var email = document.getElementById('email-input').value.trim();
-            var password = document.getElementById('password-input').value.trim();
-            if (!email || !password) return alert('Enter email and password');
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
 
-            this.innerText = 'Logging in...';
+            if (!email || !password) {
+                showMessage('error', 'Please enter both email and password', 'email-login-section');
+                return;
+            }
+
+            if (!email.includes('@')) {
+                showMessage('error', 'Please enter a valid email address', 'email-login-section');
+                emailInput.classList.add('error');
+                return;
+            }
+
+            setButtonLoading(this, true);
+            clearMessages();
+
             fetch('/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -282,34 +513,52 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(r => {
                 if (r.status === 302 || r.redirected) {
                     window.location.href = '/dashboard';
-                } else {
-                    return r.json().then(data => {
-                        if (data.success) {
-                            window.location.href = '/dashboard';
-                        } else {
-                            alert('Login failed: ' + (data.error || 'Invalid credentials'));
-                            this.innerText = 'Login';
-                        }
-                    });
+                    return;
                 }
+                return r.json().then(data => {
+                    if (data.success) {
+                        showMessage('success', 'Login successful! Redirecting...', 'email-login-section');
+                        setTimeout(() => window.location.href = '/dashboard', 1000);
+                    } else {
+                        showMessage('error', data.error || 'Invalid credentials', 'email-login-section');
+                        passwordInput.classList.add('error');
+                    }
+                });
             })
             .catch(err => {
-                alert('Network error');
-                this.innerText = 'Login';
+                showMessage('error', 'Network error. Please try again.', 'email-login-section');
+            })
+            .finally(() => {
+                setButtonLoading(this, false, 'Sign In');
             });
         });
     }
 
-    var emailRegisterBtn = document.getElementById('email-register-btn');
+    // Email registration
     if (emailRegisterBtn) {
         emailRegisterBtn.addEventListener('click', function() {
-            var firstName = document.getElementById('register-firstname-input').value.trim();
-            var email = document.getElementById('register-email-input').value.trim();
-            var password = document.getElementById('register-password-input').value.trim();
-            if (!firstName || !email || !password) return alert('Enter all fields');
-            if (password.length < 6) return alert('Password must be at least 6 characters');
+            const firstName = registerFirstNameInput.value.trim();
+            const email = registerEmailInput.value.trim();
+            const password = registerPasswordInput.value.trim();
 
-            this.innerText = 'Registering...';
+            if (!firstName || !email || !password) {
+                showMessage('error', 'Please fill in all fields', 'email-register-section');
+                return;
+            }
+
+            if (!email.includes('@')) {
+                showMessage('error', 'Please enter a valid email address', 'email-register-section');
+                return;
+            }
+
+            if (password.length < 6) {
+                showMessage('error', 'Password must be at least 6 characters', 'email-register-section');
+                return;
+            }
+
+            setButtonLoading(this, true);
+            clearMessages();
+
             fetch('/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -318,28 +567,36 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    alert('Registration successful! Please check your email to verify your account.');
-                    emailRegisterSection.style.display = 'none';
-                    emailLoginSection.style.display = 'block';
+                    showMessage('success', 'Registration successful! Please check your email to verify your account.', 'email-register-section');
+                    setTimeout(() => {
+                        showSection('email-login-section');
+                    }, 2500);
                 } else {
-                    alert('Registration failed: ' + (data.error || 'Unknown error'));
+                    showMessage('error', data.error || 'Registration failed', 'email-register-section');
                 }
-                this.innerText = 'Register';
             })
             .catch(err => {
-                alert('Network error');
-                this.innerText = 'Register';
+                showMessage('error', 'Network error. Please try again.', 'email-register-section');
+            })
+            .finally(() => {
+                setButtonLoading(this, false, 'Create Account');
             });
         });
     }
 
-    var forgotPassBtn = document.getElementById('forgot-password-btn');
-    if (forgotPassBtn) {
-        forgotPassBtn.addEventListener('click', function() {
-            var email = document.getElementById('forgot-email-input').value.trim();
-            if (!email) return alert('Enter email');
+    // Forgot password
+    if (forgotPasswordBtn) {
+        forgotPasswordBtn.addEventListener('click', function() {
+            const email = forgotEmailInput.value.trim();
 
-            this.innerText = 'Sending...';
+            if (!email || !email.includes('@')) {
+                showMessage('error', 'Please enter a valid email address', 'forgot-password-section');
+                return;
+            }
+
+            setButtonLoading(this, true);
+            clearMessages();
+
             fetch('/auth/forgot-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -347,28 +604,40 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(r => r.json())
             .then(data => {
-                alert(data.message || 'If the email exists, a reset link has been sent.');
-                this.innerText = 'Send Reset Link';
+                showMessage('success', data.message || 'If the email exists, a reset link has been sent.', 'forgot-password-section');
+                setTimeout(() => {
+                    showSection('email-login-section');
+                    emailInput.value = email;
+                }, 2000);
             })
             .catch(err => {
-                alert('Network error');
-                this.innerText = 'Send Reset Link';
+                showMessage('error', 'Network error. Please try again.', 'forgot-password-section');
+            })
+            .finally(() => {
+                setButtonLoading(this, false, 'Send Reset Link');
             });
         });
     }
 
-    var urlParams = new URLSearchParams(window.location.search);
-    var resetToken = urlParams.get('token');
+    // Reset password (from email link)
+    const urlParams = new URLSearchParams(window.location.search);
+    const resetToken = urlParams.get('token');
     if (resetToken && window.location.pathname === '/auth/reset-password') {
         if (emailAuthSection) emailAuthSection.style.display = 'none';
         if (resetPasswordSection) resetPasswordSection.style.display = 'block';
-        var resetPassBtn = document.getElementById('reset-password-btn');
-        if (resetPassBtn) {
-            resetPassBtn.addEventListener('click', function() {
-                var password = document.getElementById('reset-password-input').value.trim();
-                if (!password || password.length < 6) return alert('Password must be at least 6 characters');
 
-                this.innerText = 'Resetting...';
+        if (resetPasswordBtn) {
+            resetPasswordBtn.addEventListener('click', function() {
+                const password = resetPasswordInput.value.trim();
+
+                if (!password || password.length < 6) {
+                    showMessage('error', 'Password must be at least 6 characters', 'reset-password-section');
+                    return;
+                }
+
+                setButtonLoading(this, true);
+                clearMessages();
+
                 fetch('/auth/reset-password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -377,18 +646,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        alert('Password reset successful! You can now log in with your new password.');
-                        window.location.href = '/auth';
+                        showMessage('success', 'Password reset successful! Redirecting to login...', 'reset-password-section');
+                        setTimeout(() => {
+                            window.location.href = '/auth?reset=success';
+                        }, 1500);
                     } else {
-                        alert('Reset failed: ' + (data.error || 'Invalid token'));
+                        showMessage('error', data.error || 'Reset failed', 'reset-password-section');
                     }
-                    this.innerText = 'Reset Password';
                 })
                 .catch(err => {
-                    alert('Network error');
-                    this.innerText = 'Reset Password';
+                    showMessage('error', 'Network error. Please try again.', 'reset-password-section');
+                })
+                .finally(() => {
+                    setButtonLoading(this, false, 'Reset Password');
                 });
             });
         }
     }
+
+    // Auto-focus first input on section show
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.target.style.display === 'block') {
+                const firstInput = mutation.target.querySelector('input');
+                if (firstInput) firstInput.focus();
+            }
+        });
+    });
+
+    document.querySelectorAll('.auth-section').forEach(section => {
+        observer.observe(section, { attributes: true, attributeFilter: ['style'] });
+    });
+
+    // Clear error on input
+    document.querySelectorAll('.input-field').forEach(input => {
+        input.addEventListener('input', () => input.classList.remove('error'));
+    });
 });

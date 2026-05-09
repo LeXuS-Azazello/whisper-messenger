@@ -57,9 +57,16 @@ spec:
         app: ingress-nginx
     spec:
       serviceAccountName: ingress-nginx
+      hostAliases:
+      - ip: 10.101.0.1
+        hostnames:
+        - kubernetes.default.svc.cluster.local
+        - kubernetes.default.svc
+        - kubernetes.default
+        - kubernetes
       containers:
       - name: nginx
-        image: registry.k8s.io/ingress-nginx/controller:v1.9.4
+        image: registry.k8s.io/ingress-nginx/controller:v1.11.2
         args:
         - /nginx-ingress-controller
         - --election-id=ingress-nginx-leader
@@ -68,6 +75,7 @@ spec:
         - --enable-ssl-passthrough
         - --publish-service=$(POD_NAMESPACE)/ingress-nginx-controller
         - --watch-namespace=$(POD_NAMESPACE)
+        - --v=2
         env:
         - name: POD_NAME
           valueFrom:
@@ -77,6 +85,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
         ports:
         - name: http
           containerPort: 80
@@ -99,8 +111,6 @@ metadata:
     service.nlb.kube-dc.com/bind-on-eip: "voicemsg-eip"
 spec:
   type: LoadBalancer
-  externalIPs:
-  - 91.224.11.104
   ports:
   - name: http
     port: 80
