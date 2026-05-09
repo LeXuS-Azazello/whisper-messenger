@@ -75,7 +75,3 @@ export const renderHome = (googleClientId: string, origin: string) => {
         </html>
     );
 };
-            </body>
-        </html>
-    );
-};

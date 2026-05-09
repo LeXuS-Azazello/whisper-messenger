@@ -35,15 +35,15 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                         <div class="logo" style={{ justifyContent: 'center', marginBottom: '20px' }}>
                             <div class="logo-icon">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                                    <line x1="12" y1="19" x2="12" y2="23"/>
-                                    <line x1="8" y1="23" x2="16" y2="23"/>
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                                    <line x1="12" y1="19" x2="12" y2="23" />
+                                    <line x1="8" y1="23" x2="16" y2="23" />
                                 </svg>
                             </div>
                             ECHO
                         </div>
-                        
+
                         <h2 style={{ textAlign: 'center', marginBottom: '10px' }}>Connect Your account</h2>
                         <p style={{ textAlign: 'center', color: 'var(--text-dim)', fontSize: '14px', marginBottom: '30px' }}>
                             Transcribe voice messages automatically in your personal Telegram chats.
@@ -62,7 +62,7 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                                 <button class="btn" id="tg-simple-connect-btn" style={{ background: 'linear-gradient(135deg, #24A1DE, #1C92D2)', height: '56px', fontSize: '16px', fontWeight: '800' }}>
                                     Connect Telegram Now
                                 </button>
-                                
+
                                 <div style={{ marginTop: '20px' }}>
                                     <button id="show-manual-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
                                         Alternative login (Phone number / QR)
@@ -185,7 +185,7 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                                 <div id="qr-code-container" style={{ background: 'white', padding: '15px', borderRadius: '12px', display: 'inline-block', marginBottom: '15px' }}></div>
                                 <div style={{ marginBottom: '15px' }}>
                                     <a id="tg-app-link" href="#" class="btn btn-sm" style={{ background: '#24A1DE', display: 'inline-flex', alignItems: 'center', gap: '8px', width: 'auto', padding: '8px 16px', borderRadius: '20px', textDecoration: 'none', color: 'white', fontWeight: '600' }}>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" /></svg>
                                         Open in Telegram App
                                     </a>
                                 </div>
@@ -206,10 +206,6 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                     </div>
                 </div>
                 <script src="/assets/js/auth.js"></script>
-            </body>
-        </html>
-    );
-};
             </body>
         </html>
     );

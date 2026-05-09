@@ -716,6 +716,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   }
 
   if (method === "POST" && pathname === "/auth/send-code") {
+    const { phone } = await req.json() as any;
     const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
     console.log(`[Auth] Proxying /send-code to ${bridgeUrl}. Secret set: ${!!env.BRIDGE_SECRET}`);
     const bridgeRes = await fetch(`${bridgeUrl}/send-code`, {

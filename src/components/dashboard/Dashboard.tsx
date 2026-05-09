@@ -22,10 +22,10 @@ export const renderDashboard = (user: UserSession) => {
             <body class="dashboard-page">
                 <div class="container">
                     <header>
-                                <div class="logo">
-                                    <img src="/favicon.svg" alt="Logo" style={{ width: '32px', height: '32px', borderRadius: '8px' }} />
-                                    WHISPER DASHBOARD
-                                </div>
+                        <div class="logo">
+                            <img src="/favicon.svg" alt="Logo" style={{ width: '32px', height: '32px', borderRadius: '8px' }} />
+                            WHISPER DASHBOARD
+                        </div>
                         <div class="user-greeting" style={{ fontSize: '14px', color: 'var(--text-dim)' }}>
                             Welcome, <span style={{ color: 'white', fontWeight: '600' }}>{user.firstName}</span>
                             <button id="logout-btn" style={{ marginLeft: '15px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }}>Logout</button>
@@ -41,7 +41,7 @@ export const renderDashboard = (user: UserSession) => {
                                     {isTgConnected ? 'CONNECTED' : 'NOT SETUP'}
                                 </span>
                             </div>
-                            
+
                             <div id="tg-status-container" style={{ display: isTgConnected ? 'block' : 'none', marginTop: '15px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                                     <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Status:</span>
@@ -57,45 +57,45 @@ export const renderDashboard = (user: UserSession) => {
                                 </div>
                             </div>
                             <div id="tg-auth-container" style={{ display: isTgConnected ? 'none' : 'block', marginTop: '15px' }}>
-                                 {/* Simple One-Click Connect */}
-                                 <div id="tg-simple-connect-view" style={{ textAlign: 'center', padding: '10px 0' }}>
-                                     <button class="btn" id="tg-simple-connect-btn" style={{ background: 'linear-gradient(135deg, #24A1DE, #1C92D2)', height: '48px', width: '100%', fontSize: '15px', fontWeight: '700', margin: '0 0 10px 0' }}>
-                                         Connect My Telegram
-                                     </button>
-                                     <button id="show-manual-auth-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline' }}>
-                                         Use phone number or QR code
-                                     </button>
-                                 </div>
+                                {/* Simple One-Click Connect */}
+                                <div id="tg-simple-connect-view" style={{ textAlign: 'center', padding: '10px 0' }}>
+                                    <button class="btn" id="tg-simple-connect-btn" style={{ background: 'linear-gradient(135deg, #24A1DE, #1C92D2)', height: '48px', width: '100%', fontSize: '15px', fontWeight: '700', margin: '0 0 10px 0' }}>
+                                        Connect My Telegram
+                                    </button>
+                                    <button id="show-manual-auth-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline' }}>
+                                        Use phone number or QR code
+                                    </button>
+                                </div>
 
-                                 <div id="tg-manual-auth-view" style={{ display: 'none' }}>
-                                     <div style={{ display: 'flex', gap: '5px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                         <input type="tel" id="tg-phone-input" class="input-field" placeholder="+123..." style={{ flex: 1, padding: '0.5rem', margin: 0, borderRadius: '8px', fontSize: '13px' }} />
-                                         <button class="btn btn-sm" id="tg-send-code-btn" style={{ margin: 0, width: 'auto', background: '#8B5CF6' }}>Code</button>
-                                     </div>
-                                     <div id="tg-code-section" style={{ display: 'none', marginTop: '8px' }}>
-                                         <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                             <input type="text" id="tg-code-input" class="input-field" placeholder="Code" style={{ width: '80px', padding: '0.5rem', margin: 0, borderRadius: '8px', fontSize: '13px' }} />
-                                             <button class="btn btn-sm" id="tg-verify-btn" style={{ margin: 0, width: 'auto', background: '#22c55e' }}>Link</button>
-                                         </div>
-                                     </div>
-                                     <div style={{ marginTop: '10px' }}>
-                                         <button class="btn btn-sm" id="tg-show-qr-btn" style={{ margin: 0, width: 'auto', background: '#6B7280', fontSize: '10px', padding: '4px 8px' }}>Show QR</button>
-                                     </div>
-                                     <div id="tg-qr-section" style={{ display: 'none', marginTop: '10px', textAlign: 'center' }}>
-                                         <div id="qr-code-container" style={{ background: 'white', padding: '10px', borderRadius: '8px', display: 'inline-block', marginBottom: '8px' }}></div>
-                                         <div style={{ marginBottom: '8px' }}>
-                                             <a id="tg-app-link" href="#" class="btn btn-sm" style={{ background: '#24A1DE', display: 'none', alignItems: 'center', gap: '5px', width: 'auto', padding: '5px 12px', borderRadius: '15px', textDecoration: 'none', color: 'white', fontSize: '11px' }}>
-                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-                                                 Open App
-                                             </a>
-                                         </div>
-                                         <p id="qr-status" style={{ fontSize: '11px', color: '#8B5CF6' }}>Scan from Telegram App</p>
-                                     </div>
-                                 </div>
-                             </div>
+                                <div id="tg-manual-auth-view" style={{ display: 'none' }}>
+                                    <div style={{ display: 'flex', gap: '5px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <input type="tel" id="tg-phone-input" class="input-field" placeholder="+123..." style={{ flex: 1, padding: '0.5rem', margin: 0, borderRadius: '8px', fontSize: '13px' }} />
+                                        <button class="btn btn-sm" id="tg-send-code-btn" style={{ margin: 0, width: 'auto', background: '#8B5CF6' }}>Code</button>
+                                    </div>
+                                    <div id="tg-code-section" style={{ display: 'none', marginTop: '8px' }}>
+                                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                            <input type="text" id="tg-code-input" class="input-field" placeholder="Code" style={{ width: '80px', padding: '0.5rem', margin: 0, borderRadius: '8px', fontSize: '13px' }} />
+                                            <button class="btn btn-sm" id="tg-verify-btn" style={{ margin: 0, width: 'auto', background: '#22c55e' }}>Link</button>
+                                        </div>
+                                    </div>
+                                    <div style={{ marginTop: '10px' }}>
+                                        <button class="btn btn-sm" id="tg-show-qr-btn" style={{ margin: 0, width: 'auto', background: '#6B7280', fontSize: '10px', padding: '4px 8px' }}>Show QR</button>
+                                    </div>
+                                    <div id="tg-qr-section" style={{ display: 'none', marginTop: '10px', textAlign: 'center' }}>
+                                        <div id="qr-code-container" style={{ background: 'white', padding: '10px', borderRadius: '8px', display: 'inline-block', marginBottom: '8px' }}></div>
+                                        <div style={{ marginBottom: '8px' }}>
+                                            <a id="tg-app-link" href="#" class="btn btn-sm" style={{ background: '#24A1DE', display: 'none', alignItems: 'center', gap: '5px', width: 'auto', padding: '5px 12px', borderRadius: '15px', textDecoration: 'none', color: 'white', fontSize: '11px' }}>
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" /></svg>
+                                                Open App
+                                            </a>
+                                        </div>
+                                        <p id="qr-status" style={{ fontSize: '11px', color: '#8B5CF6' }}>Scan from Telegram App</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                         {/* Meta Integration */}
+                        {/* Meta Integration */}
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title"><span style={{ color: '#0081FB' }}>◉</span> Messenger / Instagram</h3>
@@ -150,7 +150,7 @@ export const renderDashboard = (user: UserSession) => {
                                 </div>
 
                                 <button class="btn" id="connect-meta-btn" style={{ background: '#1877F2', margin: 0, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
                                     Connect with Facebook
                                 </button>
                                 {user.metaToken && (
@@ -327,7 +327,7 @@ export const renderDashboard = (user: UserSession) => {
                                 <div id="translation-result" style={{ display: 'none', marginTop: '10px', padding: '10px', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '8px', fontSize: '12px' }}></div>
                             </div>
                         </div>
-                        
+
                         {/* Threads Integration */}
                         <div class="card" style={{ borderLeft: '4px solid #000' }}>
                             <div class="card-header">
@@ -353,10 +353,6 @@ export const renderDashboard = (user: UserSession) => {
                     </div>
                 </div>
                 <script src="/assets/js/dashboard.js"></script>
-            </body>
-        </html>
-    );
-};
             </body>
         </html>
     );

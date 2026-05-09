@@ -6,7 +6,6 @@ import { createSignedSession, verifySession } from "../session";
 import { sampleAudioBase64 } from "../sample_audio";
 
 export async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
-ession[]> {
     const userIdsRaw = await env.STATS.get("users_list");
     let userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
 
