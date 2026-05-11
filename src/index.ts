@@ -76,7 +76,8 @@ export default {
           return fetch(`${bridgeUrl}${webhookPath}`, {
             method: req.method,
             headers: req.headers,
-            body: rawBody
+            body: rawBody,
+            duplex: 'half' as any
           });
         }
       }
@@ -115,7 +116,8 @@ export default {
         return fetch(`${bridgeUrl}${url.pathname}`, {
           method: req.method,
           headers: req.headers,
-          body: rawBody
+          body: rawBody,
+          duplex: 'half' as any
         });
       }
 
@@ -194,7 +196,8 @@ export default {
           method: req.method,
           headers: req.headers,
           body: req.body,
-          redirect: "manual"
+          redirect: "manual",
+          duplex: 'half' as any
         });
         bridgeReq.headers.set("x-bridge-secret", secret);
         bridgeReq.headers.set("x-forwarded-for", req.headers.get("CF-Connecting-IP") || "");

@@ -123,7 +123,7 @@ describe('Google OAuth Callback Integration', () => {
         const response = await handlePublicAuth(env, req, null, mockCtx);
 
         expect(response.status).toBe(400);
-        expect(await response.text()).toBe('Missing credential');
+        expect(await response.text()).toBe('No Google credential or authorization code provided. Method: POST');
     });
 
     it('should reuse existing user metadata if already present', async () => {

@@ -197,7 +197,7 @@ export async function handleGoogleCallback(
   } catch (error) {
     console.error(`[Auth] Google error: ${error}`);
     await logError("auth", `Google auth error: ${error}`, env);
-    return new Response(`Auth Error: ${error}`, { status: 500 });
+    return new Response(`Auth Error: ${error.message}`, { status: 500 });
   }
 }
 

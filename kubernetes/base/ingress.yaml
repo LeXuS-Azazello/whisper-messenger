@@ -5,24 +5,23 @@ metadata:
   namespace: debugging-testcrash-cloud
   annotations:
     kubernetes.io/ingress.class: "nginx"
-    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/backend-protocol: "http"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
 spec:
   ingressClassName: nginx
   rules:
     - host: voicemsg.net
       http:
         paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: echo-frontend
-                port:
-                  number: 80
+           - path: /
+             pathType: Prefix
+             backend:
+               service:
+                 name: echo-frontend
+                 port:
+                   number: 80
     - host: bridge.voicemsg.net
       http:
         paths:
@@ -53,3 +52,13 @@ spec:
                 name: grafana
                 port:
                   number: 3000
+    - host: prometheus.voicemsg.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-server
+                port:
+                  number: 9090

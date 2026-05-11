@@ -74,6 +74,6 @@ describe('Qwen3-ASR Transcription', () => {
 
     (mockEnv.STATS.get as any).mockResolvedValue('qwen3-asr');
 
-    await expect(transcribeWithFallback(audioBuffer, mockEnv)).rejects.toThrow('Qwen3-ASR server returned 500');
+    await expect(transcribeWithFallback(audioBuffer, mockEnv)).rejects.toThrow('Qwen3-ASR error 500: Internal Server Error');
   });
 });

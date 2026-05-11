@@ -6,10 +6,9 @@ metadata:
   namespace: debugging-testcrash-cloud
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
-  name: ingress-nginx-role
-  namespace: debugging-testcrash-cloud
+  name: ingress-nginx-cluster-role
 rules:
 - apiGroups: [""]
   resources: ["configmaps", "endpoints", "nodes", "pods", "secrets", "namespaces", "services"]
@@ -28,17 +27,16 @@ rules:
   verbs: ["get", "list", "watch", "create", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
-  name: ingress-nginx-role-binding
-  namespace: debugging-testcrash-cloud
+  name: ingress-nginx-cluster-role-binding
 subjects:
 - kind: ServiceAccount
   name: ingress-nginx
   namespace: debugging-testcrash-cloud
 roleRef:
-  kind: Role
-  name: ingress-nginx-role
+  kind: ClusterRole
+  name: ingress-nginx-cluster-role
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: apps/v1
@@ -56,26 +54,17 @@ spec:
       labels:
         app: ingress-nginx
     spec:
+      hostNetwork: true
       serviceAccountName: ingress-nginx
-      hostAliases:
-      - ip: 10.101.0.1
-        hostnames:
-        - kubernetes.default.svc.cluster.local
-        - kubernetes.default.svc
-        - kubernetes.default
-        - kubernetes
       containers:
       - name: nginx
-        image: registry.k8s.io/ingress-nginx/controller:v1.11.2
+        image: registry.k8s.io/ingress-nginx/controller:v1.15.1
         args:
-        - /nginx-ingress-controller
-        - --election-id=ingress-nginx-leader
-        - --controller-class=k8s.io/ingress-nginx
-        - --ingress-class=nginx
-        - --enable-ssl-passthrough
-        - --publish-service=$(POD_NAMESPACE)/ingress-nginx-controller
-        - --watch-namespace=$(POD_NAMESPACE)
-        - --v=2
+         - /nginx-ingress-controller
+         - --election-id=ingress-nginx-leader
+         - --controller-class=k8s.io/ingress-nginx
+         - --ingress-class=nginx
+         - --publish-service=$(POD_NAMESPACE)/ingress-nginx-controller
         env:
         - name: POD_NAME
           valueFrom:
@@ -85,10 +74,6 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        - name: NODE_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: spec.nodeName
         ports:
         - name: http
           containerPort: 80
@@ -107,8 +92,8 @@ kind: Service
 metadata:
   name: ingress-nginx-controller
   namespace: debugging-testcrash-cloud
-  annotations:
-    service.nlb.kube-dc.com/bind-on-eip: "voicemsg-eip"
+    annotations:
+    service.nlb.kube-dc.com/bind-on-eip: "voicemsg-fip"
 spec:
   type: LoadBalancer
   ports:

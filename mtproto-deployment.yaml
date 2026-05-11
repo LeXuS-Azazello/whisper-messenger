@@ -1,33 +1,3 @@
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: mtproto-bridge-sa
-  namespace: debugging-testcrash-cloud
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: pod-manager-role
-  namespace: debugging-testcrash-cloud
-rules:
-- apiGroups: [""]
-  resources: ["pods", "persistentvolumeclaims", "services"]
-  verbs: ["get", "list", "watch", "create", "delete"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: mtproto-bridge-rb
-  namespace: debugging-testcrash-cloud
-subjects:
-- kind: ServiceAccount
-  name: mtproto-bridge-sa
-  namespace: debugging-testcrash-cloud
-roleRef:
-  kind: Role
-  name: pod-manager-role
-  apiGroup: rbac.authorization.k8s.io
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -46,6 +16,7 @@ spec:
       serviceAccountName: mtproto-bridge-sa
       containers:
       - name: mtproto-bridge
+        image: azazellosaraksh/debugging-mtproto-bridge:v2
         ports:
         - containerPort: 3000
         env:
@@ -74,15 +45,3 @@ spec:
           limits:
             cpu: "2000m"
             memory: "4Gi"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: mtproto-bridge-manager
-  namespace: debugging-testcrash-cloud
-spec:
-  selector:
-    app: mtproto-bridge-manager
-  ports:
-  - port: 3000
-    targetPort: 3000

@@ -19,7 +19,7 @@ data:
         "serviceAccountName": "mtproto-bridge-sa",
         "containers": [{
           "name": "tg-client",
-          "image": "azazellosaraksh/debugging-tg-client:latest",
+          "image": "ghcr.io/karalabe/tg-client:latest",
           "env": [
             { "name": "MODE", "value": "USER" },
             { "name": "TG_API_ID", "valueFrom": {"configMapKeyRef": {"name": "whisper-messenger-env", "key": "TELEGRAM_APP_ID"}} },

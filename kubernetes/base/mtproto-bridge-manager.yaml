@@ -43,7 +43,7 @@ spec:
       labels:
         app: mtproto-bridge-manager
     spec:
-      serviceAccountName: mtproto-bridge-sa
+       serviceAccountName: mtproto-bridge-sa
       containers:
       - name: mtproto-bridge
         image: azazellosaraksh/debugging-mtproto-bridge:v2

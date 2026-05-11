@@ -34,7 +34,11 @@ export async function transcribeWithFallback(
     }
 
     const result = await response.json() as any;
-    const text = result.text || result.transcription || "";
+    let text = result.text || result.transcription || "";
+
+    // Hallucination cleanup: remove repeating sentences (3+ repetitions)
+    text = text.replace(/(.+?\.)\s*\1\s*\1(\s*\1)*/g, '$1 $1');
+
     return { text, model: "Qwen3-ASR" };
   } catch (e) {
     clearTimeout(timeoutId);

@@ -58,7 +58,6 @@
 ### 2. MTProto Bridge Manager (Kubernetes)
 - **Role**: Manages Telegram user sessions, spawns/terminates per-user tg-client PODs
 - **Path**: `mtproto-bridge/index.js` — Express.js server (MANAGER mode only)
-- **Image**: `azazellosaraksh/debugging-mtproto-bridge:v2`
 - **Mode**: `MODE=MANAGER`
 - **Endpoints**:
   - `/health` — Health check
@@ -75,7 +74,6 @@
 ### 3. tg-client — Per-User Telegram Client (NEW)
 - **Role**: Maintains persistent MTProto connection per user, listens for voice messages, transcribes via Qwen3-ASR
 - **Path**: `tg-client/src/` — Standalone Node.js/Express process
-- **Image**: `azazellosaraksh/debugging-tg-client:latest`
 - **Mode**: `MODE=USER` (spawned dynamically by bridge manager)
 - **Behavior**:
   - Connects to Telegram MTProto API with user's session
@@ -90,7 +88,6 @@
 ### 4. Qwen3-ASR Transcription Service (Kubernetes)
 - **Role**: Speech-to-text transcription using Qwen3-ASR model via Ollama
 - **Path**: `src/whisper.ts` — Frontend worker queue consumer; `tg-client/src/telegramClient.js` — tg-client direct transcription
-- **Image**: `azazellosaraksh/debugging-qwen3-asr:latest`
 - **Storage**: 50Gi persistent volume for model storage
 - **Note**: Currently experiencing `ImagePullBackOff` — image may need to be rebuilt/pulled
 
@@ -213,12 +210,6 @@ bash scripts/deploy.sh
 kubectl rollout restart deployment echo-frontend -n debugging-testcrash-cloud
 ```
 
-### Build and Push tg-client Image
-```bash
-cd tg-client
-docker build -t azazellosaraksh/debugging-tg-client:latest .
-docker push azazellosaraksh/debugging-tg-client:latest
-```
 
 ### Local Development
 ```bash
