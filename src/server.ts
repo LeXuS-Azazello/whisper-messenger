@@ -14,16 +14,26 @@ app.use("*", logger());
 app.use("*", cors());
 
 // Serve favicon directly from filesystem (no bridge proxy needed)
-app.get("/favicon.svg", async (_c) => {
-  try {
-    const faviconPath = new URL("../favicon.svg", import.meta.url);
-    const data = readFileSync(faviconPath);
-    return new Response(data, {
-      headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" }
-    });
-  } catch {
-    return new Response("Not found", { status: 404 });
-  }
+const FAVICON_SVG = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0B1220"/>
+  <rect x="14" y="14" width="10" height="20" rx="5" fill="url(#g)"/>
+  <path d="M10 30 Q19 40 28 30" stroke="url(#g)" stroke-width="3" fill="none"/>
+  <path d="M28 28 Q34 18 38 28 T48 28" stroke="url(#g)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+</svg>`;
+
+app.get("/favicon.svg", async (c) => {
+  return new Response(FAVICON_SVG, {
+    headers: { 
+      "Content-Type": "image/svg+xml", 
+      "Cache-Control": "public, max-age=86400" 
+    }
+  });
 });
 
 // Serve static assets from src/ui/css and src/ui/js

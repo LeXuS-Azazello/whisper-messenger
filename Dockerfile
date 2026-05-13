@@ -12,6 +12,7 @@ RUN ls -d node_modules/@hono/node-server && ls -d node_modules/tsx
 
 # Copy source code
 COPY src/ ./src/
+COPY favicon.svg ./
 
 # Expose port
 EXPOSE 3000
