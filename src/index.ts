@@ -19,12 +19,21 @@ function getBridgeUrl(env: Env): string {
 
 function getPublicOrigin(env: Env, fallbackOrigin: string): string {
   const configured = (env.WORKER_URL || "").trim();
-  if (!configured) return fallbackOrigin;
-  try {
-    return new URL(configured).origin;
-  } catch {
-    return fallbackOrigin;
+  let origin = fallbackOrigin;
+  if (configured) {
+    try {
+      origin = new URL(configured).origin;
+    } catch {
+      origin = fallbackOrigin;
+    }
   }
+
+  // Enforce https and remove subdomains for voicemsg.net
+  if (origin.includes("voicemsg.net")) {
+    origin = "https://voicemsg.net";
+  }
+
+  return origin;
 }
 
 /**

@@ -45,6 +45,18 @@ spec:
               name: whisper-messenger-env
               key: WORKER_URL
               optional: true
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: GOOGLE_CLIENT_ID
+              optional: true
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: GOOGLE_CLIENT_SECRET
+              optional: true
         resources:
           requests:
             cpu: "200m"

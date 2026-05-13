@@ -2,7 +2,6 @@
 my domain is voicemsg.net 
 namespace: debugging-testcrash-pub
 
-**NEVER** run or test on localhost. All deployment must use remote server the Kubernetes server only.
 
 ## Kubernetes Access
 ```bash

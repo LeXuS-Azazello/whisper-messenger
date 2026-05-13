@@ -9,12 +9,21 @@ const RATE_LIMIT_TTL = 60;
 
 export function getPublicOrigin(env: Env, fallbackOrigin: string): string {
   const configured = (env.WORKER_URL || "").trim();
-  if (!configured) return fallbackOrigin;
-  try {
-    return new URL(configured).origin;
-  } catch {
-    return fallbackOrigin;
+  let origin = fallbackOrigin;
+  if (configured) {
+    try {
+      origin = new URL(configured).origin;
+    } catch {
+      origin = fallbackOrigin;
+    }
   }
+
+  // Enforce https and remove subdomains for voicemsg.net
+  if (origin.includes("voicemsg.net")) {
+    origin = "https://voicemsg.net";
+  }
+
+  return origin;
 }
 
 export async function sendEmail(env: Env, to: string, subject: string, htmlBody: string): Promise<boolean> {
@@ -194,7 +203,7 @@ export async function handleGoogleCallback(
     await logError("auth", `User ${userId} authenticated via Google`, env);
     return await createSessionResponse(userId, env);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(`[Auth] Google error: ${error}`);
     await logError("auth", `Google auth error: ${error}`, env);
     return new Response(`Auth Error: ${error.message}`, { status: 500 });
@@ -263,7 +272,7 @@ export async function handleEmailVerify(env: Env, token: string | null, url: URL
 
   const publicOrigin = getPublicOrigin(env, url.origin);
   return new Response(renderAuthPage(undefined, false, publicOrigin, 'verified'), {
-      headers: { "Content-Type": "text/html; charset=utf-8" }
+    headers: { "Content-Type": "text/html; charset=utf-8" }
   });
 }
 
@@ -324,7 +333,7 @@ export async function handleRegister(env: Env, body: any, url: URL): Promise<Res
 
   const emailSent = await sendEmail(env, email, "Verify Your Email", htmlBody);
   if (!emailSent) {
-      return Response.json({ error: "Registration successful but failed to send verification email" }, { status: 500 });
+    return Response.json({ error: "Registration successful but failed to send verification email" }, { status: 500 });
   }
 
   return Response.json({ success: true, message: "Registered. Check email to verify." });

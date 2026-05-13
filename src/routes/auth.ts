@@ -27,10 +27,11 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   const url = new URL(req.url);
   const method = req.method;
   const pathname = url.pathname;
+  const publicOrigin = getPublicOrigin(env, url.origin);
 
   const successType = url.searchParams.get('success');
   if (method === 'GET' && successType) {
-      return new Response(renderAuthPage(undefined, false, url.origin, successType), {
+      return new Response(renderAuthPage(undefined, false, publicOrigin, successType), {
           headers: { "Content-Type": "text/html; charset=utf-8" }
       });
   }
@@ -42,7 +43,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
             headers: { "Location": "/dashboard" }
         });
     }
-    return new Response(renderAuthPage(undefined, false, url.origin), {
+    return new Response(renderAuthPage(undefined, false, publicOrigin), {
         headers: { "Content-Type": "text/html; charset=utf-8" }
     });
   }
