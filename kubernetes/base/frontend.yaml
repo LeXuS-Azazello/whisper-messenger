@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: azazellosaraksh/debugging-mtproto-bridge:v3
+        image: azazellosaraksh/debugging-mtproto-bridge:v4
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
         env:
