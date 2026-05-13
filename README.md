@@ -168,7 +168,7 @@
 │   │   ├── tg-client.yaml        # tg-client POD ConfigMap template
 │   │   └── rbac.yaml            # RBAC for bridge manager
 │   ├── overlays/
-│   │   ├── testcrash-cloud/
+│   │   ├── testcrash-pub/
 │   │   │   └── kustomization.yaml
 │   │   └── voicemsg/
 │   │       └── kustomization.yaml
@@ -198,16 +198,16 @@
 ```bash
 # Login to cluster
 kube-dc login --domain kube-dc.cloud --org debugging
-kube-dc use kube-dc.cloud/debugging/testcrash-cloud
+kube-dc use kube-dc.cloud/debugging/testcrash-pub
 
 # Option A: Deploy with kustomize (recommended)
-kubectl apply -k kubernetes/base/ -n debugging-testcrash-cloud
+kubectl apply -k kubernetes/base/ -n debugging-testcrash-pub
 
 # Option B: Deploy with scripts
 bash scripts/deploy.sh
 
 # Restart frontend after code changes
-kubectl rollout restart deployment echo-frontend -n debugging-testcrash-cloud
+kubectl rollout restart deployment echo-frontend -n debugging-testcrash-pub
 ```
 
 

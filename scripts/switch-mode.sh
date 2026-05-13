@@ -2,7 +2,7 @@
 # Script to switch between Direct IP and Cloudflare Tunnel modes
 
 MODE=$1
-NAMESPACE="debugging-testcrash-cloud"
+NAMESPACE="debugging-testcrash-pub"
 
 if [ "$MODE" == "direct" ]; then
     echo ">>> Switching to DIRECT IP mode..."

@@ -1,6 +1,6 @@
 # Critical Deployment Rules
 my domain is voicemsg.net 
-namespace: debugging-testcrash-cloud
+namespace: debugging-testcrash-pub
 
 **NEVER** run or test on localhost. All deployment must use remote server the Kubernetes server only.
 
@@ -10,12 +10,12 @@ namespace: debugging-testcrash-cloud
 kube-dc login --domain kube-dc.cloud --org debugging
 
 # Switch to project context
-kube-dc use kube-dc.cloud/debugging/testcrash-cloud
+kube-dc use kube-dc.cloud/debugging/testcrash-pub
 ```
 
 
 # Repository Guidelines
-Do not start local. Only use my remote kubernetes on my server and cloudflare for DNS or tunnel
+Do not start local. Only use my remote kubernetes on my server
 Only use one domain "voicemsg.net" else kubernetes services use by internal IP
 
 

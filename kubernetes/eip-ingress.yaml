@@ -4,6 +4,6 @@ apiVersion: kube-dc.com/v1
 kind: EIp
 metadata:
   name: voicemsg-eip
-  namespace: debugging-testcrash-cloud
+  namespace: debugging-testcrash-pub
 spec:
   externalNetworkType: public

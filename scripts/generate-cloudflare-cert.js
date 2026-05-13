@@ -27,7 +27,7 @@ const CONFIG = {
   ],
   certificateName: 'voicemsg-origin-cert',
   kubernetes: {
-    namespace: 'debugging-testcrash-cloud',
+    namespace: 'debugging-testcrash-pub',
     secretName: 'voicemsg-tls-cert',
     issuerName: 'letsencrypt-dns01', // не используется, но оставляем для совместимости
   },

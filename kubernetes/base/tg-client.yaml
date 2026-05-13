@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: tg-client-pod-template
-  namespace: debugging-testcrash-cloud
+  namespace: debugging-testcrash-pub
 data:
   pod-template.json: |
     {
@@ -45,7 +45,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: tg-client
-  namespace: debugging-testcrash-cloud
+  namespace: debugging-testcrash-pub
   labels:
     app: tg-client
 spec:

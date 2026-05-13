@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mtproto-bridge-manager
-  namespace: debugging-testcrash-cloud
+  namespace: debugging-testcrash-pub
 spec:
   replicas: 1
   selector:

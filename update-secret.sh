@@ -5,7 +5,7 @@
 
 set -e
 
-NAMESPACE="debugging-testcrash-cloud"
+NAMESPACE="debugging-testcrash-pub"
 SECRET_NAME="whisper-messenger-env"
 
 echo "Updating Kubernetes secret $SECRET_NAME in namespace $NAMESPACE from .env file..."

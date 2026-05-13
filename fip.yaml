@@ -2,7 +2,7 @@ apiVersion: kube-dc.com/v1
 kind: FIp
 metadata:
   name: voicemsg-fip
-  namespace: debugging-testcrash-cloud
+  namespace: debugging-testcrash-pub
 spec:
   externalNetworkType: public
   ipAddress: 91.224.11.115

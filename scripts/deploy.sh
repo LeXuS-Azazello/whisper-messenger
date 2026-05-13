@@ -5,14 +5,14 @@ echo "========================================"
 echo "  Echo Messenger K8s Deployment"
 echo "========================================"
 
-NAMESPACE="${NAMESPACE:-debugging-testcrash-cloud}"
+NAMESPACE="${NAMESPACE:-debugging-testcrash-pub}"
 echo "Namespace: $NAMESPACE"
 echo ""
 
 # Login
 echo ">>> Logging into Kubernetes cluster..."
 kube-dc login --domain kube-dc.cloud --org debugging 2>&1 || echo "Already logged in"
-kube-dc use kube-dc.cloud/debugging/testcrash-cloud 2>&1 || true
+kube-dc use kube-dc.cloud/debugging/testcrash-pub 2>&1 || true
 echo ""
 
 # Single kustomize apply covers: frontend, redis, network-policy,

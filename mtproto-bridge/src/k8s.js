@@ -10,27 +10,27 @@ export function initK8s() {
     try {
         const kc = new k8s.KubeConfig();
         kc.loadFromDefault();
-        
+
         let cluster = kc.getCurrentCluster();
         console.log(`[bridge] K8s context: ${kc.getCurrentContext()}, Cluster: ${cluster?.name}, Original Server: ${cluster?.server}`);
-        
+
         const customServer = process.env.BRIDGE_API_SERVER;
         if (customServer) {
             console.log(`[bridge] Overriding K8s server ${cluster?.server} -> ${customServer} (BRIDGE_API_SERVER)`);
             cluster.server = customServer;
-            cluster.skipTLSVerify = false; 
+            cluster.skipTLSVerify = false;
         } else {
             console.log(`[bridge] Using default K8s server`);
         }
-        
+
         const httpsAgent = new https.Agent({
             keepAlive: true,
             keepAliveMsecs: 10000,
             maxSockets: 50,
             maxFreeSockets: 20,
-            timeout: 60000, 
+            timeout: 60000,
         });
-        
+
         k8sApi = kc.makeApiClient(k8s.CoreV1Api);
         if (k8sApi && k8sApi.defaultClient) {
             k8sApi.defaultClient.request.agent = httpsAgent;
@@ -51,7 +51,7 @@ export async function spawnPod(userId, session) {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
     const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    const namespace = process.env.POD_NAMESPACE || 'debugging-testcrash-cloud';
+    const namespace = process.env.POD_NAMESPACE || 'debugging-testcrash-pub';
 
     console.log(`[/spawn] Spawning tg-client pod for user ${safeUserId}`);
 
@@ -60,7 +60,7 @@ export async function spawnPod(userId, session) {
         const existing = await withTimeout(k8sApi.listNamespacedPod({
             namespace,
         }), 30000);
-        
+
         const allItems = existing?.body?.items || existing?.items || [];
         const items = allItems.filter(p => p.metadata.labels?.userId === safeUserId);
         if (items.length > 0) {
@@ -81,12 +81,12 @@ export async function spawnPod(userId, session) {
     const podManifest = {
         apiVersion: 'v1',
         kind: 'Pod',
-        metadata: { 
-            name: podName, 
-            labels: { 
-                app: 'tg-user-bridge', 
-                userId: safeUserId 
-            } 
+        metadata: {
+            name: podName,
+            labels: {
+                app: 'tg-user-bridge',
+                userId: safeUserId
+            }
         },
         spec: {
             serviceAccountName: 'mtproto-bridge-sa',
@@ -122,7 +122,7 @@ export async function spawnPod(userId, session) {
     };
 
     console.log(`[/spawn] Creating new tg-client pod ${podName}...`);
-    await withTimeout(k8sApi.createNamespacedPod({ namespace, body: podManifest }), 60000); 
+    await withTimeout(k8sApi.createNamespacedPod({ namespace, body: podManifest }), 60000);
 
     console.log(`[/spawn] Successfully spawned ${podName} in namespace ${namespace}`);
     return podName;
@@ -131,13 +131,13 @@ export async function spawnPod(userId, session) {
 export async function deletePods(userId) {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
-    const namespace = process.env.POD_NAMESPACE || 'debugging-testcrash-cloud';
-    
+    const namespace = process.env.POD_NAMESPACE || 'debugging-testcrash-pub';
+
     console.log(`[/delete] Deleting tg-client pods for user ${safeUserId}`);
     const existing = await withTimeout(k8sApi.listNamespacedPod({
         namespace,
     }), 5000);
-    
+
     const allItems = existing?.body?.items || existing?.items || [];
     const items = allItems.filter(p => p.metadata.labels?.userId === safeUserId);
     if (items.length > 0) {
@@ -153,12 +153,12 @@ export async function deletePods(userId) {
 
 export async function listPods() {
     if (!k8sApi) throw new Error('K8s API not initialized');
-    const namespace = process.env.POD_NAMESPACE || 'debugging-testcrash-cloud';
+    const namespace = process.env.POD_NAMESPACE || 'debugging-testcrash-pub';
     console.log(`[/pods] Fetching tg-client pods in namespace ${namespace}`);
     const pods = await withTimeout(k8sApi.listNamespacedPod({
         namespace,
     }), 10000);
-    
+
     const items = pods?.body?.items || pods?.items || [];
     return items.map(p => {
         const labels = p?.metadata?.labels || {};
@@ -183,7 +183,7 @@ export async function runReconciliation() {
                 return;
             }
             console.log(`[bridge] Found ${users.length} active users to check`);
-            
+
             const runningPods = await listPods().catch(() => []);
             const runningUserIds = new Set(runningPods.map(p => String(p.userId)));
 
