@@ -31,6 +31,8 @@ export function auth(req, res, next) {
     console.warn(`[bridge-auth] 401 Unauthorized.
         Received: "${s ? s.slice(0, 3) + '...' + s.slice(-3) : 'NONE'}" (length: ${s.length})
         Expected match: "${expected ? expected.slice(0, 3) + '...' + expected.slice(-3) : 'NONE'}" (length: ${expected.length})
+        Headers: ${JSON.stringify(req.headers)}
+        Query: ${JSON.stringify(req.query)}
         Path: ${req.method} ${req.url}
         Remote IP: ${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`);
     return res.status(401).json({ error: 'Unauthorized' });

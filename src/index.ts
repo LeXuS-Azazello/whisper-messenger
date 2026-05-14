@@ -53,12 +53,18 @@ export default {
       const publicOrigin = getPublicOrigin(env, url.origin);
       const bridgeUrl = getBridgeUrl(env);
 
+      // Normalize pathname: remove trailing slash for easier matching
+      let pathname = url.pathname;
+      if (pathname !== "/" && pathname.endsWith("/")) {
+        pathname = pathname.slice(0, -1);
+      }
+
       // Health check
-      if (url.pathname === "/health") return Response.json({ ok: true });
+      if (pathname === "/health") return Response.json({ ok: true });
 
       // ─── Webhook routes (verify + forward to bridge) ──────────────────────────
 
-      if (url.pathname === "/webhooks/meta" || url.pathname === "/webhooks/whatsapp") {
+      if (pathname === "/webhooks/meta" || pathname === "/webhooks/whatsapp") {
         if (req.method === "GET") {
           const mode = url.searchParams.get("hub.mode");
           const token = url.searchParams.get("hub.verify_token");
@@ -92,7 +98,7 @@ export default {
       }
 
       // Telegram webhook
-      if (url.pathname.startsWith("/webhooks/line/")) {
+      if (pathname.startsWith("/webhooks/line/")) {
         const userId = url.pathname.split("/").pop();
         if (!userId) return new Response("Missing User ID", { status: 400 });
 
@@ -131,7 +137,7 @@ export default {
       }
 
       // ─── Telegram Bot Webhook (for Telegram updates, not LINE) ────────────────
-      if (url.pathname.startsWith("/webhooks/telegram")) {
+      if (pathname.startsWith("/webhooks/telegram")) {
         const rawBody = await req.text();
         let body: any;
         try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
@@ -144,7 +150,7 @@ export default {
       }
 
       // ─── Meta Threads Webhook ──────────────────────────────────────────────
-      if (url.pathname.startsWith("/webhooks/threads")) {
+      if (pathname.startsWith("/webhooks/threads")) {
         const rawBody = await req.text();
         let body: any;
         try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
@@ -153,14 +159,14 @@ export default {
       }
 
       // ─── Internal routes (bridge ↔ worker communication) ────────────────────
-      if (pathStartsWith(url.pathname, "/internal")) {
+      if (pathStartsWith(pathname, "/internal")) {
         const internalResponse = await handleInternalRoutes(env, req, url);
         if (internalResponse) return internalResponse;
         // Fall through to 404
       }
 
       // ─── Auth routes ────────────────────────────────────────────────────────
-      if (pathStartsWith(url.pathname, "/auth")) {
+      if (pathStartsWith(pathname, "/auth") || pathname === "/send-code" || pathname === "/verify-code" || pathname === "/qr-start" || pathname === "/qr-check") {
         // Extract userId from session cookie
         const sessionCookie = req.headers.get("Cookie")?.match(/session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;
@@ -172,7 +178,7 @@ export default {
       }
 
       // ─── Dashboard routes (authenticated) ──────────────────────────────────
-      if (pathStartsWith(url.pathname, "/dashboard")) {
+      if (pathStartsWith(pathname, "/dashboard")) {
         const sessionCookie = req.headers.get("Cookie")?.match(/session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;
         if (sessionCookie) {
@@ -190,13 +196,13 @@ export default {
       }
 
       // ─── Admin routes ──────────────────────────────────────────────────────
-      if (pathStartsWith(url.pathname, "/admin")) {
+      if (pathStartsWith(pathname, "/admin")) {
         return await handleAdmin(env, req);
       }
 
       // ─── Bridge API proxy (spawn, delete, etc.) ────────────────────────────
       // These endpoints are called by the frontend JS and need to reach the bridge
-      if (url.pathname === "/spawn" || url.pathname === "/delete-pod") {
+      if (pathname === "/spawn" || pathname === "/delete-pod") {
         const secret = (env.BRIDGE_SECRET || "changeme").trim();
         const proxyUrl = new URL(`${bridgeUrl}${url.pathname}${url.search}`);
         proxyUrl.searchParams.set("secret", secret);
@@ -214,7 +220,7 @@ export default {
       }
 
       // ─── Home page (/) ──────────────────────────────────────────────────────
-      if (url.pathname === "/") {
+      if (pathname === "/") {
         return new Response(renderHome(env.GOOGLE_CLIENT_ID || "", publicOrigin), {
           headers: { "Content-Type": "text/html; charset=utf-8" }
         });

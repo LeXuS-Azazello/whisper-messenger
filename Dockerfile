@@ -1,21 +1,31 @@
+# --- Build Stage ---
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+# --- Production Stage ---
 FROM node:18-alpine
 
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
-# Use npm install to ensure dependencies from package.json are correctly handled
+# Also copy bridge and tg-client package files to install their deps if needed
+COPY mtproto-bridge/package*.json ./mtproto-bridge/
+COPY tg-client/package*.json ./tg-client/
+
 RUN npm install --omit=dev
+RUN cd mtproto-bridge && npm install --omit=dev
+RUN cd tg-client && npm install --omit=dev
 
-# Verify critical packages are present
-RUN ls -d node_modules/@hono/node-server && ls -d node_modules/tsx
+# Copy compiled files and assets
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/ui ./src/ui
+COPY --from=builder /app/favicon.svg ./
 
-# Copy source code
-COPY src/ ./src/
-COPY favicon.svg ./
-
-# Expose port
 EXPOSE 3000
 
-# Use the local tsx binary directly to avoid npx overhead and isolation issues
-CMD ["./node_modules/.bin/tsx", "src/server.ts"]
+# Run the compiled JS directly
+CMD ["node", "dist/server.js"]

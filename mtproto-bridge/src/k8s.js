@@ -92,7 +92,8 @@ export async function spawnPod(userId, session) {
             serviceAccountName: 'mtproto-bridge-sa',
             containers: [{
                 name: 'tg-client',
-                image: process.env.TG_CLIENT_IMAGE || 'ghcr.io/karalabe/tg-client:latest',
+                image: process.env.TG_CLIENT_IMAGE || 'azazellosaraksh/debugging-mtproto-bridge:latest',
+                command: ["node", "tg-client/src/index.js"],
                 ports: [{ containerPort: 3001 }],
                 env: [
                     { name: 'MODE', value: 'USER' },

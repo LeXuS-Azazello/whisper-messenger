@@ -26,8 +26,22 @@ import {
 export async function handlePublicAuth(env: Env, req: Request, currentUserId: string | null, ctx: { waitUntil: (p: Promise<any>) => void }): Promise<Response> {
   const url = new URL(req.url);
   const method = req.method;
-  const pathname = url.pathname;
   const publicOrigin = getPublicOrigin(env, url.origin);
+  
+  // Normalize pathname: remove trailing slash and ensure it starts with /auth for internal logic
+  let pathname = url.pathname;
+  if (pathname !== "/" && pathname.endsWith("/")) {
+    pathname = pathname.slice(0, -1);
+  }
+  
+  // If the path doesn't start with /auth, but it's one of our known routes, add the prefix for matching
+  const knownRoutes = [
+    "/send-code", "/verify-code", "/verify-password", "/qr-start", "/qr-check", 
+    "/login", "/register", "/logout", "/email/send", "/email/verify", "/forgot-password", "/reset-password"
+  ];
+  if (knownRoutes.includes(pathname)) {
+    pathname = "/auth" + pathname;
+  }
 
   const successType = url.searchParams.get('success');
   if (method === 'GET' && successType) {

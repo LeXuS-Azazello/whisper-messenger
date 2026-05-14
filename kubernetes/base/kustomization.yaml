@@ -10,10 +10,11 @@ resources:
   - ingress.yaml
   - ingress-nginx.yaml
   - tg-client.yaml
-
-  # Monitoring (optional — comment out to exclude)
-  # - grafana.yaml
-  # - prometheus.yaml
-  # - fluentd.yaml
+  # - cert-manager.yaml
+  - grafana.yaml
+  - prometheus.yaml
+  - fluentd.yaml
+  - fip.yaml
+  - static.yaml
 
 namespace: debugging-testcrash-pub

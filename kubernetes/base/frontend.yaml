@@ -72,7 +72,7 @@ metadata:
   name: echo-frontend
   namespace: debugging-testcrash-pub
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: echo-frontend
   ports:

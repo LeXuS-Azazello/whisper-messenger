@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { readFileSync } from "fs";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { Env } from "./types";
 import worker from "./index";
 import { RedisKV } from "./redisKV";
@@ -14,7 +15,8 @@ app.use("*", logger());
 app.use("*", cors());
 
 // Serve favicon directly from filesystem (no bridge proxy needed)
-const FAVICON_SVG = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+const FAVICON_SVG = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0F172A"/>
@@ -27,30 +29,25 @@ const FAVICON_SVG = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http
   <path d="M28 28 Q34 18 38 28 T48 28" stroke="url(#g)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
 </svg>`;
 
-app.get("/favicon.svg", async (c) => {
-  return new Response(FAVICON_SVG, {
-    headers: { 
-      "Content-Type": "image/svg+xml", 
-      "Cache-Control": "public, max-age=86400" 
-    }
+app.get("/favicon.svg", (c) => {
+  return c.body(FAVICON_SVG, 200, {
+    "Content-Type": "image/svg+xml",
+    "Cache-Control": "public, max-age=86400"
   });
 });
 
-// Serve static assets from src/ui/css and src/ui/js
-app.get("/assets/:type/:file", async (c) => {
-  const type = c.req.param("type"); // css or js
-  const file = c.req.param("file");
-  try {
-    const assetPath = new URL(`./ui/${type}/${file}`, import.meta.url);
-    const data = readFileSync(assetPath);
-    const contentType = type === "css" ? "text/css" : "application/javascript";
-    return new Response(data, {
-      headers: { "Content-Type": contentType, "Cache-Control": "public, max-age=3600" }
-    });
-  } catch {
-    return new Response("Asset not found", { status: 404 });
-  }
+app.get("/favicon.ico", (c) => {
+  return c.body(FAVICON_SVG, 200, {
+    "Content-Type": "image/svg+xml",
+    "Cache-Control": "public, max-age=86400"
+  });
 });
+
+// Serve static assets from src/ui using Hono's built-in static server
+app.use("/assets/*", serveStatic({ 
+  root: "./",
+  rewriteRequestPath: (path) => path.replace(/^\/assets/, "/src/ui")
+}));
 
 // Mock ExecutionContext for Hono
 const createCtx = () => ({

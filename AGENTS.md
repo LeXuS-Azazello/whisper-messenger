@@ -18,11 +18,9 @@ Do not start local. Only use my remote kubernetes on my server
 Only use one domain "voicemsg.net" else kubernetes services use by internal IP
 
 
-## Deployment Architecture
-- **Kubernetes Cluster**: Runs MTProto bridge and Whisper server.
 
 ## Project Structure & Module Organization
-Voice Messenger is a multi-tenant voice-to-text bridge connecting Meta (FB/Insta), WhatsApp, and Telegram to  Qwen3-ASR.
+Voice Messenger is a multi-tenant voice-to-text  connecting Meta (FB/Insta), WhatsApp, and Telegram to  Qwen3-ASR.
 
 - **Kubernetes Configs (`kubernetes/`)**: Infrastructure definitions ingress controllers.
 
@@ -31,7 +29,7 @@ Voice Messenger is a multi-tenant voice-to-text bridge connecting Meta (FB/Insta
 ## Coding Style & Naming Conventions
 - **Language**: TypeScript (ESNext) with strict mode enabled.
 - **UI Framework**: Preact with JSX (`jsxImportSource: preact`).
-- **Testing**: onnly on remote server Vitest for both Worker and Bridge.
+
 - **Naming**: CamelCase for functions/variables, PascalCase for components.
 
 ## Testing Guidelines
