@@ -16,13 +16,26 @@ kube-dc use kube-dc.cloud/debugging/testcrash-pub 2>&1 || true
 echo ""
 
 # Image configuration
-IMAGE_NAME="azazellosaraksh/debugging-mtproto-bridge"
 TAG=$(date +%Y%m%d-%H%M%S)
-FULL_IMAGE="${IMAGE_NAME}:${TAG}"
+REPO="azazellosaraksh"
 
-echo ">>> Building and pushing Docker image: $FULL_IMAGE"
-docker build -t "$FULL_IMAGE" .
-docker push "$FULL_IMAGE"
+FRONTEND_IMAGE="${REPO}/whisper-frontend:${TAG}"
+BRIDGE_IMAGE="${REPO}/whisper-bridge-manager:${TAG}"
+TG_CLIENT_IMAGE="${REPO}/whisper-tg-client:${TAG}"
+
+echo ">>> Building and pushing Docker images..."
+
+echo "1. Frontend: $FRONTEND_IMAGE"
+docker build -t "$FRONTEND_IMAGE" -f Dockerfile .
+docker push "$FRONTEND_IMAGE"
+
+echo "2. Bridge Manager: $BRIDGE_IMAGE"
+docker build -t "$BRIDGE_IMAGE" -f mtproto-bridge/Dockerfile mtproto-bridge/
+docker push "$BRIDGE_IMAGE"
+
+echo "3. TG Client: $TG_CLIENT_IMAGE"
+docker build -t "$TG_CLIENT_IMAGE" -f tg-client/Dockerfile tg-client/
+docker push "$TG_CLIENT_IMAGE"
 echo ""
 
 # Single kustomize apply covers: frontend, redis, network-policy,
@@ -32,12 +45,11 @@ kubectl apply -k kubernetes/base/ -n "$NAMESPACE"
 echo ""
 
 # Update image in k8s manifests
-echo ">>> Updating image tag to $TAG in Deployment..."
-# This must happen AFTER apply -k, otherwise apply -k will overwrite it back to the YAML version
-kubectl set image deployment/echo-frontend frontend="$FULL_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/mtproto-bridge-manager mtproto-bridge="$FULL_IMAGE" -n "$NAMESPACE"
-kubectl set env deployment/mtproto-bridge-manager TG_CLIENT_IMAGE="$FULL_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/echo-static build-assets="$FULL_IMAGE" -n "$NAMESPACE"
+echo ">>> Updating image tags in Deployments..."
+kubectl set image deployment/echo-frontend frontend="$FRONTEND_IMAGE" -n "$NAMESPACE"
+kubectl set image deployment/mtproto-bridge-manager mtproto-bridge="$BRIDGE_IMAGE" -n "$NAMESPACE"
+kubectl set env deployment/mtproto-bridge-manager TG_CLIENT_IMAGE="$TG_CLIENT_IMAGE" -n "$NAMESPACE"
+kubectl set image deployment/echo-static build-assets="$FRONTEND_IMAGE" -n "$NAMESPACE"
 echo ""
 
 

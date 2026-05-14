@@ -2,6 +2,8 @@ import { Env, UserSession } from "../types";
 import { logError } from "../logger";
 import { createSignedSession } from "../session";
 import { renderAuthPage } from "../components/auth/Auth";
+import User from "../models/User";
+import MessengerSession from "../models/MessengerSession";
 
 const SESSION_MAX_AGE = 31536000;
 const EMAIL_VERIFY_TTL = 900;
@@ -175,29 +177,17 @@ export async function handleGoogleCallback(
 
     const userId = `google_${sub}`;
 
-    const existingRaw = await env.STATS.get(`user_meta_${userId}`);
-    if (!existingRaw) {
-      const user: UserSession = {
-        userId,
-        firstName: givenName,
+    // Update or create User in MongoDB
+    await User.findOneAndUpdate(
+      { userId },
+      { 
+        userId, 
+        firstName: givenName, 
         username: name,
-        session: "",
-        platform: "telegram",
-        transcriptionCount: 0,
-        isActive: true,
-        createdAt: Date.now(),
-        lastActiveAt: Date.now(),
-        email
-      };
-      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-
-      const listRaw = await env.STATS.get("users_list") || "[]";
-      const list = JSON.parse(listRaw);
-      if (!list.includes(userId)) {
-        list.push(userId);
-        await env.STATS.put("users_list", JSON.stringify(list));
-      }
-    }
+        email: email
+      },
+      { upsert: true }
+    );
 
     console.log(`[Auth] Creating session for user: ${userId}`);
     await logError("auth", `User ${userId} authenticated via Google`, env);
@@ -248,27 +238,16 @@ export async function handleEmailVerify(env: Env, token: string | null, url: URL
   await env.STATS.delete(`email_verify_${token}`);
   const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-  const existingRaw = await env.STATS.get(`user_meta_${userId}`);
-  if (existingRaw) {
-    const user: UserSession = JSON.parse(existingRaw);
-    user.emailVerified = true;
-    user.email = email;
-    await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-  } else {
-    const user: UserSession = {
-      userId, firstName: email.split("@")[0], email,
-      session: "", platform: "telegram", transcriptionCount: 0,
-      isActive: false, createdAt: Date.now(), lastActiveAt: Date.now(),
-      emailVerified: true
-    };
-    await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-    const listRaw = await env.STATS.get("users_list") || "[]";
-    const list = JSON.parse(listRaw);
-    if (!list.includes(userId)) {
-      list.push(userId);
-      await env.STATS.put("users_list", JSON.stringify(list));
-    }
-  }
+  await User.findOneAndUpdate(
+    { userId },
+    { 
+      userId, 
+      firstName: email.split("@")[0], 
+      email,
+      isActive: true 
+    },
+    { upsert: true }
+  );
 
   const publicOrigin = getPublicOrigin(env, url.origin);
   return new Response(renderAuthPage(undefined, false, publicOrigin, 'verified'), {
@@ -296,28 +275,16 @@ export async function handleRegister(env: Env, body: any, url: URL): Promise<Res
   const passwordHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
   const passwordHashHex = Array.from(new Uint8Array(passwordHash)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-  const user: UserSession = {
-    userId,
-    firstName,
-    email,
-    passwordHash: passwordHashHex,
-    session: "",
-    platform: "telegram",
-    transcriptionCount: 0,
-    isActive: false,
-    createdAt: Date.now(),
-    lastActiveAt: Date.now(),
-    emailVerified: false
-  };
-
-  await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-
-  const listRaw = await env.STATS.get("users_list") || "[]";
-  const list = JSON.parse(listRaw);
-  if (!list.includes(userId)) {
-    list.push(userId);
-    await env.STATS.put("users_list", JSON.stringify(list));
-  }
+  await User.findOneAndUpdate(
+    { userId },
+    { 
+      userId, 
+      firstName, 
+      email, 
+      passwordHash: passwordHashHex 
+    },
+    { upsert: true }
+  );
 
   const token = crypto.randomUUID();
   await env.STATS.put(`email_verify_${token}`, email, { expirationTtl: EMAIL_VERIFY_TTL });
@@ -347,13 +314,11 @@ export async function handleLogin(env: Env, body: any, url: URL): Promise<Respon
   }
 
   const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
-  const userRaw = await env.STATS.get(`user_meta_${userId}`);
+  const user = await User.findOne({ userId });
 
-  if (!userRaw) {
+  if (!user) {
     return Response.json({ error: "Invalid email or password" }, { status: 401 });
   }
-
-  const user: UserSession = JSON.parse(userRaw);
 
   if (!user.passwordHash) {
     return Response.json({ error: "This account uses a different login method" }, { status: 401 });
@@ -492,12 +457,31 @@ export async function handleMetaCallback(env: Env, code: string, userId: string,
     await env.STATS.put(`meta_page_owner_${instagramId}`, userId);
   }
 
-  const userData = await env.STATS.get(`user_meta_${userId}`);
-  if (userData) {
-    const user: UserSession = JSON.parse(userData);
-    user.metaToken = pageToken;
-    if (instagramId) user.instagramId = instagramId;
-    await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+  // Store Meta session in MongoDB
+  await MessengerSession.findOneAndUpdate(
+    { userId, platform: "facebook", identifier: pageId },
+    { 
+      userId, 
+      platform: "facebook", 
+      identifier: pageId, 
+      sessionData: pageToken, 
+      isActive: true 
+    },
+    { upsert: true }
+  );
+
+  if (instagramId) {
+    await MessengerSession.findOneAndUpdate(
+      { userId, platform: "instagram", identifier: instagramId },
+      { 
+        userId, 
+        platform: "instagram", 
+        identifier: instagramId, 
+        sessionData: pageToken, 
+        isActive: true 
+      },
+      { upsert: true }
+    );
   }
 
   return Response.redirect(`${publicOrigin}/dashboard`, 302);

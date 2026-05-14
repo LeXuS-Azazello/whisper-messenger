@@ -1,11 +1,13 @@
 import { Env, UserSession } from "../types";
 import { getPublicOrigin, createSessionResponse } from "./authController";
+import User from "../models/User";
+import MessengerSession from "../models/MessengerSession";
 
 interface BridgeUserData { userId: string; firstName: string; session: string; phone?: string; success?: boolean; error?: string; done?: boolean; }
 const SESSION_MAX_AGE = 31536000;
 
 function getBridgeUrl(env: Env): string {
-  return (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+  return (env.BRIDGE_URL || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
 }
 
 export async function handleTelegramSendCode(env: Env, req: Request): Promise<Response> {
@@ -50,26 +52,31 @@ export async function handleTelegramVerifyCode(env: Env, req: Request, currentUs
     const data = await bridgeRes.clone().json() as BridgeUserData;
     if (data.success && data.session) {
       const userId = currentUserId || data.userId || `tg_${data.session.substring(0, 8)}`;
-      const userData = await env.STATS.get(`user_meta_${userId}`);
-      if (userData) {
-        const user: UserSession = JSON.parse(userData);
-        user.session = data.session;
-        user.isActive = true;
-        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-      } else {
-        const newUser: UserSession = {
-          userId, firstName: data.firstName || "Telegram User",
-          session: data.session, platform: "telegram", transcriptionCount: 0,
-          isActive: true, createdAt: Date.now(), lastActiveAt: Date.now()
-        };
-        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(newUser));
-        const listRaw = await env.STATS.get("users_list") || "[]";
-        const list = JSON.parse(listRaw);
-        if (!list.includes(userId)) {
-          list.push(userId);
-          await env.STATS.put("users_list", JSON.stringify(list));
-        }
-      }
+      
+      // Update or create User
+      await User.findOneAndUpdate(
+        { userId },
+        { 
+          userId, 
+          firstName: data.firstName || "Telegram User"
+        },
+        { upsert: true }
+      );
+
+      // Update or create MessengerSession
+      await MessengerSession.findOneAndUpdate(
+        { userId, platform: "telegram", identifier: data.phone || userId },
+        { 
+          userId, 
+          platform: "telegram", 
+          identifier: data.phone || userId, 
+          sessionData: data.session, 
+          isActive: true 
+        },
+        { upsert: true }
+      );
+
+      // Still keep in Redis for legacy/cache if needed, but primary is MongoDB now
       await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
       ctx.waitUntil(fetch(`${bridgeUrl}/spawn`, {
         method: 'POST',
@@ -104,20 +111,30 @@ export async function handleTelegramVerifyPassword(env: Env, req: Request, curre
     const data = await bridgeRes.clone().json() as BridgeUserData;
     if (data.success && data.session) {
       const userId = currentUserId || data.userId || `tg_${data.session.substring(0, 8)}`;
-      const userData = await env.STATS.get(`user_meta_${userId}`);
-      if (userData) {
-        const user: UserSession = JSON.parse(userData);
-        user.session = data.session;
-        user.isActive = true;
-        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-      } else {
-        const newUser: UserSession = {
-          userId, firstName: data.firstName || "Telegram User",
-          session: data.session, platform: "telegram", transcriptionCount: 0,
-          isActive: true, createdAt: Date.now(), lastActiveAt: Date.now()
-        };
-        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(newUser));
-      }
+      
+      // Update or create User
+      await User.findOneAndUpdate(
+        { userId },
+        { 
+          userId, 
+          firstName: data.firstName || "Telegram User"
+        },
+        { upsert: true }
+      );
+
+      // Update or create MessengerSession
+      await MessengerSession.findOneAndUpdate(
+        { userId, platform: "telegram", identifier: userId },
+        { 
+          userId, 
+          platform: "telegram", 
+          identifier: userId, 
+          sessionData: data.session, 
+          isActive: true 
+        },
+        { upsert: true }
+      );
+
       await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
       ctx.waitUntil(fetch(`${bridgeUrl}/spawn`, {
         method: 'POST',
@@ -166,26 +183,28 @@ export async function handleTelegramQrCheck(env: Env, token: string | null, curr
     if (data.done && data.session) {
       const userId = currentUserId || data.userId || `tg_${data.session.substring(0, 8)}`;
       
-      const userData = await env.STATS.get(`user_meta_${userId}`);
-      if (userData) {
-        const user: UserSession = JSON.parse(userData);
-        user.session = data.session;
-        user.isActive = true;
-        user.firstName = data.firstName || user.firstName;
-        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-      } else {
-        const newUser: UserSession = {
-          userId,
-          firstName: data.firstName || "Telegram User",
-          session: data.session,
-          platform: "telegram",
-          transcriptionCount: 0,
-          isActive: true,
-          createdAt: Date.now(),
-          lastActiveAt: Date.now()
-        };
-        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(newUser));
-      }
+      // Update or create User
+      await User.findOneAndUpdate(
+        { userId },
+        { 
+          userId, 
+          firstName: data.firstName || "Telegram User"
+        },
+        { upsert: true }
+      );
+
+      // Update or create MessengerSession
+      await MessengerSession.findOneAndUpdate(
+        { userId, platform: "telegram", identifier: userId },
+        { 
+          userId, 
+          platform: "telegram", 
+          identifier: userId, 
+          sessionData: data.session, 
+          isActive: true 
+        },
+        { upsert: true }
+      );
 
       await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
 

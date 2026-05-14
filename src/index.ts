@@ -14,7 +14,7 @@ import { verifySession } from "./session";
  * Uses BRIDGE_URL env var, falls back to internal K8s service name.
  */
 function getBridgeUrl(env: Env): string {
-  return (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager:3000";
+  return (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000";
 }
 
 function getPublicOrigin(env: Env, fallbackOrigin: string): string {
@@ -92,8 +92,8 @@ export default {
             method: req.method,
             headers: req.headers,
             body: rawBody,
-            duplex: 'half' as any
-          });
+            duplex: 'half'
+          } as any);
         }
       }
 
@@ -132,8 +132,8 @@ export default {
           method: req.method,
           headers: req.headers,
           body: rawBody,
-          duplex: 'half' as any
-        });
+          duplex: 'half'
+        } as any);
       }
 
       // ─── Telegram Bot Webhook (for Telegram updates, not LINE) ────────────────
@@ -212,8 +212,8 @@ export default {
           headers: req.headers,
           body: req.body,
           redirect: "manual",
-          duplex: 'half' as any
-        });
+          duplex: 'half'
+        } as any);
         bridgeReq.headers.set("x-bridge-secret", secret);
         bridgeReq.headers.set("x-forwarded-for", req.headers.get("CF-Connecting-IP") || "");
         return await fetch(bridgeReq);

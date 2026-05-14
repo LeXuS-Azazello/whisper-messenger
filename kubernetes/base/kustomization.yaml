@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - frontend.yaml
   - redis.yaml
+  - mongodb.yaml
   # - network-policy.yaml
   - mtproto-bridge-manager.yaml
   - qwen3-asr.yaml

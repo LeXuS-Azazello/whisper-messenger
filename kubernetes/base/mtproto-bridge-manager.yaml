@@ -46,9 +46,9 @@ spec:
       serviceAccountName: mtproto-bridge-sa
       containers:
       - name: mtproto-bridge
-        image: azazellosaraksh/debugging-mtproto-bridge:v4
+        image: azazellosaraksh/whisper-bridge-manager:latest
         imagePullPolicy: Always
-        command: ["node", "mtproto-bridge/index.js"]
+        command: ["node", "index.js"]
         ports:
         - containerPort: 3000
         env:
@@ -70,8 +70,10 @@ spec:
           value: "redis://redis:6379"
         - name: QWEN_ASR_URL
           value: "http://qwen3-asr:11434"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/voicemsg"
         - name: TG_CLIENT_IMAGE
-          value: "azazellosaraksh/debugging-mtproto-bridge:latest"
+          value: "azazellosaraksh/whisper-tg-client:latest"
         resources:
           requests:
             cpu: "1000m"

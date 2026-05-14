@@ -7,7 +7,15 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Env } from "./types";
 import worker from "./index";
 import { RedisKV } from "./redisKV";
+import { connectDB } from "./db/mongoose";
 import "dotenv/config";
+import dns from "dns";
+
+// Fix for Node.js 18+ fetch issues with local hostnames
+dns.setDefaultResultOrder("ipv4first");
+
+// Connect to MongoDB
+connectDB();
 
 const app = new Hono();
 

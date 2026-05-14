@@ -63,7 +63,7 @@ graph TD
 | :--- | :--- |
 | **Backend** | TypeScript, Node.js, Hono, Express |
 | **Frontend** | Preact, SSR, Vanilla CSS (Premium Aesthetics) |
-| **Database** | Redis (State & Stats) |
+| **Database** | Redis (Queue/Stats), MongoDB (Persistence) |
 | **AI/ASR** | Ollama, Qwen3-ASR |
 | **Infrastructure** | Kubernetes (Kustomize), Docker |
 | **Monitoring** | Prometheus, Grafana, Fluentd |

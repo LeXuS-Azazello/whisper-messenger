@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: azazellosaraksh/debugging-mtproto-bridge:v4
+        image: azazellosaraksh/whisper-frontend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
@@ -26,6 +26,8 @@ spec:
           value: "redis://redis:6379"
         - name: QWEN_ASR_URL
           value: "http://qwen3-asr:11434"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/voicemsg"
         - name: BRIDGE_URL
           value: "http://mtproto-bridge-manager:3000"
         - name: BRIDGE_SECRET

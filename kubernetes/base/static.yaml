@@ -23,7 +23,7 @@ spec:
           mountPath: /usr/share/nginx/html/assets
       initContainers:
       - name: build-assets
-        image: azazellosaraksh/debugging-mtproto-bridge:latest
+        image: azazellosaraksh/whisper-frontend:latest
         command: ['sh', '-c', 'cp -r /app/src/ui/* /mnt/static/']
         volumeMounts:
         - name: static-assets

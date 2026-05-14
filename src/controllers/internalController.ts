@@ -1,4 +1,7 @@
 import { Env } from "../types";
+import MessengerSession from "../models/MessengerSession";
+import User from "../models/User";
+import AdminVar from "../models/AdminVar";
 
 export async function handleConfig(env: Env, _req: Request, url: URL): Promise<Response> {
   const secret = url.searchParams.get("secret");
@@ -6,18 +9,18 @@ export async function handleConfig(env: Env, _req: Request, url: URL): Promise<R
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const provider = await env.STATS.get("config_whisper_provider") || "qwen3-asr";
-  const model = await env.STATS.get("config_ollama_model") || "whisper";
-  const localUrl = await env.STATS.get("config_local_whisper_url") || "";
-  const localSecret = await env.STATS.get("config_local_whisper_secret") || "";
-  const ollamaUrl = await env.STATS.get("config_ollama_url") || "";
+  const providerVar = await AdminVar.findOne({ key: "config_whisper_provider" });
+  const modelVar = await AdminVar.findOne({ key: "config_ollama_model" });
+  const localUrlVar = await AdminVar.findOne({ key: "config_local_whisper_url" });
+  const localSecretVar = await AdminVar.findOne({ key: "config_local_whisper_secret" });
+  const ollamaUrlVar = await AdminVar.findOne({ key: "config_ollama_url" });
 
   return Response.json({
-    provider,
-    model,
-    localUrl,
-    localSecret,
-    ollamaUrl
+    provider: providerVar?.value || "qwen3-asr",
+    model: modelVar?.value || "whisper",
+    localUrl: localUrlVar?.value || "",
+    localSecret: localSecretVar?.value || "",
+    ollamaUrl: ollamaUrlVar?.value || ""
   });
 }
 
@@ -28,24 +31,17 @@ export async function handleActiveUsers(env: Env, _req: Request, url: URL): Prom
   }
 
   try {
-    const usersListRaw = await env.STATS.get("users_list");
-    const userIds: string[] = usersListRaw ? JSON.parse(usersListRaw) : [];
+    const sessions = await MessengerSession.find({ isActive: true });
     
     const activeUsers = [];
-    for (const userId of userIds) {
-      const session = await env.STATS.get(`tg_session_${userId}`);
-      if (session) {
-        const metaRaw = await env.STATS.get(`user_meta_${userId}`);
-        if (metaRaw) {
-          const meta = JSON.parse(metaRaw);
-          activeUsers.push({
-            userId: userId,
-            session: session,
-            firstName: meta.firstName || "",
-            platform: meta.platform || "telegram"
-          });
-        }
-      }
+    for (const session of sessions) {
+      const user = await User.findOne({ userId: session.userId });
+      activeUsers.push({
+        userId: session.userId,
+        session: session.sessionData,
+        firstName: user?.firstName || "User",
+        platform: session.platform
+      });
     }
     
     return Response.json(activeUsers);
