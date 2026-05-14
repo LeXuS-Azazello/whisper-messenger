@@ -64,7 +64,7 @@ export async function spawnPod(userId, session) {
 
     try {
         console.log(`[/spawn] Listing pods for ${safeUserId}...`);
-        const existing = await withTimeout(k8sApi.listNamespacedPod(ns), 30000).catch(e => {
+        const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 30000).catch(e => {
             console.warn(`[/spawn] listNamespacedPod failed:`, e.message);
             return null;
         });
@@ -75,7 +75,7 @@ export async function spawnPod(userId, session) {
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
                 console.log(`[/spawn] Deleting stale pod ${p.metadata.name}...`);
-                await withTimeout(k8sApi.deleteNamespacedPod(p.metadata.name, ns), 30000, `Delete pod ${p.metadata.name}`)
+                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: ns }), 30000, `Delete pod ${p.metadata.name}`)
                     .catch(e => console.error(`[/spawn] Partial delete failure for ${p.metadata.name}:`, e.message));
             }
             // Give K8s a moment to actually remove them
@@ -135,7 +135,7 @@ export async function spawnPod(userId, session) {
     };
 
     console.log(`[/spawn] Creating new tg-client pod ${podName} in namespace ${ns}...`);
-    await withTimeout(k8sApi.createNamespacedPod(ns, podManifest), 60000).catch(e => {
+    await withTimeout(k8sApi.createNamespacedPod({ namespace: ns, body: podManifest }), 60000).catch(e => {
         console.error(`[/spawn] Failed to create pod:`, e.message);
     });
 
@@ -149,14 +149,14 @@ export async function deletePods(userId) {
 
     console.log(`[/delete] Deleting tg-client pods for user ${safeUserId}`);
     const ns = getNamespace();
-    const existing = await withTimeout(k8sApi.listNamespacedPod(ns), 5000).catch(() => null);
+    const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 5000).catch(() => null);
     const allItems = existing?.body?.items || existing?.items || [];
     const items = allItems.filter(p => p.metadata.labels?.userId === safeUserId);
     if (items.length > 0) {
         for (const p of items) {
             if (!p?.metadata?.name) continue;
             console.log(`[/delete] Deleting pod ${p.metadata.name}...`);
-            await withTimeout(k8sApi.deleteNamespacedPod(p.metadata.name, ns), 5000).catch(err => {
+            await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: ns }), 5000).catch(err => {
                 console.error(`[/delete] Failed to delete pod ${p.metadata.name}:`, err.message);
             });
         }
@@ -167,7 +167,7 @@ export async function listPods() {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const ns = getNamespace();
     console.log(`[/pods] Fetching tg-client pods in namespace ${ns}`);
-    const pods = await withTimeout(k8sApi.listNamespacedPod(ns), 10000).catch(() => null);
+    const pods = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 10000).catch(() => null);
 
     const items = pods?.body?.items || pods?.items || [];
     return items.map(p => {
