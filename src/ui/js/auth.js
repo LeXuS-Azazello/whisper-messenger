@@ -629,6 +629,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Reset password (from email link)
     const urlParams = new URLSearchParams(window.location.search);
+    const action = urlParams.get('action');
+    if (action === 'register') {
+        emailAuthSection.style.display = 'none';
+        showSection('email-register-section');
+    } else if (action === 'forgot') {
+        emailAuthSection.style.display = 'none';
+        showSection('forgot-password-section');
+    }
+
     const resetToken = urlParams.get('token');
     if (resetToken && window.location.pathname === '/auth/reset-password') {
         if (emailAuthSection) emailAuthSection.style.display = 'none';

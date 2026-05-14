@@ -12,43 +12,46 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    var forgotPassBtn = document.getElementById('forgot-pass-btn');
-    if (forgotPassBtn) {
-        forgotPassBtn.onclick = (e) => {
-            e.preventDefault();
-            if (emailInput) emailInput.focus();
-            if (statusMsg) {
-                statusMsg.innerText = "Enter your email to receive a recovery link.";
-                statusMsg.style.color = "#8B5CF6";
-            }
-        };
-    }
+    // The forgot password and register buttons are now links to /auth with action params
 
-    if (sendBtn) {
-        sendBtn.onclick = () => {
+    var loginBtn = document.getElementById('login-btn');
+    var passwordInput = document.getElementById('password-input');
+
+    if (loginBtn) {
+        loginBtn.onclick = () => {
             var email = emailInput ? emailInput.value.trim() : '';
+            var password = passwordInput ? passwordInput.value.trim() : '';
+            
             if (!email || !email.includes('@')) return alert('Please enter a valid email address');
+            if (!password) return alert('Please enter your password');
             
-            sendBtn.disabled = true;
-            sendBtn.innerText = 'Sending...';
+            loginBtn.disabled = true;
+            loginBtn.innerText = 'Signing in...';
             
-            fetch('/auth/email/send', {
+            fetch('/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email })
+                body: JSON.stringify({ email: email, password: password })
             })
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    if (authView) authView.style.display = 'none';
-                    if (successView) successView.style.display = 'block';
+                    window.location.href = '/dashboard';
                 } else {
-                    sendBtn.disabled = false;
-                    sendBtn.innerText = 'Send Magic Link';
+                    loginBtn.disabled = false;
+                    loginBtn.innerText = 'Sign In';
                     if (statusMsg) {
                         statusMsg.innerText = 'Error: ' + data.error;
                         statusMsg.style.color = '#ef4444';
                     }
+                }
+            })
+            .catch(err => {
+                loginBtn.disabled = false;
+                loginBtn.innerText = 'Sign In';
+                if (statusMsg) {
+                    statusMsg.innerText = 'Network error. Please try again.';
+                    statusMsg.style.color = '#ef4444';
                 }
             });
         };
