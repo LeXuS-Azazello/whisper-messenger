@@ -151,11 +151,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         setTimeout(() => {
                             if (qrSection) qrSection.style.display = 'block';
                             qrCodeContainer.innerHTML = '';
-                            new QRCode(qrCodeContainer, {
-                                text: data.qrUrl,
-                                width: 200,
-                                height: 200
-                            });
+                            if (data.qrDataUrl) {
+                                qrCodeContainer.innerHTML = `<img src="${data.qrDataUrl}" width="200" height="200" />`;
+                            } else if (window.QRCode) {
+                                new QRCode(qrCodeContainer, {
+                                    text: data.qrUrl,
+                                    width: 200,
+                                    height: 200
+                                });
+                            }
                             simpleConnectBtn.innerText = 'Check your Telegram app';
                         }, 2000);
                     } else {
@@ -396,14 +400,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(data => {
                     if (data.token) {
                         qrCodeContainer.innerHTML = '';
-                        new QRCode(qrCodeContainer, {
-                            text: data.qrUrl,
-                            width: 220,
-                            height: 220,
-                            colorDark: "#000000",
-                            colorLight: "#ffffff",
-                            correctLevel: QRCode.CorrectLevel.H
-                        });
+                        if (data.qrDataUrl) {
+                            qrCodeContainer.innerHTML = `<img src="${data.qrDataUrl}" width="220" height="220" />`;
+                        } else if (window.QRCode) {
+                            new QRCode(qrCodeContainer, {
+                                text: data.qrUrl,
+                                width: 220,
+                                height: 220,
+                                colorDark: "#000000",
+                                colorLight: "#ffffff",
+                                correctLevel: QRCode.CorrectLevel.H
+                            });
+                        }
 
                         const tgAppLink = document.getElementById('tg-app-link');
                         if (tgAppLink) {

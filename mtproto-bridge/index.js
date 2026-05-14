@@ -81,15 +81,15 @@ app.post('/test-tg', auth, async (req, res) => {
         client = createClient(userId, { connectionRetries: 1 });
         await client.connect();
         
-        const me = await client.invoke({ "@type": "getMe" });
+        const me = await client.invoke({ "_": "getMe" });
         const msgText = req.body.message || 'Test from bridge via TDLib!';
         
         await client.invoke({
-            "@type": "sendMessage",
+            "_": "sendMessage",
             "chat_id": me.id,
             "input_message_content": {
-                "@type": "inputMessageText",
-                "text": { "@type": "formattedText", "text": msgText }
+                "_": "inputMessageText",
+                "text": { "_": "formattedText", "text": msgText }
             }
         });
         
@@ -111,13 +111,13 @@ app.post('/test-voice', auth, async (req, res) => {
         const userId = req.body.userId || TARGET_USER_ID;
         client = createClient(userId, { connectionRetries: 3 });
         await client.connect();
-        const me = await client.invoke({ "@type": "getMe" });
+        const me = await client.invoke({ "_": "getMe" });
         await client.invoke({
-            "@type": "sendMessage",
+            "_": "sendMessage",
             "chat_id": me.id,
             "input_message_content": {
-                "@type": "inputMessageText",
-                "text": { "@type": "formattedText", "text": "🔊 TDLib Voice test" }
+                "_": "inputMessageText",
+                "text": { "_": "formattedText", "text": "🔊 TDLib Voice test" }
             }
         });
         return res.json({ success: true });

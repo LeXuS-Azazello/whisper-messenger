@@ -1,12 +1,13 @@
 import { createClient, packSession } from './utils.js';
 import { MODE, API_ID, API_HASH } from './config.js';
+import QRCode from 'qrcode';
 
 // Shared Map across endpoints
 export const authSessions = new Map();
 
 function getTdlibParams(dbDir) {
     return {
-        "@type": "setTdlibParameters",
+        "_": "setTdlibParameters",
         "parameters": {
             "database_directory": dbDir,
             "use_message_database": true,
@@ -56,19 +57,22 @@ export async function sendCode(req, res) {
             }
         });
 
-        client.on('updateAuthorizationState', async (update) => {
+        client.on('update', async (update) => {
+            if (update['_'] !== 'updateAuthorizationState') return;
+            
             const state = update.authorization_state;
-            const type = state['@type'];
+            const type = state['_'] || state['@type'];
             console.log(`[/send-code] Auth state for ${phoneClean}: ${type}`);
 
             try {
                 if (type === 'authorizationStateWaitTdlibParameters') {
-                    const dbDir = `/tmp/tdlib/${phoneClean}`;
-                    await client.invoke(getTdlibParams(dbDir));
+                    // This should be handled by tdl automatically since we passed it to createClient,
+                    // but we can keep a fallback just in case or just log it.
+                    console.log(`[/send-code] Waiting for parameters for ${phoneClean}`);
                 } else if (type === 'authorizationStateWaitEncryptionKey') {
-                    await client.invoke({ "@type": "checkDatabaseEncryptionKey", "encryption_key": "" });
+                    await client.invoke({ "_": "checkDatabaseEncryptionKey", "encryption_key": "" });
                 } else if (type === 'authorizationStateWaitPhoneNumber') {
-                    await client.invoke({ "@type": "setAuthenticationPhoneNumber", "phone_number": phoneClean });
+                    await client.invoke({ "_": "setAuthenticationPhoneNumber", "phone_number": phoneClean });
                 } else if (type === 'authorizationStateWaitCode') {
                     if (!session.responded) {
                         session.responded = true;
@@ -81,9 +85,9 @@ export async function sendCode(req, res) {
                         res.json({ success: true, requiresPassword: true });
                     }
                 } else if (type === 'authorizationStateReady') {
-                    session.status = 'done';
-                    const me = await client.invoke({ "@type": "getMe" });
+                    const me = await client.invoke({ "_": "getMe" });
                     session.user = me;
+                    session.status = 'done';
                 } else if (type === 'authorizationStateClosing' || type === 'authorizationStateClosed' || type === 'authorizationStateLoggingOut') {
                     authSessions.delete(phoneClean);
                 }
@@ -123,7 +127,7 @@ export async function verifyCode(req, res) {
         if (!s) return res.status(404).json({ error: 'Session not found' });
         
         console.log(`[/verify-code] Checking code for ${phone}`);
-        await s.client.invoke({ "@type": "checkAuthenticationCode", "code": String(code) });
+        await s.client.invoke({ "_": "checkAuthenticationCode", "code": String(code) });
         
         // Wait for ready state
         for (let i=0; i<20; i++) {
@@ -139,8 +143,12 @@ export async function verifyCode(req, res) {
         }
 
         const packed = packSession(phone);
-        const userId = s.user.id.toString();
-        const firstName = s.user.first_name || "User";
+        const userId = s.user?.id?.toString();
+        const firstName = s.user?.first_name || "User";
+
+        if (!userId) {
+            throw new Error('User information not found after verification');
+        }
 
         console.log(`[/verify-code] Success! User ID: ${userId}`);
         res.json({ success: true, session: packed, userId, firstName });
@@ -163,7 +171,7 @@ export async function verifyPassword(req, res) {
         const s = authSessions.get(phone);
         if (!s) return res.status(404).json({ error: 'Session not found' });
 
-        await s.client.invoke({ "@type": "checkAuthenticationPassword", "password": password });
+        await s.client.invoke({ "_": "checkAuthenticationPassword", "password": password });
         
         // Wait for ready
         for (let i=0; i<20; i++) {
@@ -178,7 +186,10 @@ export async function verifyPassword(req, res) {
         }
 
         const packed = packSession(phone);
-        res.json({ success: true, session: packed, userId: s.user.id.toString(), firstName: s.user.first_name });
+        const userId = s.user?.id?.toString();
+        if (!userId) throw new Error('User information not found after password verification');
+
+        res.json({ success: true, session: packed, userId, firstName: s.user.first_name });
         authSessions.delete(phone);
         try { await s.client.close(); } catch (e) { }
     } catch (e) {
@@ -198,25 +209,34 @@ export async function qrStart(req, res) {
             console.error(`[/qr-start] TDLib client error for ${tempId}:`, err);
         });
 
-        client.on('updateAuthorizationState', async (update) => {
+        client.on('update', async (update) => {
+            if (update['_'] !== 'updateAuthorizationState') return;
+
             const state = update.authorization_state;
-            const type = state['@type'];
+            const type = state['_'] || state['@type'];
             console.log(`[/qr-start] Auth state for ${tempId}: ${type}`);
 
             try {
                 if (type === 'authorizationStateWaitTdlibParameters') {
-                    await client.invoke(getTdlibParams(`/tmp/tdlib/${tempId}`));
+                    console.log(`[/qr-start] Waiting for parameters for ${tempId}`);
                 } else if (type === 'authorizationStateWaitEncryptionKey') {
-                    await client.invoke({ "@type": "checkDatabaseEncryptionKey", "encryption_key": "" });
+                    await client.invoke({ "_": "checkDatabaseEncryptionKey", "encryption_key": "" });
                 } else if (type === 'authorizationStateWaitPhoneNumber') {
-                    await client.invoke({ "@type": "requestQrCode" });
+                    await client.invoke({ "_": "requestQrCodeAuthentication" });
                 } else if (type === 'authorizationStateWaitOtherDeviceConfirmation') {
-                    console.log(`[/qr-start] QR Link received for ${tempId}`);
+                    console.log(`[/qr-start] QR Link received for ${tempId}: ${state.link}`);
                     session.qrUrl = state.link;
+                    try {
+                        session.qrDataUrl = await QRCode.toDataURL(state.link);
+                        console.log(`[/qr-start] QR Code generated as Data URL`);
+                    } catch (qrErr) {
+                        console.error(`[/qr-start] Failed to generate QR Code image:`, qrErr);
+                    }
                     session.status = 'qr_ready';
                 } else if (type === 'authorizationStateReady') {
+                    const me = await client.invoke({ "_": "getMe" });
+                    session.user = me;
                     session.status = 'done';
-                    session.user = await client.invoke({ "@type": "getMe" });
                 } else if (type === 'authorizationStateClosing' || type === 'authorizationStateClosed') {
                     authSessions.delete(tempId);
                 }
@@ -241,7 +261,7 @@ export async function qrStart(req, res) {
         }
 
         authSessions.set(tempId, session);
-        res.json({ qrUrl: session.qrUrl, token: tempId });
+        res.json({ qrUrl: session.qrUrl, qrDataUrl: session.qrDataUrl, token: tempId });
     } catch (e) {
         if (client) try { await client.close(); } catch (err) { }
         res.status(500).json({ error: e.message });
@@ -255,7 +275,10 @@ export async function qrCheck(req, res) {
 
     if (s.status === 'done') {
         const packed = packSession(s.id);
-        const resp = { done: true, session: packed, userId: s.user.id.toString(), firstName: s.user.first_name };
+        const userId = s.user?.id?.toString();
+        if (!userId) return res.json({ done: false, error: 'User info missing' });
+
+        const resp = { done: true, session: packed, userId, firstName: s.user.first_name };
         authSessions.delete(token);
         try { await s.client.close(); } catch (e) { }
         return res.json(resp);

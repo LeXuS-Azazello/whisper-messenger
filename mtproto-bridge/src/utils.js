@@ -23,11 +23,10 @@ export function createClient(userId, options = {}) {
         console.log(`[createClient] Initializing TDLib with prebuilt-tdlib...`);
         try {
             tdl.configure({ tdjson: getTdjson() });
-            isTdlibConfigured = true;
         } catch (e) {
-            console.warn('[createClient] TDLib configuration failed or already done:', e.message);
-            isTdlibConfigured = true; // Assume it's configured if it failed with "already initialized"
+            console.warn('[createClient] TDLib configuration note:', e.message);
         }
+        isTdlibConfigured = true;
     }
     
     console.log(`[createClient] Creating TDLib client for ${userId} with apiId: ${aid}`);
@@ -37,6 +36,16 @@ export function createClient(userId, options = {}) {
         apiHash: API_HASH,
         databaseDirectory: dbDir,
         filesDirectory: path.join(dbDir, 'files'),
+        tdlibParameters: {
+            use_message_database: true,
+            use_secret_chats: false,
+            system_language_code: 'en',
+            device_model: DEVICE_MODEL || 'Node.js TDLib Manager',
+            system_version: SYSTEM_VERSION || 'Linux',
+            application_version: APP_VERSION || '1.0.0',
+            enable_storage_optimizer: true,
+            ...options.tdlibParameters
+        },
         ...options
     });
     return client;

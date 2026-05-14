@@ -34,66 +34,57 @@ export const renderDashboard = (user: UserSession) => {
 
                     <div class="grid">
                         {/* Telegram Control */}
-                        <div class="card">
+                        <div class="card" style={{ position: 'relative', overflow: 'hidden' }}>
                             <div class="card-header">
-                                <h3 class="card-title"><span style={{ color: '#24A1DE' }}>✦</span> Telegram</h3>
+                                <h3 class="card-title"><span style={{ color: '#24A1DE' }}>✦</span> Telegram Account</h3>
                                 <span class={`status-tag ${isTgConnected ? 'active' : 'inactive'}`}>
-                                    {isTgConnected ? 'CONNECTED' : 'NOT SETUP'}
+                                    {isTgConnected ? 'CONNECTED' : 'DISCONNECTED'}
                                 </span>
                             </div>
 
                             <div id="tg-status-container" style={{ display: isTgConnected ? 'block' : 'none', marginTop: '15px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                                    <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Status:</span>
-                                    <span class={`status-tag ${user.isActive ? 'active' : 'inactive'}`} style={{ fontSize: '11px', padding: '2px 8px' }}>
-                                        {user.currentStatus || (user.isActive ? 'RUNNING' : 'STOPPED')}
-                                    </span>
-                                </div>
-                                <p style={{ fontSize: '13px', color: 'var(--text-dim)' }}>Your personal Telegram account is bridged and ready to transcribe.</p>
-                                <div style={{ marginTop: '15px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                    <button class="btn btn-sm" id="test-tg-btn" style={{ background: '#3B82F6', margin: 0 }}>Send Test Message</button>
-                                    <button class="btn btn-sm" id="restart-tg-btn" style={{ background: '#F59E0B', margin: 0, color: '#000' }}>Restart Bridge</button>
-                                    <button class="btn btn-sm" id="disconnect-tg-btn" style={{ background: '#ef4444', margin: 0 }}>Disconnect</button>
+                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
+                                        <div style={{ width: '48px', height: '48px', borderRadius: '15px', background: 'linear-gradient(135deg, #24A1DE, #1C92D2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                                            📱
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '15px', fontWeight: '700' }}>Active Bridge</div>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                                                Status: <span style={{ color: user.isActive ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>
+                                                    {user.isActive ? 'ONLINE' : 'OFFLINE'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '20px', lineHeight: '1.5' }}>
+                                        Your Telegram account is currently linked. Any voice or video message you receive will be automatically transcribed.
+                                    </p>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        <button class="btn btn-sm" id="test-tg-btn" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3B82F6', border: '1px solid rgba(59, 130, 246, 0.2)', margin: 0 }}>Test</button>
+                                        <button class="btn btn-sm" id="restart-tg-btn" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B', border: '1px solid rgba(245, 158, 11, 0.2)', margin: 0 }}>Restart</button>
+                                        <button class="btn btn-sm" id="disconnect-tg-btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', margin: 0, gridColumn: 'span 2' }}>Disconnect Account</button>
+                                    </div>
                                 </div>
                             </div>
-                            <div id="tg-auth-container" style={{ display: isTgConnected ? 'none' : 'block', marginTop: '15px' }}>
-                                {/* Simple One-Click Connect */}
-                                <div id="tg-simple-connect-view" style={{ textAlign: 'center', padding: '10px 0' }}>
-                                    <button class="btn" id="tg-simple-connect-btn" style={{ background: 'linear-gradient(135deg, #24A1DE, #1C92D2)', height: '48px', width: '100%', fontSize: '15px', fontWeight: '700', margin: '0 0 10px 0' }}>
-                                        Connect My Telegram
+                            
+                            <div id="tg-connect-prompt" style={{ display: isTgConnected ? 'none' : 'block', marginTop: '15px', textAlign: 'center' }}>
+                                <div style={{ padding: '20px 10px' }}>
+                                    <div style={{ fontSize: '40px', marginBottom: '15px' }}>🛰️</div>
+                                    <h4 style={{ marginBottom: '10px' }}>No Account Linked</h4>
+                                    <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '25px' }}>
+                                        Connect your personal Telegram account to start transcribing voice messages in real-time.
+                                    </p>
+                                    <button class="btn" id="open-tg-modal-btn" style={{ background: 'linear-gradient(135deg, #24A1DE, #1C92D2)', boxShadow: '0 10px 20px rgba(36, 161, 222, 0.3)', margin: 0 }}>
+                                        Connect Telegram
                                     </button>
-                                    <button id="show-manual-auth-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline' }}>
-                                        Use phone number or QR code
-                                    </button>
-                                </div>
-
-                                <div id="tg-manual-auth-view" style={{ display: 'none' }}>
-                                    <div style={{ display: 'flex', gap: '5px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        <input type="tel" id="tg-phone-input" class="input-field" placeholder="+123..." style={{ flex: 1, padding: '0.5rem', margin: 0, borderRadius: '8px', fontSize: '13px' }} />
-                                        <button class="btn btn-sm" id="tg-send-code-btn" style={{ margin: 0, width: 'auto', background: '#8B5CF6' }}>Code</button>
-                                    </div>
-                                    <div id="tg-code-section" style={{ display: 'none', marginTop: '8px' }}>
-                                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                            <input type="text" id="tg-code-input" class="input-field" placeholder="Code" style={{ width: '80px', padding: '0.5rem', margin: 0, borderRadius: '8px', fontSize: '13px' }} />
-                                            <button class="btn btn-sm" id="tg-verify-btn" style={{ margin: 0, width: 'auto', background: '#22c55e' }}>Link</button>
-                                        </div>
-                                    </div>
-                                    <div style={{ marginTop: '10px' }}>
-                                        <button class="btn btn-sm" id="tg-show-qr-btn" style={{ margin: 0, width: 'auto', background: '#6B7280', fontSize: '10px', padding: '4px 8px' }}>Show QR</button>
-                                    </div>
-                                    <div id="tg-qr-section" style={{ display: 'none', marginTop: '10px', textAlign: 'center' }}>
-                                        <div id="qr-code-container" style={{ background: 'white', padding: '10px', borderRadius: '8px', display: 'inline-block', marginBottom: '8px' }}></div>
-                                        <div style={{ marginBottom: '8px' }}>
-                                            <a id="tg-app-link" href="#" class="btn btn-sm" style={{ background: '#24A1DE', display: 'none', alignItems: 'center', gap: '5px', width: 'auto', padding: '5px 12px', borderRadius: '15px', textDecoration: 'none', color: 'white', fontSize: '11px' }}>
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" /></svg>
-                                                Open App
-                                            </a>
-                                        </div>
-                                        <p id="qr-status" style={{ fontSize: '11px', color: '#8B5CF6' }}>Scan from Telegram App</p>
-                                    </div>
                                 </div>
                             </div>
                         </div>
+
+                        {/* Meta Integration */}
+                        {/* ... rest of the cards ... */}
+
 
                         {/* Meta Integration */}
                         <div class="card">
@@ -311,6 +302,108 @@ export const renderDashboard = (user: UserSession) => {
                         </div>
                     </div>
                 </div>
+                {/* Telegram Connection Modal */}
+                <div class="modal-overlay" id="tg-modal-overlay">
+                    <div class="modal-content">
+                        <button class="modal-close" id="tg-modal-close">&times;</button>
+                        <div class="modal-title">Connect Telegram</div>
+                        
+                        {/* Step 1: Choice */}
+                        <div class="auth-step active" id="tg-step-1">
+                            <p style={{ textAlign: 'center', color: 'var(--text-dim)', fontSize: '13px', marginBottom: '20px' }}>
+                                Choose your preferred method to link your account
+                            </p>
+                            <div class="auth-choice">
+                                <div class="choice-card" id="choose-qr-btn">
+                                    <div class="choice-icon">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                    </div>
+                                    <div class="choice-text">
+                                        <h4>QR Code</h4>
+                                        <p>Fastest way using Telegram App</p>
+                                    </div>
+                                </div>
+                                <div class="choice-card" id="choose-phone-btn">
+                                    <div class="choice-icon">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                    </div>
+                                    <div class="choice-text">
+                                        <h4>Phone Number</h4>
+                                        <p>Receive a code on your device</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Step 2: QR Code */}
+                        <div class="auth-step" id="tg-step-qr">
+                            <div style={{ textAlign: 'center' }}>
+                                <div class="qr-frame">
+                                    <div id="modal-qr-container"></div>
+                                    <div class="qr-scan-line"></div>
+                                </div>
+                                <p style={{ fontSize: '14px', fontWeight: '600', marginBottom: '10px' }}>Scan with Telegram</p>
+                                <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '20px' }}>
+                                    Settings → Devices → Link Desktop Device
+                                </p>
+                                <button class="btn btn-sm" id="back-to-choice-1" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', width: 'auto' }}>Back</button>
+                            </div>
+                        </div>
+
+                        {/* Step 2: Phone Input */}
+                        <div class="auth-step" id="tg-step-phone">
+                            <div class="input-group">
+                                <label class="input-label">Phone Number</label>
+                                <input type="tel" id="modal-tg-phone" class="input-field" placeholder="+1234567890" />
+                            </div>
+                            <button class="btn" id="modal-send-code-btn">Send Verification Code</button>
+                            <button class="btn btn-sm" id="back-to-choice-2" style={{ background: 'none', color: 'var(--text-dim)', marginTop: '10px' }}>Back</button>
+                        </div>
+
+                        {/* Step 3: Code Input */}
+                        <div class="auth-step" id="tg-step-code">
+                            <p style={{ textAlign: 'center', marginBottom: '20px', fontSize: '14px' }}>
+                                Enter the 5-digit code sent to your Telegram app
+                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
+                                <input type="text" id="modal-tg-code" class="input-field" placeholder="00000" style={{ textAlign: 'center', fontSize: '24px', letterSpacing: '8px', maxWidth: '200px' }} maxLength={6} />
+                            </div>
+                            <button class="btn" id="modal-verify-code-btn">Verify & Link</button>
+                        </div>
+
+                        {/* Step 4: Password Input */}
+                        <div class="auth-step" id="tg-step-password">
+                            <p style={{ textAlign: 'center', marginBottom: '20px', fontSize: '14px' }}>
+                                Two-Step Verification is enabled. Please enter your cloud password.
+                            </p>
+                            <div class="input-group">
+                                <input type="password" id="modal-tg-password" class="input-field" placeholder="Your Password" />
+                            </div>
+                            <button class="btn" id="modal-verify-password-btn">Submit Password</button>
+                        </div>
+
+                        {/* Step: Success */}
+                        <div class="auth-step" id="tg-step-success">
+                            <div style={{ textAlign: 'center' }}>
+                                <div class="success-icon">✓</div>
+                                <h3 style={{ marginBottom: '10px' }}>Connected!</h3>
+                                <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '20px' }}>
+                                    Your account has been successfully linked to Whisper Messenger.
+                                </p>
+                                <button class="btn" onclick="location.reload()">Great!</button>
+                            </div>
+                        </div>
+
+                        {/* Step: Loading */}
+                        <div class="auth-step" id="tg-step-loading">
+                            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                                <div class="shimmer" style={{ width: '60px', height: '60px', borderRadius: '50%', margin: '0 auto 20px', background: 'rgba(139, 92, 246, 0.2)' }}></div>
+                                <p id="loading-text">Connecting to Telegram...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <script src="/assets/js/dashboard.js"></script>
             </body>
         </html>

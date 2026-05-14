@@ -26,18 +26,18 @@ async function handleNewMessage(update) {
         const msgId = msg.id;
 
         await userClient.invoke({
-            "@type": "sendChatAction",
+            "_": "sendChatAction",
             "chat_id": chatId,
-            "action": { "@type": isVoice ? "chatActionRecordingVoiceNote" : "chatActionRecordingVideoNote" }
+            "action": { "_": isVoice ? "chatActionRecordingVoiceNote" : "chatActionRecordingVideoNote" }
         }).catch(() => { });
 
         const statusMsg = await userClient.invoke({
-            "@type": "sendMessage",
+            "_": "sendMessage",
             "chat_id": chatId,
             "reply_to_message_id": msgId,
             "input_message_content": {
-                "@type": "inputMessageText",
-                "text": { "@type": "formattedText", "text": "⏳ Transcribing audio..." }
+                "_": "inputMessageText",
+                "text": { "_": "formattedText", "text": "⏳ Transcribing audio..." }
             }
         });
 
@@ -47,7 +47,7 @@ async function handleNewMessage(update) {
         console.log(`[tg-client] ⏳ Downloading file ${fileId}...`);
         
         const downloadedFile = await userClient.invoke({
-            "@type": "downloadFile",
+            "_": "downloadFile",
             "file_id": fileId,
             "priority": 32,
             "offset": 0,
@@ -87,12 +87,12 @@ async function handleNewMessage(update) {
         if (!text || text.trim().length === 0) {
             console.log(`[tg-client] ❌ Transcription returned empty text.`);
             await userClient.invoke({
-                "@type": "editMessageText",
+                "_": "editMessageText",
                 "chat_id": chatId,
                 "message_id": statusMsg.id,
                 "input_message_content": { 
-                    "@type": "inputMessageText", 
-                    "text": { "@type": "formattedText", "text": "❌ Could not transcribe audio (empty result)." } 
+                    "_": "inputMessageText", 
+                    "text": { "_": "formattedText", "text": "❌ Could not transcribe audio (empty result)." } 
                 }
             }).catch(e => console.error(`[tg-client] Edit status failed:`, e.message));
             return;
@@ -101,12 +101,12 @@ async function handleNewMessage(update) {
         console.log(`[tg-client] ✅ Transcribed (${duration.toFixed(1)}s): "${text.slice(0, 100)}..."`);
         
         await userClient.invoke({
-            "@type": "editMessageText",
+            "_": "editMessageText",
             "chat_id": chatId,
             "message_id": statusMsg.id,
             "input_message_content": { 
-                "@type": "inputMessageText", 
-                "text": { "@type": "formattedText", "text": `🎤 ${text}\n\n⏱️ ${duration.toFixed(1)}s` } 
+                "_": "inputMessageText", 
+                "text": { "_": "formattedText", "text": `🎤 ${text}\n\n⏱️ ${duration.toFixed(1)}s` } 
             }
         }).catch(e => console.error(`[tg-client] Edit message failed:`, e.message));
 
@@ -177,16 +177,40 @@ export async function startUserClient() {
 
     // Register listener BEFORE login to catch all updates
     userClient.on('update', async (update) => {
-        if (update['_'] === 'updateAuthorizationState') {
+        const type = update['_'] || update['@type'];
+        if (type === 'updateAuthorizationState') {
             const state = update.authorization_state;
-            console.log(`[tg-client] 🔑 Auth State: ${state['_']}`);
+            const stateType = state['_'] || state['@type'];
+            console.log(`[tg-client] 🔑 Auth State: ${stateType}`);
             
-            if (state['_'] === 'authorizationStateReady') {
+            if (stateType === 'authorizationStateReady') {
                 console.log(`[tg-client] 🚀 Client Ready!`);
+            }
+
+            if (stateType === 'authorizationStateLoggingOut' || stateType === 'authorizationStateWaitPhoneNumber') {
+                console.warn(`[tg-client] ⚠️ Session revoked or expired (State: ${stateType}). Notifying worker...`);
+                if (WORKER_URL) {
+                    try {
+                        await fetch(`${WORKER_URL}/internal/access-revoked`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: TARGET_USER_ID, secret: BRIDGE_SECRET })
+                        });
+                        console.log(`[tg-client] ✅ Worker notified. Exiting...`);
+                    } catch (e) {
+                        console.error(`[tg-client] ❌ Failed to notify worker:`, e.message);
+                    }
+                }
+                process.exit(0);
+            }
+
+            if (stateType === 'authorizationStateClosed') {
+                console.log(`[tg-client] 🛑 TDLib closed. Exiting...`);
+                process.exit(0);
             }
         }
         
-        if (update['_'] === 'updateNewMessage') {
+        if (type === 'updateNewMessage') {
             handleNewMessage(update);
         }
     });
