@@ -1,7 +1,7 @@
 /** @jsxImportSource preact */
 import React from 'preact/compat';
 import { render } from 'preact-render-to-string';
-import { SparklesIcon, MailIcon, CheckCircleIcon, ArrowLeftIcon } from './Home.utils';
+import { SparklesIcon, MailIcon, CheckCircleIcon, ArrowLeftIcon, LockIcon } from './Home.utils';
 
 export const renderHome = (googleClientId: string, origin: string) => {
     return "<!DOCTYPE html>" + render(
@@ -36,10 +36,9 @@ export const renderHome = (googleClientId: string, origin: string) => {
                             </div>
                             
                             <div class="email-input-wrapper" id="password-wrapper" style={{ marginTop: '12px' }}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }}>
-                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                </svg>
+                                <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }}>
+                                    <LockIcon size={18} color="rgba(255,255,255,0.4)" />
+                                </div>
                                 <input type="password" id="password-input" class="styled-input" placeholder="Password" />
                             </div>
 

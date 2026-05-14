@@ -133,12 +133,16 @@ export async function tgQrCheck(env: Env, token: string | null): Promise<Respons
 }
 
 export async function tgTestMsg(env: Env, req: Request): Promise<Response> {
+    const { userId, message } = await req.json() as any;
     const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
     const secret = (env.BRIDGE_SECRET || "changeme").trim();
+    
+    // If userId is provided, we try to send to that specific user's pod
+    // If not, it sends to the admin's own linked account (default bridge behavior)
     return await fetch(`${bridgeUrl}/test-tg?secret=${secret}`, {
         method: "POST",
-        headers: { "x-bridge-secret": secret },
-        body: JSON.stringify({ message: "Admin test message!" })
+        headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+        body: JSON.stringify({ userId, message: message || "Admin test message!" })
     });
 }
 
@@ -168,12 +172,46 @@ export async function updateWhisperConfig(env: Env, req: Request): Promise<Respo
 
 export async function userAction(env: Env, req: Request): Promise<Response> {
     const { userId, action } = await req.json() as any;
-    if (action === "delete") {
+    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+    const secret = (env.BRIDGE_SECRET || "changeme").trim();
+
+    if (action === "restart") {
+        const session = await env.STATS.get(`tg_session_${userId}`);
+        // First delete
+        await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+            body: JSON.stringify({ userId })
+        }).catch(() => {});
+        
+        if (session) {
+            // Then spawn
+            const res = await fetch(`${bridgeUrl}/spawn?secret=${secret}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+                body: JSON.stringify({ userId, session })
+            });
+            return res;
+        }
+    } else if (action === "stop") {
+        return await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+            body: JSON.stringify({ userId })
+        });
+    } else if (action === "delete") {
         await env.STATS.delete(`user_meta_${userId}`);
         await env.STATS.delete(`tg_session_${userId}`);
         const listRaw = await env.STATS.get("users_list") || "[]";
         const list = JSON.parse(listRaw).filter((id: string) => id !== userId);
         await env.STATS.put("users_list", JSON.stringify(list));
+        
+        // Also delete pod
+        await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+            body: JSON.stringify({ userId })
+        }).catch(() => {});
     }
     return Response.json({ success: true });
 }

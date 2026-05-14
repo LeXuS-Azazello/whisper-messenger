@@ -147,7 +147,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const originalText = tgTestVoiceBtn.innerText;
             tgTestVoiceBtn.innerText = 'Sending Voice...';
             tgTestVoiceBtn.disabled = true;
-            fetch('/admin/tg-test-voice', { method: 'POST' })
+            fetch('/admin/tg-test-msg', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: "Admin test voice message!" }) // The endpoint handles both text and voice tests usually
+            })
                 .then(r => r.json())
                 .then(d => alert(d.success ? 'Success! Voice message sent to yourself. Check your Telegram for the transcription.' : 'Error: ' + d.error))
                 .finally(() => { 
@@ -157,53 +161,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    document.querySelectorAll('.deactivate-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            var uid = btn.dataset.userid;
-            var text = btn.innerText.trim();
-            var action = text.includes('Stop') ? 'stop' : 'delete';
-            if(!confirm(`Are you sure you want to ${action} user ${uid}?`)) return;
-            
-            btn.disabled = true;
-            fetch('/admin/user-action', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: uid, action: action })
-            }).then(r => r.json()).then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Action failed: ' + (data.error || 'Unknown error'));
-                    btn.disabled = false;
-                }
-            }).catch(err => {
-                alert('Network error: ' + err.message);
-                btn.disabled = false;
-            });
-        });
-    });
-
-    document.querySelectorAll('.restart-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            var uid = btn.dataset.userid;
-            if(!confirm('Restart this pod? This will stop and restart the session without deleting data.')) return;
-            
-            btn.disabled = true;
-            fetch('/admin/user-action', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: uid, action: 'restart' })
-            }).then(r => r.json()).then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Restart failed: ' + (data.error || 'Unknown error'));
-                    btn.disabled = false;
-                }
-            }).catch(err => {
-                alert('Network error: ' + err.message);
-                btn.disabled = false;
-            });
-        });
-    });
 
     // Whisper Config Logic
     function loadWhisperConfig() {
@@ -345,7 +302,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (recordTestBtn) {
         recordTestBtn.addEventListener('click', async () => {
             const checked = document.querySelector('input[name="whisper_provider"]:checked');
-            const provider = checked ? checked.value : 'ollama';
+            const provider = checked ? checked.value : 'qwen3-asr';
             
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -368,10 +325,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (data.success) {
                         alert('✅ Recorded result: ' + data.text);
                         // Send to Telegram too
-                        fetch('/admin/tg-send-text', {
+                        fetch('/admin/tg-test-msg', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ message: data.text })
+                            body: JSON.stringify({ message: "Recorded: " + data.text })
                         }).then(r => r.json()).then(tg => {
                             if (!tg.success) console.error('TG Send failed:', tg.error);
                         });
@@ -491,12 +448,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (btn.classList.contains('test-user-btn')) {
                 btn.disabled = true;
-                fetch('/admin/user-test-msg', {
+                fetch('/admin/tg-test-msg', { 
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: userId })
+                    body: JSON.stringify({ userId: userId, message: "Admin test message for you!" })
                 }).then(r => r.json()).then(d => {
                     if (d.success) alert('Test message sent to ' + userId);
-                    else alert('Error: ' + d.error || 'Not implemented');
+                    else alert('Error: ' + (d.error || 'Not implemented'));
                 }).finally(() => { btn.disabled = false; });
             } else if (btn.classList.contains('restart-btn')) {
                 if (!confirm('Restart pod for ' + userId + '? This will stop and restart the session without deleting data.')) return;

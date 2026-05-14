@@ -65,24 +65,28 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 </div>
                                 <div id="tg-auth-form" style={{ display: tgAuthenticated ? 'none' : 'block' }}>
                                     <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        <input type="tel" id="tg-phone-input" class="input-field" placeholder="+1234567890" style={{ width: '180px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
-                                        <button class="btn" id="tg-send-code-btn" style={{ margin: 0, width: 'auto', background: '#8B5CF6' }}>Send Code</button>
+                                        <div class="input-group" style={{ margin: 0, flex: 1 }}>
+                                            <input type="tel" id="tg-phone-input" class="input-field" placeholder="+1234567890" style={{ padding: '0.6rem', borderRadius: '8px' }} />
+                                        </div>
+                                        <button class="btn" id="tg-send-code-btn" style={{ margin: 0, width: 'auto', background: '#8B5CF6', padding: '0.6rem 1.2rem' }}>Send Code</button>
                                     </div>
                                     <div id="tg-code-section" style={{ display: 'none', marginTop: '10px' }}>
                                         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                            <input type="text" id="tg-code-input" class="input-field" placeholder="Enter code" style={{ width: '130px', padding: '0.6rem', margin: 0, borderRadius: '8px' }} />
-                                            <button class="btn" id="tg-verify-btn" style={{ margin: 0, width: 'auto', background: '#22c55e' }}>Verify</button>
+                                            <div class="input-group" style={{ margin: 0, flex: 1 }}>
+                                                <input type="text" id="tg-code-input" class="input-field" placeholder="Enter code" style={{ padding: '0.6rem', borderRadius: '8px' }} />
+                                            </div>
+                                            <button class="btn" id="tg-verify-btn" style={{ margin: 0, width: 'auto', background: '#22c55e', padding: '0.6rem 1.2rem' }}>Verify</button>
                                         </div>
                                     </div>
-                                    <div style={{ marginTop: '10px' }}>
-                                        <button class="btn" id="tg-show-qr-btn" style={{ margin: 0, width: 'auto', background: '#6B7280', fontSize: '11px', padding: '5px 10px' }}>QR Code Login</button>
+                                    <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
+                                        <button class="btn" id="tg-show-qr-btn" style={{ margin: 0, width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '12px', padding: '8px' }}>QR Code Login</button>
                                     </div>
-                                    <div id="tg-qr-section" style={{ display: 'none', marginTop: '10px', textAlign: 'center' }}>
-                                        <div id="qr-code-container" style={{ background: 'white', padding: '10px', borderRadius: '8px', display: 'inline-block', marginBottom: '8px' }}></div>
+                                    <div id="tg-qr-section" style={{ display: 'none', marginTop: '15px', textAlign: 'center', background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '12px' }}>
+                                        <div id="qr-code-container" style={{ background: 'white', padding: '10px', borderRadius: '8px', display: 'inline-block', marginBottom: '8px', boxShadow: '0 0 20px rgba(139, 92, 246, 0.3)' }}></div>
                                         <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>Scan from Telegram App</p>
-                                        <p id="qr-status" style={{ fontSize: '11px', color: '#8B5CF6', minHeight: '16px' }}>...</p>
+                                        <p id="qr-status" style={{ fontSize: '11px', color: '#8B5CF6', minHeight: '16px', fontWeight: 'bold' }}>Waiting for scan...</p>
                                     </div>
-                                    <div id="tg-auth-message" style={{ fontSize: '11px', marginTop: '8px', minHeight: '16px' }}></div>
+                                    <div id="tg-auth-message" style={{ fontSize: '11px', marginTop: '8px', minHeight: '16px', textAlign: 'center' }}></div>
                                 </div>
                             </div>
                         </div>

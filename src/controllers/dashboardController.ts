@@ -111,7 +111,7 @@ export async function handleTestTg(env: Env, user: UserSession): Promise<Respons
   const res = await fetch(`${bridgeUrl}/test-tg?secret=${secret}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
-    body: JSON.stringify({ session: user.session, message: "Test message from dashboard!" })
+    body: JSON.stringify({ userId: user.userId, message: "Test message from dashboard!" })
   });
   const data = await res.json().catch(() => ({ error: "Bridge error" }));
   return Response.json(data, { status: res.status });
