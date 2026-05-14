@@ -18,6 +18,12 @@ async function handleNewMessage(update) {
     const isVideoNote = content['@type'] === 'messageVideoNote';
 
     if (!isVoice && !isVideoNote) return;
+    
+    // Only respond to private messages (chat_id > 0)
+    if (msg.chat_id <= 0) {
+        console.log(`[tg-client] ℹ️ Skipping voice message in group/channel ${msg.chat_id}`);
+        return;
+    }
 
     console.log(`[tg-client] 🎤 New ${isVoice ? 'voice' : 'video'} note in chat ${msg.chat_id} (Msg ID: ${msg.id})`);
 
@@ -155,9 +161,25 @@ export async function startUserClient() {
 
     const dbDir = path.join('/app/tdlib-data', String(TARGET_USER_ID));
     
-    if (TG_SESSION && TG_SESSION.length > 100) {
-        console.log(`[tg-client] 📦 Found TG_SESSION, attempting to restore TDLib state...`);
-        unpackSession(TARGET_USER_ID, TG_SESSION);
+    let sessionToUnpack = TG_SESSION;
+
+    // Try to get session from Redis first if not in env or as a fallback
+    try {
+        const redisKey = `tg_session_${TARGET_USER_ID}`;
+        const redisSession = await redis.get(redisKey);
+        if (redisSession) {
+            console.log(`[tg-client] ⚡ Found session in Redis for ${TARGET_USER_ID} (Key: ${redisKey})`);
+            sessionToUnpack = redisSession;
+        } else {
+            console.log(`[tg-client] ℹ️ No session found in Redis for ${TARGET_USER_ID} (Key: ${redisKey})`);
+        }
+    } catch (e) {
+        console.warn(`[tg-client] ⚠️ Failed to fetch session from Redis:`, e.message);
+    }
+
+    if (sessionToUnpack && sessionToUnpack.length > 100) {
+        console.log(`[tg-client] 📦 Attempting to restore TDLib state...`);
+        unpackSession(TARGET_USER_ID, sessionToUnpack);
     } else {
         if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
     }

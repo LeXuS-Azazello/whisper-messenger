@@ -13,7 +13,7 @@ metadata:
   namespace: debugging-testcrash-pub
 rules:
 - apiGroups: [""]
-  resources: ["pods", "services", "persistentvolumeclaims"]
+  resources: ["pods", "services", "persistentvolumeclaims", "configmaps"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["apps"]
   resources: ["deployments", "statefulsets", "daemonsets"]

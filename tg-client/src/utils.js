@@ -25,6 +25,8 @@ export function unpackSession(userId, base64) {
         if (fs.existsSync(dbDir)) fs.rmSync(dbDir, { recursive: true, force: true });
         fs.mkdirSync(dbDir, { recursive: true });
         const zip = new AdmZip(Buffer.from(base64, 'base64'));
+        const entries = zip.getEntries();
+        console.log(`[utils] Unpacking session for ${userId}: ${entries.length} files found in ZIP`);
         zip.extractAllTo(dbDir, true);
         console.log(`[utils] Successfully unpacked session for ${userId} to ${dbDir}`);
         return dbDir;

@@ -57,89 +57,64 @@ export async function spawnPod(userId, session) {
     const safeUserId = String(userId);
     const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
     const ns = getNamespace();
+    
     console.log(`[/spawn] Spawning tg-client pod for user ${safeUserId} in namespace ${ns}`);
-    if (!ns) {
-        console.error(`[/spawn] CRITICAL: namespace is undefined!`);
-    }
 
     try {
-        console.log(`[/spawn] Listing pods for ${safeUserId}...`);
-        const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 30000).catch(e => {
-            console.warn(`[/spawn] listNamespacedPod failed:`, e.message);
-            return null;
-        });
-
+        const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 10000).catch(() => null);
         const items = (existing?.body?.items || existing?.items || []).filter(p => p.metadata.labels?.userId === safeUserId);
         if (items.length > 0) {
-            console.log(`[/spawn] Found ${items.length} existing pods/stale sessions for ${safeUserId}, cleaning up...`);
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
                 console.log(`[/spawn] Deleting stale pod ${p.metadata.name}...`);
-                await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: ns }), 30000, `Delete pod ${p.metadata.name}`)
-                    .catch(e => console.error(`[/spawn] Partial delete failure for ${p.metadata.name}:`, e.message));
+                await k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: ns }).catch(() => {});
             }
-            // Give K8s a moment to actually remove them
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 1000));
         }
-    } catch (listErr) {
-        console.warn(`[/spawn] Could not list/delete existing pods for ${safeUserId} (skipping cleanup):`, listErr.message);
+    } catch (e) {}
+
+    // Load template from ConfigMap
+    let podManifest;
+    try {
+        const cm = await k8sApi.readNamespacedConfigMap({ name: 'tg-client-pod-template', namespace: ns });
+        const templateJson = cm.body.data['pod-template.json'];
+        podManifest = JSON.parse(templateJson);
+    } catch (err) {
+        console.error(`[/spawn] Failed to read pod template from ConfigMap:`, err.message);
+        throw new Error('Pod template missing in cluster');
     }
 
-    // Reuse previously obtained namespace
-    // const ns = getNamespace(); // removed duplicate
     const podName = `tg-user-${sanitizedId}-${Date.now().toString().slice(-6)}`;
-    const podManifest = {
-        apiVersion: 'v1',
-        kind: 'Pod',
-        metadata: {
-            name: podName,
-            labels: {
-                app: 'tg-user-bridge',
-                userId: safeUserId
-            }
-        },
-        spec: {
-            serviceAccountName: 'mtproto-bridge-sa',
-            imagePullSecrets: [{ name: 'harbor-pull-secret' }],
-            containers: [{
-                name: 'tg-client',
-                image: process.env.TG_CLIENT_IMAGE || 'harbor.dev.takatan.cloud/devcenter/whisper-tg-client:latest',
-                command: ["node", "src/index.js"],
-                ports: [{ containerPort: 3001 }],
-                env: [
-                    { name: 'MODE', value: 'USER' },
-                    { name: 'TARGET_USER_ID', value: safeUserId },
-                    { name: 'TG_SESSION', value: session },
-                    { name: 'TG_API_ID', value: String(API_ID) },
-                    { name: 'TG_API_HASH', value: API_HASH },
-                    { name: 'WORKER_URL', value: WORKER_URL },
-                    { name: 'BRIDGE_SECRET', value: SECRET },
-                    { name: 'REDIS_URL', value: process.env.REDIS_URL || 'redis://redis:6379' },
-                    { name: 'OLLAMA_BASE_URL', value: process.env.QWEN_ASR_URL || 'http://qwen3-asr:8000' },
-                    { name: 'DEVICE_MODEL', value: process.env.DEVICE_MODEL || DEVICE_MODEL },
-                    { name: 'APP_VERSION', value: process.env.APP_VERSION || APP_VERSION },
-                    { name: 'SYSTEM_VERSION', value: process.env.SYSTEM_VERSION || SYSTEM_VERSION }
-                ],
-                resources: {
-                    requests: { cpu: '50m', memory: '128Mi' },
-                    limits: { cpu: '200m', memory: '256Mi' }
-                },
-                livenessProbe: {
-                    httpGet: { path: '/health', port: 3001 },
-                    initialDelaySeconds: 15,
-                    periodSeconds: 30
-                }
-            }],
-            restartPolicy: 'Always'
-        }
+    
+    // Customize the manifest
+    podManifest.metadata.name = podName;
+    podManifest.metadata.labels = {
+        ...podManifest.metadata.labels,
+        app: 'tg-user-bridge',
+        userId: safeUserId
     };
 
-    console.log(`[/spawn] Creating new tg-client pod ${podName} in namespace ${ns}...`);
-    await withTimeout(k8sApi.createNamespacedPod({ namespace: ns, body: podManifest }), 60000).catch(e => {
-        console.error(`[/spawn] Failed to create pod:`, e.message);
-    });
+    const container = podManifest.spec.containers[0];
+    
+    // Ensure essential env vars are set/overridden
+    const envMap = new Map();
+    (container.env || []).forEach(e => envMap.set(e.name, e));
 
-    console.log(`[/spawn] Successfully spawned ${podName} in namespace ${ns}`);
+    envMap.set('TARGET_USER_ID', { name: 'TARGET_USER_ID', value: safeUserId });
+    const sessVal = session || '';
+    envMap.set('TG_SESSION', { name: 'TG_SESSION', value: sessVal });
+    
+    container.env = Array.from(envMap.values());
+    
+    // Use image from manager's env if provided, otherwise stick to template
+    if (process.env.TG_CLIENT_IMAGE) {
+        container.image = process.env.TG_CLIENT_IMAGE;
+    }
+
+    console.log(`[/spawn] Creating pod ${podName} from template (Session length: ${sessVal.length})...`);
+    await withTimeout(k8sApi.createNamespacedPod({ namespace: ns, body: podManifest }), 30000);
+
+    console.log(`[/spawn] Successfully spawned ${podName}`);
     return podName;
 }
 

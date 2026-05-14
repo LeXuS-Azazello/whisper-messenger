@@ -101,15 +101,21 @@ echo ">>> Building and pushing Docker images..."
 
 echo "1. Frontend: $FRONTEND_IMAGE"
 docker build -t "$FRONTEND_IMAGE" -f Dockerfile .
+docker tag "$FRONTEND_IMAGE" "${REPO}/whisper-frontend:latest"
 docker push "$FRONTEND_IMAGE"
+docker push "${REPO}/whisper-frontend:latest"
 
 echo "2. Bridge Manager: $BRIDGE_IMAGE"
 docker build -t "$BRIDGE_IMAGE" -f mtproto-bridge/Dockerfile mtproto-bridge/
+docker tag "$BRIDGE_IMAGE" "${REPO}/whisper-bridge-manager:latest"
 docker push "$BRIDGE_IMAGE"
+docker push "${REPO}/whisper-bridge-manager:latest"
 
 echo "3. TG Client: $TG_CLIENT_IMAGE"
 docker build -t "$TG_CLIENT_IMAGE" -f tg-client/Dockerfile tg-client/
+docker tag "$TG_CLIENT_IMAGE" "${REPO}/whisper-tg-client:latest"
 docker push "$TG_CLIENT_IMAGE"
+docker push "${REPO}/whisper-tg-client:latest"
 echo ""
 
 # Single kustomize apply covers: frontend, redis, network-policy,

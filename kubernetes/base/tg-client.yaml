@@ -29,7 +29,10 @@ data:
             { "name": "WORKER_URL", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "WORKER_URL"}} },
             { "name": "BRIDGE_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "BRIDGE_SECRET"}} },
             { "name": "REDIS_URL", "value": "redis://redis:6379" },
-            { "name": "OLLAMA_BASE_URL", "value": "http://qwen3-asr:8000" }
+            { "name": "OLLAMA_BASE_URL", "value": "http://qwen3-asr:8000" },
+            { "name": "DEVICE_MODEL", "value": "Desktop Linux" },
+            { "name": "APP_VERSION", "value": "4.15.2" },
+            { "name": "SYSTEM_VERSION", "value": "Ubuntu 24.04" }
           ],
           "resources": {
             "requests": { "cpu": "50m", "memory": "128Mi" },

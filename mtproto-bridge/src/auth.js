@@ -1,8 +1,8 @@
 import { createClient, packSession } from './utils.js';
-import { MODE, API_ID, API_HASH } from './config.js';
+import { MODE, API_ID, API_HASH, redis } from './config.js';
 import QRCode from 'qrcode';
 
-// Shared Map across endpoints
+// Shared Map across endpoints for ACTIVE login processes (contains non-serializable client objects)
 export const authSessions = new Map();
 
 function getTdlibParams(dbDir) {
@@ -120,6 +120,17 @@ export async function sendCode(req, res) {
     }
 }
 
+async function saveSessionToRedis(userId, packedSession) {
+    if (!userId || !packedSession) return;
+    try {
+        const key = `tg_session_${userId}`;
+        await redis.set(key, packedSession, 'EX', 86400 * 30); // Save for 30 days
+        console.log(`[auth] Session for user ${userId} saved to Redis (Key: ${key})`);
+    } catch (e) {
+        console.error(`[auth] Failed to save session to Redis for user ${userId}:`, e.message);
+    }
+}
+
 export async function verifyCode(req, res) {
     try {
         const { phone, code } = req.body;
@@ -151,6 +162,10 @@ export async function verifyCode(req, res) {
         }
 
         console.log(`[/verify-code] Success! User ID: ${userId}`);
+        
+        // Save to Redis
+        await saveSessionToRedis(userId, packed);
+
         res.json({ success: true, session: packed, userId, firstName });
         
         authSessions.delete(phone);
@@ -188,6 +203,11 @@ export async function verifyPassword(req, res) {
         const packed = packSession(phone);
         const userId = s.user?.id?.toString();
         if (!userId) throw new Error('User information not found after password verification');
+
+        console.log(`[/verify-password] Success! User ID: ${userId}`);
+        
+        // Save to Redis
+        await saveSessionToRedis(userId, packed);
 
         res.json({ success: true, session: packed, userId, firstName: s.user.first_name });
         authSessions.delete(phone);
@@ -277,6 +297,11 @@ export async function qrCheck(req, res) {
         const packed = packSession(s.id);
         const userId = s.user?.id?.toString();
         if (!userId) return res.json({ done: false, error: 'User info missing' });
+
+        console.log(`[/qr-check] Success! User ID: ${userId}`);
+        
+        // Save to Redis
+        await saveSessionToRedis(userId, packed);
 
         const resp = { done: true, session: packed, userId, firstName: s.user.first_name };
         authSessions.delete(token);
