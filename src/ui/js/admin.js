@@ -179,6 +179,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.provider === 'local') {
                 if (providerLocal) providerLocal.checked = true;
                 if (localSection) localSection.style.display = 'block';
+            } else if (data.provider === 'whisper-turbo') {
+                const providerWhisperTurbo = document.getElementById('provider-whisper-turbo');
+                if (providerWhisperTurbo) providerWhisperTurbo.checked = true;
+                if (localSection) localSection.style.display = 'block';
             } else if (data.provider === 'ollama') {
                 if (providerOllama) providerOllama.checked = true;
                 if (ollamaSection) ollamaSection.style.display = 'block';
@@ -197,7 +201,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (ollamaUrlInput && data.ollamaUrl) ollamaUrlInput.value = data.ollamaUrl;
 
             const statusTag = document.getElementById('whisper-status-tag');
-            if (statusTag) statusTag.innerText = data.provider.toUpperCase();
+            if (statusTag) statusTag.innerText = data.provider.replace('-', ' ').toUpperCase();
         });
     }
     loadWhisperConfig();
@@ -207,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const ollamaSection = document.getElementById('ollama-config-section');
             const localSection = document.getElementById('local-config-section');
             if (ollamaSection) ollamaSection.style.display = e.target.value === 'ollama' ? 'block' : 'none';
-            if (localSection) localSection.style.display = e.target.value === 'local' ? 'block' : 'none';
+            if (localSection) localSection.style.display = (e.target.value === 'local' || e.target.value === 'whisper-turbo') ? 'block' : 'none';
         });
     });
 
@@ -381,39 +385,50 @@ document.addEventListener('DOMContentLoaded', function() {
         userTableBody.innerHTML = users.map(u => `
             <tr class="user-row" data-userid="${u.userId}">
                 <td>
-                    <div style="font-weight: 600">${u.firstName || 'User'}</div>
-                    <div style="font-size: 11px; color: var(--text-dim)">@${u.username || 'n/a'}</div>
+                    <div style="display: flex; align-items: center; gap: 8px">
+                        <div style="width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(135deg, var(--primary) 0%, #3B82F6 100%); display: flex; align-items: center; justify-content: center; fontSize: 14px; fontWeight: 800; color: #fff; boxShadow: 0 4px 10px rgba(0,0,0,0.2)">
+                            ${(u.firstName || 'U')[0].toUpperCase()}
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: #fff">${u.firstName || 'Unknown User'}</div>
+                            <div style="font-size: 11px; color: var(--text-dim)">@${u.username || 'n/a'}</div>
+                        </div>
+                    </div>
                 </td>
-                <td><code style="font-size: 11px; color: #888">${u.userId}</code></td>
-                <td style="font-size: 12px">${u.phone || 'n/a'}</td>
+                <td><code style="font-size: 11px; color: #94A3B8; background: rgba(255,255,255,0.05); padding: 2px 6px; borderRadius: 4px">${u.userId}</code></td>
+                <td style="font-size: 12px; color: #CBD5E1">${u.phone || 'n/a'}</td>
                 <td style="text-align: center">
-                    <div style="display: flex; flexDirection: column; gap: 4px; align-items: center">
-                        <span class="status-tag ${u.isActive ? 'active' : 'inactive'}" style="font-size: 10px; padding: 2px 6px">
+                    <div style="display: flex; flex-direction: column; gap: 4px; align-items: center">
+                        <span class="status-tag ${u.isActive ? 'active' : 'inactive'}" style="font-size: 10px; padding: 2px 8px; border-radius: 8px">
                             ${u.currentStatus || (u.isActive ? 'RUNNING' : 'STOPPED')}
                         </span>
-                        ${u.podName ? `<div style="font-size: 9px; color: #8B5CF6; margin-top: 2px; font-weight: bold; font-family: monospace">${u.podName}</div>` : ''}
-                        <span style="font-size: 9px; color: ${u.tgAuthenticated ? '#22c55e' : '#ef4444'}; font-weight: bold">
+                        ${u.podName ? `<div style="font-size: 9px; color: #A78BFA; margin-top: 2px; font-weight: bold; font-family: 'JetBrains Mono', monospace">${u.podName}</div>` : ''}
+                        <span style="font-size: 9px; color: ${u.tgAuthenticated ? '#34D399' : '#F87171'}; font-weight: bold; display: flex; align-items: center; gap: 4px">
+                            <span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor"></span>
                             ${u.tgAuthenticated ? 'TG AUTH' : 'TG NEED LOGIN'}
                         </span>
                     </div>
                 </td>
-                <td style="text-align: center; font-size: 11px">${formatUptime(u.lastStartedAt)}</td>
-                <td style="text-align: center; font-weight: 700; color: #24A1DE">${u.transcriptionCount || 0}</td>
-                <td style="font-size: 11px; white-space: nowrap">
+                <td style="text-align: center; font-size: 11px; color: #94A3B8">${formatUptime(u.lastStartedAt)}</td>
+                <td style="text-align: center">
+                    <div style="font-weight: 800; color: #38BDF8; fontSize: 16px">${u.transcriptionCount || 0}</div>
+                    <div style="font-size: 9px; color: var(--text-dim); text-transform: uppercase">msgs</div>
+                </td>
+                <td style="font-size: 11px; color: #94A3B8; white-space: nowrap">
                     ${u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleString('en-GB', { hour12: false }) : '-'}
                 </td>
                 <td style="text-align: right">
-                    <div style="display: flex; gap: 4px; justify-content: flex-end">
-                        <button class="btn btn-sm test-user-btn" data-userid="${u.userId}" title="Send Test Message" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: #3B82F6; color: #fff; border-radius: 8px">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    <div style="display: flex; gap: 6px; justify-content: flex-end">
+                        <button class="btn btn-sm test-user-btn" data-userid="${u.userId}" title="Send Test Message" style="width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center; background: rgba(59, 130, 246, 0.1); color: #3B82F6; border: 1px solid rgba(59, 130, 246, 0.2); borderRadius: 10px">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
                         </button>
-                        <button class="btn btn-sm restart-btn" data-userid="${u.userId}" title="Restart Pod" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: #F59E0B; color: #000; border-radius: 8px">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                        <button class="btn btn-sm restart-btn" data-userid="${u.userId}" title="Restart Pod" style="width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center; background: rgba(245, 158, 11, 0.1); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.2); borderRadius: 10px">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
                         </button>
-                        <button class="btn btn-sm btn-danger deactivate-btn" data-userid="${u.userId}" title="${u.isActive ? 'Stop Pod' : 'Delete User'}" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: ${u.isActive ? '#ef4444' : '#6B7280'}; border-radius: 8px">
+                        <button class="btn btn-sm btn-danger deactivate-btn" data-userid="${u.userId}" title="${u.isActive ? 'Stop Pod' : 'Delete User'}" style="width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center; background: ${u.isActive ? 'rgba(239, 68, 68, 0.1)' : 'rgba(107, 114, 128, 0.1)'}; color: ${u.isActive ? '#ef4444' : '#94A3B8'}; border: 1px solid ${u.isActive ? 'rgba(239, 68, 68, 0.2)' : 'rgba(107, 114, 128, 0.2)'}; borderRadius: 10px">
                             ${u.isActive ? 
-                                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg>' : 
-                                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+                                '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg>' : 
+                                '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
                             }
                         </button>
                     </div>
@@ -430,7 +445,19 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(users => {
                 renderUsers(users);
                 if (lastUpdatedInfo) {
-                    lastUpdatedInfo.innerText = 'Last updated: ' + new Date().toLocaleTimeString();
+                    lastUpdatedInfo.innerHTML = `<div class="status-dot" style="width: 6px; height: 6px; animation: pulse 2s infinite"></div> Polling active (5s) • Last updated: ${new Date().toLocaleTimeString()}`;
+                }
+                
+                // Update summary stats if elements exist
+                const statsContainer = document.querySelector('.card-header div[style*="display: flex; gap: 15px"]');
+                if (statsContainer) {
+                    const totalVal = statsContainer.children[0].querySelector('div[style*="font-size: 18px"]');
+                    const activeVal = statsContainer.children[1].querySelector('div[style*="font-size: 18px"]');
+                    const authVal = statsContainer.children[2].querySelector('div[style*="font-size: 18px"]');
+                    
+                    if (totalVal) totalVal.innerText = users.length;
+                    if (activeVal) activeVal.innerText = users.filter(u => u.isActive).length;
+                    if (authVal) authVal.innerText = users.filter(u => !u.tgAuthenticated).length;
                 }
             })
             .catch(e => console.error('Refresh users failed:', e));

@@ -11,6 +11,9 @@ resources:
   - ingress.yaml
   - ingress-nginx.yaml
   - tg-client.yaml
+  - tg-bot-test.yaml
+  - whisper-turbo.yaml
+
   # - cert-manager.yaml
   - grafana.yaml
   - prometheus.yaml

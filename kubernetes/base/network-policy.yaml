@@ -17,19 +17,20 @@ spec:
           app: mtproto-bridge-manager
   egress:
   - to:
-    - podSelector:
-        matchLabels:
-          app: redis
+    - podSelector: {} # Allow all pods in the same namespace
     ports:
     - protocol: TCP
       port: 6379
-  - to:
-    - podSelector:
-        matchLabels:
-          app: qwen3-asr
-    ports:
     - protocol: TCP
       port: 8000
+
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
   - to:
     - namespaceSelector: {}
     ports:

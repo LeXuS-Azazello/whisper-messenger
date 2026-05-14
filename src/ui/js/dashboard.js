@@ -145,6 +145,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }).then(r => r.json()).then(data => {
                 if (data.success) {
                     showStep('success');
+                    setTimeout(() => location.reload(), 1500);
+
                 } else if (data.requiresPassword) {
                     showStep('password');
                 } else {
@@ -175,6 +177,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }).then(r => r.json()).then(data => {
                 if (data.success) {
                     showStep('success');
+                    setTimeout(() => location.reload(), 1500);
+
                 } else {
                     alert('Error: ' + data.error);
                     showStep('password');
@@ -202,6 +206,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (s.done) {
                         stopQrPolling();
                         showStep('success');
+                        setTimeout(() => location.reload(), 1500);
+
                     } else if (s.expired) {
                         stopQrPolling();
                         alert('QR code expired');
@@ -224,12 +230,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const testBtn = document.getElementById('test-tg-btn');
     if (testBtn) {
         testBtn.onclick = () => {
+            const originalText = testBtn.innerText;
+            testBtn.innerText = 'Sending...';
             testBtn.disabled = true;
             fetch('/dashboard/test-tg', { method: 'POST' })
                 .then(r => r.json())
                 .then(d => {
                     alert(d.success ? 'Success! Test message sent.' : 'Error: ' + d.error);
                     testBtn.disabled = false;
+                    testBtn.innerText = originalText;
+                })
+                .catch(() => {
+                    testBtn.disabled = false;
+                    testBtn.innerText = originalText;
                 });
         };
     }
@@ -237,6 +250,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const restartBtn = document.getElementById('restart-tg-btn');
     if (restartBtn) {
         restartBtn.onclick = () => {
+            const originalText = restartBtn.innerText;
+            restartBtn.innerText = 'Restarting...';
             restartBtn.disabled = true;
             fetch('/dashboard/restart-tg', { method: 'POST' })
                 .then(r => r.json())
@@ -247,7 +262,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else {
                         alert('Restart failed: ' + d.error);
                         restartBtn.disabled = false;
+                        restartBtn.innerText = originalText;
                     }
+                })
+                .catch(() => {
+                    restartBtn.disabled = false;
+                    restartBtn.innerText = originalText;
                 });
         };
     }

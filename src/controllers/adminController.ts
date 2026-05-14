@@ -85,10 +85,20 @@ export async function getSampleAudio(): Promise<Response> {
     return Response.json({ url: sampleAudioBase64 });
 }
 
+async function proxyToBridge(url: string, options: any): Promise<Response> {
+    try {
+        const res = await fetch(url, options);
+        return res;
+    } catch (e: any) {
+        console.warn("[Admin] Bridge proxy failed:", e.message);
+        return Response.json({ success: false, error: `Bridge unreachable: ${e.message}` }, { status: 503 });
+    }
+}
+
 export async function getTgStatus(env: Env): Promise<Response> {
     const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
     const secret = (env.BRIDGE_SECRET || "changeme").trim();
-    return await fetch(`${bridgeUrl}/health?secret=${secret}`, {
+    return await proxyToBridge(`${bridgeUrl}/health?secret=${secret}`, {
         headers: { "x-bridge-secret": secret }
     });
 }
@@ -97,7 +107,7 @@ export async function tgSendCode(env: Env, req: Request): Promise<Response> {
     const { phoneNumber } = await req.json() as any;
     const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
     const secret = (env.BRIDGE_SECRET || "changeme").trim();
-    return await fetch(`${bridgeUrl}/send-code?secret=${secret}`, {
+    return await proxyToBridge(`${bridgeUrl}/send-code?secret=${secret}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
         body: JSON.stringify({ phone: phoneNumber })
@@ -108,7 +118,7 @@ export async function tgVerifyCode(env: Env, req: Request): Promise<Response> {
     const { phoneNumber, code } = await req.json() as any;
     const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
     const secret = (env.BRIDGE_SECRET || "changeme").trim();
-    return await fetch(`${bridgeUrl}/verify-code?secret=${secret}`, {
+    return await proxyToBridge(`${bridgeUrl}/verify-code?secret=${secret}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
         body: JSON.stringify({ phone: phoneNumber, code })
@@ -118,7 +128,7 @@ export async function tgVerifyCode(env: Env, req: Request): Promise<Response> {
 export async function tgQrLogin(env: Env): Promise<Response> {
     const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
     const secret = (env.BRIDGE_SECRET || "changeme").trim();
-    return await fetch(`${bridgeUrl}/qr-start?secret=${secret}`, {
+    return await proxyToBridge(`${bridgeUrl}/qr-start?secret=${secret}`, {
         method: "POST",
         headers: { "x-bridge-secret": secret }
     });
@@ -127,7 +137,7 @@ export async function tgQrLogin(env: Env): Promise<Response> {
 export async function tgQrCheck(env: Env, token: string | null): Promise<Response> {
     const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
     const secret = (env.BRIDGE_SECRET || "changeme").trim();
-    return await fetch(`${bridgeUrl}/qr-check?token=${token}&secret=${secret}`, {
+    return await proxyToBridge(`${bridgeUrl}/qr-check?token=${token}&secret=${secret}`, {
         headers: { "x-bridge-secret": secret }
     });
 }
@@ -137,12 +147,20 @@ export async function tgTestMsg(env: Env, req: Request): Promise<Response> {
     const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
     const secret = (env.BRIDGE_SECRET || "changeme").trim();
     
-    // If userId is provided, we try to send to that specific user's pod
-    // If not, it sends to the admin's own linked account (default bridge behavior)
-    return await fetch(`${bridgeUrl}/test-tg?secret=${secret}`, {
+    // Get session for the user if userId is provided, otherwise it uses bridge's own
+    let session = null;
+    if (userId) {
+        session = await env.STATS.get(`tg_session_${userId}`);
+    }
+
+    return await proxyToBridge(`${bridgeUrl}/test-tg?secret=${secret}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
-        body: JSON.stringify({ userId, message: message || "Admin test message!" })
+        body: JSON.stringify({ 
+            userId, 
+            session,
+            message: message || "Admin test message!" 
+        })
     });
 }
 
@@ -152,21 +170,44 @@ export async function getUsersJson(env: Env): Promise<Response> {
 }
 
 export async function getWhisperConfig(env: Env): Promise<Response> {
-    let provider = await env.STATS.get("config_whisper_provider");
-    if (!provider || provider !== 'qwen3-asr') {
-        provider = 'qwen3-asr';
-    }
-    const localUrl = await env.STATS.get("config_local_whisper_url") || "";
-    const localSecret = await env.STATS.get("config_local_whisper_secret") || "";
-    const ollamaUrl = await env.STATS.get("config_ollama_url") || "";
-    return Response.json({ provider, localUrl, localSecret, ollamaUrl });
+    const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || 'qwen3-asr';
+    const localUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || "";
+    const localSecret = await env.STATS.get("config_local_whisper_secret") || env.LOCAL_WHISPER_SECRET || "";
+    const ollamaUrl = await env.STATS.get("config_ollama_url") || env.OLLAMA_BASE_URL || "";
+    const model = await env.STATS.get("config_whisper_model") || "";
+    
+    // Attempt to sync from DB if Redis is empty but we want to be sure it's consistent
+    // In a real scenario, we might want to load from DB on startup and populate Redis.
+    
+    return Response.json({ provider, localUrl, localSecret, ollamaUrl, model });
 }
 
 export async function updateWhisperConfig(env: Env, req: Request): Promise<Response> {
-    const { provider } = await req.json() as any;
-    if (provider === 'qwen3-asr') {
-        await env.STATS.put("config_whisper_provider", provider);
+    const { provider, localUrl, localSecret, ollamaUrl, model } = await req.json() as any;
+    const { default: ServerSetting } = await import("../models/ServerSetting");
+    
+    const settings = [
+        { key: "config_whisper_provider", value: provider },
+        { key: "config_local_whisper_url", value: localUrl },
+        { key: "config_local_whisper_secret", value: localSecret },
+        { key: "config_ollama_url", value: ollamaUrl },
+        { key: "config_whisper_model", value: model }
+    ];
+
+    for (const s of settings) {
+        if (s.value !== undefined && s.value !== null) {
+            // Save to Redis (for fast access in workers/bridge)
+            await env.STATS.put(s.key, String(s.value));
+            
+            // Save to MongoDB (for persistence)
+            await ServerSetting.findOneAndUpdate(
+                { key: s.key },
+                { value: s.value, category: 'whisper' },
+                { upsert: true, new: true }
+            );
+        }
     }
+    
     return Response.json({ success: true });
 }
 
@@ -178,7 +219,7 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
     if (action === "restart") {
         const session = await env.STATS.get(`tg_session_${userId}`);
         // First delete
-        await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
+        await proxyToBridge(`${bridgeUrl}/delete?secret=${secret}`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
             body: JSON.stringify({ userId })
@@ -186,15 +227,14 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
         
         if (session) {
             // Then spawn
-            const res = await fetch(`${bridgeUrl}/spawn?secret=${secret}`, {
+            return await proxyToBridge(`${bridgeUrl}/spawn?secret=${secret}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
                 body: JSON.stringify({ userId, session })
             });
-            return res;
         }
     } else if (action === "stop") {
-        return await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
+        return await proxyToBridge(`${bridgeUrl}/delete?secret=${secret}`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
             body: JSON.stringify({ userId })
@@ -218,6 +258,7 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
 
 export async function renderDashboardPage(env: Env, origin: string): Promise<Response> {
     const users = await fetchUsersWithStatus(env);
+    const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || 'qwen3-asr';
     const checks: HealthChecks = {
         VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
         META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
@@ -229,6 +270,11 @@ export async function renderDashboardPage(env: Env, origin: string): Promise<Res
         TELEGRAM_APP_HASH: Boolean(env.TELEGRAM_APP_HASH),
         AUDIO_QUEUE: Boolean(env.AUDIO_QUEUE),
         AI: Boolean(env.AI),
+        // Custom fields for UI state
+        ...({
+            WHISPER_PROVIDER: provider,
+            WHISPER_PROVIDER_NAME: provider.replace('-', ' ').toUpperCase()
+        } as any)
     };
 
     const platforms = ["messenger", "instagram", "whatsapp", "telegram", "line"];
@@ -243,4 +289,20 @@ export async function renderDashboardPage(env: Env, origin: string): Promise<Res
     return new Response(renderAdminDashboard(checks, env, origin, stats, errors, users, false), {
         headers: { "Content-Type": "text/html; charset=utf-8" }
     });
+}
+
+export async function syncSettingsToRedis(env: Env) {
+    console.log("[Settings] Syncing settings from MongoDB to Redis...");
+    try {
+        const { default: ServerSetting } = await import("../models/ServerSetting");
+        const settings = await ServerSetting.find({ category: 'whisper' });
+        
+        for (const s of settings) {
+            console.log(`[Settings] Syncing ${s.key} -> ${s.value}`);
+            await env.STATS.put(s.key, String(s.value));
+        }
+        console.log("[Settings] Sync complete.");
+    } catch (e) {
+        console.error("[Settings] Sync failed:", e);
+    }
 }

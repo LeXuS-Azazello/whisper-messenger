@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tg-bot-test
+  namespace: debugging-testcrash-pub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tg-bot-test
+  template:
+    metadata:
+      labels:
+        app: tg-bot-test
+    spec:
+      imagePullSecrets:
+      - name: harbor-pull-secret
+      containers:
+      - name: tg-bot
+        image: harbor.dev.takatan.cloud/devcenter/whisper-tg-client:latest
+        env:
+        - name: MODE
+          value: "BOT"
+        - name: TELEGRAM_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: TELEGRAM_BOT_TOKEN
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: OLLAMA_BASE_URL
+          value: "http://whisper-turbo:8000"
+        - name: WHISPER_TURBO_URL
+          value: "http://whisper-turbo:8000"
+        - name: WHISPER_PROVIDER
+          value: "whisper-turbo"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"

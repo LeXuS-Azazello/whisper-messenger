@@ -156,14 +156,58 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 <h3 class="card-title">
                                     <span style={{ color: '#8B5CF6' }}>✦</span> Echo AI Provider
                                 </h3>
-                                <span id="whisper-status-tag" class="status-tag active">LOADING...</span>
+                                <span id="whisper-status-tag" class="status-tag active" style={{ 
+                                    background: 'rgba(139, 92, 246, 0.2)', 
+                                    color: '#A78BFA', 
+                                    border: '1px solid rgba(139, 92, 246, 0.4)',
+                                    padding: '4px 12px',
+                                    borderRadius: '10px',
+                                    fontSize: '11px',
+                                    fontWeight: '800',
+                                    textTransform: 'uppercase'
+                                }}>
+                                    {(checks as any).WHISPER_PROVIDER_NAME || 'LOADING...'}
+                                </span>
                             </div>
                             <div style={{ marginTop: '10px' }}>
                                 <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                                        <input type="radio" name="whisper_provider" value="qwen3-asr" id="provider-qwen3-asr" checked readOnly />
-                                        <span style={{ fontSize: '14px' }}>Qwen3-ASR</span>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <input type="radio" name="whisper_provider" value="qwen3-asr" id="provider-qwen3-asr" checked={(checks as any).WHISPER_PROVIDER === 'qwen3-asr'} />
+                                        <span style={{ fontSize: '14px', fontWeight: '600' }}>Qwen3-ASR</span>
                                     </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <input type="radio" name="whisper_provider" value="whisper-turbo" id="provider-whisper-turbo" checked={(checks as any).WHISPER_PROVIDER === 'whisper-turbo'} />
+                                        <span style={{ fontSize: '14px', fontWeight: '600' }}>Whisper Turbo</span>
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <input type="radio" name="whisper_provider" value="ollama" id="provider-ollama" checked={(checks as any).WHISPER_PROVIDER === 'ollama'} />
+                                        <span style={{ fontSize: '14px', fontWeight: '600' }}>Ollama</span>
+                                    </label>
+                                </div>
+
+                                <div id="local-config-section" style={{ display: 'none', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '12px', marginBottom: '15px' }}>
+                                    <div class="input-group">
+                                        <label class="input-label">Whisper URL</label>
+                                        <input type="text" id="local-whisper-url" class="input-field" placeholder="http://whisper-turbo:8000" />
+                                    </div>
+                                    <div class="input-group" style={{ marginTop: '10px' }}>
+                                        <label class="input-label">Auth Secret (Optional)</label>
+                                        <input type="password" id="local-whisper-secret" class="input-field" placeholder="Bearer secret" />
+                                    </div>
+                                </div>
+
+                                <div id="ollama-config-section" style={{ display: 'none', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '12px', marginBottom: '15px' }}>
+                                    <div class="input-group">
+                                        <label class="input-label">Ollama Base URL</label>
+                                        <input type="text" id="ollama-url" class="input-field" placeholder="http://ollama:11434" />
+                                    </div>
+                                    <div class="input-group" style={{ marginTop: '10px' }}>
+                                        <label class="input-label">Model Name</label>
+                                        <div style={{ display: 'flex', gap: '10px' }}>
+                                            <input type="text" id="ollama-model-select" class="input-field" placeholder="qwen2-audio" style={{ flex: 1 }} />
+                                            <button class="btn btn-sm" id="pull-ollama-btn" style={{ margin: 0, width: 'auto', background: '#3B82F6' }}>Pull / Download</button>
+                                        </div>
+                                    </div>
                                 </div>
 
 
@@ -255,13 +299,29 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                         </div>
 
                         <div class="card" style={{ gridColumn: '1 / -1' }}>
-                            <div class="card-header">
+                            <div class="card-header" style={{ marginBottom: '20px' }}>
                                 <div>
-                                    <h3 class="card-title">User Management (Telegram Pods)</h3>
-                                    <div id="last-updated-info" style={{ fontSize: '10px', color: 'var(--text-dim)', marginTop: '2px' }}>Polling active (5s)</div>
+                                    <h3 class="card-title" style={{ color: '#fff', fontSize: '1.25rem', marginBottom: '4px' }}>User Management (Telegram Pods)</h3>
+                                    <div id="last-updated-info" style={{ fontSize: '10px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <div class="status-dot" style={{ width: '6px', height: '6px', animation: 'pulse 2s infinite' }}></div>
+                                        Polling active (5s) • Last updated: {new Date().toLocaleTimeString()}
+                                    </div>
                                 </div>
-                                <button class="btn btn-sm" id="force-refresh-btn" style={{ width: 'auto', background: 'rgba(255,255,255,0.05)', fontSize: '10px', padding: '4px 8px' }}>Refresh Now</button>
-                                <div id="total-users" style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{users.length} users</div>
+                                <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                                    <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: '10px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Total</div>
+                                        <div style={{ fontSize: '18px', fontWeight: '800', color: '#fff' }}>{users.length}</div>
+                                    </div>
+                                    <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: '10px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Active</div>
+                                        <div style={{ fontSize: '18px', fontWeight: '800', color: '#10B981' }}>{users.filter(u => u.isActive).length}</div>
+                                    </div>
+                                    <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: '10px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Need Auth</div>
+                                        <div style={{ fontSize: '18px', fontWeight: '800', color: '#EF4444' }}>{users.filter(u => !u.tgAuthenticated).length}</div>
+                                    </div>
+                                    <button class="btn btn-sm" id="force-refresh-btn" style={{ width: 'auto', background: 'rgba(255,255,255,0.05)', fontSize: '11px', padding: '6px 12px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', margin: 0 }}>Refresh</button>
+                                </div>
                             </div>
                             <div class="user-table-container" style={{ overflowX: 'auto', marginTop: '10px' }}>
                                 <table class="user-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>

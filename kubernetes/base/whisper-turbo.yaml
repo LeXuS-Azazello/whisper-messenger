@@ -1,25 +1,43 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: qwen3-asr-cpu-script
+  name: whisper-turbo-script
   namespace: debugging-testcrash-pub
 data:
-  cpu_serve.py: |
+  serve_whisper.py: |
     import os
     import tempfile
     import torch
     import uvicorn
     from fastapi import FastAPI, UploadFile, File, Form
-    from qwen_asr import Qwen3ASRModel
+    from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
     app = FastAPI()
 
-    print("Loading Qwen3-ASR model on CPU (Transformers backend)...")
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+    model_id = "openai/whisper-large-v3-turbo"
+
+    print(f"Loading Whisper Turbo model on {device}...")
     try:
-        model = Qwen3ASRModel.from_pretrained(
-            "Qwen/Qwen3-ASR-0.6B",
-            dtype=torch.float32,
-            device_map="cpu"
+        model = AutoModelForSpeechSeq2Seq.from_pretrained(
+            model_id, 
+            torch_dtype=torch_dtype, 
+            low_cpu_mem_usage=True, 
+            use_safetensors=True
+        ).to(device)
+        
+        processor = AutoProcessor.from_pretrained(model_id)
+
+        pipe = pipeline(
+            "automatic-speech-recognition",
+            model=model,
+            tokenizer=processor.tokenizer,
+            feature_extractor=processor.feature_extractor,
+            chunk_length_s=30,
+            batch_size=16,
+            torch_dtype=torch_dtype,
+            device=device,
         )
         print("Model loaded successfully!")
     except Exception as e:
@@ -29,25 +47,28 @@ data:
 
     @app.get("/health")
     async def health():
-        return {"status": "ok", "model": "Qwen3-ASR-0.6B"}
+        return {"status": "ok", "model": model_id, "device": device}
 
     @app.post("/v1/audio/transcriptions")
-    async def transcribe(file: UploadFile = File(...), model_name: str = Form(default="Qwen/Qwen3-ASR-0.6B"), language: str = Form(default="auto")):
+    async def transcribe(
+        file: UploadFile = File(...), 
+        model_name: str = Form(default="openai/whisper-large-v3-turbo"), 
+        language: str = Form(default="auto"),
+        task: str = Form(default="transcribe")
+    ):
         print(f"Received transcription request: {file.filename}")
         with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as tmp:
             tmp.write(await file.read())
             tmp_path = tmp.name
 
         try:
-            results = model.transcribe(audio=[tmp_path])
-            if results:
-                res = results[0]
-                # Qwen3-ASR results are usually objects with .text and .language
-                text = getattr(res, "text", str(res))
-                print(f"Transcription success: {text[:50]}...")
-            else:
-                print("Transcription returned no results")
-                text = ""
+            generate_kwargs = {"task": task}
+            if language and language != "auto":
+                generate_kwargs["language"] = language
+                
+            result = pipe(tmp_path, generate_kwargs=generate_kwargs)
+            text = result.get("text", "")
+            print(f"Transcription success: {text[:50]}...")
         except Exception as e:
             print(f"Error transcribing: {e}")
             text = ""
@@ -64,7 +85,7 @@ data:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: qwen3-asr-cache
+  name: whisper-turbo-cache
   namespace: debugging-testcrash-pub
 spec:
   accessModes:
@@ -77,40 +98,48 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: qwen3-asr
+  name: whisper-turbo
   namespace: debugging-testcrash-pub
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: qwen3-asr
+      app: whisper-turbo
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        app: qwen3-asr
+        app: whisper-turbo
     spec:
       imagePullSecrets:
       - name: harbor-pull-secret
       containers:
-      - name: qwen3-asr
+      - name: whisper-turbo
         image: harbor.dev.takatan.cloud/devcenter/python:3.12-slim
         command: ["/bin/bash", "-c"]
         args:
         - |
           set -e
-          echo "Starting qwen3-asr pod..."
+          echo "Starting whisper-turbo pod..."
           # Install system dependencies for audio processing
           apt-get update && apt-get install -y libsndfile1 ffmpeg --no-install-recommends
           
-          # Install dependencies (will be cached in /root/.cache/pip via PVC)
+          # Install dependencies
           pip install --upgrade pip
-          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install qwen-asr python-multipart uvicorn fastapi
+          # Check if we have GPU support in the environment
+          if command -v nvidia-smi &> /dev/null; then
+            echo "GPU detected, installing CUDA torch..."
+            pip install torch torchaudio transformers accelerate flash-attn --no-build-isolation
+          else
+            echo "No GPU detected, installing CPU torch..."
+            pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+            pip install transformers accelerate
+          fi
+          pip install python-multipart uvicorn fastapi
           
           # Run the server
-          python3 /app/cpu_serve.py
+          python3 /app/serve_whisper.py
 
         readinessProbe:
           httpGet:
@@ -135,12 +164,10 @@ spec:
           value: "cpu"
         - name: CUDA_VISIBLE_DEVICES
           value: ""
-        - name: NVIDIA_VISIBLE_DEVICES
-          value: "void"
-        - name: TRANSFORMERS_VERBOSITY
-          value: "info"
         - name: HF_HOME
           value: "/root/.cache/huggingface"
+        - name: TRANSFORMERS_VERBOSITY
+          value: "info"
         resources:
           requests:
             cpu: "4000m"
@@ -156,19 +183,19 @@ spec:
       volumes:
       - name: cache
         persistentVolumeClaim:
-          claimName: qwen3-asr-cache
+          claimName: whisper-turbo-cache
       - name: script-vol
         configMap:
-          name: qwen3-asr-cpu-script
+          name: whisper-turbo-script
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: qwen3-asr
+  name: whisper-turbo
   namespace: debugging-testcrash-pub
 spec:
   selector:
-    app: qwen3-asr
+    app: whisper-turbo
   ports:
   - name: http
     port: 8000

@@ -50,7 +50,10 @@ export const renderDashboard = (user: UserSession) => {
                                         </div>
                                         <div>
                                             <div style={{ fontSize: '15px', fontWeight: '700' }}>Active Bridge</div>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                                            <div style={{ fontSize: '13px', color: 'white', fontWeight: '600', marginTop: '2px' }}>
+                                                {user.firstName} {user.username ? `@${user.username}` : ''}
+                                            </div>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}>
                                                 Status: <span style={{ color: user.isActive ? 'var(--success)' : 'var(--danger)', fontWeight: 'bold' }}>
                                                     {user.isActive ? 'ONLINE' : 'OFFLINE'}
                                                 </span>
@@ -67,7 +70,7 @@ export const renderDashboard = (user: UserSession) => {
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div id="tg-connect-prompt" style={{ display: isTgConnected ? 'none' : 'block', marginTop: '15px', textAlign: 'center' }}>
                                 <div style={{ padding: '20px 10px' }}>
                                     <div style={{ fontSize: '40px', marginBottom: '15px' }}>🛰️</div>
@@ -307,7 +310,7 @@ export const renderDashboard = (user: UserSession) => {
                     <div class="modal-content">
                         <button class="modal-close" id="tg-modal-close">&times;</button>
                         <div class="modal-title">Connect Telegram</div>
-                        
+
                         {/* Step 1: Choice */}
                         <div class="auth-step active" id="tg-step-1">
                             <p style={{ textAlign: 'center', color: 'var(--text-dim)', fontSize: '13px', marginBottom: '20px' }}>
@@ -316,7 +319,7 @@ export const renderDashboard = (user: UserSession) => {
                             <div class="auth-choice">
                                 <div class="choice-card" id="choose-qr-btn">
                                     <div class="choice-icon">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
                                     </div>
                                     <div class="choice-text">
                                         <h4>QR Code</h4>
@@ -325,7 +328,7 @@ export const renderDashboard = (user: UserSession) => {
                                 </div>
                                 <div class="choice-card" id="choose-phone-btn">
                                     <div class="choice-icon">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
                                     </div>
                                     <div class="choice-text">
                                         <h4>Phone Number</h4>

@@ -39,7 +39,14 @@ export async function handleSaveMeta(env: Env, req: Request, userId: string, use
       await env.STATS.put(`meta_page_owner_${pageId}`, userId);
       user.metaToken = metaToken;
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+      
+      try {
+        const User = (await import("../models/User")).default;
+        await User.findOneAndUpdate({ userId }, { $set: { metaToken } });
+      } catch (e) { console.error("[DB] Meta token persist failed:", e); }
+
       return Response.json({ success: true, pageId, name: data.name });
+
     }
     return Response.json({ error: "Invalid token" }, { status: 400 });
   }
@@ -56,7 +63,14 @@ export async function handleSaveWa(env: Env, req: Request, userId: string, user:
     await env.STATS.put(`wa_phone_owner_${whatsappPhoneId}`, userId);
   }
   await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+  
+  try {
+    const User = (await import("../models/User")).default;
+    await User.findOneAndUpdate({ userId }, { $set: { whatsappToken, whatsappPhoneId } });
+  } catch (e) { console.error("[DB] WA settings persist failed:", e); }
+
   return Response.json({ success: true });
+
 }
 
 export async function handleSaveLine(env: Env, req: Request, userId: string, user: UserSession): Promise<Response> {
@@ -64,7 +78,14 @@ export async function handleSaveLine(env: Env, req: Request, userId: string, use
   user.lineToken = lineToken;
   user.lineSecret = lineSecret;
   await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+
+  try {
+    const User = (await import("../models/User")).default;
+    await User.findOneAndUpdate({ userId }, { $set: { lineToken, lineSecret } });
+  } catch (e) { console.error("[DB] LINE settings persist failed:", e); }
+
   return Response.json({ success: true });
+
 }
 
 export async function handleTestWa(env: Env, req: Request, user: UserSession): Promise<Response> {
@@ -88,18 +109,39 @@ export async function handleTestWa(env: Env, req: Request, user: UserSession): P
 
 
 export async function handleDisconnectTg(env: Env, userId: string, user: UserSession): Promise<Response> {
+  console.log(`[Dashboard] Disconnecting Telegram for user ${userId}`);
+
+  // 1. Update internal state
   user.session = "";
   user.isActive = false;
-  await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+  
+  // 2. Clear KV stats (force refresh from DB next time)
+  await env.STATS.delete(`user_meta_${userId}`);
+  
+  // 3. Clear Redis session
   await env.STATS.delete(`tg_session_${userId}`);
   
+  // 4. Update MongoDB
+  try {
+    const MessengerSession = (await import("../models/MessengerSession")).default;
+    const User = (await import("../models/User")).default;
+    
+    await MessengerSession.deleteMany({ userId, platform: "telegram" });
+    await User.findOneAndUpdate({ userId }, { $set: { isActive: false } });
+    console.log(`[Dashboard] MongoDB session cleared for ${userId}`);
+  } catch (e) {
+    console.error("[Dashboard] MongoDB cleanup failed:", e);
+  }
+  
+  // 5. Tell Bridge to kill pods and local files
   const bridgeUrl = (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000";
   const secret = (env.BRIDGE_SECRET || "changeme").trim();
+  
   await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
     body: JSON.stringify({ userId })
-  }).catch(e => console.error("[Dashboard] Delete pod error:", e));
+  }).catch(e => console.error("[Dashboard] Bridge delete call failed:", e));
 
   return Response.json({ success: true });
 }
@@ -111,7 +153,11 @@ export async function handleTestTg(env: Env, user: UserSession): Promise<Respons
   const res = await fetch(`${bridgeUrl}/test-tg?secret=${secret}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
-    body: JSON.stringify({ userId: user.userId, message: "Test message from dashboard!" })
+    body: JSON.stringify({ 
+        userId: user.userId, 
+        session: user.session,
+        message: "✅ Whisper Messenger connection test successful! Your account is now linked and ready to transcribe voice messages." 
+    })
   });
   const data = await res.json().catch(() => ({ error: "Bridge error" }));
   return Response.json(data, { status: res.status });
@@ -122,18 +168,25 @@ export async function handleRestartTg(env: Env, userId: string, user: UserSessio
   const bridgeUrl = (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000";
   const secret = (env.BRIDGE_SECRET || "changeme").trim();
   
-  await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
-    body: JSON.stringify({ userId })
-  }).catch(() => {});
-
+  // No need for separate delete, spawn handles it
   const res = await fetch(`${bridgeUrl}/spawn?secret=${secret}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
     body: JSON.stringify({ userId, session: user.session })
   });
+  
   const data = await res.json().catch(() => ({ error: "Bridge error" }));
+  
+  if (res.ok && data.success) {
+      user.isActive = true;
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+      
+      try {
+        const User = (await import("../models/User")).default;
+        await User.findOneAndUpdate({ userId }, { $set: { isActive: true } });
+      } catch (e) { console.error("[DB] Status update failed:", e); }
+  }
+
   return Response.json(data, { status: res.status });
 }
 

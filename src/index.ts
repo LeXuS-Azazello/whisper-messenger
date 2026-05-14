@@ -241,10 +241,22 @@ export default {
 
       // ─── Home page (/) ──────────────────────────────────────────────────────
       if (pathname === "/") {
+        const sessionCookie = req.headers.get("Cookie")?.match(/session=([^;]+)/)?.[1];
+        if (sessionCookie) {
+          const userId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
+          if (userId) {
+            return new Response(null, {
+              status: 302,
+              headers: { "Location": "/dashboard" }
+            });
+          }
+        }
+        
         return new Response(renderHome(env.GOOGLE_CLIENT_ID || "", publicOrigin), {
           headers: { "Content-Type": "text/html; charset=utf-8" }
         });
       }
+
 
       // ─── Default: redirect to home ──────────────────────────────────────────
       return new Response(null, {

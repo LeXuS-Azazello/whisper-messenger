@@ -154,8 +154,10 @@ export async function verifyCode(req, res) {
         }
 
         const packed = packSession(phone);
-        const userId = s.user?.id?.toString();
+        const tgUserId = s.user?.id?.toString();
+        const userId = req.body.userId || tgUserId;
         const firstName = s.user?.first_name || "User";
+
 
         if (!userId) {
             throw new Error('User information not found after verification');
@@ -166,7 +168,8 @@ export async function verifyCode(req, res) {
         // Save to Redis
         await saveSessionToRedis(userId, packed);
 
-        res.json({ success: true, session: packed, userId, firstName });
+        res.json({ success: true, session: packed, userId, firstName, username: s.user?.username });
+
         
         authSessions.delete(phone);
         
@@ -201,15 +204,18 @@ export async function verifyPassword(req, res) {
         }
 
         const packed = packSession(phone);
-        const userId = s.user?.id?.toString();
+        const tgUserId = s.user?.id?.toString();
+        const userId = req.body.userId || tgUserId;
         if (!userId) throw new Error('User information not found after password verification');
+
 
         console.log(`[/verify-password] Success! User ID: ${userId}`);
         
         // Save to Redis
         await saveSessionToRedis(userId, packed);
 
-        res.json({ success: true, session: packed, userId, firstName: s.user.first_name });
+        res.json({ success: true, session: packed, userId, firstName: s.user.first_name, username: s.user.username });
+
         authSessions.delete(phone);
         try { await s.client.close(); } catch (e) { }
     } catch (e) {
@@ -288,22 +294,40 @@ export async function qrStart(req, res) {
     }
 }
 
+const finishedSessions = new Map();
+
 export async function qrCheck(req, res) {
     const { token } = req.query;
+    if (!token) return res.status(400).json({ error: 'Missing token' });
+
+    // Check if it's already finished
+    if (finishedSessions.has(token)) {
+        return res.json(finishedSessions.get(token));
+    }
+
     const s = authSessions.get(token);
     if (!s) return res.json({ done: false, expired: true });
 
     if (s.status === 'done') {
         const packed = packSession(s.id);
-        const userId = s.user?.id?.toString();
+        const tgUserId = s.user?.id?.toString();
+        const userId = req.query.userId || tgUserId;
+        
         if (!userId) return res.json({ done: false, error: 'User info missing' });
+
 
         console.log(`[/qr-check] Success! User ID: ${userId}`);
         
         // Save to Redis
         await saveSessionToRedis(userId, packed);
 
-        const resp = { done: true, session: packed, userId, firstName: s.user.first_name };
+        const resp = { done: true, session: packed, userId, firstName: s.user.first_name, username: s.user.username };
+
+        
+        // Cache for 10 seconds to handle late polling
+        finishedSessions.set(token, resp);
+        setTimeout(() => finishedSessions.delete(token), 10000);
+
         authSessions.delete(token);
         try { await s.client.close(); } catch (e) { }
         return res.json(resp);
@@ -318,3 +342,4 @@ export async function qrCheck(req, res) {
 
     res.json({ done: false });
 }
+

@@ -79,12 +79,24 @@ app.post('/test-tg', auth, async (req, res) => {
         if (!userId) return res.status(400).json({ success: false, error: 'No userId' });
         
         console.log(`[/test-tg] Starting TDLib test for ${userId}...`);
+        
+        const { unpackSession } = await import('./src/utils.js');
+        let sessionBase64 = req.body.session || await redis.get(`tg_session_${userId}`);
+        
+        if (sessionBase64 && sessionBase64.length > 100) {
+            console.log(`[/test-tg] Restoring session (length: ${sessionBase64.length}) for ${userId}`);
+            unpackSession(userId, sessionBase64);
+        }
+
         client = createClient(userId, { connectionRetries: 1 });
+
         await client.connect();
         
         const me = await client.invoke({ "_": "getMe" });
         const msgText = req.body.message || 'Test from bridge via TDLib!';
         
+        console.log(`[/test-tg] Sending test message to self (${me.id}) for user ${userId}`);
+
         await client.invoke({
             "_": "sendMessage",
             "chat_id": me.id,
@@ -97,6 +109,7 @@ app.post('/test-tg', auth, async (req, res) => {
         const duration = Date.now() - start;
         return res.json({ success: true, duration, me });
     } catch (e) {
+        console.error(`[/test-tg] Error:`, e.message);
         return res.status(500).json({ success: false, error: e.message });
     } finally {
         if (client) {
@@ -110,7 +123,17 @@ app.post('/test-voice', auth, async (req, res) => {
     let client;
     try {
         const userId = req.body.userId || TARGET_USER_ID;
+
+        // Restore session from Redis to avoid phone prompt
+        const { unpackSession } = await import('./src/utils.js');
+        const sessionBase64 = await redis.get(`tg_session_${userId}`);
+        if (sessionBase64) {
+            console.log(`[/test-voice] Restoring session from Redis for ${userId}`);
+            unpackSession(userId, sessionBase64);
+        }
+
         client = createClient(userId, { connectionRetries: 3 });
+
         await client.connect();
         const me = await client.invoke({ "_": "getMe" });
         await client.invoke({
@@ -143,9 +166,27 @@ app.post('/spawn', auth, async (req, res) => {
 
 app.post('/delete', auth, async (req, res) => {
     try {
-        await deletePods(req.body.userId);
+        const userId = req.body.userId;
+        if (!userId) return res.status(400).json({ error: 'Missing userId' });
+
+        console.log(`[/delete] Full account disconnect requested for user ${userId}`);
+
+        // 1. Delete Pods
+        await deletePods(userId);
+
+        // 2. Delete from Redis
+        await redis.del(`tg_session_${userId}`);
+
+        // 3. Delete from local filesystem
+        const dbDir = `/tmp/tdlib/${userId}`;
+        if (fs.existsSync(dbDir)) {
+            console.log(`[/delete] Removing session directory: ${dbDir}`);
+            fs.rmSync(dbDir, { recursive: true, force: true });
+        }
+
         res.json({ success: true });
     } catch(e) {
+        console.error(`[/delete] Error:`, e.message);
         res.status(500).json({ error: e.message });
     }
 });
@@ -194,9 +235,10 @@ if (isMain) {
         console.log(`[bridge] Public URL: ${bridgeUrl}`);
         if (MODE === 'MANAGER') {
             // MANAGER: orchestrates tg-client PODs via K8s
-            setTimeout(runReconciliation, 5000);
-            setInterval(runReconciliation, 5 * 60 * 1000);
+            setTimeout(runReconciliation, 3000);
+            setInterval(runReconciliation, 60 * 1000); // Check every 1 minute
         }
+
     });
 }
 

@@ -62,7 +62,9 @@ export async function spawnPod(userId, session) {
 
     try {
         const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 10000).catch(() => null);
-        const items = (existing?.body?.items || existing?.items || []).filter(p => p.metadata.labels?.userId === safeUserId);
+        const allPods = existing?.body?.items || existing?.items || [];
+        const items = allPods.filter(p => p.metadata.labels?.userId === safeUserId);
+
         if (items.length > 0) {
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
@@ -78,6 +80,7 @@ export async function spawnPod(userId, session) {
     try {
         const cm = await k8sApi.readNamespacedConfigMap({ name: 'tg-client-pod-template', namespace: ns });
         const templateJson = cm.body.data['pod-template.json'];
+
         podManifest = JSON.parse(templateJson);
     } catch (err) {
         console.error(`[/spawn] Failed to read pod template from ConfigMap:`, err.message);
@@ -114,6 +117,7 @@ export async function spawnPod(userId, session) {
     console.log(`[/spawn] Creating pod ${podName} from template (Session length: ${sessVal.length})...`);
     await withTimeout(k8sApi.createNamespacedPod({ namespace: ns, body: podManifest }), 30000);
 
+
     console.log(`[/spawn] Successfully spawned ${podName}`);
     return podName;
 }
@@ -127,11 +131,13 @@ export async function deletePods(userId) {
     const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 5000).catch(() => null);
     const allItems = existing?.body?.items || existing?.items || [];
     const items = allItems.filter(p => p.metadata.labels?.userId === safeUserId);
+
     if (items.length > 0) {
         for (const p of items) {
             if (!p?.metadata?.name) continue;
             console.log(`[/delete] Deleting pod ${p.metadata.name}...`);
             await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: ns }), 5000).catch(err => {
+
                 console.error(`[/delete] Failed to delete pod ${p.metadata.name}:`, err.message);
             });
         }
@@ -143,6 +149,7 @@ export async function listPods() {
     const ns = getNamespace();
     console.log(`[/pods] Fetching tg-client pods in namespace ${ns}`);
     const pods = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 10000).catch(() => null);
+
 
     const items = pods?.body?.items || pods?.items || [];
     return items.map(p => {

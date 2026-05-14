@@ -50,8 +50,9 @@ export default async function queue(batch: any, env: Env) {
 
       if (!token) throw new Error(`Permission denied: No token for ${platform} / ${userId}`);
 
-      // 2. Determine model for transcribing message (always Qwen3-ASR)
-      const modelDisplayName = "Qwen3-ASR";
+      // 2. Determine model for transcribing message
+      const activeProvider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || "qwen3-asr";
+      const modelDisplayName = activeProvider === "whisper-turbo" ? "Whisper Turbo" : (activeProvider === "ollama" ? "Ollama" : "Qwen3-ASR");
       const transcribingMessage = `⏳ Transcribing with ${modelDisplayName}...`;
 
       // 3. Notification (Typing...)

@@ -8,6 +8,7 @@ import { Env } from "./types";
 import worker from "./index";
 import { RedisKV } from "./redisKV";
 import { connectDB } from "./db/mongoose";
+import { syncSettingsToRedis } from "./controllers/adminController";
 import "dotenv/config";
 import dns from "dns";
 
@@ -88,4 +89,11 @@ serve({
   fetch: app.fetch,
   port,
   hostname: "0.0.0.0"
+}, async () => {
+  // Sync settings from MongoDB to Redis on startup
+  const globalEnv: Env = {
+    ...((typeof process !== 'undefined' ? process.env : {}) as any),
+    STATS: new RedisKV(process.env.REDIS_URL),
+  } as any;
+  await syncSettingsToRedis(globalEnv);
 });

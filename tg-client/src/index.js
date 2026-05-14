@@ -45,7 +45,11 @@ import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => 
             }
             process.exit(1);
         });
+    } else if (MODE === 'BOT') {
+        await import('./botTest.js');
     }
+
+
 
     const PORT = process.env.PORT || 3001;
     app.listen(PORT, () => {

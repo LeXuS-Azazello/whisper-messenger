@@ -1,12 +1,11 @@
 import * as tdl from 'tdl';
 import { getTdjson } from 'prebuilt-tdlib';
-import { TARGET_USER_ID, TG_SESSION, TG_API_ID, TG_API_HASH, WORKER_URL, BRIDGE_SECRET, OLLAMA_BASE_URL } from './config.js';
+import { TARGET_USER_ID, TG_SESSION, TG_API_ID, TG_API_HASH, WORKER_URL, BRIDGE_SECRET, OLLAMA_BASE_URL, WHISPER_PROVIDER, WHISPER_TURBO_URL, redis } from './config.js';
 import fs from 'fs';
 import path from 'path';
 import { unpackSession } from './utils.js';
-import Redis from 'ioredis';
+// Removed local Redis initialization
 
-const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 let userClient = null;
 
 async function handleNewMessage(update) {
@@ -19,13 +18,8 @@ async function handleNewMessage(update) {
 
     if (!isVoice && !isVideoNote) return;
     
-    // Only respond to private messages (chat_id > 0)
-    if (msg.chat_id <= 0) {
-        console.log(`[tg-client] ℹ️ Skipping voice message in group/channel ${msg.chat_id}`);
-        return;
-    }
-
     console.log(`[tg-client] 🎤 New ${isVoice ? 'voice' : 'video'} note in chat ${msg.chat_id} (Msg ID: ${msg.id})`);
+
 
     try {
         const chatId = msg.chat_id;
@@ -162,23 +156,38 @@ async function handleNewMessage(update) {
 }
 
 async function transcribeAudio(audioBuffer, mimeType) {
-    const qwenUrl = OLLAMA_BASE_URL || 'http://qwen3-asr:8000';
     const startTime = Date.now();
+    
+    // Get latest config from Redis
+    const provider = await redis.get("config_whisper_provider") || WHISPER_PROVIDER || 'qwen3-asr';
+    
+    let url = OLLAMA_BASE_URL || 'http://qwen3-asr:8000';
+    let modelName = 'Qwen/Qwen3-ASR-0.6B';
+
+    if (provider === 'whisper-turbo') {
+        url = await redis.get("config_local_whisper_url") || WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
+        modelName = 'openai/whisper-large-v3-turbo';
+    } else if (provider === 'ollama') {
+        url = await redis.get("config_ollama_url") || OLLAMA_BASE_URL || 'http://qwen3-asr:8000';
+        modelName = await redis.get("config_whisper_model") || 'qwen2-audio';
+    }
+
+    console.log(`[tg-client] Using ${provider} at ${url}`);
 
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: mimeType });
     formData.append('file', blob, 'audio.ogg');
-    formData.append('model', 'Qwen/Qwen3-ASR-0.6B');
+    formData.append('model', modelName);
     formData.append('language', 'auto');
 
-    const response = await fetch(`${qwenUrl}/v1/audio/transcriptions`, {
+    const response = await fetch(`${url}/v1/audio/transcriptions`, {
         method: 'POST',
         body: formData
     });
 
     if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Qwen3-ASR error (${response.status}): ${errorText}`);
+        throw new Error(`${WHISPER_PROVIDER} error (${response.status}): ${errorText}`);
     }
 
     const data = await response.json();

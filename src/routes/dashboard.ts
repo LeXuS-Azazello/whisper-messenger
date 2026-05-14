@@ -41,13 +41,22 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
         const newUserMeta: UserSession = {
           userId: dbUser.userId,
           firstName: dbUser.firstName || "User",
+          username: dbUser.username,
           email: dbUser.email,
           emailVerified: dbUser.emailVerified,
           isActive: dbUser.isActive,
           transcriptionCount: dbUser.transcriptionCount || 0,
-          lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : undefined,
-          session: tgSession?.sessionData || ""
+          lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : Date.now(),
+          session: tgSession?.sessionData || "",
+          metaToken: dbUser.metaToken,
+          whatsappToken: dbUser.whatsappToken,
+          whatsappPhoneId: dbUser.whatsappPhoneId,
+          lineToken: dbUser.lineToken,
+          lineSecret: dbUser.lineSecret,
+          threadsToken: dbUser.threadsToken,
+          threadsUserId: dbUser.threadsUserId
         };
+
         
         await env.STATS.put(`user_meta_${userId}`, JSON.stringify(newUserMeta));
         userStats = JSON.stringify(newUserMeta);
@@ -66,7 +75,31 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       }
     });
   }
-  const user: UserSession = JSON.parse(userStats);
+  let user: UserSession = JSON.parse(userStats);
+
+
+  // If session is empty in KV, try to re-fetch from Redis or MongoDB (to handle eventual consistency)
+  if (!user.session) {
+    try {
+      // Try Redis first
+      const redisSession = await env.STATS.get(`tg_session_${userId}`);
+      if (redisSession) {
+        user.session = redisSession;
+        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+      } else {
+        // Fallback to MongoDB
+        const MessengerSession = (await import("../models/MessengerSession")).default;
+        const tgSession = await MessengerSession.findOne({ userId, platform: "telegram" });
+        if (tgSession?.sessionData) {
+          user.session = tgSession.sessionData;
+          await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+        }
+      }
+    } catch (e) {
+      console.error("[Dashboard] Session recovery failed:", e);
+    }
+  }
+
 
   if (req.method === "POST") {
     if (pathname === "/dashboard/save-meta") {

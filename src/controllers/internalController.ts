@@ -9,18 +9,20 @@ export async function handleConfig(env: Env, _req: Request, url: URL): Promise<R
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const providerVar = await AdminVar.findOne({ key: "config_whisper_provider" });
-  const modelVar = await AdminVar.findOne({ key: "config_ollama_model" });
-  const localUrlVar = await AdminVar.findOne({ key: "config_local_whisper_url" });
-  const localSecretVar = await AdminVar.findOne({ key: "config_local_whisper_secret" });
-  const ollamaUrlVar = await AdminVar.findOne({ key: "config_ollama_url" });
+  // Try STATS KV first, then fall back to env or defaults
+  const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || "qwen3-asr";
+  const localUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || "";
+  const localSecret = await env.STATS.get("config_local_whisper_secret") || env.LOCAL_WHISPER_SECRET || "";
+  const ollamaUrl = await env.STATS.get("config_ollama_url") || env.OLLAMA_BASE_URL || "";
+  const model = await env.STATS.get("config_whisper_model") || "";
 
   return Response.json({
-    provider: providerVar?.value || "qwen3-asr",
-    model: modelVar?.value || "whisper",
-    localUrl: localUrlVar?.value || "",
-    localSecret: localSecretVar?.value || "",
-    ollamaUrl: ollamaUrlVar?.value || ""
+    provider,
+    model,
+    localUrl,
+    localSecret,
+    ollamaUrl,
+    qwenUrl: env.QWEN_ASR_URL || "http://qwen3-asr:8000"
   });
 }
 
@@ -36,13 +38,17 @@ export async function handleActiveUsers(env: Env, _req: Request, url: URL): Prom
     const activeUsers = [];
     for (const session of sessions) {
       const user = await User.findOne({ userId: session.userId });
+      // Priority: Redis (STATS KV) -> MongoDB
+      const redisSession = await env.STATS.get(`tg_session_${session.userId}`);
+      
       activeUsers.push({
         userId: session.userId,
-        session: session.sessionData,
+        session: redisSession || session.sessionData,
         firstName: user?.firstName || "User",
         platform: session.platform
       });
     }
+
     
     return Response.json(activeUsers);
   } catch (e) {

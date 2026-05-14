@@ -3,7 +3,8 @@ import { getPublicOrigin, createSessionResponse } from "./authController";
 import User from "../models/User";
 import MessengerSession from "../models/MessengerSession";
 
-interface BridgeUserData { userId: string; firstName: string; session: string; phone?: string; success?: boolean; error?: string; done?: boolean; }
+interface BridgeUserData { userId: string; firstName: string; session: string; username?: string; phone?: string; success?: boolean; error?: string; done?: boolean; }
+
 const SESSION_MAX_AGE = 31536000;
 
 function getBridgeUrl(env: Env): string {
@@ -45,8 +46,9 @@ export async function handleTelegramVerifyCode(env: Env, req: Request, currentUs
       "Content-Type": "application/json",
       "x-bridge-secret": secret
     },
-    body: JSON.stringify({ phone, code })
+    body: JSON.stringify({ phone, code, userId: currentUserId })
   });
+
 
   if (bridgeRes.ok) {
     const data = await bridgeRes.clone().json() as BridgeUserData;
@@ -82,7 +84,9 @@ export async function handleTelegramVerifyCode(env: Env, req: Request, currentUs
       metaUser.session = data.session;
       metaUser.isActive = true;
       metaUser.firstName = data.firstName || metaUser.firstName || "Telegram User";
+      metaUser.username = data.username || metaUser.username;
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(metaUser));
+
 
       // Still keep in Redis for legacy/cache if needed, but primary is MongoDB now
       await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
@@ -112,8 +116,9 @@ export async function handleTelegramVerifyPassword(env: Env, req: Request, curre
       "Content-Type": "application/json",
       "x-bridge-secret": secret
     },
-    body: JSON.stringify(bodyData)
+    body: JSON.stringify({ ...bodyData, userId: currentUserId })
   });
+
 
   if (bridgeRes.ok) {
     const data = await bridgeRes.clone().json() as BridgeUserData;
@@ -149,7 +154,9 @@ export async function handleTelegramVerifyPassword(env: Env, req: Request, curre
       metaUser.session = data.session;
       metaUser.isActive = true;
       metaUser.firstName = data.firstName || metaUser.firstName || "Telegram User";
+      metaUser.username = data.username || metaUser.username;
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(metaUser));
+
 
       await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
       ctx.waitUntil(fetch(`${bridgeUrl}/spawn`, {
@@ -190,9 +197,10 @@ export async function handleTelegramQrCheck(env: Env, token: string | null, curr
   const secret = (env.BRIDGE_SECRET || "changeme").trim();
   const bridgeUrl = getBridgeUrl(env);
 
-  const bridgeRes = await fetch(`${bridgeUrl}/qr-check?token=${token}&secret=${secret}`, {
+  const bridgeRes = await fetch(`${bridgeUrl}/qr-check?token=${token}&secret=${secret}${currentUserId ? `&userId=${currentUserId}` : ''}`, {
     headers: { "x-bridge-secret": secret }
   });
+
 
   if (bridgeRes.ok) {
     const data = await bridgeRes.clone().json() as BridgeUserData;
@@ -228,7 +236,9 @@ export async function handleTelegramQrCheck(env: Env, token: string | null, curr
       metaUser.session = data.session;
       metaUser.isActive = true;
       metaUser.firstName = data.firstName || metaUser.firstName || "Telegram User";
+      metaUser.username = data.username || metaUser.username;
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(metaUser));
+
 
       await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
 
