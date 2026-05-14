@@ -12,6 +12,7 @@
   "dependencies": {
     "dotenv": "^16.6.1",
     "ioredis": "^5.10.1",
+    "express": "^4.19.2",
     "tdl": "^7.4.0",
     "prebuilt-tdlib": "latest",
     "adm-zip": "^0.5.10"

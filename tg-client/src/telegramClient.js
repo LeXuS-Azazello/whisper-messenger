@@ -106,15 +106,49 @@ async function handleNewMessage(update) {
 
         console.log(`[tg-client] ✅ Transcribed (${duration.toFixed(1)}s): "${text.slice(0, 100)}..."`);
         
-        await userClient.invoke({
-            "_": "editMessageText",
-            "chat_id": chatId,
-            "message_id": statusMsg.id,
-            "input_message_content": { 
-                "_": "inputMessageText", 
-                "text": { "_": "formattedText", "text": `🎤 ${text}\n\n⏱️ ${duration.toFixed(1)}s` } 
+        const fullText = `🎤 ${text}\n\n⏱️ ${duration.toFixed(1)}s`;
+        const limit = 4000;
+
+        if (fullText.length <= limit) {
+            await userClient.invoke({
+                "_": "editMessageText",
+                "chat_id": chatId,
+                "message_id": statusMsg.id,
+                "input_message_content": { 
+                    "_": "inputMessageText", 
+                    "text": { "_": "formattedText", "text": fullText } 
+                }
+            }).catch(e => console.error(`[tg-client] Edit message failed:`, e.message));
+        } else {
+            // Split into chunks
+            const chunks = [];
+            for (let i = 0; i < fullText.length; i += limit) {
+                chunks.push(fullText.substring(i, i + limit));
             }
-        }).catch(e => console.error(`[tg-client] Edit message failed:`, e.message));
+
+            // Edit the first message with the first chunk
+            await userClient.invoke({
+                "_": "editMessageText",
+                "chat_id": chatId,
+                "message_id": statusMsg.id,
+                "input_message_content": { 
+                    "_": "inputMessageText", 
+                    "text": { "_": "formattedText", "text": chunks[0] } 
+                }
+            }).catch(e => console.error(`[tg-client] Edit first chunk failed:`, e.message));
+
+            // Send remaining chunks as new messages
+            for (let i = 1; i < chunks.length; i++) {
+                await userClient.invoke({
+                    "_": "sendMessage",
+                    "chat_id": chatId,
+                    "input_message_content": { 
+                        "_": "inputMessageText", 
+                        "text": { "_": "formattedText", "text": chunks[i] } 
+                    }
+                }).catch(e => console.error(`[tg-client] Send chunk ${i} failed:`, e.message));
+            }
+        }
 
         if (WORKER_URL) {
             fetch(`${WORKER_URL}/internal/stats`, {
@@ -194,8 +228,23 @@ export async function startUserClient() {
         apiId: Number(TG_API_ID),
         apiHash: TG_API_HASH,
         databaseDirectory: dbDir,
-        filesDirectory: path.join(dbDir, 'files')
+        filesDirectory: path.join(dbDir, 'files'),
+        tdlibParameters: {
+            use_message_database: true,
+            use_chat_info_database: true,
+            use_file_database: true,
+            use_test_dc: false,
+            device_model: process.env.DEVICE_MODEL || "Desktop Linux",
+            system_version: process.env.SYSTEM_VERSION || "Ubuntu 24.04",
+            application_version: process.env.APP_VERSION || "4.15.2",
+            enable_storage_optimizer: true
+        }
     });
+
+    // Heartbeat to prevent K8s idle timeout and show liveness
+    setInterval(() => {
+        console.log(`[tg-client] 💓 Heartbeat: Client for ${TARGET_USER_ID} is active`);
+    }, 60000);
 
     // Register listener BEFORE login to catch all updates
     userClient.on('update', async (update) => {
