@@ -13,19 +13,38 @@ import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => 
         if (!userClient) return res.json({ accessible: false, error: 'No client' });
 
         try {
-            const { Api } = await import('telegram');
-            await userClient.invoke(new Api.users.GetUsers({ id: [TARGET_USER_ID] }));
-            res.json({ accessible: true });
+            const me = await userClient.invoke({ "@type": "getMe" });
+            res.json({ accessible: true, me });
         } catch (e) {
-            const errMsg = e.errorMessage || e.message || '';
-            const isBlocked = errMsg.includes('USER_IS_BLOCKED') || errMsg.includes('PEER_ID_INVALID');
-            res.json({ accessible: false, blocked: isBlocked, error: errMsg });
+            const errMsg = e.message || '';
+            res.json({ accessible: false, error: errMsg });
         }
     });
 
     if (MODE === 'USER') {
         const { startUserClient } = await import('./telegramClient.js');
-        await startUserClient();
+        startUserClient().catch(async (e) => {
+            console.error('[tg-client] Critical start error:', e);
+            const errMsg = e.errorMessage || e.message || '';
+            const isRevoked = errMsg.includes('AUTH_KEY_UNREGISTERED') || errMsg.includes('SESSION_REVOKED') || errMsg.includes('USER_DEACTIVATED') || errMsg.includes('SESSION_EXPIRED');
+            
+            if (isRevoked) {
+                console.log(`[tg-client] Session for ${TARGET_USER_ID} is revoked/invalid. Notifying backend...`);
+                try {
+                    const workerUrl = process.env.WORKER_URL || 'https://voicemsg.net';
+                    const secret = process.env.BRIDGE_SECRET || 'changeme';
+                    await fetch(`${workerUrl}/internal/access-revoked`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: TARGET_USER_ID, secret })
+                    });
+                    console.log(`[tg-client] Successfully notified backend about session revocation.`);
+                } catch (fetchErr) {
+                    console.error('[tg-client] Failed to notify backend:', fetchErr.message);
+                }
+            }
+            process.exit(1);
+        });
     }
 
     const PORT = process.env.PORT || 3001;

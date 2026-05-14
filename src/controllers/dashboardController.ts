@@ -12,6 +12,20 @@ export async function incrementUserStats(userId: string, env: Env, platform: str
     meta.transcriptionCount = (meta.transcriptionCount || 0) + 1;
     meta.lastActiveAt = Date.now();
     await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+    
+    try {
+      const User = (await import("../models/User")).default;
+      await User.findOneAndUpdate(
+        { userId },
+        { 
+          $inc: { transcriptionCount: 1 },
+          $set: { lastActiveAt: new Date(meta.lastActiveAt) }
+        },
+        { upsert: true }
+      );
+    } catch (e) {
+      console.error("[Stats] Failed to update MongoDB:", e);
+    }
   }
 }
 
@@ -72,44 +86,6 @@ export async function handleTestWa(env: Env, req: Request, user: UserSession): P
   }
 }
 
-export async function handleTestTranslation(env: Env, req: Request): Promise<Response> {
-  const { text, targetLang } = await req.json() as any;
-  if (!text || !targetLang) {
-    return Response.json({ success: false, error: "Missing text or target language" }, { status: 400 });
-  }
-  try {
-    const ollamaUrl = env.OLLAMA_BASE_URL || "http://100.65.0.209:11434";
-    const ollamaModel = env.OLLAMA_MODEL || "qwen3-coder:30b";
-    const translateRes = await fetch(`${ollamaUrl}/v1/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: ollamaModel,
-        messages: [
-          { role: "system", content: `Translate the following text to ${targetLang}. Output ONLY the translated text. Do not add any introductions or explanations.` },
-          { role: "user", content: text }
-        ],
-        stream: false
-      })
-    });
-    if (!translateRes.ok) {
-      return Response.json({ success: false, error: `Translation service error: ${translateRes.status}` }, { status: 500 });
-    }
-    const data = await translateRes.json() as any;
-    const translated = data.choices?.[0]?.message?.content || "Translation failed";
-    return Response.json({ success: true, translated });
-  } catch (e: any) {
-    console.error("[test-translation] Error:", e);
-    return Response.json({ success: false, error: e.message }, { status: 500 });
-  }
-}
-
-export async function handleSaveSettings(env: Env, req: Request, userId: string, user: UserSession): Promise<Response> {
-  const { translateTo } = await req.json() as any;
-  user.translateTo = translateTo || undefined;
-  await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
-  return Response.json({ success: true });
-}
 
 export async function handleDisconnectTg(env: Env, userId: string, user: UserSession): Promise<Response> {
   user.session = "";
@@ -117,7 +93,7 @@ export async function handleDisconnectTg(env: Env, userId: string, user: UserSes
   await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
   await env.STATS.delete(`tg_session_${userId}`);
   
-  const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+  const bridgeUrl = (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000";
   const secret = (env.BRIDGE_SECRET || "changeme").trim();
   await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
     method: "POST",
@@ -130,7 +106,7 @@ export async function handleDisconnectTg(env: Env, userId: string, user: UserSes
 
 export async function handleTestTg(env: Env, user: UserSession): Promise<Response> {
   if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-  const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+  const bridgeUrl = (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000";
   const secret = (env.BRIDGE_SECRET || "changeme").trim();
   const res = await fetch(`${bridgeUrl}/test-tg?secret=${secret}`, {
     method: "POST",
@@ -143,7 +119,7 @@ export async function handleTestTg(env: Env, user: UserSession): Promise<Respons
 
 export async function handleRestartTg(env: Env, userId: string, user: UserSession): Promise<Response> {
   if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-  const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+  const bridgeUrl = (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000";
   const secret = (env.BRIDGE_SECRET || "changeme").trim();
   
   await fetch(`${bridgeUrl}/delete?secret=${secret}`, {

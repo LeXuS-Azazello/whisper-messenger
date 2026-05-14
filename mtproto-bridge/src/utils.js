@@ -1,23 +1,84 @@
-import { TelegramClient } from 'telegram';
-import { StringSession } from 'telegram/sessions/index.js';
+import * as tdl from 'tdl';
+import { getTdjson } from 'prebuilt-tdlib';
+
+import AdmZip from 'adm-zip';
 import { API_ID, API_HASH, DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION, SECRET } from './config.js';
 import net from 'net';
+import path from 'path';
+import fs from 'fs';
 
-export function createClient(sessionStr, options = {}) {
-    const session = new StringSession(sessionStr || '');
-    const client = new TelegramClient(session, API_ID, API_HASH, {
-        connectionRetries: options.retries || 5,
-        deviceModel: DEVICE_MODEL,
-        appVersion: APP_VERSION,
-        systemVersion: SYSTEM_VERSION,
-        useIPV6: false,
+let isTdlibConfigured = false;
+
+export function createClient(userId, options = {}) {
+    const dbDir = path.join('/tmp/tdlib', String(userId || 'manager'));
+    if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+
+    const aid = Number(API_ID);
+    if (!aid || isNaN(aid)) {
+        console.error(`[createClient] CRITICAL: Valid api_id must be provided. Got: "${API_ID}" (parsed as ${aid})`);
+        throw new Error(`Valid api_id must be provided. Got: ${API_ID}`);
+    }
+
+    if (!isTdlibConfigured) {
+        console.log(`[createClient] Initializing TDLib with prebuilt-tdlib...`);
+        try {
+            tdl.configure({ tdjson: getTdjson() });
+            isTdlibConfigured = true;
+        } catch (e) {
+            console.warn('[createClient] TDLib configuration failed or already done:', e.message);
+            isTdlibConfigured = true; // Assume it's configured if it failed with "already initialized"
+        }
+    }
+    
+    console.log(`[createClient] Creating TDLib client for ${userId} with apiId: ${aid}`);
+    
+    const client = tdl.createClient({
+        apiId: aid,
+        apiHash: API_HASH,
+        databaseDirectory: dbDir,
+        filesDirectory: path.join(dbDir, 'files'),
         ...options
     });
     return client;
 }
 
+
+
+export function packSession(userId) {
+    const dbDir = path.join('/tmp/tdlib', String(userId));
+    if (!fs.existsSync(dbDir)) {
+        console.warn(`[utils] Cannot pack session for ${userId}: directory not found at ${dbDir}`);
+        return null;
+    }
+    try {
+        const zip = new AdmZip();
+        zip.addLocalFolder(dbDir);
+        return zip.toBuffer().toString('base64');
+    } catch (e) {
+        console.error(`[utils] Failed to pack session for ${userId}:`, e.message);
+        return null;
+    }
+}
+
+export function unpackSession(userId, base64) {
+    if (!base64 || base64.length < 100) return null;
+    const dbDir = path.join('/tmp/tdlib', String(userId));
+    try {
+        if (fs.existsSync(dbDir)) fs.rmSync(dbDir, { recursive: true, force: true });
+        fs.mkdirSync(dbDir, { recursive: true });
+        const zip = new AdmZip(Buffer.from(base64, 'base64'));
+        zip.extractAllTo(dbDir, true);
+        console.log(`[utils] Successfully unpacked session for ${userId} to ${dbDir}`);
+        return dbDir;
+    } catch (e) {
+        console.error(`[utils] Failed to unpack session for ${userId}:`, e.message);
+        return null;
+    }
+}
+
 export function auth(req, res, next) {
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  const base = `${req.headers['x-forwarded-proto'] || req.protocol || 'http'}://${req.headers.host}`;
+  const url = new URL(req.originalUrl || req.url, base);
   const pathname = url.pathname;
   // Allow public auth routes without secret
   if (pathname.startsWith('/auth')) {

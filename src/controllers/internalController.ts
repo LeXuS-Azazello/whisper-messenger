@@ -50,3 +50,106 @@ export async function handleActiveUsers(env: Env, _req: Request, url: URL): Prom
     return new Response("Internal error", { status: 500 });
   }
 }
+
+export async function handleStats(env: Env, req: Request): Promise<Response> {
+  try {
+    const { userId, secret } = await req.json() as any;
+    if (secret !== env.BRIDGE_SECRET) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+    
+    if (userId) {
+      const { incrementUserStats } = await import("./dashboardController");
+      await incrementUserStats(userId, env, "telegram");
+    }
+    
+    return Response.json({ success: true });
+  } catch (e) {
+    console.error("[Internal] Error in handleStats:", e);
+    return new Response("Internal error", { status: 500 });
+  }
+}
+
+export async function handleUserMeta(env: Env, req: Request, url: URL): Promise<Response> {
+  const secret = url.searchParams.get("secret");
+  const userId = url.searchParams.get("userId");
+  
+  if (secret !== env.BRIDGE_SECRET) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+  
+  if (!userId) {
+    return new Response("Missing userId", { status: 400 });
+  }
+  
+  try {
+    let metaRaw = await env.STATS.get(`user_meta_${userId}`);
+    if (metaRaw) {
+      return new Response(metaRaw, { headers: { "Content-Type": "application/json" } });
+    }
+    
+    // Fallback to MongoDB
+    const dbUser = await User.findOne({ userId });
+    if (dbUser) {
+      const tgSession = await MessengerSession.findOne({ userId, platform: "telegram" });
+      const meta = {
+        userId: dbUser.userId,
+        firstName: dbUser.firstName || "User",
+        email: dbUser.email,
+        emailVerified: dbUser.emailVerified,
+        isActive: dbUser.isActive,
+        transcriptionCount: dbUser.transcriptionCount || 0,
+        lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : undefined,
+        session: tgSession?.sessionData || ""
+      };
+      return Response.json(meta);
+    }
+    
+    return Response.json({ error: "User not found" }, { status: 404 });
+  } catch (e) {
+    console.error("[Internal] Error fetching user meta:", e);
+    return new Response("Internal error", { status: 500 });
+  }
+}
+
+export async function handleAccessRevoked(env: Env, req: Request): Promise<Response> {
+  try {
+    const { userId, secret } = await req.json() as any;
+    if (secret !== env.BRIDGE_SECRET) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+    
+    if (userId) {
+      // Clear session in DB and Redis
+      await MessengerSession.findOneAndUpdate(
+        { userId, platform: "telegram" },
+        { $set: { isActive: false, sessionData: "" } }
+      );
+      
+      let metaRaw = await env.STATS.get(`user_meta_${userId}`);
+      if (metaRaw) {
+        const meta = JSON.parse(metaRaw);
+        meta.session = "";
+        meta.isActive = false;
+        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+      }
+      await env.STATS.delete(`tg_session_${userId}`);
+      
+      // Tell Bridge Manager to delete the pod
+      const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
+      const bridgeSecret = (env.BRIDGE_SECRET || "changeme").trim();
+      await fetch(`${bridgeUrl}/delete?secret=${bridgeSecret}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-bridge-secret": bridgeSecret },
+        body: JSON.stringify({ userId })
+      }).catch(e => console.error("[Internal] Delete pod error:", e));
+      
+      console.log(`[Internal] Access revoked for user ${userId}. Pod deletion triggered.`);
+    }
+    
+    return Response.json({ success: true });
+  } catch (e) {
+    console.error("[Internal] Error in handleAccessRevoked:", e);
+    return new Response("Internal error", { status: 500 });
+  }
+}

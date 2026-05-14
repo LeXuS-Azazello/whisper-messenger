@@ -200,6 +200,26 @@ export default {
         return await handleAdmin(env, req);
       }
 
+      // ─── Whisper test route ────────────────────────────────────────────────
+      if (req.method === "POST" && pathname === "/test-whisper") {
+        const cookieAuth = req.headers.get("Cookie")?.match(/admin_session=([^;]+)/)?.[1];
+        const adminId = cookieAuth ? await verifySession(cookieAuth, env.ADMIN_SECRET) : null;
+        if (adminId !== "admin") return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
+        const formData = await req.formData();
+        const file = formData.get("file") as File;
+        if (!file) return Response.json({ success: false, error: "No file provided" });
+
+        try {
+          const { transcribeWithFallback } = await import("./whisper");
+          const buffer = await file.arrayBuffer();
+          const res = await transcribeWithFallback(buffer, env);
+          return Response.json({ success: true, text: res.text, model: res.model });
+        } catch (e: any) {
+          return Response.json({ success: false, error: e.message });
+        }
+      }
+
       // ─── Bridge API proxy (spawn, delete, etc.) ────────────────────────────
       // These endpoints are called by the frontend JS and need to reach the bridge
       if (pathname === "/spawn" || pathname === "/delete-pod") {

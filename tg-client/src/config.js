@@ -11,8 +11,7 @@ export const BRIDGE_SECRET = process.env.BRIDGE_SECRET || 'changeme';
 export const DEVICE_MODEL = process.env.DEVICE_MODEL || 'Desktop Linux';
 export const APP_VERSION = process.env.APP_VERSION || '4.15.2';
 export const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Ubuntu 24.04';
-export const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://qwen3-asr:11434';
-export const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen3:latest';
+export const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://qwen3-asr:8000';
 
 export const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379', {
     maxRetriesPerRequest: 1,

@@ -20,6 +20,8 @@ spec:
       labels:
         app: ingress-nginx
     spec:
+      imagePullSecrets:
+      - name: harbor-pull-secret
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: ingress-nginx

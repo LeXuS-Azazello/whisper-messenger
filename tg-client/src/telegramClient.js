@@ -1,136 +1,114 @@
-import { Api } from 'telegram';
-import { TARGET_USER_ID, TG_SESSION, WORKER_URL, BRIDGE_SECRET, OLLAMA_BASE_URL, OLLAMA_MODEL } from './config.js';
+import * as tdl from 'tdl';
+import { getTdjson } from 'prebuilt-tdlib';
+import { TARGET_USER_ID, TG_SESSION, TG_API_ID, TG_API_HASH, WORKER_URL, BRIDGE_SECRET, OLLAMA_BASE_URL } from './config.js';
+import fs from 'fs';
+import path from 'path';
+import { unpackSession } from './utils.js';
+import Redis from 'ioredis';
 
+const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
 let userClient = null;
-let globalAiConfig = null;
 
-async function fetchGlobalConfig() {
-    try {
-        const workerUrl = WORKER_URL || 'https://voicemsg.net';
-        const res = await fetch(`${workerUrl}/internal/config?secret=${BRIDGE_SECRET}`);
-        if (res.ok) {
-            globalAiConfig = await res.json();
-            console.log(`[tg-client] Loaded global AI config: provider=${globalAiConfig.provider}`);
-        }
-    } catch (e) {
-        console.warn(`[tg-client] ⚠️ Failed to fetch global config:`, e.message);
-    }
-}
+async function handleNewMessage(update) {
+    const msg = update.message;
+    if (!msg || msg.is_outgoing) return;
 
-async function handleNewMessage(event) {
-    const msg = event.message;
-    if (!msg || !msg.isPrivate) {
-        if (msg && !msg.isPrivate) console.log(`[tg-client] Ignoring message in non-private chat ${msg.chatId}.`);
-        return;
-    }
-    console.log(`[tg-client] New private message from ${msg.chatId}: ${msg.message?.slice(0, 50)}...`);
+    const content = msg.content;
+    const isVoice = content['@type'] === 'messageVoiceNote';
+    const isVideoNote = content['@type'] === 'messageVideoNote';
 
-    const mediaDoc = msg.media && msg.media.document;
-    const isVoice = mediaDoc && mediaDoc.attributes && mediaDoc.attributes.some(a => (a.className === 'DocumentAttributeAudio' || a instanceof Api.DocumentAttributeAudio) && a.voice);
-    const isVideoNote = mediaDoc && mediaDoc.attributes && mediaDoc.attributes.some(a => (a.className === 'DocumentAttributeVideo' || a instanceof Api.DocumentAttributeVideo) && a.roundMessage);
+    if (!isVoice && !isVideoNote) return;
 
-    if (!isVoice && !isVideoNote && !msg.videoNote && !msg.voice) {
-        console.log(`[tg-client] No supported media found (voice or video note).`);
-        return;
-    }
+    console.log(`[tg-client] 🎤 New ${isVoice ? 'voice' : 'video'} note in chat ${msg.chat_id} (Msg ID: ${msg.id})`);
 
     try {
-        const targetPeer = msg.chatId;
+        const chatId = msg.chat_id;
         const msgId = msg.id;
 
-        console.log(`[tg-client] 🎤 Processing voice/video from ${targetPeer} (Msg ID: ${msgId})`);
+        await userClient.invoke({
+            "@type": "sendChatAction",
+            "chat_id": chatId,
+            "action": { "@type": isVoice ? "chatActionRecordingVoiceNote" : "chatActionRecordingVideoNote" }
+        }).catch(() => { });
 
-        const inputPeer = await userClient.getInputEntity(targetPeer);
-        await userClient.invoke(new Api.messages.SetTyping({
-            peer: inputPeer,
-            action: new Api.SendMessageRecordAudioAction()
-        })).catch(() => { });
-
-        console.log(`[tg-client] ⏳ Notifying user and downloading media...`);
-        const statusMsg = await userClient.sendMessage(targetPeer, {
-            message: "⏳ _Transcribing audio..._",
-            replyTo: msgId,
-            parseMode: 'markdown'
+        const statusMsg = await userClient.invoke({
+            "@type": "sendMessage",
+            "chat_id": chatId,
+            "reply_to_message_id": msgId,
+            "input_message_content": {
+                "@type": "inputMessageText",
+                "text": { "@type": "formattedText", "text": "⏳ Transcribing audio..." }
+            }
         });
 
-        const buffer = await userClient.downloadMedia(msg.media, { workers: 2 });
-        const mimeType = isVoice ? 'audio/ogg' : 'video/mp4';
-        console.log(`[tg-client] 💾 Downloaded ${buffer.length} bytes. Starting transcription...`);
+        const file = isVoice ? content.voice_note.voice : content.video_note.video;
+        const fileId = file.id;
 
-        const { text, duration } = await transcribeAudio(Buffer.from(buffer), mimeType);
+        console.log(`[tg-client] ⏳ Downloading file ${fileId}...`);
+        
+        const downloadedFile = await userClient.invoke({
+            "@type": "downloadFile",
+            "file_id": fileId,
+            "priority": 32,
+            "offset": 0,
+            "limit": 0,
+            "synchronous": true
+        });
+
+        if (!downloadedFile.local.path) {
+            throw new Error('File download failed (no local path)');
+        }
+
+        const filePath = downloadedFile.local.path;
+        const buffer = fs.readFileSync(filePath);
+        const mimeType = isVoice ? 'audio/ogg' : 'video/mp4';
+        
+        const fileUniqueId = downloadedFile.remote.unique_id;
+        const cacheKey = `transcription:${fileUniqueId}`;
+        
+        // Try to get from cache first
+        let text = await redis.get(cacheKey);
+        let duration = 0;
+
+        if (text) {
+            console.log(`[tg-client] ⚡ Cache hit for ${fileUniqueId}`);
+        } else {
+            console.log(`[tg-client] 💾 Downloaded ${buffer.length} bytes. Starting transcription...`);
+            const result = await transcribeAudio(buffer, mimeType);
+            text = result.text;
+            duration = result.duration;
+            
+            // Save to cache for 24 hours
+            if (text) {
+                await redis.set(cacheKey, text, 'EX', 86400);
+            }
+        }
 
         if (!text || text.trim().length === 0) {
             console.log(`[tg-client] ❌ Transcription returned empty text.`);
-            await userClient.editMessage(targetPeer, {
-                message: statusMsg.id,
-                text: "❌ Could not transcribe audio (empty result)."
+            await userClient.invoke({
+                "@type": "editMessageText",
+                "chat_id": chatId,
+                "message_id": statusMsg.id,
+                "input_message_content": { 
+                    "@type": "inputMessageText", 
+                    "text": { "@type": "formattedText", "text": "❌ Could not transcribe audio (empty result)." } 
+                }
             }).catch(e => console.error(`[tg-client] Edit status failed:`, e.message));
             return;
         }
 
-        console.log(`[tg-client] ✅ Transcribed (${duration.toFixed(1)}s): "${text.slice(0, 100)}${text.length > 100 ? '...' : ''}"`);
-        const timeStr = typeof duration === 'number' ? duration.toFixed(1) : duration;
-
-        await userClient.editMessage(targetPeer, {
-            message: statusMsg.id,
-            text: `🎤 ${text}\n\n⏱️ ${timeStr}s`,
-            parseMode: 'markdown'
-        }).catch(e => console.error(`[tg-client] Edit message failed:`, e.message));
-
-        console.log(`[tg-client] ✨ Sent transcription. Processing translation in background...`);
-
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-            const workerUrl = WORKER_URL || 'https://voicemsg.net';
-            console.log(`[tg-client] 🔍 Checking translation settings for user ${TARGET_USER_ID}...`);
-            const metaRes = await fetch(`${workerUrl}/internal/user-meta?userId=${TARGET_USER_ID}&secret=${BRIDGE_SECRET}`, {
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-
-            if (metaRes.ok) {
-                const meta = await metaRes.json();
-                if (meta.translateTo && meta.translateTo !== 'original' && meta.translateTo !== 'auto') {
-                    console.log(`[tg-client] 🌐 Translating to ${meta.translateTo}...`);
-
-                    const translateController = new AbortController();
-                    const translateTimeoutId = setTimeout(() => translateController.abort(), 10000);
-
-                    const ollamaUrl = OLLAMA_BASE_URL || 'http://qwen3-asr:11434';
-                    const translateRes = await fetch(`${ollamaUrl}/v1/chat/completions`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        signal: translateController.signal,
-                        body: JSON.stringify({
-                            model: OLLAMA_MODEL || 'qwen3:latest',
-                            messages: [
-                                { role: "system", content: `Translate the following text to ${meta.translateTo}. Output only the translated text, nothing else. If the text is already in ${meta.translateTo}, return it as is.` },
-                                { role: "user", content: text }
-                            ],
-                            stream: false
-                        })
-                    });
-                    clearTimeout(translateTimeoutId);
-
-                    if (translateRes.ok) {
-                        const tData = await translateRes.json();
-                        const translatedText = tData.choices?.[0]?.message?.content;
-                        if (translatedText && translatedText.trim() !== text.trim()) {
-                            console.log(`[tg-client] ✅ Translation complete. Sending follow-up...`);
-                            await userClient.sendMessage(targetPeer, {
-                                message: `🌐 *Translation (${meta.translateTo}):*\n${translatedText}`,
-                                replyTo: msgId,
-                                parseMode: 'markdown'
-                            });
-                        }
-                    }
-                }
+        console.log(`[tg-client] ✅ Transcribed (${duration.toFixed(1)}s): "${text.slice(0, 100)}..."`);
+        
+        await userClient.invoke({
+            "@type": "editMessageText",
+            "chat_id": chatId,
+            "message_id": statusMsg.id,
+            "input_message_content": { 
+                "@type": "inputMessageText", 
+                "text": { "@type": "formattedText", "text": `🎤 ${text}\n\n⏱️ ${duration.toFixed(1)}s` } 
             }
-        } catch (e) {
-            console.error(`[tg-client] ❌ Translation/Meta error (background):`, e.message);
-        }
+        }).catch(e => console.error(`[tg-client] Edit message failed:`, e.message));
 
         if (WORKER_URL) {
             fetch(`${WORKER_URL}/internal/stats`, {
@@ -139,21 +117,19 @@ async function handleNewMessage(event) {
             }).catch(e => console.error('[tg-client] Stats notify failed:', e));
         }
     } catch (e) {
-        console.error('[tg-client] Error:', e);
+        console.error('[tg-client] Error processing message:', e);
     }
 }
 
 async function transcribeAudio(audioBuffer, mimeType) {
-    const qwenUrl = OLLAMA_BASE_URL || 'http://qwen3-asr:11434';
+    const qwenUrl = OLLAMA_BASE_URL || 'http://qwen3-asr:8000';
     const startTime = Date.now();
 
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: mimeType });
     formData.append('file', blob, 'audio.ogg');
-    formData.append('model', 'qwen3-asr');
+    formData.append('model', 'Qwen/Qwen3-ASR-0.6B');
     formData.append('language', 'auto');
-
-    console.log(`[tg-client] Transcribing with Qwen3-ASR via ${qwenUrl}`);
 
     const response = await fetch(`${qwenUrl}/v1/audio/transcriptions`, {
         method: 'POST',
@@ -173,24 +149,52 @@ async function transcribeAudio(audioBuffer, mimeType) {
 }
 
 export async function startUserClient() {
-    if (!TG_SESSION) return console.error('[tg-client] No TG_SESSION provided!');
+    if (!TARGET_USER_ID) return console.error('[tg-client] No TARGET_USER_ID provided!');
 
-    await fetchGlobalConfig();
+    console.log(`[tg-client] Starting TDLib client for user ${TARGET_USER_ID}...`);
 
-    const { StringSession } = await import('telegram/sessions/index.js');
-    const session = new StringSession(TG_SESSION || '');
-    userClient = new TelegramClient(session, TG_API_ID, TG_API_HASH, {
-        connectionRetries: 5,
-        deviceModel: DEVICE_MODEL,
-        appVersion: APP_VERSION,
-        systemVersion: SYSTEM_VERSION,
-        useIPV6: false
+    const dbDir = path.join('/app/tdlib-data', String(TARGET_USER_ID));
+    
+    if (TG_SESSION && TG_SESSION.length > 100) {
+        console.log(`[tg-client] 📦 Found TG_SESSION, attempting to restore TDLib state...`);
+        unpackSession(TARGET_USER_ID, TG_SESSION);
+    } else {
+        if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+    }
+
+    try {
+        tdl.configure({ tdjson: getTdjson() });
+    } catch (e) {
+        console.warn('[tg-client] prebuilt-tdlib not loaded:', e.message);
+    }
+
+    userClient = tdl.createClient({
+        apiId: Number(TG_API_ID),
+        apiHash: TG_API_HASH,
+        databaseDirectory: dbDir,
+        filesDirectory: path.join(dbDir, 'files')
     });
-    await userClient.connect();
 
-    const { NewMessage } = await import('telegram/events/index.js');
-    userClient.addEventHandler(handleNewMessage, new NewMessage({ incoming: true, outgoing: false }));
-    console.log(`[tg-client] 🚀 Client Online for User ID: ${TARGET_USER_ID}. Listening for voice messages...`);
+    // Register listener BEFORE login to catch all updates
+    userClient.on('update', async (update) => {
+        if (update['_'] === 'updateAuthorizationState') {
+            const state = update.authorization_state;
+            console.log(`[tg-client] 🔑 Auth State: ${state['_']}`);
+            
+            if (state['_'] === 'authorizationStateReady') {
+                console.log(`[tg-client] 🚀 Client Ready!`);
+            }
+        }
+        
+        if (update['_'] === 'updateNewMessage') {
+            handleNewMessage(update);
+        }
+    });
+
+    console.log(`[tg-client] Logging in...`);
+    await userClient.login();
+    
+    console.log(`[tg-client] Listening for updates...`);
 }
 
 export function getUserClient() {

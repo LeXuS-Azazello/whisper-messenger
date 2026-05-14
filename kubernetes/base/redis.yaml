@@ -26,6 +26,8 @@ spec:
       labels:
         app: redis
     spec:
+      imagePullSecrets:
+      - name: harbor-pull-secret
       containers:
       - name: redis
         image: redis:7-alpine

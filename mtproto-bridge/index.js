@@ -72,46 +72,62 @@ app.get('/qr-check', auth, qrCheck);
 
 app.post('/test-tg', auth, async (req, res) => {
     const start = Date.now();
+    let client;
     try {
-        const sessionToUse = req.body.session || TG_SESSION;
-        if (!sessionToUse) return res.status(400).json({ success: false, error: 'No TG_SESSION' });
+        const userId = req.body.userId || TARGET_USER_ID;
+        if (!userId) return res.status(400).json({ success: false, error: 'No userId' });
         
-        console.log(`[/test-tg] Starting test...`);
-        const client = createClient(sessionToUse, { connectionRetries: 1, onlyThis: true });
+        console.log(`[/test-tg] Starting TDLib test for ${userId}...`);
+        client = createClient(userId, { connectionRetries: 1 });
         await client.connect();
         
-        if (!client.connected) return res.status(401).json({ success: false, error: 'Session expired' });
+        const me = await client.invoke({ "@type": "getMe" });
+        const msgText = req.body.message || 'Test from bridge via TDLib!';
         
-        const toMe = await client.getMe();
-        const msgText = req.body.message || 'Test from bridge!';
-        await client.sendMessage(toMe.id, { message: msgText });
-        
-        await Promise.race([ client.disconnect(), new Promise(resolve => setTimeout(resolve, 2000)) ]);
+        await client.invoke({
+            "@type": "sendMessage",
+            "chat_id": me.id,
+            "input_message_content": {
+                "@type": "inputMessageText",
+                "text": { "@type": "formattedText", "text": msgText }
+            }
+        });
         
         const duration = Date.now() - start;
-        return res.json({ success: true, duration });
+        return res.json({ success: true, duration, me });
     } catch (e) {
-        const isExpired = e.message?.includes('CONNECTION_LAYER_INVALID') || e.message?.includes('SESSION');
-        return res.status(isExpired ? 401 : 500).json({ success: false, error: isExpired ? 'Session expired' : e.message });
+        return res.status(500).json({ success: false, error: e.message });
+    } finally {
+        if (client) {
+            console.log(`[/test-tg] Closing test client for ${req.body.userId || TARGET_USER_ID}`);
+            try { await client.close(); } catch (e) {}
+        }
     }
 });
 
 app.post('/test-voice', auth, async (req, res) => {
+    let client;
     try {
-        const sessionToUse = req.body.session || TG_SESSION;
-        if (!sessionToUse) return res.status(400).json({ success: false, error: 'No TG_SESSION' });
-        
-        const client = createClient(sessionToUse, { connectionRetries: 3, onlyThis: true });
+        const userId = req.body.userId || TARGET_USER_ID;
+        client = createClient(userId, { connectionRetries: 3 });
         await client.connect();
-        if (!client.connected) return res.status(401).json({ success: false, error: 'Session expired' });
-        
-        const toMe = await client.getMe();
-        await client.sendMessage(toMe.id, { message: '🔊 Voice test' });
-        await client.disconnect();
+        const me = await client.invoke({ "@type": "getMe" });
+        await client.invoke({
+            "@type": "sendMessage",
+            "chat_id": me.id,
+            "input_message_content": {
+                "@type": "inputMessageText",
+                "text": { "@type": "formattedText", "text": "🔊 TDLib Voice test" }
+            }
+        });
         return res.json({ success: true });
     } catch (e) {
-        const isExpired = e.message?.includes('CONNECTION_LAYER_INVALID') || e.message?.includes('SESSION');
-        return res.status(isExpired ? 401 : 500).json({ success: false, error: isExpired ? 'Session expired' : e.message });
+        return res.status(500).json({ success: false, error: e.message });
+    } finally {
+        if (client) {
+            console.log(`[/test-voice] Closing test client for ${req.body.userId || TARGET_USER_ID}`);
+            try { await client.close(); } catch (e) {}
+        }
     }
 });
 

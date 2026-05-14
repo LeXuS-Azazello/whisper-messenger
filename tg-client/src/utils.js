@@ -1,16 +1,35 @@
-import { TelegramClient } from 'telegram';
-import { StringSession } from 'telegram/sessions/index.js';
-import { TG_API_ID, TG_API_HASH, DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION } from './config.js';
+import { Client as TdClient } from 'tdl';
+import AdmZip from 'adm-zip';
+import fs from 'fs';
+import path from 'path';
+import { TG_API_ID, TG_API_HASH } from './config.js';
 
-export function createClient(sessionStr, options = {}) {
-    const session = new StringSession(sessionStr || '');
-    const client = new TelegramClient(session, TG_API_ID, TG_API_HASH, {
-        connectionRetries: options.retries || 5,
-        deviceModel: DEVICE_MODEL,
-        appVersion: APP_VERSION,
-        systemVersion: SYSTEM_VERSION,
-        useIPV6: false,
+export function createClient(userId, options = {}) {
+    const dbDir = path.join('/app/tdlib-data', String(userId));
+    if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+
+    const client = new TdClient({
+        apiId: Number(TG_API_ID),
+        apiHash: TG_API_HASH,
+        databaseDirectory: dbDir,
+        filesDirectory: path.join(dbDir, 'files'),
         ...options
     });
     return client;
+}
+
+export function unpackSession(userId, base64) {
+    if (!base64 || base64.length < 100) return null;
+    const dbDir = path.join('/app/tdlib-data', String(userId));
+    try {
+        if (fs.existsSync(dbDir)) fs.rmSync(dbDir, { recursive: true, force: true });
+        fs.mkdirSync(dbDir, { recursive: true });
+        const zip = new AdmZip(Buffer.from(base64, 'base64'));
+        zip.extractAllTo(dbDir, true);
+        console.log(`[utils] Successfully unpacked session for ${userId} to ${dbDir}`);
+        return dbDir;
+    } catch (e) {
+        console.error(`[utils] Failed to unpack session for ${userId}:`, e.message);
+        return null;
+    }
 }

@@ -15,7 +15,6 @@ import {
     getUsersJson,
     getWhisperConfig,
     updateWhisperConfig,
-    ollamaPull,
     userAction,
     renderDashboardPage
 } from "../controllers/adminController";
@@ -24,7 +23,10 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
     try {
         const url = new URL(req.url);
         const method = req.method;
-        const pathname = url.pathname;
+        let pathname = url.pathname;
+        if (pathname !== "/" && pathname.endsWith("/")) {
+            pathname = pathname.slice(0, -1);
+        }
 
         const cookieAuth = req.headers.get("Cookie")?.match(/admin_session=([^;]+)/)?.[1];
         const adminId = cookieAuth ? await verifySession(cookieAuth, env.ADMIN_SECRET) : null;
@@ -96,9 +98,6 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
             if (method === "POST") return await updateWhisperConfig(env, req);
         }
 
-        if (method === "POST" && pathname === "/admin/ollama-pull") {
-            return await ollamaPull(env, req);
-        }
 
         if (method === "POST" && pathname === "/admin/user-action") {
             return await userAction(env, req);

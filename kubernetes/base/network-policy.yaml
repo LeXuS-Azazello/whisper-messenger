@@ -29,7 +29,7 @@ spec:
           app: qwen3-asr
     ports:
     - protocol: TCP
-      port: 11434
+      port: 8000
   - to:
     - namespaceSelector: {}
     ports:

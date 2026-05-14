@@ -12,6 +12,8 @@ spec:
       labels:
         app: fluentd
     spec:
+      imagePullSecrets:
+      - name: harbor-pull-secret
       containers:
       - name: fluentd
         image: fluent/fluentd:v1.16

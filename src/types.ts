@@ -27,6 +27,8 @@ export interface Env {
   TELEGRAM_APP_ID: string;
   TELEGRAM_APP_HASH: string;
   TELEGRAM_BOT_TOKEN: string;
+  TELEGRAM_BOT_USERNAME?: string;
+  TELEGRAM_MINI_APP_URL?: string;
   TELEGRAM_CHAT_ID?: string;
   REDIS_URL: string;
   WORKER_URL: string;
@@ -42,10 +44,9 @@ export interface Env {
   STATS: KVLike;
   // Whisper Config
   WHISPER_PROVIDER?: "cloudflare" | "local" | "ollama" | "qwen3-asr";
-  LOCAL_WHISPER_URL?: string;
   LOCAL_WHISPER_SECRET?: string;
+  QWEN_ASR_URL?: string;
   OLLAMA_BASE_URL?: string;
-  OLLAMA_MODEL?: string;
   
   // SMTP Config
   EMAIL_FROM?: string;
@@ -168,7 +169,6 @@ export interface UserSession {
   whatsappPhoneId?: string;
   lineToken?: string;
   lineSecret?: string;
-  translateTo?: string;
   tgAuthenticated?: boolean;
   podName?: string;
 }

@@ -32,6 +32,8 @@ spec:
       labels:
         app: prometheus
     spec:
+      imagePullSecrets:
+      - name: harbor-pull-secret
       containers:
       - name: prometheus
         image: prom/prometheus

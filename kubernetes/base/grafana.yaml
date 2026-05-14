@@ -13,11 +13,19 @@ spec:
       labels:
         app: grafana
     spec:
+      imagePullSecrets:
+      - name: harbor-pull-secret
       containers:
       - name: grafana
         image: grafana/grafana
         ports:
         - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: ADMIN_SECRET
         resources:
           requests:
             cpu: "200m"

@@ -287,47 +287,6 @@ export const renderDashboard = (user: UserSession) => {
                             </div>
                         </div>
 
-                        {/* General Settings */}
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">⚙️ General Settings</h3>
-                            </div>
-                            <div class="input-group">
-                                <label class="input-label" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                                    <input type="checkbox" id="translate-checkbox" checked={!!user.translateTo} style={{ width: '18px', height: '18px' }} />
-                                    <span>Enable Translation</span>
-                                </label>
-                            </div>
-                            <div id="translate-options" style={{ display: user.translateTo ? 'block' : 'none', marginTop: '10px' }}>
-                                <div class="input-group">
-                                    <label class="input-label">Translate To Language</label>
-                                    <select id="translate-lang" class="input-field" style={{ width: '100%' }} value={user.translateTo || ''}>
-                                        <option value="">Select language...</option>
-                                        <option value="en">English 🇺🇸</option>
-                                        <option value="uk">Ukrainian 🇺🇦</option>
-                                        <option value="ru">Russian 🇷🇺</option>
-                                        <option value="es">Spanish 🇪🇸</option>
-                                        <option value="de">German 🇩🇪</option>
-                                        <option value="fr">French 🇫🇷</option>
-                                        <option value="zh">Chinese 🇨🇳</option>
-                                        <option value="ja">Japanese 🇯🇵</option>
-                                    </select>
-                                </div>
-                                <div class="input-group">
-                                    <label class="input-label">Test Translation</label>
-                                    <input type="text" id="test-translation-input" class="input-field" placeholder="Enter text to test translation..." style={{ width: '100%' }} />
-                                </div>
-                                <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                                    <button class="btn btn-sm" id="test-translate-btn" style={{ background: '#3B82F6', margin: 0, flex: 1 }}>Test Translation</button>
-                                    <button class="btn btn-sm" id="save-settings-btn" style={{ background: '#8B5CF6', margin: 0, flex: 1 }}>Save Settings</button>
-                                </div>
-                                <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '5px' }}>
-                                    Voice messages will be translated from their original language automatically.
-                                </p>
-                                <div id="translation-result" style={{ display: 'none', marginTop: '10px', padding: '10px', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '8px', fontSize: '12px' }}></div>
-                            </div>
-                        </div>
-
                         {/* Threads Integration */}
                         <div class="card" style={{ borderLeft: '4px solid #000' }}>
                             <div class="card-header">

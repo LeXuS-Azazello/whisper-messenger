@@ -5,13 +5,13 @@ export async function transcribeWithFallback(
   env: Env
 ): Promise<{ text: string; model?: string }> {
   // Always use Qwen3-ASR (no fallback, only one provider)
-  const qwenUrl = env.OLLAMA_BASE_URL || "http://qwen3-asr:11434";
+  const qwenUrl = env.QWEN_ASR_URL || env.OLLAMA_BASE_URL || "http://qwen3-asr:8000";
   if (!qwenUrl) throw new Error("Qwen3-ASR URL not configured");
 
   const formData = new FormData();
   const blob = new Blob([audio], { type: "audio/ogg" });
   formData.append("file", blob, "audio.ogg");
-  formData.append("model", "qwen3-asr");
+  formData.append("model", "Qwen/Qwen3-ASR-0.6B");
   formData.append("language", "auto");
 
   const secret = env.LOCAL_WHISPER_SECRET || ""; // reuse secret var for auth

@@ -16,3 +16,5 @@ k8s_state.txt
 k8s_state_new.txt
 wrangler.toml
 .env
+cert_voa_orig.*
+cert_orig.*

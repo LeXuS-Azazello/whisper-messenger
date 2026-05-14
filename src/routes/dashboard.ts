@@ -4,8 +4,6 @@ import {
     handleSaveWa,
     handleSaveLine,
     handleTestWa,
-    handleTestTranslation,
-    handleSaveSettings,
     handleDisconnectTg,
     handleTestTg,
     handleRestartTg,
@@ -17,6 +15,10 @@ export { incrementUserStats };
 
 export async function handleUserDashboard(env: Env, req: Request, userId: string | null): Promise<Response> {
   const url = new URL(req.url);
+  let pathname = url.pathname;
+  if (pathname !== "/" && pathname.endsWith("/")) {
+    pathname = pathname.slice(0, -1);
+  }
 
   if (!userId) {
     return new Response(null, { status: 302, headers: { 
@@ -28,10 +30,30 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
   let userStats = await env.STATS.get(`user_meta_${userId}`);
   
   if (!userStats) {
-    for (let i = 0; i < 3; i++) {
-      await new Promise(r => setTimeout(r, 500));
-      userStats = await env.STATS.get(`user_meta_${userId}`);
-      if (userStats) break;
+    try {
+      const User = (await import("../models/User")).default;
+      const MessengerSession = (await import("../models/MessengerSession")).default;
+      
+      const dbUser = await User.findOne({ userId });
+      if (dbUser) {
+        const tgSession = await MessengerSession.findOne({ userId, platform: "telegram" });
+        
+        const newUserMeta: UserSession = {
+          userId: dbUser.userId,
+          firstName: dbUser.firstName || "User",
+          email: dbUser.email,
+          emailVerified: dbUser.emailVerified,
+          isActive: dbUser.isActive,
+          transcriptionCount: dbUser.transcriptionCount || 0,
+          lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : undefined,
+          session: tgSession?.sessionData || ""
+        };
+        
+        await env.STATS.put(`user_meta_${userId}`, JSON.stringify(newUserMeta));
+        userStats = JSON.stringify(newUserMeta);
+      }
+    } catch (e) {
+      console.error("[Dashboard] Failed to fetch user from DB:", e);
     }
   }
 
@@ -47,38 +69,32 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
   const user: UserSession = JSON.parse(userStats);
 
   if (req.method === "POST") {
-    if (url.pathname === "/dashboard/save-meta") {
+    if (pathname === "/dashboard/save-meta") {
         return await handleSaveMeta(env, req, userId, user);
     }
-    if (url.pathname === "/dashboard/save-wa") {
+    if (pathname === "/dashboard/save-wa") {
         return await handleSaveWa(env, req, userId, user);
     }
-    if (url.pathname === "/dashboard/save-line") {
+    if (pathname === "/dashboard/save-line") {
         return await handleSaveLine(env, req, userId, user);
     }
-    if (url.pathname === "/dashboard/test-wa") {
+    if (pathname === "/dashboard/test-wa") {
         return await handleTestWa(env, req, user);
     }
-    if (url.pathname === "/dashboard/test-translation") {
-        return await handleTestTranslation(env, req);
-    }
-    if (url.pathname === "/dashboard/save-settings") {
-        return await handleSaveSettings(env, req, userId, user);
-    }
-    if (url.pathname === "/dashboard/disconnect-tg") {
+    if (pathname === "/dashboard/disconnect-tg") {
         return await handleDisconnectTg(env, userId, user);
     }
-    if (url.pathname === "/dashboard/test-tg") {
+    if (pathname === "/dashboard/test-tg") {
         return await handleTestTg(env, user);
     }
-    if (url.pathname === "/dashboard/restart-tg") {
+    if (pathname === "/dashboard/restart-tg") {
         return await handleRestartTg(env, userId, user);
     }
     
-    return new Response("Not found", { status: 404 });
+    return new Response(`Not found: ${pathname}`, { status: 404 });
   }
 
-  if (req.method === "GET" && url.pathname === "/dashboard") {
+  if (req.method === "GET" && pathname === "/dashboard") {
       return showDashboard(user);
   }
 

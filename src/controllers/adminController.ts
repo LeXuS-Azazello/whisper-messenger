@@ -70,7 +70,7 @@ export async function adminLogin(env: Env, req: Request): Promise<Response> {
         const signedAdminSession = await createSignedSession("admin", env.ADMIN_SECRET);
         return new Response("Redirect", { status: 302, headers: { "Location": "/admin", "Set-Cookie": `admin_session=${signedAdminSession}; Path=/; HttpOnly; SameSite=Lax;` } });
     }
-    return new Response(renderAdminLogin(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    return new Response(renderAdminLogin("Invalid password"), { headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
 
 export async function adminLogout(): Promise<Response> {
@@ -152,34 +152,18 @@ export async function getWhisperConfig(env: Env): Promise<Response> {
     if (!provider || provider !== 'qwen3-asr') {
         provider = 'qwen3-asr';
     }
-    const model = await env.STATS.get("config_ollama_model") || "qwen3-coder:30b";
     const localUrl = await env.STATS.get("config_local_whisper_url") || "";
     const localSecret = await env.STATS.get("config_local_whisper_secret") || "";
     const ollamaUrl = await env.STATS.get("config_ollama_url") || "";
-    return Response.json({ provider, model, localUrl, localSecret, ollamaUrl });
+    return Response.json({ provider, localUrl, localSecret, ollamaUrl });
 }
 
 export async function updateWhisperConfig(env: Env, req: Request): Promise<Response> {
-    const { provider, model } = await req.json() as any;
+    const { provider } = await req.json() as any;
     if (provider === 'qwen3-asr') {
         await env.STATS.put("config_whisper_provider", provider);
     }
-    if (model) await env.STATS.put("config_ollama_model", model);
     return Response.json({ success: true });
-}
-
-export async function ollamaPull(env: Env, req: Request): Promise<Response> {
-    const { url: ollamaUrl, model } = await req.json() as any;
-    if (!ollamaUrl || !model) return Response.json({ success: false, error: "Missing url or model" }, { status: 400 });
-    try {
-        await fetch(`${ollamaUrl}/api/pull`, {
-            method: "POST",
-            body: JSON.stringify({ name: model, stream: false })
-        });
-        return Response.json({ success: true });
-    } catch (e: any) {
-        return Response.json({ success: false, error: e.message }, { status: 500 });
-    }
 }
 
 export async function userAction(env: Env, req: Request): Promise<Response> {

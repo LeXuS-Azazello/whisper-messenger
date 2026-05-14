@@ -54,6 +54,7 @@ graph TD
     *   Listen for voice messages in real-time and process them via the AI pipeline.
 4.  **AI Engine** (`qwen3-asr`):
     *   Self-hosted Ollama instance running the **Qwen3-ASR** model for high-accuracy speech recognition.
+    *   Optimized for purely CPU-bound clusters (12+ Cores, 32GB+ RAM) via `vLLM` CPU mode fallback.
 
 ---
 
@@ -79,7 +80,7 @@ graph TD
 *   Redis instance reachable within the cluster.
 
 ### Deployment
-The project uses a streamlined deployment script that builds the image, pushes it to Docker Hub, and updates the Kubernetes manifests.
+The project uses a streamlined deployment script that builds the images, pushes them to the private Harbor registry (`harbor.dev.takatan.cloud`), and updates the Kubernetes manifests.
 
 ```bash
 # Deploy to the production namespace
@@ -109,8 +110,8 @@ npm run deploy:k8s
 | Service | Endpoint | Role |
 | :--- | :--- | :--- |
 | **Frontend** | `https://voicemsg.net` | Main Dashboard & Landing |
-| **Bridge API** | `https://bridge.voicemsg.net` | Internal/External Bridge Logic |
-| **AI API** | `https://asr.voicemsg.net` | Ollama/Qwen3-ASR Access |
+| **Bridge API** | `http://mtproto-bridge-manager:3000` *(Internal)* | Bridge Logic |
+| **AI API** | `http://qwen3-asr:8000` *(Internal)* | Ollama/Qwen3-ASR Access |
 | **Monitoring** | `https://grafana.voicemsg.net` | System Health & Stats |
 
 ---
@@ -136,8 +137,10 @@ npm run deploy:k8s
 
 ## 🛡️ Security & Privacy
 *   **Dual-Factor Verification**: Requests between Frontend and Bridge are signed with a shared `BRIDGE_SECRET`.
-*   **HMAC Session Signing**: All user sessions are cryptographically signed to prevent spoofing.
-*   **Network Isolation**: User-specific `tg-client` pods are isolated within the cluster.
+*   **Internal Network Isolation**: `qwen3-asr` (AI engine) and `mtproto-bridge-manager` are strictly exposed **only via internal Kubernetes ClusterIP**. They are not accessible from the public internet.
+*   **Per-User Pod Isolation**: User-specific `tg-client` pods are strictly isolated within the cluster.
+*   **Self-Destruct Logic**: If a user revokes Telegram access, the `tg-client` pod intercepts the authorization failure, gracefully clears the user session in the MongoDB/Redis backend, and automatically triggers its own deletion to preserve cluster resources.
+*   **Zero-Storage Policy**: Audio files and transcribed text are processed purely in RAM buffers and never saved to persistence storage.
 
 ---
 

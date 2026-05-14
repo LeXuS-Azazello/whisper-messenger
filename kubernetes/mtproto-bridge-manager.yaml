@@ -52,7 +52,10 @@ spec:
         - name: MODE
           value: "MANAGER"
         - name: TG_API_ID
-          value: "13867088"
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: TELEGRAM_APP_ID
         - name: TG_API_HASH
           valueFrom:
             secretKeyRef:

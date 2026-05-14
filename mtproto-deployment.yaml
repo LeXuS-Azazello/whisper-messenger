@@ -14,16 +14,21 @@ spec:
         app: mtproto-bridge-manager
     spec:
       serviceAccountName: mtproto-bridge-sa
+      imagePullSecrets:
+      - name: harbor-pull-secret
       containers:
       - name: mtproto-bridge
-        image: azazellosaraksh/debugging-mtproto-bridge:v2
+        image: harbor.dev.takatan.cloud/debugging/whisper-bridge-manager:latest
         ports:
         - containerPort: 3000
         env:
         - name: MODE
           value: "MANAGER"
         - name: TG_API_ID
-          value: "13867088"
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: TELEGRAM_APP_ID
         - name: TG_API_HASH
           valueFrom:
             secretKeyRef:

@@ -12,7 +12,9 @@
   "dependencies": {
     "dotenv": "^16.6.1",
     "ioredis": "^5.10.1",
-    "telegram": "^2.26.22"
+    "tdl": "^7.4.0",
+    "prebuilt-tdlib": "latest",
+    "adm-zip": "^0.5.10"
   },
   "devDependencies": {
     "vitest": "^1.0.0"

@@ -14,6 +14,8 @@ spec:
       labels:
         app: mongodb
     spec:
+      imagePullSecrets:
+      - name: harbor-pull-secret
       containers:
       - name: mongodb
         image: mongo:latest
