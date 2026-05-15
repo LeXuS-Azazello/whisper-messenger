@@ -16,6 +16,7 @@ import {
     getWhisperConfig,
     updateWhisperConfig,
     userAction,
+    runDiagnostics,
     renderDashboardPage
 } from "../controllers/adminController";
 
@@ -101,6 +102,10 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
 
         if (method === "POST" && pathname === "/admin/user-action") {
             return await userAction(env, req);
+        }
+
+        if (method === "POST" && pathname === "/admin/run-diagnostics") {
+            return await runDiagnostics(env);
         }
 
         if (method === "GET" && pathname === "/admin") {

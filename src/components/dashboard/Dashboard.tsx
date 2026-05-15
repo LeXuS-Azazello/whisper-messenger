@@ -335,6 +335,33 @@ export const renderDashboard = (user: UserSession) => {
                                         <p>Receive a code on your device</p>
                                     </div>
                                 </div>
+                                <div class="choice-card" id="choose-email-btn">
+                                    <div class="choice-icon">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                    </div>
+                                    <div class="choice-text">
+                                        <h4>Email Login</h4>
+                                        <p>Use email for authentication</p>
+                                    </div>
+                                </div>
+                                <div class="choice-card" id="choose-bot-btn">
+                                    <div class="choice-icon">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="12" cy="5" r="2" /><path d="M12 7v4" /><line x1="8" y1="16" x2="8" y2="16" /><line x1="16" y1="16" x2="16" y2="16" /></svg>
+                                    </div>
+                                    <div class="choice-text">
+                                        <h4>Bot Token</h4>
+                                        <p>Connect a bot instead</p>
+                                    </div>
+                                </div>
+                                <div class="choice-card" id="choose-restore-btn">
+                                    <div class="choice-icon">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                                    </div>
+                                    <div class="choice-text">
+                                        <h4>Restore Session</h4>
+                                        <p>Resume existing session</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -361,6 +388,26 @@ export const renderDashboard = (user: UserSession) => {
                             </div>
                             <button class="btn" id="modal-send-code-btn">Send Verification Code</button>
                             <button class="btn btn-sm" id="back-to-choice-2" style={{ background: 'none', color: 'var(--text-dim)', marginTop: '10px' }}>Back</button>
+                        </div>
+
+                        {/* Step 2: Email Input */}
+                        <div class="auth-step" id="tg-step-email">
+                            <div class="input-group">
+                                <label class="input-label">Email Address</label>
+                                <input type="email" id="modal-tg-email" class="input-field" placeholder="your@email.com" />
+                            </div>
+                            <button class="btn" id="modal-send-email-btn">Continue</button>
+                            <button class="btn btn-sm" id="back-to-choice-3" style={{ background: 'none', color: 'var(--text-dim)', marginTop: '10px' }}>Back</button>
+                        </div>
+
+                        {/* Step 2: Bot Token Input */}
+                        <div class="auth-step" id="tg-step-bot">
+                            <div class="input-group">
+                                <label class="input-label">Bot Token</label>
+                                <input type="text" id="modal-tg-bot-token" class="input-field" placeholder="123456789:ABC..." />
+                            </div>
+                            <button class="btn" id="modal-verify-bot-btn">Link Bot</button>
+                            <button class="btn btn-sm" id="back-to-choice-4" style={{ background: 'none', color: 'var(--text-dim)', marginTop: '10px' }}>Back</button>
                         </div>
 
                         {/* Step 3: Code Input */}

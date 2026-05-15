@@ -61,8 +61,8 @@ export interface Env {
   CLOUDFLARE_ACCOUNT_ID?: string;
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
-  BRIDGE_SECRET?: string;
-  BRIDGE_URL?: string;
+  MANAGER_SECRET?: string;
+  MANAGER_URL?: string;
 }
 
 export interface HealthChecks {
@@ -172,4 +172,17 @@ export interface UserSession {
   lineSecret?: string;
   tgAuthenticated?: boolean;
   podName?: string;
+}
+
+export interface DiagnosticResult {
+  status: 'healthy' | 'unhealthy' | 'error' | 'unknown';
+  message: string;
+}
+
+export interface DiagnosticResults {
+  redis: DiagnosticResult;
+  mongodb: DiagnosticResult;
+  manager: DiagnosticResult;
+  asr: DiagnosticResult;
+  k8s: DiagnosticResult;
 }

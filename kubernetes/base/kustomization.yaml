@@ -5,8 +5,8 @@ resources:
   - frontend.yaml
   - redis.yaml
   - mongodb.yaml
-  # - network-policy.yaml
-  - mtproto-bridge-manager.yaml
+  - network-policy.yaml
+  - tg-client-manager.yaml
   - qwen3-asr.yaml
   - ingress.yaml
   - ingress-nginx.yaml
@@ -17,7 +17,6 @@ resources:
   # - cert-manager.yaml
   - grafana.yaml
   - prometheus.yaml
-  - fip.yaml
   - static.yaml
   - grafana-ingress.yaml
   - rbac.yaml

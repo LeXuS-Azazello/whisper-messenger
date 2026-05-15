@@ -1,6 +1,10 @@
 import { createClient, packSession } from './utils.js';
 import { MODE, API_ID, API_HASH, redis } from './config.js';
 import QRCode from 'qrcode';
+import User from './models/User.js';
+import mongoose from 'mongoose';
+import path from 'path';
+
 
 // Shared Map across endpoints for ACTIVE login processes (contains non-serializable client objects)
 export const authSessions = new Map();
@@ -66,9 +70,21 @@ export async function sendCode(req, res) {
 
             try {
                 if (type === 'authorizationStateWaitTdlibParameters') {
-                    // This should be handled by tdl automatically since we passed it to createClient,
-                    // but we can keep a fallback just in case or just log it.
-                    console.log(`[/send-code] Waiting for parameters for ${phoneClean}`);
+                    client.send({
+                        "_": "setTdlibParameters",
+                        "parameters": {
+                            "database_directory": path.join('/tmp/tdlib', phoneClean),
+                            "use_message_database": true,
+                            "use_secret_chats": false,
+                            "api_id": Number(API_ID),
+                            "api_hash": API_HASH,
+                            "system_language_code": "en",
+                            "device_model": "Node.js TDLib Manager",
+                            "system_version": "Linux",
+                            "application_version": "1.0.0",
+                            "enable_storage_optimizer": true
+                        }
+                    });
                 } else if (type === 'authorizationStateWaitEncryptionKey') {
                     await client.invoke({ "_": "checkDatabaseEncryptionKey", "encryption_key": "" });
                 } else if (type === 'authorizationStateWaitPhoneNumber') {
@@ -83,6 +99,18 @@ export async function sendCode(req, res) {
                     if (!session.responded) {
                         session.responded = true;
                         res.json({ success: true, requiresPassword: true });
+                    }
+                } else if (type === 'authorizationStateWaitEmailAddress') {
+                    session.status = 'email_needed';
+                    if (!session.responded) {
+                        session.responded = true;
+                        res.json({ success: true, requiresEmail: true });
+                    }
+                } else if (type === 'authorizationStateWaitEmailCode') {
+                    session.status = 'email_code_needed';
+                    if (!session.responded) {
+                        session.responded = true;
+                        res.json({ success: true, requiresEmailCode: true });
                     }
                 } else if (type === 'authorizationStateReady') {
                     const me = await client.invoke({ "_": "getMe" });
@@ -126,8 +154,20 @@ async function saveSessionToRedis(userId, packedSession) {
         const key = `tg_session_${userId}`;
         await redis.set(key, packedSession, 'EX', 86400 * 30); // Save for 30 days
         console.log(`[auth] Session for user ${userId} saved to Redis (Key: ${key})`);
+        
+        // Backup to MongoDB
+        await User.findOneAndUpdate(
+            { userId: String(userId) },
+            { 
+                tgSession: packedSession,
+                lastActiveAt: new Date(),
+                isActive: true
+            },
+            { upsert: true }
+        );
+        console.log(`[auth] Session for user ${userId} backed up to MongoDB`);
     } catch (e) {
-        console.error(`[auth] Failed to save session to Redis for user ${userId}:`, e.message);
+        console.error(`[auth] Failed to save session for user ${userId}:`, e.message);
     }
 }
 
@@ -244,7 +284,21 @@ export async function qrStart(req, res) {
 
             try {
                 if (type === 'authorizationStateWaitTdlibParameters') {
-                    console.log(`[/qr-start] Waiting for parameters for ${tempId}`);
+                    client.send({
+                        "_": "setTdlibParameters",
+                        "parameters": {
+                            "database_directory": path.join('/tmp/tdlib', tempId),
+                            "use_message_database": true,
+                            "use_secret_chats": false,
+                            "api_id": Number(API_ID),
+                            "api_hash": API_HASH,
+                            "system_language_code": "en",
+                            "device_model": "Node.js TDLib Manager",
+                            "system_version": "Linux",
+                            "application_version": "1.0.0",
+                            "enable_storage_optimizer": true
+                        }
+                    });
                 } else if (type === 'authorizationStateWaitEncryptionKey') {
                     await client.invoke({ "_": "checkDatabaseEncryptionKey", "encryption_key": "" });
                 } else if (type === 'authorizationStateWaitPhoneNumber') {

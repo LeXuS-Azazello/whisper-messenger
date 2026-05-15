@@ -1,5 +1,4 @@
-import * as tdl from 'tdl';
-import { getTdjson } from 'prebuilt-tdlib';
+import TdClient from './tdweb/index.js';
 import { TARGET_USER_ID, TG_SESSION, TG_API_ID, TG_API_HASH, WORKER_URL, BRIDGE_SECRET, OLLAMA_BASE_URL, WHISPER_PROVIDER, WHISPER_TURBO_URL, redis } from './config.js';
 import fs from 'fs';
 import path from 'path';
@@ -227,26 +226,61 @@ export async function startUserClient() {
         if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
     }
 
-    try {
-        tdl.configure({ tdjson: getTdjson() });
-    } catch (e) {
-        console.warn('[tg-client] prebuilt-tdlib not loaded:', e.message);
-    }
-
-    userClient = tdl.createClient({
-        apiId: Number(TG_API_ID),
-        apiHash: TG_API_HASH,
-        databaseDirectory: dbDir,
-        filesDirectory: path.join(dbDir, 'files'),
-        tdlibParameters: {
-            use_message_database: true,
-            use_chat_info_database: true,
-            use_file_database: true,
-            use_test_dc: false,
-            device_model: process.env.DEVICE_MODEL || "Desktop Linux",
-            system_version: process.env.SYSTEM_VERSION || "Ubuntu 24.04",
-            application_version: process.env.APP_VERSION || "4.15.2",
-            enable_storage_optimizer: true
+    userClient = new TdClient({
+        instanceName: String(TARGET_USER_ID),
+        onUpdate: async (update) => {
+            const type = update['_'] || update['@type'];
+            if (type === 'updateAuthorizationState') {
+                const state = update.authorization_state;
+                const stateType = state['_'] || state['@type'];
+                console.log(`[tg-client] 🔑 Auth State: ${stateType}`);
+                
+                if (stateType === 'authorizationStateWaitTdlibParameters') {
+                    userClient.send({
+                        "@type": "setTdlibParameters",
+                        "parameters": {
+                            "database_directory": dbDir,
+                            "use_message_database": true,
+                            "use_chat_info_database": true,
+                            "use_file_database": true,
+                            "use_test_dc": false,
+                            "api_id": Number(TG_API_ID),
+                            "api_hash": TG_API_HASH,
+                            "system_language_code": "en",
+                            "device_model": process.env.DEVICE_MODEL || "Desktop Linux",
+                            "system_version": process.env.SYSTEM_VERSION || "Ubuntu 24.04",
+                            "application_version": process.env.APP_VERSION || "4.15.2",
+                            "enable_storage_optimizer": true
+                        }
+                    });
+                } else if (stateType === 'authorizationStateWaitEncryptionKey') {
+                    userClient.send({ "@type": "checkDatabaseEncryptionKey", "encryption_key": "" });
+                } else if (stateType === 'authorizationStateReady') {
+                    console.log(`[tg-client] 🚀 Client Ready!`);
+                } else if (stateType === 'authorizationStateLoggingOut' || stateType === 'authorizationStateWaitPhoneNumber') {
+                    console.warn(`[tg-client] ⚠️ Session revoked or expired (State: ${stateType}). Notifying worker...`);
+                    if (WORKER_URL) {
+                        try {
+                            await fetch(`${WORKER_URL}/internal/access-revoked`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: TARGET_USER_ID, secret: BRIDGE_SECRET })
+                            });
+                            console.log(`[tg-client] ✅ Worker notified. Exiting...`);
+                        } catch (e) {
+                            console.error(`[tg-client] ❌ Failed to notify worker:`, e.message);
+                        }
+                    }
+                    process.exit(0);
+                } else if (stateType === 'authorizationStateClosed') {
+                    console.log(`[tg-client] 🛑 TDLib closed. Exiting...`);
+                    process.exit(0);
+                }
+            }
+            
+            if (type === 'updateNewMessage') {
+                handleNewMessage(update);
+            }
         }
     });
 
@@ -255,50 +289,7 @@ export async function startUserClient() {
         console.log(`[tg-client] 💓 Heartbeat: Client for ${TARGET_USER_ID} is active`);
     }, 60000);
 
-    // Register listener BEFORE login to catch all updates
-    userClient.on('update', async (update) => {
-        const type = update['_'] || update['@type'];
-        if (type === 'updateAuthorizationState') {
-            const state = update.authorization_state;
-            const stateType = state['_'] || state['@type'];
-            console.log(`[tg-client] 🔑 Auth State: ${stateType}`);
-            
-            if (stateType === 'authorizationStateReady') {
-                console.log(`[tg-client] 🚀 Client Ready!`);
-            }
-
-            if (stateType === 'authorizationStateLoggingOut' || stateType === 'authorizationStateWaitPhoneNumber') {
-                console.warn(`[tg-client] ⚠️ Session revoked or expired (State: ${stateType}). Notifying worker...`);
-                if (WORKER_URL) {
-                    try {
-                        await fetch(`${WORKER_URL}/internal/access-revoked`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userId: TARGET_USER_ID, secret: BRIDGE_SECRET })
-                        });
-                        console.log(`[tg-client] ✅ Worker notified. Exiting...`);
-                    } catch (e) {
-                        console.error(`[tg-client] ❌ Failed to notify worker:`, e.message);
-                    }
-                }
-                process.exit(0);
-            }
-
-            if (stateType === 'authorizationStateClosed') {
-                console.log(`[tg-client] 🛑 TDLib closed. Exiting...`);
-                process.exit(0);
-            }
-        }
-        
-        if (type === 'updateNewMessage') {
-            handleNewMessage(update);
-        }
-    });
-
-    console.log(`[tg-client] Logging in...`);
-    await userClient.login();
-    
-    console.log(`[tg-client] Listening for updates...`);
+    console.log(`[tg-client] TDWeb Client initialized and listening for updates...`);
 }
 
 export function getUserClient() {

@@ -529,4 +529,49 @@ document.addEventListener('DOMContentLoaded', function() {
             location.href = '/admin/logout';
         });
     }
+
+    // --- Diagnostics Logic ---
+    const runDiagBtn = document.getElementById('run-diag-btn');
+    if (runDiagBtn) {
+        runDiagBtn.addEventListener('click', async () => {
+            const originalText = runDiagBtn.innerText;
+            runDiagBtn.innerText = 'Testing...';
+            runDiagBtn.disabled = true;
+
+            // Reset UI
+            document.querySelectorAll('.diag-item').forEach(item => {
+                const status = item.querySelector('.diag-status');
+                const msg = item.querySelector('.diag-msg');
+                status.className = 'diag-status unknown';
+                status.innerHTML = '<span></span> Testing...';
+                msg.innerText = 'Connecting...';
+            });
+
+            try {
+                const res = await fetch('/admin/run-diagnostics', { method: 'POST' });
+                const results = await res.json();
+
+                Object.keys(results).forEach(service => {
+                    updateDiagUI(service, results[service]);
+                });
+            } catch (e) {
+                alert('Diagnostics failed: ' + e.message);
+            } finally {
+                runDiagBtn.innerText = originalText;
+                runDiagBtn.disabled = false;
+            }
+        });
+    }
+
+    function updateDiagUI(service, result) {
+        const item = document.querySelector(`.diag-item[data-service="${service}"]`);
+        if (!item) return;
+
+        const status = item.querySelector('.diag-status');
+        const msg = item.querySelector('.diag-msg');
+
+        status.className = `diag-status ${result.status}`;
+        status.innerHTML = `<span></span> ${result.status.toUpperCase()}`;
+        msg.innerText = result.message;
+    }
 });

@@ -10,11 +10,11 @@ import { renderHome } from "./components/home/Home";
 import { verifySession } from "./session";
 
 /**
- * Resolves the bridge URL for forwarding internal requests.
- * Uses BRIDGE_URL env var, falls back to internal K8s service name.
+ * Resolves the Manager URL for forwarding internal requests.
+ * Uses MANAGER_URL env var, falls back to internal K8s service name.
  */
-function getBridgeUrl(env: Env): string {
-  return (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000";
+function getManagerUrl(env: Env): string {
+  return (env.MANAGER_URL || "").trim() || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000";
 }
 
 function getPublicOrigin(env: Env, fallbackOrigin: string): string {
@@ -51,7 +51,7 @@ export default {
     try {
       const url = new URL(req.url);
       const publicOrigin = getPublicOrigin(env, url.origin);
-      const bridgeUrl = getBridgeUrl(env);
+      const managerUrl = getManagerUrl(env);
 
       // Normalize pathname: remove trailing slash for easier matching
       let pathname = url.pathname;
@@ -61,6 +61,16 @@ export default {
 
       // Health check
       if (pathname === "/health") return Response.json({ ok: true });
+
+      // Diagnostic logs
+      if (pathname === "/internal/diagnostic-logs") {
+        const secret = url.searchParams.get("secret");
+        if (secret !== env.MANAGER_SECRET) return new Response("Unauthorized", { status: 401 });
+        const pod = url.searchParams.get("pod");
+        if (!pod) return new Response("Missing pod name", { status: 400 });
+        const { handleGetPodLogs } = await import("./controllers/adminController");
+        return await handleGetPodLogs(env, pod);
+      }
 
       // ─── Webhook routes (verify + forward to bridge) ──────────────────────────
 
@@ -86,9 +96,9 @@ export default {
           let body: any;
           try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
 
-          // Forward verified webhook to bridge
+          // Forward verified webhook to manager
           const webhookPath = url.pathname + url.search;
-          return fetch(`${bridgeUrl}${webhookPath}`, {
+          return fetch(`${managerUrl}${webhookPath}`, {
             method: req.method,
             headers: req.headers,
             body: rawBody,
@@ -127,8 +137,8 @@ export default {
           }
         }
 
-        // Forward LINE webhook to bridge
-        return fetch(`${bridgeUrl}${url.pathname}`, {
+        // Forward LINE webhook to manager
+        return fetch(`${managerUrl}${url.pathname}`, {
           method: req.method,
           headers: req.headers,
           body: rawBody,
@@ -220,23 +230,23 @@ export default {
         }
       }
 
-      // ─── Bridge API proxy (spawn, delete, etc.) ────────────────────────────
-      // These endpoints are called by the frontend JS and need to reach the bridge
+      // ─── Manager API proxy (spawn, delete, etc.) ────────────────────────────
+      // These endpoints are called by the frontend JS and need to reach the manager
       if (pathname === "/spawn" || pathname === "/delete-pod") {
-        const secret = (env.BRIDGE_SECRET || "changeme").trim();
-        const proxyUrl = new URL(`${bridgeUrl}${url.pathname}${url.search}`);
+        const secret = (env.MANAGER_SECRET || "changeme").trim();
+        const proxyUrl = new URL(`${managerUrl}${url.pathname}${url.search}`);
         proxyUrl.searchParams.set("secret", secret);
         
-        const bridgeReq = new Request(proxyUrl.toString(), {
+        const managerReq = new Request(proxyUrl.toString(), {
           method: req.method,
           headers: req.headers,
           body: req.body,
           redirect: "manual",
           duplex: 'half'
         } as any);
-        bridgeReq.headers.set("x-bridge-secret", secret);
-        bridgeReq.headers.set("x-forwarded-for", req.headers.get("CF-Connecting-IP") || "");
-        return await fetch(bridgeReq);
+        managerReq.headers.set("x-manager-secret", secret);
+        managerReq.headers.set("x-forwarded-for", req.headers.get("CF-Connecting-IP") || "");
+        return await fetch(managerReq);
       }
 
       // ─── Home page (/) ──────────────────────────────────────────────────────

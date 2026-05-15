@@ -133,26 +133,26 @@ export async function handleDisconnectTg(env: Env, userId: string, user: UserSes
     console.error("[Dashboard] MongoDB cleanup failed:", e);
   }
   
-  // 5. Tell Bridge to kill pods and local files
-  const bridgeUrl = (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000";
-  const secret = (env.BRIDGE_SECRET || "changeme").trim();
+  // 5. Tell Manager to kill pods and local files
+  const managerUrl = (env.MANAGER_URL || "").trim() || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000";
+  const secret = (env.MANAGER_SECRET || "changeme").trim();
   
-  await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
+  await fetch(`${managerUrl}/delete?secret=${secret}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+    headers: { "Content-Type": "application/json", "x-manager-secret": secret },
     body: JSON.stringify({ userId })
-  }).catch(e => console.error("[Dashboard] Bridge delete call failed:", e));
+  }).catch(e => console.error("[Dashboard] Manager delete call failed:", e));
 
   return Response.json({ success: true });
 }
 
 export async function handleTestTg(env: Env, user: UserSession): Promise<Response> {
   if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-  const bridgeUrl = (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000";
-  const secret = (env.BRIDGE_SECRET || "changeme").trim();
-  const res = await fetch(`${bridgeUrl}/test-tg?secret=${secret}`, {
+  const managerUrl = (env.MANAGER_URL || "").trim() || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000";
+  const secret = (env.MANAGER_SECRET || "changeme").trim();
+  const res = await fetch(`${managerUrl}/test-tg?secret=${secret}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+    headers: { "Content-Type": "application/json", "x-manager-secret": secret },
     body: JSON.stringify({ 
         userId: user.userId, 
         session: user.session,
@@ -165,13 +165,13 @@ export async function handleTestTg(env: Env, user: UserSession): Promise<Respons
 
 export async function handleRestartTg(env: Env, userId: string, user: UserSession): Promise<Response> {
   if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-  const bridgeUrl = (env.BRIDGE_URL || "").trim() || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000";
-  const secret = (env.BRIDGE_SECRET || "changeme").trim();
+  const managerUrl = (env.MANAGER_URL || "").trim() || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000";
+  const secret = (env.MANAGER_SECRET || "changeme").trim();
   
   // No need for separate delete, spawn handles it
-  const res = await fetch(`${bridgeUrl}/spawn?secret=${secret}`, {
+  const res = await fetch(`${managerUrl}/spawn?secret=${secret}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+    headers: { "Content-Type": "application/json", "x-manager-secret": secret },
     body: JSON.stringify({ userId, session: user.session })
   });
   

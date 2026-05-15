@@ -3,6 +3,8 @@ import https from 'https';
 import fs from 'fs';
 import { MODE, API_ID, API_HASH, SECRET, WORKER_URL, DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION } from './config.js';
 import { withTimeout } from './utils.js';
+import User from './models/User.js';
+
 
 let k8sApi = null;
 
@@ -27,18 +29,18 @@ export function initK8s() {
         kc.loadFromDefault();
 
         const cluster = kc.getCurrentCluster();
-        console.log(`[bridge] K8s context: ${kc.getCurrentContext()}, Cluster: ${cluster?.name}, Server: ${cluster?.server}`);
+        console.log(`[manager] K8s context: ${kc.getCurrentContext()}, Cluster: ${cluster?.name}, Server: ${cluster?.server}`);
 
-        const customServer = process.env.BRIDGE_API_SERVER;
+        const customServer = process.env.MANAGER_API_SERVER || process.env.BRIDGE_API_SERVER;
         if (customServer) {
-            console.log(`[bridge] Overriding K8s server ${cluster?.server} -> ${customServer} (BRIDGE_API_SERVER)`);
+            console.log(`[manager] Overriding K8s server ${cluster?.server} -> ${customServer} (MANAGER_API_SERVER)`);
             cluster.server = customServer;
         }
 
         k8sApi = kc.makeApiClient(k8s.CoreV1Api);
-        console.log(`[bridge] K8s initialized. Namespace: ${resolveNamespace()}`);
+        console.log(`[manager] K8s initialized. Namespace: ${resolveNamespace()}`);
     } catch (err) {
-        console.error(`[bridge] Failed to initialize K8s client:`, err);
+        console.error(`[manager] Failed to initialize K8s client:`, err);
     }
     return k8sApi;
 }
@@ -93,7 +95,7 @@ export async function spawnPod(userId, session) {
     podManifest.metadata.name = podName;
     podManifest.metadata.labels = {
         ...podManifest.metadata.labels,
-        app: 'tg-user-bridge',
+        app: 'tg-client-user',
         userId: safeUserId
     };
 
@@ -108,6 +110,22 @@ export async function spawnPod(userId, session) {
     envMap.set('TG_SESSION', { name: 'TG_SESSION', value: sessVal });
     
     container.env = Array.from(envMap.values());
+    
+    // Add dynamic config from Redis as Environment Variables
+    try {
+        const provider = await redis.get("config_whisper_provider") || 'qwen3-asr';
+        const model = await redis.get("config_whisper_model") || 'Qwen/Qwen3-ASR-0.6B';
+        const turboUrl = await redis.get("config_local_whisper_url") || 'http://whisper-turbo:8000';
+        
+        container.env.push({ name: 'WHISPER_PROVIDER', value: provider });
+        container.env.push({ name: 'WHISPER_MODEL', value: model });
+        container.env.push({ name: 'WHISPER_TURBO_URL', value: turboUrl });
+        
+        console.log(`[/spawn] Dynamic config: provider=${provider}, model=${model}`);
+    } catch (e) {
+        console.warn(`[/spawn] Failed to fetch dynamic config from Redis:`, e.message);
+    }
+
     
     // Use image from manager's env if provided, otherwise stick to template
     if (process.env.TG_CLIENT_IMAGE) {
@@ -164,38 +182,53 @@ export async function listPods() {
 }
 
 export async function runReconciliation() {
-    if (!process.env.WORKER_URL || MODE !== 'MANAGER') return;
+    if (MODE !== 'MANAGER') return;
     try {
-        console.log(`[bridge] Starting tg-client reconciliation cycle...`);
-        const res = await fetch(`${process.env.WORKER_URL}/internal/active-users?secret=${process.env.BRIDGE_SECRET}`);
-        if (res.ok) {
-            const users = await res.json();
-            if (!Array.isArray(users)) {
-                console.error(`[bridge] Invalid response from active-users: expected array, got ${typeof users}`);
-                return;
-            }
-            console.log(`[bridge] Found ${users.length} active users to check`);
+        console.log(`[manager] Starting tg-client reconciliation cycle...`);
+        
+        // Find all users with active sessions in MongoDB
+        const users = await User.find({ 
+            tgSession: { $exists: true, $ne: null },
+            isActive: true 
+        });
 
-            const runningPods = await listPods().catch(() => []);
-            const runningUserIds = new Set(runningPods.map(p => String(p.userId)));
+        if (!Array.isArray(users)) {
+            console.error(`[manager] Invalid response from MongoDB: expected array`);
+            return;
+        }
+        console.log(`[manager] Found ${users.length} active users in MongoDB to check`);
 
-            for (const user of users) {
-                const uid = String(user.userId);
-                if (!runningUserIds.has(uid)) {
-                    console.log(`[bridge] User ${uid} should be running but no tg-client pod found. Spawning...`);
-                    try {
-                        await spawnPod(uid, user.session);
-                    } catch (e) {
-                        console.error(`[bridge] Auto-spawn error for ${uid}:`, e.message);
+        const runningPods = await listPods().catch(() => []);
+        const runningUserIds = new Set(runningPods.map(p => String(p.userId)));
+
+        for (const user of users) {
+            const uid = String(user.userId);
+            if (!runningUserIds.has(uid)) {
+                console.log(`[manager] User ${uid} should be running but no tg-client pod found. Spawning...`);
+                try {
+                    // Try to get session from Redis first, then fallback to MongoDB
+                    let session = await redis.get(`tg_session_${uid}`);
+                    if (!session) {
+                        console.log(`[manager] Session not in Redis for ${uid}, using MongoDB backup`);
+                        session = user.tgSession;
+                        if (session) {
+                            await redis.set(`tg_session_${uid}`, session, 'EX', 86400 * 30);
+                        }
                     }
+                    
+                    if (session) {
+                        await spawnPod(uid, session);
+                    } else {
+                        console.warn(`[manager] No session found for user ${uid} in Redis or Mongo, skipping spawn`);
+                    }
+                } catch (e) {
+                    console.error(`[manager] Auto-spawn error for ${uid}:`, e.message);
                 }
             }
-            console.log(`[bridge] tg-client reconciliation cycle complete`);
-        } else {
-            console.error(`[bridge] Failed to fetch active users: ${res.status}`);
         }
+        console.log(`[manager] tg-client reconciliation cycle complete`);
     } catch (e) {
-        console.error(`[bridge] Reconciliation error:`, e.message);
+        console.error(`[manager] Reconciliation error:`, e.message);
     }
 }
 

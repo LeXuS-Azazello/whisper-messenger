@@ -354,6 +354,40 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
 
                         <div class="card error-logs-card" style={{ gridColumn: '1 / -1' }}>
                             <div class="card-header">
+                                <h3 class="card-title">System Diagnostics & Connectivity Tests</h3>
+                                <button class="btn btn-sm" id="run-diag-btn" style={{ width: 'auto', background: '#3B82F6', margin: 0 }}>Run All Tests</button>
+                            </div>
+                            <div class="diagnostic-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop: '10px' }}>
+                                <div class="diag-item" data-service="redis">
+                                    <div class="diag-label">Redis (KV Store)</div>
+                                    <div class="diag-status"><span>—</span></div>
+                                    <div class="diag-msg">Waiting for test...</div>
+                                </div>
+                                <div class="diag-item" data-service="mongodb">
+                                    <div class="diag-label">MongoDB (Persistence)</div>
+                                    <div class="diag-status"><span>—</span></div>
+                                    <div class="diag-msg">Waiting for test...</div>
+                                </div>
+                                <div class="diag-item" data-service="manager">
+                                    <div class="diag-label">Telegram Manager (Orchestrator)</div>
+                                    <div class="diag-status"><span>—</span></div>
+                                    <div class="diag-msg">Waiting for test...</div>
+                                </div>
+                                <div class="diag-item" data-service="k8s">
+                                    <div class="diag-label">K8s API Permissions</div>
+                                    <div class="diag-status"><span>—</span></div>
+                                    <div class="diag-msg">Waiting for test...</div>
+                                </div>
+                                <div class="diag-item" data-service="asr">
+                                    <div class="diag-label">Transcription (ASR)</div>
+                                    <div class="diag-status"><span>—</span></div>
+                                    <div class="diag-msg">Waiting for test...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card error-logs-card" style={{ gridColumn: '1 / -1' }}>
+                            <div class="card-header">
                                 <h3 class="card-title">System Error Logs</h3>
                             </div>
                             <div class="error-list">

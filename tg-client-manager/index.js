@@ -10,10 +10,12 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dns from 'dns';
 
-import { MODE, PORT, TARGET_USER_ID, TG_SESSION, redis } from './src/config.js';
+import { MODE, PORT, TARGET_USER_ID, TG_SESSION, redis, MONGODB_URI } from './src/config.js';
 import { auth, checkConnect, createClient } from './src/utils.js';
 import { initK8s, spawnPod, deletePods, listPods, runReconciliation } from './src/k8s.js';
 import { sendCode, verifyCode, verifyPassword, qrStart, qrCheck } from './src/auth.js';
+import mongoose from 'mongoose';
+import User from './src/models/User.js';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -27,6 +29,13 @@ app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // Initialize Kubernetes Client if Manager
 initK8s();
+
+// Initialize MongoDB
+if (MODE === 'MANAGER') {
+    mongoose.connect(MONGODB_URI)
+        .then(() => console.log(`[manager] Connected to MongoDB: ${MONGODB_URI}`))
+        .catch(err => console.error(`[manager] MongoDB connection error:`, err.message));
+}
 
 app.get('/health', (req, res) => {
     res.json({ mode: MODE, alive: true, userId: TARGET_USER_ID || null });
@@ -70,6 +79,44 @@ app.post('/verify-code', auth, verifyCode);
 app.post('/verify-password', auth, verifyPassword);
 app.post('/qr-start', auth, qrStart);
 app.get('/qr-check', auth, qrCheck);
+app.post('/bot-login', auth, async (req, res) => {
+    try {
+        const { token, userId } = req.body;
+        const tempId = userId || `bot_temp_${Date.now()}`;
+        const client = createClient(tempId);
+        await client.connect();
+        await client.invoke({ "@type": "checkAuthenticationBotToken", "token": token });
+        
+        const me = await client.invoke({ "@type": "getMe" });
+        const { packSession } = await import('./src/utils.js');
+        const session = await packSession(tempId);
+        
+        await client.close();
+        res.json({ success: true, session, userId: String(me.id), firstName: me.first_name });
+    } catch (e) {
+        res.status(400).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/verify-email', auth, async (req, res) => {
+    try {
+        const { phone, email } = req.body;
+        const s = authSessions.get(phone);
+        if (!s) return res.status(404).json({ error: 'Session not found' });
+        await s.client.invoke({ "_": "setAuthenticationEmailAddress", "email_address": email });
+        res.json({ success: true });
+    } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/verify-email-code', auth, async (req, res) => {
+    try {
+        const { phone, code } = req.body;
+        const s = authSessions.get(phone);
+        if (!s) return res.status(404).json({ error: 'Session not found' });
+        await s.client.invoke({ "_": "checkAuthenticationEmailCode", "code": { "@type": "emailAddressAuthenticationCode", "code": code } });
+        res.json({ success: true });
+    } catch (e) { res.status(400).json({ error: e.message }); }
+});
 
 app.post('/test-tg', auth, async (req, res) => {
     const start = Date.now();
@@ -176,8 +223,14 @@ app.post('/delete', auth, async (req, res) => {
 
         // 2. Delete from Redis
         await redis.del(`tg_session_${userId}`);
+        
+        // 3. Update MongoDB
+        await User.findOneAndUpdate({ userId: String(userId) }, { 
+            $unset: { tgSession: "" },
+            isActive: false 
+        });
 
-        // 3. Delete from local filesystem
+        // 4. Delete from local filesystem
         const dbDir = `/tmp/tdlib/${userId}`;
         if (fs.existsSync(dbDir)) {
             console.log(`[/delete] Removing session directory: ${dbDir}`);
@@ -201,10 +254,46 @@ app.get('/pods', auth, async (req, res) => {
     }
 });
 
+app.get('/internal/logs/:podName', auth, async (req, res) => {
+    try {
+        const { podName } = req.params;
+        const ns = resolveNamespace();
+        const kc = new k8s.KubeConfig();
+        kc.loadFromDefault();
+        const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+        const logRes = await k8sApi.readNamespacedPodLog({ name: podName, namespace: ns, tailLines: 200 });
+        res.type('text/plain').send(logRes.body);
+    } catch (e) {
+        res.status(500).send(`Error fetching logs for pod ${req.params.podName}: ${e.message}`);
+    }
+});
+
+app.post('/internal/stats', auth, async (req, res) => {
+    if (MODE !== 'MANAGER') return res.status(400).send('Not manager');
+    try {
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ error: 'Missing userId' });
+
+        await User.findOneAndUpdate(
+            { userId: String(userId) },
+            { 
+                $inc: { transcriptionCount: 1 },
+                lastActiveAt: new Date()
+            },
+            { upsert: true }
+        );
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.post('/internal/access-revoked', auth, async (req, res) => {
     if (MODE !== 'MANAGER') return res.status(400).send('Not manager');
     try {
-        await deletePods(req.body.userId);
+        const { userId } = req.body;
+        await deletePods(userId);
+        await User.findOneAndUpdate({ userId: String(userId) }, { isActive: false });
         res.json({ success: true });
     } catch(e) {
         res.status(500).json({ error: e.message });
@@ -230,9 +319,9 @@ const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpa
 
 if (isMain) {
     app.listen(PORT, async () => {
-        console.log(`[bridge] ${MODE} on ${PORT}`);
-        const bridgeUrl = process.env.BRIDGE_URL || `http://localhost:${PORT}`;
-        console.log(`[bridge] Public URL: ${bridgeUrl}`);
+        console.log(`[manager] ${MODE} on ${PORT}`);
+        const managerUrl = process.env.BRIDGE_URL || `http://localhost:${PORT}`;
+        console.log(`[manager] Public URL: ${managerUrl}`);
         if (MODE === 'MANAGER') {
             // MANAGER: orchestrates tg-client PODs via K8s
             setTimeout(runReconciliation, 3000);

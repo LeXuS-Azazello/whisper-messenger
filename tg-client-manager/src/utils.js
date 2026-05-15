@@ -1,5 +1,4 @@
-import * as tdl from 'tdl';
-import { getTdjson } from 'prebuilt-tdlib';
+import TdClient from './tdweb/index.js';
 
 import AdmZip from 'adm-zip';
 import { API_ID, API_HASH, DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION, SECRET } from './config.js';
@@ -13,41 +12,25 @@ export function createClient(userId, options = {}) {
     const dbDir = path.join('/tmp/tdlib', String(userId || 'manager'));
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-    const aid = Number(API_ID);
-    if (!aid || isNaN(aid)) {
-        console.error(`[createClient] CRITICAL: Valid api_id must be provided. Got: "${API_ID}" (parsed as ${aid})`);
-        throw new Error(`Valid api_id must be provided. Got: ${API_ID}`);
-    }
-
-    if (!isTdlibConfigured) {
-        console.log(`[createClient] Initializing TDLib with prebuilt-tdlib...`);
-        try {
-            tdl.configure({ tdjson: getTdjson() });
-        } catch (e) {
-            console.warn('[createClient] TDLib configuration note:', e.message);
-        }
-        isTdlibConfigured = true;
-    }
-    
-    console.log(`[createClient] Creating TDLib client for ${userId} with apiId: ${aid}`);
-    
-    const client = tdl.createClient({
-        apiId: aid,
-        apiHash: API_HASH,
-        databaseDirectory: dbDir,
-        filesDirectory: path.join(dbDir, 'files'),
-        tdlibParameters: {
-            use_message_database: true,
-            use_secret_chats: false,
-            system_language_code: 'en',
-            device_model: DEVICE_MODEL || 'Node.js TDLib Manager',
-            system_version: SYSTEM_VERSION || 'Linux',
-            application_version: APP_VERSION || '1.0.0',
-            enable_storage_optimizer: true,
-            ...options.tdlibParameters
-        },
-        ...options
+    const client = new TdClient({
+        instanceName: String(userId || 'manager'),
+        onUpdate: options.onUpdate
     });
+
+    // Compatibility shim for code expecting tdl-like interface
+    client.on = (event, callback) => {
+        if (event === 'update') {
+            client.options.onUpdate = callback;
+        }
+    };
+    client.connect = async () => {
+        // TDWeb handles connection during init in worker
+        return true;
+    };
+    client.close = async () => {
+        client.terminate();
+    };
+
     return client;
 }
 
@@ -93,12 +76,12 @@ export function auth(req, res, next) {
   if (pathname.startsWith('/auth')) {
     return next();
   }
-  const s = (req.headers['x-bridge-secret'] || req.query.secret || '').trim();
+  const s = (req.headers['x-manager-secret'] || req.headers['x-bridge-secret'] || req.query.secret || '').trim();
   const expected = (SECRET || 'changeme').trim();
   const isMatched = s === expected;
   
   if (!isMatched) {
-    console.warn(`[bridge-auth] 401 Unauthorized.
+    console.warn(`[manager-auth] 401 Unauthorized.
         Received: "${s ? s.slice(0, 3) + '...' + s.slice(-3) : 'NONE'}" (length: ${s.length})
         Expected match: "${expected ? expected.slice(0, 3) + '...' + expected.slice(-3) : 'NONE'}" (length: ${expected.length})
         Headers: ${JSON.stringify(req.headers)}

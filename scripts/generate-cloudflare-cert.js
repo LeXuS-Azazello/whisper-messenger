@@ -208,7 +208,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: mtproto-bridge-manager
+                name: tg-client-manager
                 port:
                   number: 3000
     - host: asr.voicemsg.net

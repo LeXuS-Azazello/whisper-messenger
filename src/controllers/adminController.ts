@@ -1,9 +1,108 @@
-import { Env, UserSession, HealthChecks } from "../types";
+import { Env, UserSession, HealthChecks, DiagnosticResults } from "../types";
 import { getErrors, logError } from "../logger";
 import { renderAdminDashboard } from "../components/admin/AdminDashboard";
 import { renderAdminLogin } from "../components/admin/AdminLogin";
 import { createSignedSession } from "../session";
 import { sampleAudioBase64 } from "../sample_audio";
+import mongoose from "mongoose";
+import path from "path";
+
+export async function runDiagnostics(env: Env): Promise<Response> {
+    const results: DiagnosticResults = {
+        redis: { status: 'unknown', message: '' },
+        mongodb: { status: 'unknown', message: '' },
+        manager: { status: 'unknown', message: '' },
+        asr: { status: 'unknown', message: '' },
+        k8s: { status: 'unknown', message: '' }
+    };
+
+    // 1. Test Redis
+    try {
+        const start = Date.now();
+        await env.STATS.put("diag_test", "ok", { expirationTtl: 10 });
+        const val = await env.STATS.get("diag_test");
+        const lat = Date.now() - start;
+        if (val === "ok") {
+            results.redis = { status: 'healthy', message: `Connected (Latency: ${lat}ms)` };
+        } else {
+            results.redis = { status: 'unhealthy', message: 'Read/Write mismatch' };
+        }
+    } catch (e: any) {
+        results.redis = { status: 'error', message: e.message };
+    }
+
+    // 2. Test MongoDB
+    try {
+        const state = mongoose.connection.readyState;
+        const states = ["disconnected", "connected", "connecting", "disconnecting"];
+        if (state === 1 && mongoose.connection.db) {
+            const count = await mongoose.connection.db.collection('users').countDocuments();
+            results.mongodb = { status: 'healthy', message: `Connected (${count} users in DB)` };
+        } else if (state === 1) {
+            results.mongodb = { status: 'healthy', message: `Connected (DB object initializing)` };
+        } else {
+            results.mongodb = { status: 'unhealthy', message: `State: ${states[state] || state}` };
+        }
+    } catch (e: any) {
+        results.mongodb = { status: 'error', message: e.message };
+    }
+
+    // 3. Test Manager (tg-client-manager)
+    try {
+        const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+        const secret = (env.MANAGER_SECRET || "changeme").trim();
+        const start = Date.now();
+        const res = await fetch(`${managerUrl}/health?secret=${secret}`, {
+            headers: { "x-manager-secret": secret },
+            signal: AbortSignal.timeout(5000)
+        });
+        const lat = Date.now() - start;
+        if (res.ok) {
+            const data = await res.json() as any;
+            results.manager = { status: 'healthy', message: `Connected (${data.mode}, Latency: ${lat}ms)` };
+            if (data.k8s) {
+                results.k8s = { status: 'healthy', message: 'K8s API Accessible' };
+            } else {
+                results.k8s = { status: 'unhealthy', message: 'K8s API Access Failed (Check SA permissions)' };
+            }
+        } else {
+            results.manager = { status: 'unhealthy', message: `HTTP ${res.status}: ${await res.text()}` };
+        }
+    } catch (e: any) {
+        results.manager = { status: 'error', message: `Fetch failed: ${e.message}. Is MANAGER_URL correct?` };
+    }
+
+    // 4. Test ASR
+    try {
+        const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || 'qwen3-asr';
+        let asrUrl = "";
+        if (provider === 'whisper-turbo') {
+            asrUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
+        } else {
+            asrUrl = await env.STATS.get("config_ollama_url") || env.OLLAMA_BASE_URL || 'http://qwen3-asr:8000';
+        }
+        
+        const start = Date.now();
+        const res = await fetch(`${asrUrl}/v1/models`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
+        const lat = Date.now() - start;
+        
+        if (res && res.ok) {
+            results.asr = { status: 'healthy', message: `${provider} active (Latency: ${lat}ms)` };
+        } else {
+            // Try simple ping
+            const ping = await fetch(asrUrl, { method: 'HEAD', signal: AbortSignal.timeout(2000) }).catch(() => null);
+            if (ping) {
+                results.asr = { status: 'healthy', message: `${provider} reachable (No /v1/models, Latency: ${lat}ms)` };
+            } else {
+                results.asr = { status: 'unhealthy', message: `${provider} at ${asrUrl} is unreachable` };
+            }
+        }
+    } catch (e: any) {
+        results.asr = { status: 'error', message: e.message };
+    }
+
+    return Response.json(results);
+}
 
 export async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
     const userIdsRaw = await env.STATS.get("users_list");
@@ -30,10 +129,10 @@ export async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
     userConfigs.forEach(u => { if (u) users.push(u); });
 
     try {
-        const secret = (env.BRIDGE_SECRET || "changeme").trim();
-        const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
-        const podsRes = await fetch(`${bridgeUrl}/pods?secret=${secret}`, {
-            headers: { "x-bridge-secret": secret }
+        const secret = (env.MANAGER_SECRET || "changeme").trim();
+        const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+        const podsRes = await fetch(`${managerUrl}/pods?secret=${secret}`, {
+            headers: { "x-manager-secret": secret }
         });
         if (podsRes.ok) {
             const podStatuses = await podsRes.json() as any[];
@@ -85,77 +184,77 @@ export async function getSampleAudio(): Promise<Response> {
     return Response.json({ url: sampleAudioBase64 });
 }
 
-async function proxyToBridge(url: string, options: any): Promise<Response> {
+async function proxyToManager(url: string, options: any): Promise<Response> {
     try {
         const res = await fetch(url, options);
         return res;
     } catch (e: any) {
-        console.warn("[Admin] Bridge proxy failed:", e.message);
-        return Response.json({ success: false, error: `Bridge unreachable: ${e.message}` }, { status: 503 });
+        console.warn("[Admin] Manager proxy failed:", e.message);
+        return Response.json({ success: false, error: `Manager unreachable: ${e.message}` }, { status: 503 });
     }
 }
 
 export async function getTgStatus(env: Env): Promise<Response> {
-    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
-    const secret = (env.BRIDGE_SECRET || "changeme").trim();
-    return await proxyToBridge(`${bridgeUrl}/health?secret=${secret}`, {
-        headers: { "x-bridge-secret": secret }
+    const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+    const secret = (env.MANAGER_SECRET || "changeme").trim();
+    return await proxyToManager(`${managerUrl}/health?secret=${secret}`, {
+        headers: { "x-manager-secret": secret }
     });
 }
 
 export async function tgSendCode(env: Env, req: Request): Promise<Response> {
     const { phoneNumber } = await req.json() as any;
-    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
-    const secret = (env.BRIDGE_SECRET || "changeme").trim();
-    return await proxyToBridge(`${bridgeUrl}/send-code?secret=${secret}`, {
+    const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+    const secret = (env.MANAGER_SECRET || "changeme").trim();
+    return await proxyToManager(`${managerUrl}/send-code?secret=${secret}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+        headers: { "Content-Type": "application/json", "x-manager-secret": secret },
         body: JSON.stringify({ phone: phoneNumber })
     });
 }
 
 export async function tgVerifyCode(env: Env, req: Request): Promise<Response> {
     const { phoneNumber, code } = await req.json() as any;
-    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
-    const secret = (env.BRIDGE_SECRET || "changeme").trim();
-    return await proxyToBridge(`${bridgeUrl}/verify-code?secret=${secret}`, {
+    const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+    const secret = (env.MANAGER_SECRET || "changeme").trim();
+    return await proxyToManager(`${managerUrl}/verify-code?secret=${secret}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+        headers: { "Content-Type": "application/json", "x-manager-secret": secret },
         body: JSON.stringify({ phone: phoneNumber, code })
     });
 }
 
 export async function tgQrLogin(env: Env): Promise<Response> {
-    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
-    const secret = (env.BRIDGE_SECRET || "changeme").trim();
-    return await proxyToBridge(`${bridgeUrl}/qr-start?secret=${secret}`, {
+    const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+    const secret = (env.MANAGER_SECRET || "changeme").trim();
+    return await proxyToManager(`${managerUrl}/qr-start?secret=${secret}`, {
         method: "POST",
-        headers: { "x-bridge-secret": secret }
+        headers: { "x-manager-secret": secret }
     });
 }
 
 export async function tgQrCheck(env: Env, token: string | null): Promise<Response> {
-    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
-    const secret = (env.BRIDGE_SECRET || "changeme").trim();
-    return await proxyToBridge(`${bridgeUrl}/qr-check?token=${token}&secret=${secret}`, {
-        headers: { "x-bridge-secret": secret }
+    const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+    const secret = (env.MANAGER_SECRET || "changeme").trim();
+    return await proxyToManager(`${managerUrl}/qr-check?token=${token}&secret=${secret}`, {
+        headers: { "x-manager-secret": secret }
     });
 }
 
 export async function tgTestMsg(env: Env, req: Request): Promise<Response> {
     const { userId, message } = await req.json() as any;
-    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
-    const secret = (env.BRIDGE_SECRET || "changeme").trim();
+    const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+    const secret = (env.MANAGER_SECRET || "changeme").trim();
     
-    // Get session for the user if userId is provided, otherwise it uses bridge's own
+    // Get session for the user if userId is provided, otherwise it uses manager's own
     let session = null;
     if (userId) {
         session = await env.STATS.get(`tg_session_${userId}`);
     }
 
-    return await proxyToBridge(`${bridgeUrl}/test-tg?secret=${secret}`, {
+    return await proxyToManager(`${managerUrl}/test-tg?secret=${secret}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+        headers: { "Content-Type": "application/json", "x-manager-secret": secret },
         body: JSON.stringify({ 
             userId, 
             session,
@@ -196,14 +295,14 @@ export async function updateWhisperConfig(env: Env, req: Request): Promise<Respo
 
     for (const s of settings) {
         if (s.value !== undefined && s.value !== null) {
-            // Save to Redis (for fast access in workers/bridge)
+            // Save to Redis (for fast access in workers/manager)
             await env.STATS.put(s.key, String(s.value));
             
             // Save to MongoDB (for persistence)
             await ServerSetting.findOneAndUpdate(
                 { key: s.key },
-                { value: s.value, category: 'whisper' },
-                { upsert: true, new: true }
+                { key: s.key, value: String(s.value) },
+                { upsert: true }
             );
         }
     }
@@ -211,32 +310,47 @@ export async function updateWhisperConfig(env: Env, req: Request): Promise<Respo
     return Response.json({ success: true });
 }
 
+export async function handleGetPodLogs(env: Env, podName: string): Promise<Response> {
+    const managerUrl = (env.MANAGER_URL || "http://tg-client-manager:3000").replace(/\/$/, '');
+    const secret = (env.MANAGER_SECRET || "changeme").trim();
+    
+    try {
+        const res = await fetch(`${managerUrl}/internal/logs/${podName}?secret=${secret}`, {
+            headers: { "x-manager-secret": secret }
+        });
+        const text = await res.text();
+        return new Response(text, { headers: { "Content-Type": "text/plain" } });
+    } catch (e: any) {
+        return new Response(`Failed to fetch logs: ${e.message}`, { status: 500 });
+    }
+}
+
 export async function userAction(env: Env, req: Request): Promise<Response> {
     const { userId, action } = await req.json() as any;
-    const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
-    const secret = (env.BRIDGE_SECRET || "changeme").trim();
+    const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+    const secret = (env.MANAGER_SECRET || "changeme").trim();
 
     if (action === "restart") {
         const session = await env.STATS.get(`tg_session_${userId}`);
         // First delete
-        await proxyToBridge(`${bridgeUrl}/delete?secret=${secret}`, {
+        await proxyToManager(`${managerUrl}/delete?secret=${secret}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+            headers: { "Content-Type": "application/json", "x-manager-secret": secret },
             body: JSON.stringify({ userId })
         }).catch(() => {});
         
         if (session) {
             // Then spawn
-            return await proxyToBridge(`${bridgeUrl}/spawn?secret=${secret}`, {
+            return await proxyToManager(`${managerUrl}/spawn?secret=${secret}`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+                headers: { "Content-Type": "application/json", "x-manager-secret": secret },
                 body: JSON.stringify({ userId, session })
             });
         }
     } else if (action === "stop") {
-        return await proxyToBridge(`${bridgeUrl}/delete?secret=${secret}`, {
+        return await proxyToManager(`${managerUrl}/delete?secret=${secret}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+            headers: { "Content-Type": "application/json", "x-manager-secret": secret },
             body: JSON.stringify({ userId })
         });
     } else if (action === "delete") {
@@ -247,9 +361,9 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
         await env.STATS.put("users_list", JSON.stringify(list));
         
         // Also delete pod
-        await fetch(`${bridgeUrl}/delete?secret=${secret}`, {
+        await fetch(`${managerUrl}/delete?secret=${secret}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "x-bridge-secret": secret },
+            headers: { "Content-Type": "application/json", "x-manager-secret": secret },
             body: JSON.stringify({ userId })
         }).catch(() => {});
     }

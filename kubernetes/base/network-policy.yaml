@@ -1,12 +1,12 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: mtproto-bridge-network-policy
+  name: tg-client-manager-network-policy
   namespace: debugging-testcrash-pub
 spec:
   podSelector:
-    matchLabels:
-      app: tg-user-bridge
+    matchExpressions:
+    - {key: app, operator: In, values: [tg-client-manager, tg-client-user]}
   policyTypes:
   - Ingress
   - Egress
@@ -14,16 +14,32 @@ spec:
   - from:
     - podSelector:
         matchLabels:
-          app: mtproto-bridge-manager
+          app: echo-frontend
+    ports:
+    - protocol: TCP
+      port: 3000
   egress:
   - to:
-    - podSelector: {} # Allow all pods in the same namespace
+    - podSelector:
+        matchLabels:
+          app: redis
     ports:
     - protocol: TCP
       port: 6379
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mongodb
+    ports:
+    - protocol: TCP
+      port: 27017
+  - to:
+    - podSelector:
+        matchLabels:
+          app: qwen3-asr
+    ports:
     - protocol: TCP
       port: 8000
-
   - to:
     - namespaceSelector: {}
     ports:
@@ -38,3 +54,5 @@ spec:
       port: 443
     - protocol: TCP
       port: 80
+    - protocol: TCP
+      port: 6443 # K8s API

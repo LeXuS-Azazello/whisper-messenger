@@ -94,7 +94,7 @@ fi
 
 
 FRONTEND_IMAGE="${REPO}/whisper-frontend:${TAG}"
-BRIDGE_IMAGE="${REPO}/whisper-bridge-manager:${TAG}"
+MANAGER_IMAGE="${REPO}/whisper-tg-client-manager:${TAG}"
 TG_CLIENT_IMAGE="${REPO}/whisper-tg-client:${TAG}"
 
 echo ">>> Building and pushing Docker images..."
@@ -105,11 +105,11 @@ docker tag "$FRONTEND_IMAGE" "${REPO}/whisper-frontend:latest"
 docker push "$FRONTEND_IMAGE"
 docker push "${REPO}/whisper-frontend:latest"
 
-echo "2. Bridge Manager: $BRIDGE_IMAGE"
-docker build -t "$BRIDGE_IMAGE" -f mtproto-bridge/Dockerfile mtproto-bridge/
-docker tag "$BRIDGE_IMAGE" "${REPO}/whisper-bridge-manager:latest"
-docker push "$BRIDGE_IMAGE"
-docker push "${REPO}/whisper-bridge-manager:latest"
+echo "2. Client Manager: $MANAGER_IMAGE"
+docker build -t "$MANAGER_IMAGE" -f tg-client-manager/Dockerfile tg-client-manager/
+docker tag "$MANAGER_IMAGE" "${REPO}/whisper-tg-client-manager:latest"
+docker push "$MANAGER_IMAGE"
+docker push "${REPO}/whisper-tg-client-manager:latest"
 
 echo "3. TG Client: $TG_CLIENT_IMAGE"
 docker build -t "$TG_CLIENT_IMAGE" -f tg-client/Dockerfile tg-client/
@@ -127,8 +127,8 @@ echo ""
 # Update image in k8s manifests
 echo ">>> Updating image tags in Deployments..."
 kubectl set image deployment/echo-frontend frontend="$FRONTEND_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/mtproto-bridge-manager mtproto-bridge="$BRIDGE_IMAGE" -n "$NAMESPACE"
-kubectl set env deployment/mtproto-bridge-manager TG_CLIENT_IMAGE="$TG_CLIENT_IMAGE" -n "$NAMESPACE"
+kubectl set image deployment/tg-client-manager manager="$MANAGER_IMAGE" -n "$NAMESPACE"
+kubectl set env deployment/tg-client-manager TG_CLIENT_IMAGE="$TG_CLIENT_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/echo-static build-assets="$FRONTEND_IMAGE" -n "$NAMESPACE"
 echo ""
 

@@ -46,7 +46,7 @@ graph TD
     *   Hono-based Node.js server serving as the primary entry point.
     *   Handles **Webhooks**, **User Authentication** (Google/Email), and the **Dashboard**.
     *   Proxies bridge commands and serves Preact-rendered UI.
-2.  **Bridge Manager** (`mtproto-bridge/`):
+2.  **Client Manager** (`tg-client-manager/`):
     *   A specialized Kubernetes controller that manages the lifecycle of `tg-client` pods.
     *   Handles Telegram authentication flows (Phone/QR) and pod orchestration.
 3.  **tg-client** (`tg-client/`):
@@ -110,7 +110,7 @@ npm run deploy:k8s
 | Service | Endpoint | Role |
 | :--- | :--- | :--- |
 | **Frontend** | `https://voicemsg.net` | Main Dashboard & Landing |
-| **Bridge API** | `http://mtproto-bridge-manager:3000` *(Internal)* | Bridge Logic |
+| **Client Manager** | `http://tg-client-manager:3000` *(Internal)* | Manager Logic |
 | **AI API** | `http://qwen3-asr:8000` *(Internal)* | Ollama/Qwen3-ASR Access |
 | **Monitoring** | `https://grafana.voicemsg.net` | System Health & Stats |
 
@@ -125,7 +125,7 @@ npm run deploy:k8s
 │   ├── controllers/        # Business logic
 │   ├── routes/             # API & Webhook routing
 │   └── index.ts            # Entry point
-├── mtproto-bridge/         # Bridge Manager (K8s Orchestrator)
+├── tg-client-manager/      # Client Manager (K8s Orchestrator)
 ├── tg-client/              # Per-user Telegram engine
 ├── kubernetes/             # Infrastructure definitions
 │   ├── base/               # Kustomize base resources
@@ -137,7 +137,7 @@ npm run deploy:k8s
 
 ## 🛡️ Security & Privacy
 *   **Dual-Factor Verification**: Requests between Frontend and Bridge are signed with a shared `BRIDGE_SECRET`.
-*   **Internal Network Isolation**: `qwen3-asr` (AI engine) and `mtproto-bridge-manager` are strictly exposed **only via internal Kubernetes ClusterIP**. They are not accessible from the public internet.
+*   **Internal Network Isolation**: `qwen3-asr` (AI engine) and `tg-client-manager` are strictly exposed **only via internal Kubernetes ClusterIP**. They are not accessible from the public internet.
 *   **Per-User Pod Isolation**: User-specific `tg-client` pods are strictly isolated within the cluster.
 *   **Self-Destruct Logic**: If a user revokes Telegram access, the `tg-client` pod intercepts the authorization failure, gracefully clears the user session in the MongoDB/Redis backend, and automatically triggers its own deletion to preserve cluster resources.
 *   **Zero-Storage Policy**: Audio files and transcribed text are processed purely in RAM buffers and never saved to persistence storage.
@@ -145,3 +145,8 @@ npm run deploy:k8s
 ---
 
 *Built with ❤️ for advanced agentic coding by the Voice Messenger Team.*
+
+
+
+213.111.155.16 Proxied
+voicemsg.net 213.111.154.233

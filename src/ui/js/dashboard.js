@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', function() {
         phone: document.getElementById('tg-step-phone'),
         code: document.getElementById('tg-step-code'),
         password: document.getElementById('tg-step-password'),
+        email: document.getElementById('tg-step-email'),
+        bot: document.getElementById('tg-step-bot'),
         success: document.getElementById('tg-step-success'),
         loading: document.getElementById('tg-step-loading')
     };
@@ -93,9 +95,34 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('choose-phone-btn')?.addEventListener('click', () => {
         showStep('phone');
     });
+    document.getElementById('choose-email-btn')?.addEventListener('click', () => {
+        showStep('email');
+    });
+    document.getElementById('choose-bot-btn')?.addEventListener('click', () => {
+        showStep('bot');
+    });
+
+    document.getElementById('choose-restore-btn')?.addEventListener('click', () => {
+        showStep('loading');
+        document.getElementById('loading-text').innerText = 'Restoring session...';
+        fetch('/dashboard/restart-tg', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showStep('success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    alert('Restore failed: ' + data.error);
+                    showStep('choice');
+                }
+            })
+            .catch(() => showStep('choice'));
+    });
 
     document.getElementById('back-to-choice-1')?.addEventListener('click', () => { stopQrPolling(); showStep('choice'); });
     document.getElementById('back-to-choice-2')?.addEventListener('click', () => { showStep('choice'); });
+    document.getElementById('back-to-choice-3')?.addEventListener('click', () => { showStep('choice'); });
+    document.getElementById('back-to-choice-4')?.addEventListener('click', () => { showStep('choice'); });
 
     // Phone Auth
     const sendCodeBtn = document.getElementById('modal-send-code-btn');
@@ -178,7 +205,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     showStep('success');
                     setTimeout(() => location.reload(), 1500);
-
                 } else {
                     alert('Error: ' + data.error);
                     showStep('password');
@@ -187,6 +213,51 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Password check failed');
                 showStep('password');
             });
+        };
+    }
+
+    // Email Auth
+    const sendEmailBtn = document.getElementById('modal-send-email-btn');
+    const emailInput = document.getElementById('modal-tg-email');
+    if (sendEmailBtn) {
+        sendEmailBtn.onclick = () => {
+            const email = emailInput.value.trim();
+            if (!email) return alert('Enter email');
+            showStep('loading');
+            fetch('/auth/verify-email', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: currentPhone, email })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    showStep('code'); // Wait for email code
+                } else {
+                    alert('Error: ' + data.error);
+                    showStep('email');
+                }
+            }).catch(() => showStep('email'));
+        };
+    }
+
+    // Bot Auth
+    const verifyBotBtn = document.getElementById('modal-verify-bot-btn');
+    const botInput = document.getElementById('modal-tg-bot-token');
+    if (verifyBotBtn) {
+        verifyBotBtn.onclick = () => {
+            const token = botInput.value.trim();
+            if (!token) return alert('Enter bot token');
+            showStep('loading');
+            fetch('/auth/bot-login', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    showStep('success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    alert('Error: ' + data.error);
+                    showStep('bot');
+                }
+            }).catch(() => showStep('bot'));
         };
     }
 

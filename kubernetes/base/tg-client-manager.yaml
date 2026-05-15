@@ -1,24 +1,24 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mtproto-bridge-manager
+  name: tg-client-manager
   namespace: debugging-testcrash-pub
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: mtproto-bridge-manager
+      app: tg-client-manager
   template:
     metadata:
       labels:
-        app: mtproto-bridge-manager
+        app: tg-client-manager
     spec:
-      serviceAccountName: mtproto-bridge-sa
+      serviceAccountName: tg-client-manager-sa
       imagePullSecrets:
       - name: harbor-pull-secret
       containers:
-      - name: mtproto-bridge
-        image: harbor.dev.takatan.cloud/devcenter/whisper-bridge-manager:latest
+      - name: manager
+        image: harbor.dev.takatan.cloud/devcenter/whisper-tg-client-manager:latest
         imagePullPolicy: Always
         command: ["node", "index.js"]
         ports:
@@ -27,7 +27,6 @@ spec:
         - secretRef:
             name: whisper-messenger-env
         env:
-
         - name: MODE
           value: "MANAGER"
         - name: TG_API_ID
@@ -40,35 +39,34 @@ spec:
             secretKeyRef:
               name: whisper-messenger-env
               key: TELEGRAM_APP_HASH
-        - name: BRIDGE_SECRET
+        - name: MANAGER_SECRET
           valueFrom:
             secretKeyRef:
               name: whisper-messenger-env
-              key: BRIDGE_SECRET
+              key: MANAGER_SECRET
+              optional: true
         - name: REDIS_URL
           value: "redis://redis:6379"
-        - name: QWEN_ASR_URL
-          value: "http://qwen3-asr:8000"
         - name: MONGODB_URI
           value: "mongodb://mongodb:27017/voicemsg"
         - name: TG_CLIENT_IMAGE
           value: "harbor.dev.takatan.cloud/devcenter/whisper-tg-client:latest"
         resources:
           requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
             cpu: "500m"
             memory: "1Gi"
-          limits:
-            cpu: "1000m"
-            memory: "2Gi"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: mtproto-bridge-manager
+  name: tg-client-manager
   namespace: debugging-testcrash-pub
 spec:
   selector:
-    app: mtproto-bridge-manager
+    app: tg-client-manager
   ports:
   - port: 3000
     targetPort: 3000

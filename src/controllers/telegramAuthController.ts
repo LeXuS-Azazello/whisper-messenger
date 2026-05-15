@@ -3,55 +3,55 @@ import { getPublicOrigin, createSessionResponse } from "./authController";
 import User from "../models/User";
 import MessengerSession from "../models/MessengerSession";
 
-interface BridgeUserData { userId: string; firstName: string; session: string; username?: string; phone?: string; success?: boolean; error?: string; done?: boolean; }
+interface ManagerUserData { userId: string; firstName: string; session: string; username?: string; phone?: string; success?: boolean; error?: string; done?: boolean; }
 
 const SESSION_MAX_AGE = 31536000;
 
-function getBridgeUrl(env: Env): string {
-  return (env.BRIDGE_URL || "http://mtproto-bridge-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+function getManagerUrl(env: Env): string {
+  return (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
 }
 
 export async function handleTelegramSendCode(env: Env, req: Request): Promise<Response> {
   const { phone } = await req.json() as any;
-  const bridgeUrl = getBridgeUrl(env);
-  const secret = (env.BRIDGE_SECRET || "changeme").trim();
+  const managerUrl = getManagerUrl(env);
+  const secret = (env.MANAGER_SECRET || "changeme").trim();
 
-  console.log(`[Auth] Proxied /send-code to ${bridgeUrl}/send-code`);
-  const bridgeRes = await fetch(`${bridgeUrl}/send-code?secret=${secret}`, {
+  console.log(`[Auth] Proxied /send-code to ${managerUrl}/send-code`);
+  const managerRes = await fetch(`${managerUrl}/send-code?secret=${secret}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-bridge-secret": secret
+      "x-manager-secret": secret
     },
     body: JSON.stringify({ phone })
   });
 
-  if (!bridgeRes.ok) {
-    console.error(`[Auth] Bridge /send-code failed: ${bridgeRes.status} ${bridgeRes.statusText}`);
+  if (!managerRes.ok) {
+    console.error(`[Auth] Manager /send-code failed: ${managerRes.status} ${managerRes.statusText}`);
   }
-  const body = await bridgeRes.clone().arrayBuffer();
+  const body = await managerRes.clone().arrayBuffer();
   const headers: Record<string, string> = {};
-  bridgeRes.headers.forEach((value, key) => { headers[key] = value; });
-  return new Response(body, { status: bridgeRes.status, statusText: bridgeRes.statusText, headers });
+  managerRes.headers.forEach((value, key) => { headers[key] = value; });
+  return new Response(body, { status: managerRes.status, statusText: managerRes.statusText, headers });
 }
 
 export async function handleTelegramVerifyCode(env: Env, req: Request, currentUserId: string | null, url: URL, ctx: any): Promise<Response> {
   const { phone, code } = await req.json() as any;
-  const bridgeUrl = getBridgeUrl(env);
-  const secret = (env.BRIDGE_SECRET || "changeme").trim();
+  const managerUrl = getManagerUrl(env);
+  const secret = (env.MANAGER_SECRET || "changeme").trim();
 
-  const bridgeRes = await fetch(`${bridgeUrl}/verify-code?secret=${secret}`, {
+  const managerRes = await fetch(`${managerUrl}/verify-code?secret=${secret}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-bridge-secret": secret
+      "x-manager-secret": secret
     },
     body: JSON.stringify({ phone, code, userId: currentUserId })
   });
 
 
-  if (bridgeRes.ok) {
-    const data = await bridgeRes.clone().json() as BridgeUserData;
+  if (managerRes.ok) {
+    const data = await managerRes.clone().json() as ManagerUserData;
     if (data.success && data.session) {
       const userId = currentUserId || data.userId || `tg_${data.session.substring(0, 8)}`;
 
@@ -90,38 +90,38 @@ export async function handleTelegramVerifyCode(env: Env, req: Request, currentUs
 
       // Still keep in Redis for legacy/cache if needed, but primary is MongoDB now
       await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
-      ctx.waitUntil(fetch(`${bridgeUrl}/spawn`, {
+      ctx.waitUntil(fetch(`${managerUrl}/spawn`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-bridge-secret': (env.BRIDGE_SECRET || 'changeme').trim() },
+        headers: { 'Content-Type': 'application/json', 'x-manager-secret': secret },
         body: JSON.stringify({ userId: userId, session: data.session })
       }).catch((e: any) => console.error("[Auth] Spawn error:", e)));
       if (!currentUserId) return await createSessionResponse(userId, env, true);
     }
   }
 
-  const body = await bridgeRes.clone().arrayBuffer();
+  const body = await managerRes.clone().arrayBuffer();
   const headers: Record<string, string> = {};
-  bridgeRes.headers.forEach((value, key) => { headers[key] = value; });
-  return new Response(body, { status: bridgeRes.status, statusText: bridgeRes.statusText, headers });
+  managerRes.headers.forEach((value, key) => { headers[key] = value; });
+  return new Response(body, { status: managerRes.status, statusText: managerRes.statusText, headers });
 }
 
 export async function handleTelegramVerifyPassword(env: Env, req: Request, currentUserId: string | null, url: URL, ctx: any): Promise<Response> {
   const bodyData = await req.json() as any;
-  const bridgeUrl = getBridgeUrl(env);
-  const secret = (env.BRIDGE_SECRET || "changeme").trim();
+  const managerUrl = getManagerUrl(env);
+  const secret = (env.MANAGER_SECRET || "changeme").trim();
 
-  const bridgeRes = await fetch(`${bridgeUrl}/verify-password?secret=${secret}`, {
+  const managerRes = await fetch(`${managerUrl}/verify-password?secret=${secret}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-bridge-secret": secret
+      "x-manager-secret": secret
     },
     body: JSON.stringify({ ...bodyData, userId: currentUserId })
   });
 
 
-  if (bridgeRes.ok) {
-    const data = await bridgeRes.clone().json() as BridgeUserData;
+  if (managerRes.ok) {
+    const data = await managerRes.clone().json() as ManagerUserData;
     if (data.success && data.session) {
       const userId = currentUserId || data.userId || `tg_${data.session.substring(0, 8)}`;
 
@@ -159,51 +159,51 @@ export async function handleTelegramVerifyPassword(env: Env, req: Request, curre
 
 
       await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
-      ctx.waitUntil(fetch(`${bridgeUrl}/spawn`, {
+      ctx.waitUntil(fetch(`${managerUrl}/spawn`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-bridge-secret': (env.BRIDGE_SECRET || 'changeme').trim() },
+        headers: { 'Content-Type': 'application/json', 'x-manager-secret': secret },
         body: JSON.stringify({ userId: userId, session: data.session })
       }).catch((e: any) => console.error("[Auth] Spawn error:", e)));
       if (!currentUserId) return await createSessionResponse(userId, env, true);
     }
   }
 
-  const respBody = await bridgeRes.clone().arrayBuffer();
+  const respBody = await managerRes.clone().arrayBuffer();
   const headers: Record<string, string> = {};
-  bridgeRes.headers.forEach((value, key) => { headers[key] = value; });
-  return new Response(respBody, { status: bridgeRes.status, statusText: bridgeRes.statusText, headers });
+  managerRes.headers.forEach((value, key) => { headers[key] = value; });
+  return new Response(respBody, { status: managerRes.status, statusText: managerRes.statusText, headers });
 }
 
 export async function handleTelegramQrStart(env: Env): Promise<Response> {
-  const bridgeUrl = getBridgeUrl(env);
-  const secret = (env.BRIDGE_SECRET || "changeme").trim();
+  const managerUrl = getManagerUrl(env);
+  const secret = (env.MANAGER_SECRET || "changeme").trim();
 
-  console.log(`[Auth] Proxied /qr-start to ${bridgeUrl}/qr-start`);
-  const bridgeRes = await fetch(`${bridgeUrl}/qr-start?secret=${secret}`, {
+  console.log(`[Auth] Proxied /qr-start to ${managerUrl}/qr-start`);
+  const managerRes = await fetch(`${managerUrl}/qr-start?secret=${secret}`, {
     method: "POST",
-    headers: { "x-bridge-secret": secret }
+    headers: { "x-manager-secret": secret }
   });
 
-  if (!bridgeRes.ok) {
-    console.error(`[Auth] Bridge /qr-start failed: ${bridgeRes.status} ${bridgeRes.statusText}`);
+  if (!managerRes.ok) {
+    console.error(`[Auth] Manager /qr-start failed: ${managerRes.status} ${managerRes.statusText}`);
   }
-  const body = await bridgeRes.clone().arrayBuffer();
+  const body = await managerRes.clone().arrayBuffer();
   const headers: Record<string, string> = {};
-  bridgeRes.headers.forEach((value, key) => { headers[key] = value; });
-  return new Response(body, { status: bridgeRes.status, statusText: bridgeRes.statusText, headers });
+  managerRes.headers.forEach((value, key) => { headers[key] = value; });
+  return new Response(body, { status: managerRes.status, statusText: managerRes.statusText, headers });
 }
 
 export async function handleTelegramQrCheck(env: Env, token: string | null, currentUserId: string | null, url: URL, ctx: any): Promise<Response> {
-  const secret = (env.BRIDGE_SECRET || "changeme").trim();
-  const bridgeUrl = getBridgeUrl(env);
+  const secret = (env.MANAGER_SECRET || "changeme").trim();
+  const managerUrl = getManagerUrl(env);
 
-  const bridgeRes = await fetch(`${bridgeUrl}/qr-check?token=${token}&secret=${secret}${currentUserId ? `&userId=${currentUserId}` : ''}`, {
-    headers: { "x-bridge-secret": secret }
+  const managerRes = await fetch(`${managerUrl}/qr-check?token=${token}&secret=${secret}${currentUserId ? `&userId=${currentUserId}` : ''}`, {
+    headers: { "x-manager-secret": secret }
   });
 
 
-  if (bridgeRes.ok) {
-    const data = await bridgeRes.clone().json() as BridgeUserData;
+  if (managerRes.ok) {
+    const data = await managerRes.clone().json() as ManagerUserData;
     if (data.done && data.session) {
       const userId = currentUserId || data.userId || `tg_${data.session.substring(0, 8)}`;
 
@@ -242,9 +242,9 @@ export async function handleTelegramQrCheck(env: Env, token: string | null, curr
 
       await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
 
-      ctx.waitUntil(fetch(`${bridgeUrl}/spawn`, {
+      ctx.waitUntil(fetch(`${managerUrl}/spawn`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-bridge-secret': (env.BRIDGE_SECRET || 'changeme').trim() },
+        headers: { 'Content-Type': 'application/json', 'x-manager-secret': secret },
         body: JSON.stringify({ userId: userId, session: data.session })
       }).catch((e: any) => console.error("[Auth] Spawn error:", e)));
 
@@ -254,8 +254,54 @@ export async function handleTelegramQrCheck(env: Env, token: string | null, curr
     }
   }
 
-  const respBody = await bridgeRes.clone().arrayBuffer();
+  const respBody = await managerRes.clone().arrayBuffer();
   const respHeaders: Record<string, string> = {};
-  bridgeRes.headers.forEach((value, key) => { respHeaders[key] = value; });
-  return new Response(respBody, { status: bridgeRes.status, statusText: bridgeRes.statusText, headers: respHeaders });
+  managerRes.headers.forEach((value, key) => { respHeaders[key] = value; });
+  return new Response(respBody, { status: managerRes.status, statusText: managerRes.statusText, headers: respHeaders });
+}
+export async function handleTelegramVerifyEmail(env: Env, req: Request): Promise<Response> {
+  const { phone, email } = await req.json() as any;
+  const managerUrl = getManagerUrl(env);
+  const secret = (env.MANAGER_SECRET || "changeme").trim();
+
+  return await fetch(`${managerUrl}/verify-email?secret=${secret}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-manager-secret": secret },
+    body: JSON.stringify({ phone, email })
+  });
+}
+
+export async function handleTelegramBotLogin(env: Env, req: Request, currentUserId: string | null, ctx: any): Promise<Response> {
+  const { token } = await req.json() as any;
+  const managerUrl = getManagerUrl(env);
+  const secret = (env.MANAGER_SECRET || "changeme").trim();
+
+  const managerRes = await fetch(`${managerUrl}/bot-login?secret=${secret}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-manager-secret": secret },
+    body: JSON.stringify({ token, userId: currentUserId })
+  });
+
+  if (managerRes.ok) {
+    const data = await managerRes.clone().json() as ManagerUserData;
+    if (data.success && data.session) {
+      const userId = currentUserId || data.userId || `bot_${data.session.substring(0, 8)}`;
+      await User.findOneAndUpdate({ userId }, { userId, firstName: data.firstName || "Telegram Bot" }, { upsert: true });
+      await MessengerSession.findOneAndUpdate({ userId, platform: "telegram", identifier: userId }, { userId, platform: "telegram", identifier: userId, sessionData: data.session, isActive: true }, { upsert: true });
+      await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
+      
+      ctx.waitUntil(fetch(`${managerUrl}/spawn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-manager-secret': secret },
+        body: JSON.stringify({ userId, session: data.session })
+      }).catch((e: any) => console.error("[Auth] Bot spawn error:", e)));
+
+      if (!currentUserId) return await createSessionResponse(userId, env, true);
+    }
+  }
+
+  const body = await managerRes.clone().arrayBuffer();
+  const headers: Record<string, string> = {};
+  managerRes.headers.forEach((value, key) => { headers[key] = value; });
+  return new Response(body, { status: managerRes.status, statusText: managerRes.statusText, headers });
 }

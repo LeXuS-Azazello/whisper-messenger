@@ -17,14 +17,16 @@ if (!API_HASH) {
 }
 
 
-export const SECRET = (process.env.BRIDGE_SECRET || 'changeme').trim();
+export const SECRET = (process.env.MANAGER_SECRET || process.env.BRIDGE_SECRET || 'changeme').trim();
 export const PORT = parseInt(process.env.PORT || '3000', 10);
 export const TARGET_USER_ID = process.env.TARGET_USER_ID || '';
 export const TG_SESSION = process.env.TG_SESSION || '';
 export const WORKER_URL = process.env.WORKER_URL || '';
-export const DEVICE_MODEL = process.env.DEVICE_MODEL || 'Desktop Linux';
+export const DEVICE_MODEL = process.env.DEVICE_MODEL || 'Voicemsg-net';
 export const APP_VERSION = process.env.APP_VERSION || '4.15.2';
 export const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Ubuntu 24.04';
+export const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://mongodb:27017/voicemsg';
+
 
 export const redis = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', {
     maxRetriesPerRequest: 1,

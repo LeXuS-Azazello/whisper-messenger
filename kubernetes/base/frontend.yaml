@@ -30,13 +30,13 @@ spec:
           value: "http://qwen3-asr:8000"
         - name: MONGODB_URI
           value: "mongodb://mongodb:27017/voicemsg"
-        - name: BRIDGE_URL
-          value: "http://mtproto-bridge-manager:3000"
-        - name: BRIDGE_SECRET
+        - name: MANAGER_URL
+          value: "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000"
+        - name: MANAGER_SECRET
           valueFrom:
             secretKeyRef:
               name: whisper-messenger-env
-              key: BRIDGE_SECRET
+              key: MANAGER_SECRET
               optional: true
         - name: SESSION_SECRET
           valueFrom:

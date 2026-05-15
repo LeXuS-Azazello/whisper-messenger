@@ -20,7 +20,9 @@ import {
   handleTelegramVerifyCode,
   handleTelegramVerifyPassword,
   handleTelegramQrStart,
-  handleTelegramQrCheck
+  handleTelegramQrCheck,
+  handleTelegramVerifyEmail,
+  handleTelegramBotLogin
 } from "../controllers/telegramAuthController";
 
 export async function handlePublicAuth(env: Env, req: Request, currentUserId: string | null, ctx: { waitUntil: (p: Promise<any>) => void }): Promise<Response> {
@@ -192,6 +194,14 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   if (method === "GET" && pathname === "/auth/qr-check") {
     const token = url.searchParams.get("token");
     return await handleTelegramQrCheck(env, token, currentUserId, url, ctx);
+  }
+
+  if (method === "POST" && pathname === "/auth/verify-email") {
+    return await handleTelegramVerifyEmail(env, req);
+  }
+
+  if (method === "POST" && pathname === "/auth/bot-login") {
+    return await handleTelegramBotLogin(env, req, currentUserId, ctx);
   }
 
   if (pathname === "/auth/logout") {

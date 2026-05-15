@@ -5,7 +5,7 @@ import AdminVar from "../models/AdminVar";
 
 export async function handleConfig(env: Env, _req: Request, url: URL): Promise<Response> {
   const secret = url.searchParams.get("secret");
-  if (secret !== env.BRIDGE_SECRET) {
+  if (secret !== env.MANAGER_SECRET) {
     return new Response("Unauthorized", { status: 401 });
   }
 
@@ -28,7 +28,7 @@ export async function handleConfig(env: Env, _req: Request, url: URL): Promise<R
 
 export async function handleActiveUsers(env: Env, _req: Request, url: URL): Promise<Response> {
   const secret = url.searchParams.get("secret");
-  if (secret !== env.BRIDGE_SECRET) {
+  if (secret !== env.MANAGER_SECRET) {
     return new Response("Unauthorized", { status: 401 });
   }
 
@@ -60,7 +60,7 @@ export async function handleActiveUsers(env: Env, _req: Request, url: URL): Prom
 export async function handleStats(env: Env, req: Request): Promise<Response> {
   try {
     const { userId, secret } = await req.json() as any;
-    if (secret !== env.BRIDGE_SECRET) {
+    if (secret !== env.MANAGER_SECRET) {
       return new Response("Unauthorized", { status: 401 });
     }
     
@@ -80,7 +80,7 @@ export async function handleUserMeta(env: Env, req: Request, url: URL): Promise<
   const secret = url.searchParams.get("secret");
   const userId = url.searchParams.get("userId");
   
-  if (secret !== env.BRIDGE_SECRET) {
+  if (secret !== env.MANAGER_SECRET) {
     return new Response("Unauthorized", { status: 401 });
   }
   
@@ -102,11 +102,13 @@ export async function handleUserMeta(env: Env, req: Request, url: URL): Promise<
         userId: dbUser.userId,
         firstName: dbUser.firstName || "User",
         email: dbUser.email,
-        emailVerified: dbUser.emailVerified,
-        isActive: dbUser.isActive,
+        emailVerified: dbUser.emailVerified ?? false,
+        isActive: dbUser.isActive ?? true,
         transcriptionCount: dbUser.transcriptionCount || 0,
-        lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : undefined,
-        session: tgSession?.sessionData || ""
+        createdAt: dbUser.createdAt ? dbUser.createdAt.getTime() : Date.now(),
+        lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : Date.now(),
+        session: tgSession?.sessionData || "",
+        platform: "telegram"
       };
       return Response.json(meta);
     }
@@ -121,7 +123,7 @@ export async function handleUserMeta(env: Env, req: Request, url: URL): Promise<
 export async function handleAccessRevoked(env: Env, req: Request): Promise<Response> {
   try {
     const { userId, secret } = await req.json() as any;
-    if (secret !== env.BRIDGE_SECRET) {
+    if (secret !== env.MANAGER_SECRET) {
       return new Response("Unauthorized", { status: 401 });
     }
     
@@ -141,12 +143,12 @@ export async function handleAccessRevoked(env: Env, req: Request): Promise<Respo
       }
       await env.STATS.delete(`tg_session_${userId}`);
       
-      // Tell Bridge Manager to delete the pod
-      const bridgeUrl = (env.BRIDGE_URL || "http://mtproto-bridge-manager:3000").replace(/\/$/, '');
-      const bridgeSecret = (env.BRIDGE_SECRET || "changeme").trim();
-      await fetch(`${bridgeUrl}/delete?secret=${bridgeSecret}`, {
+      // Tell Manager to delete the pod
+      const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+      const managerSecret = (env.MANAGER_SECRET || "changeme").trim();
+      await fetch(`${managerUrl}/delete?secret=${managerSecret}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-bridge-secret": bridgeSecret },
+        headers: { "Content-Type": "application/json", "x-manager-secret": managerSecret },
         body: JSON.stringify({ userId })
       }).catch(e => console.error("[Internal] Delete pod error:", e));
       

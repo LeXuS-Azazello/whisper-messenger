@@ -217,7 +217,7 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                             <div id="code-section" class="auth-section">
                                 <div class="input-group">
                                     <label class="input-label">Verification Code</label>
-                                    <input type="text" id="tg-code-input" class="input-field" placeholder="Enter 5-digit code" autoComplete="one-time-code" maxLength="5" />
+                                    <input type="text" id="tg-code-input" class="input-field" placeholder="Enter 5-digit code" autoComplete="one-time-code" maxLength={5} />
                                 </div>
                                 <button class="btn btn-success" id="tg-verify-btn">
                                     <span class="btn-text">Confirm & Connect</span>

@@ -21,6 +21,28 @@ import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => 
         }
     });
 
+    app.post('/test-tg', async (req, res) => {
+        const { getUserClient } = await import('./telegramClient.js');
+        const userClient = getUserClient();
+        if (!userClient) return res.status(404).json({ success: false, error: 'No client' });
+
+        try {
+            const me = await userClient.invoke({ "@type": "getMe" });
+            const message = req.body.message || "Test message from Whisper Messenger!";
+            await userClient.invoke({
+                "_": "sendMessage",
+                "chat_id": me.id,
+                "input_message_content": {
+                    "_": "inputMessageText",
+                    "text": { "_": "formattedText", "text": message }
+                }
+            });
+            res.json({ success: true });
+        } catch (e) {
+            res.status(500).json({ success: false, error: e.message });
+        }
+    });
+
     if (MODE === 'USER') {
         const { startUserClient } = await import('./telegramClient.js');
         startUserClient().catch(async (e) => {
@@ -31,12 +53,12 @@ import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => 
             if (isRevoked) {
                 console.log(`[tg-client] Session for ${TARGET_USER_ID} is revoked/invalid. Notifying backend...`);
                 try {
-                    const workerUrl = process.env.WORKER_URL || 'https://voicemsg.net';
-                    const secret = process.env.BRIDGE_SECRET || 'changeme';
-                    await fetch(`${workerUrl}/internal/access-revoked`, {
+                    const managerUrl = process.env.MANAGER_URL || process.env.WORKER_URL || 'http://tg-client-manager:3000';
+                    const managerSecret = process.env.MANAGER_SECRET || process.env.BRIDGE_SECRET || 'changeme';
+                    await fetch(`${managerUrl}/internal/access-revoked`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: TARGET_USER_ID, secret })
+                        body: JSON.stringify({ userId: TARGET_USER_ID, secret: managerSecret })
                     });
                     console.log(`[tg-client] Successfully notified backend about session revocation.`);
                 } catch (fetchErr) {

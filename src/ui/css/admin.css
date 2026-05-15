@@ -398,3 +398,66 @@ h1 {
     from { opacity: 0; transform: translateY(-5px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* Diagnostic Styles */
+.diagnostic-grid {
+    margin-top: 15px;
+}
+
+.diag-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.diag-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.diag-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+}
+
+.diag-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 14px;
+}
+
+.diag-status span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.diag-status.healthy { color: #10B981; }
+.diag-status.healthy span { background: #10B981; box-shadow: 0 0 8px #10B981; }
+
+.diag-status.unhealthy { color: #F59E0B; }
+.diag-status.unhealthy span { background: #F59E0B; box-shadow: 0 0 8px #F59E0B; }
+
+.diag-status.error { color: #EF4444; }
+.diag-status.error span { background: #EF4444; box-shadow: 0 0 8px #EF4444; }
+
+.diag-status.unknown { color: var(--text-dim); }
+.diag-status.unknown span { background: var(--text-dim); }
+
+.diag-msg {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.4;
+    word-break: break-all;
+}
