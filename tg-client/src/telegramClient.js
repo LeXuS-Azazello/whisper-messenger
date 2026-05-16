@@ -13,7 +13,7 @@ let client = null;
 const filePromises = new Map();
 
 function logUpdate(update) {
-    if (update['@type'] === 'updateFile') {
+    if (update['_'] === 'updateFile') {
         const file = update.file;
         if (file.local.is_completed && filePromises.has(file.id)) {
             const { resolve } = filePromises.get(file.id);
@@ -68,14 +68,20 @@ async function handleNewMessage(message) {
 
     const chat_id = message.chat_id;
     const message_id = message.id;
+    const type = message.content['_'];
     let file_id = null;
     let mime_type = '';
 
-    if (message.content['@type'] === 'messageVoiceNote') {
+    console.log(`[tg-client] 📩 Received message in chat ${chat_id} of type: ${type}`);
+
+    if (type === 'messageText') {
+        const text = message.content.text?.text || '';
+        console.log(`[tg-client] 💬 Text: "${text}"`);
+    } else if (type === 'messageVoiceNote') {
         file_id = message.content.voice_note.voice.id;
         mime_type = 'audio/ogg';
         console.log(`[tg-client] 🎤 Voice message detected in chat ${chat_id}`);
-    } else if (message.content['@type'] === 'messageVideoNote') {
+    } else if (type === 'messageVideoNote') {
         file_id = message.content.video_note.video.id;
         mime_type = 'video/mp4';
         console.log(`[tg-client] 📹 Video note detected in chat ${chat_id}`);
@@ -86,7 +92,7 @@ async function handleNewMessage(message) {
             // 1. Download file
             console.log(`[tg-client] ⏳ Downloading file ${file_id}...`);
             let file = await client.invoke({
-                '@type': 'downloadFile',
+                '_': 'downloadFile',
                 file_id: file_id,
                 priority: 1,
                 offset: 0,
@@ -121,13 +127,13 @@ async function handleNewMessage(message) {
             if (transcription.trim()) {
                 // 3. Reply with transcription
                 await client.invoke({
-                    '@type': 'sendMessage',
+                    '_': 'sendMessage',
                     chat_id: chat_id,
                     reply_to_message_id: message_id,
                     input_message_content: {
-                        '@type': 'inputMessageText',
+                        '_': 'inputMessageText',
                         text: {
-                            '@type': 'formattedText',
+                            '_': 'formattedText',
                             text: `🎤 ${transcription}`
                         }
                     }
@@ -166,7 +172,7 @@ export async function startUserClient() {
 
     client.on('update', (update) => {
         logUpdate(update);
-        if (update['@type'] === 'updateNewMessage') {
+        if (update['_'] === 'updateNewMessage') {
             handleNewMessage(update.message);
         }
     });
