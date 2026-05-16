@@ -170,10 +170,10 @@ spec:
           value: "info"
         resources:
           requests:
-            cpu: "4000m"
+            cpu: "8000m"
             memory: "8Gi"
           limits:
-            cpu: "8000m"
+            cpu: "16000m"
             memory: "16Gi"
         volumeMounts:
         - name: cache
