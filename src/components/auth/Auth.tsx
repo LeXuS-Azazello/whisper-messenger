@@ -138,15 +138,15 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                                 <span>OR</span>
                             </div>
 
-                            {/* Main Auth Toggle */}
-                            <div id="email-auth-section" class="auth-section active">
+                            {/* Main Auth Toggle (Hidden) */}
+                            <div id="email-auth-section" class="auth-section" style="display: none;">
                                 <button class="btn btn-secondary btn-full" id="show-email-auth-btn">
                                     Continue with Email
                                 </button>
                             </div>
 
                             {/* Login Form */}
-                            <div id="email-login-section" class="auth-section">
+                            <div id="email-login-section" class="auth-section active" style="display: block;">
                                 <div class="form-group">
                                     <label class="form-label">Email Address</label>
                                     <div class="input-wrapper">

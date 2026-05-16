@@ -1,5 +1,5 @@
-import { Client as TdClient } from 'tdl';
-import { getTdlib } from 'prebuilt-tdlib';
+import * as tdl from 'tdl';
+import { getTdjson } from 'prebuilt-tdlib';
 
 import AdmZip from 'adm-zip';
 import { API_ID, API_HASH, DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION, SECRET } from './config.js';
@@ -7,11 +7,13 @@ import net from 'net';
 import path from 'path';
 import fs from 'fs';
 
+tdl.configure({ tdjson: getTdjson() });
+
 export function createClient(userId, options = {}) {
     const dbDir = path.join('/tmp/tdlib', String(userId || 'manager'));
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-    const client = new TdClient(getTdlib(), {
+    const client = tdl.createClient({
         apiId: Number(API_ID),
         apiHash: API_HASH,
         databaseDirectory: dbDir,

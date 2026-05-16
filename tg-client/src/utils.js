@@ -1,15 +1,17 @@
-import { Client as TdClient } from 'tdl';
-import { getTdlib } from 'prebuilt-tdlib';
+import * as tdl from 'tdl';
+import { getTdjson } from 'prebuilt-tdlib';
 import AdmZip from 'adm-zip';
 import fs from 'fs';
 import path from 'path';
 import { TG_API_ID, TG_API_HASH } from './config.js';
 
+tdl.configure({ tdjson: getTdjson() });
+
 export function createClient(userId, options = {}) {
     const dbDir = path.join('/app/tdlib-data', String(userId));
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-    const client = new TdClient(getTdlib(), {
+    const client = tdl.createClient({
         apiId: Number(TG_API_ID),
         apiHash: TG_API_HASH,
         databaseDirectory: dbDir,
