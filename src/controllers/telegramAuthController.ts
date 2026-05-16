@@ -79,8 +79,8 @@ export async function handleTelegramSendCode(env: Env, req: Request): Promise<Re
     });
 
     client.on('update', async (update: any) => {
-      if (update['@type'] !== 'updateAuthorizationState') return;
-      const type = update.authorization_state['@type'];
+      if (update['_'] !== 'updateAuthorizationState') return;
+      const type = update.authorization_state['_'];
       try {
         if (type === 'authorizationStateWaitPhoneNumber') {
           await client.invoke({ _: "setAuthenticationPhoneNumber", phone_number: phoneClean });
@@ -250,8 +250,8 @@ export async function handleTelegramQrStart(env: Env): Promise<Response> {
     });
 
     client.on('update', async (update: any) => {
-      if (update['@type'] !== 'updateAuthorizationState') return;
-      const type = update.authorization_state['@type'];
+      if (update['_'] !== 'updateAuthorizationState') return;
+      const type = update.authorization_state['_'];
       try {
         if (type === 'authorizationStateWaitPhoneNumber') {
           await client.invoke({ _: "requestQrCodeAuthentication" });
