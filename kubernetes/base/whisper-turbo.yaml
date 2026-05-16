@@ -35,7 +35,7 @@ data:
             tokenizer=processor.tokenizer,
             feature_extractor=processor.feature_extractor,
             chunk_length_s=30,
-            batch_size=16,
+            batch_size=1,
             torch_dtype=torch_dtype,
             device=device,
         )

@@ -223,7 +223,8 @@ export default {
         try {
           const { transcribeWithFallback } = await import("./whisper");
           const buffer = await file.arrayBuffer();
-          const res = await transcribeWithFallback(buffer, env);
+          const providerOverride = url.searchParams.get("provider") || undefined;
+          const res = await transcribeWithFallback(buffer, env, providerOverride);
           return Response.json({ success: true, text: res.text, model: res.model });
         } catch (e: any) {
           return Response.json({ success: false, error: e.message });

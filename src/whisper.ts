@@ -2,10 +2,11 @@ import { Env } from "./types";
 
 export async function transcribeWithFallback(
   audio: ArrayBuffer,
-  env: Env
+  env: Env,
+  providerOverride?: string
 ): Promise<{ text: string; model?: string }> {
-  // Try to get provider from Redis, fallback to env var, then to default
-  const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || "qwen3-asr";
+  // Try to get provider from override, then Redis, fallback to env var, then to default
+  const provider = providerOverride || await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || "qwen3-asr";
   
   let url = "";
   let modelName = "";
