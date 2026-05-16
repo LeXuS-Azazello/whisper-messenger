@@ -8,7 +8,7 @@ import QRCode from 'qrcode';
 const SESSION_MAX_AGE = 31536000;
 const finishedSessions = new Map<string, any>();
 
-async function saveAuthSessionData(env: Env, data: any, currentUserId: string | null) {
+async function saveAuthSessionData(env: Env, data: any, currentUserId: string | null, ctx: any) {
   const userId = currentUserId || data.userId || `tg_${data.session.substring(0, 8)}`;
 
   await User.findOneAndUpdate(
@@ -41,6 +41,20 @@ async function saveAuthSessionData(env: Env, data: any, currentUserId: string | 
   await env.STATS.put(`user_meta_${userId}`, JSON.stringify(metaUser));
 
   await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
+
+  const managerUrl = env.MANAGER_URL || "http://tg-client-manager:3000";
+  const managerSecret = env.MANAGER_SECRET || "changeme";
+
+  const spawnPromise = fetch(`${managerUrl}/spawn`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-manager-secret": managerSecret },
+    body: JSON.stringify({ userId, session: data.session })
+  }).catch(e => console.error("[Auth] Failed to trigger spawn:", e.message));
+
+  if (ctx && ctx.waitUntil) {
+    ctx.waitUntil(spawnPromise);
+  }
+
   return userId;
 }
 
@@ -173,7 +187,7 @@ export async function handleTelegramVerifyCode(env: Env, req: Request, currentUs
       username: s.user?.username,
       phone: phone,
       session: packed
-    }, currentUserId);
+    }, currentUserId, ctx);
 
     authSessions.delete(phone);
     setTimeout(async () => { try { await s.client.close(); } catch (e) { } }, 1000);
@@ -221,7 +235,7 @@ export async function handleTelegramVerifyPassword(env: Env, req: Request, curre
       username: s.user?.username,
       phone: phone || finalUserId,
       session: packed
-    }, currentUserId);
+    }, currentUserId, ctx);
 
     authSessions.delete(sessionId);
     setTimeout(async () => { try { await s.client.close(); } catch (e) { } }, 1000);
@@ -325,7 +339,7 @@ export async function handleTelegramQrCheck(env: Env, token: string | null, curr
       firstName: s.user?.first_name,
       username: s.user?.username,
       session: packed
-    }, currentUserId);
+    }, currentUserId, ctx);
 
     const resp = { done: true, session: packed, userId: finalUserId, firstName: s.user?.first_name };
     finishedSessions.set(token, resp);
