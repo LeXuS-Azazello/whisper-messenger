@@ -295,14 +295,15 @@ header {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(12px);
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     display: none;
     justify-content: center;
     align-items: center;
     z-index: 10000;
     opacity: 0;
-    transition: opacity 0.4s ease;
+    transition: all 0.3s ease;
 }
 
 .modal-overlay.active {
@@ -312,19 +313,28 @@ header {
 
 .modal-content {
     background: var(--modal-bg);
-    width: 95%;
-    max-width: 480px;
-    border-radius: 32px;
-    padding: 2.5rem;
+    width: 92%;
+    max-width: 440px;
+    border-radius: 24px;
+    padding: 2rem;
     position: relative;
     border: 1px solid var(--card-border);
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    transform: scale(0.9) translateY(20px);
+    transform: scale(0.95) translateY(10px);
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .modal-overlay.active .modal-content {
     transform: scale(1) translateY(0);
+}
+
+.auth-step {
+    display: none;
+}
+
+.auth-step.active {
+    display: block;
+    animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .modal-close {
@@ -632,13 +642,53 @@ header {
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
 }
 
-/* Setup Guide */
 .setup-guide {
     background: rgba(255, 255, 255, 0.02);
     border-radius: 16px;
     padding: 1.25rem;
     margin-bottom: 1.5rem;
     border-left: 4px solid var(--primary);
+    transition: all 0.3s ease;
+}
+
+.guide-toggle {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-dim);
+}
+
+.guide-toggle:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.guide-toggle svg {
+    transition: transform 0.3s ease;
+}
+
+.guide-toggle.active svg {
+    transform: rotate(180deg);
+}
+
+@media (max-width: 768px) {
+    .guide-toggle {
+        display: flex;
+    }
+    .setup-guide {
+        display: none;
+        margin-top: 0.5rem;
+    }
+    .setup-guide.active {
+        display: block;
+        animation: fadeIn 0.3s ease-out;
+    }
 }
 
 .setup-guide.meta { border-left-color: var(--ms-color); background: rgba(0, 129, 251, 0.05); }
@@ -853,35 +903,40 @@ header {
 /* Mobile Adjustments */
 @media (max-width: 768px) {
     .container {
-        padding: 1rem;
+        padding: 1.25rem;
     }
 
     header {
         flex-direction: column;
         gap: 1.5rem;
         text-align: center;
-        padding: 1.5rem;
+        padding: 0.5rem;
+        margin-bottom: 2rem;
     }
 
     .user-profile {
         width: 100%;
-        justify-content: space-between;
+        justify-content: center;
+        flex-direction: column;
+        gap: 0.75rem;
     }
 
     .user-info {
-        align-items: flex-start;
+        align-items: center;
     }
 
     .grid {
         grid-template-columns: 1fr;
+        gap: 1.25rem;
     }
 
     .card {
-        padding: 1.25rem;
+        padding: 1.5rem;
+        border-radius: 20px;
     }
 
     .logo-text {
-        font-size: 1rem;
+        font-size: 1.1rem;
     }
 
     .button-group-2, .button-grid {
@@ -893,17 +948,30 @@ header {
     }
 
     .stat-value {
-        font-size: 2.75rem;
+        font-size: 3rem;
     }
 
     .modal-content {
         padding: 1.5rem;
         margin: 1rem;
-        max-height: 90vh;
-        overflow-y: auto;
+        width: calc(100% - 2rem);
+        max-height: 85vh;
+        border-radius: 20px;
     }
 
     .auth-choice {
         grid-template-columns: 1fr;
+    }
+    
+    .choice-card {
+        padding: 1rem;
+    }
+    
+    .setup-guide {
+        padding: 1rem;
+    }
+    
+    .copy-box code {
+        font-size: 0.7rem;
     }
 }

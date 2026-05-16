@@ -6,6 +6,7 @@ import { createSignedSession } from "../session";
 import { sampleAudioBase64 } from "../sample_audio";
 import mongoose from "mongoose";
 import path from "path";
+import { env } from "process";
 
 export async function runDiagnostics(env: Env): Promise<Response> {
     const results: DiagnosticResults = {
@@ -81,11 +82,11 @@ export async function runDiagnostics(env: Env): Promise<Response> {
         } else {
             asrUrl = await env.STATS.get("config_ollama_url") || env.OLLAMA_BASE_URL || 'http://qwen3-asr:8000';
         }
-        
+
         const start = Date.now();
         const res = await fetch(`${asrUrl}/v1/models`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
         const lat = Date.now() - start;
-        
+
         if (res && res.ok) {
             results.asr = { status: 'healthy', message: `${provider} active (Latency: ${lat}ms)` };
         } else {
@@ -188,7 +189,7 @@ export async function tgTestMsg(env: Env, req: Request): Promise<Response> {
     const { userId, message } = await req.json() as any;
     const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
     const secret = (env.MANAGER_SECRET || "changeme").trim();
-    
+
     // Get session for the user if userId is provided, otherwise it uses manager's own
     let session = null;
     if (userId) {
@@ -198,10 +199,10 @@ export async function tgTestMsg(env: Env, req: Request): Promise<Response> {
     return await proxyToManager(`${managerUrl}/test-tg?secret=${secret}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-manager-secret": secret },
-        body: JSON.stringify({ 
-            userId, 
+        body: JSON.stringify({
+            userId,
             session,
-            message: message || "Admin test message!" 
+            message: message || "Admin test message!"
         })
     });
 }
@@ -217,17 +218,17 @@ export async function getWhisperConfig(env: Env): Promise<Response> {
     const localSecret = await env.STATS.get("config_local_whisper_secret") || env.LOCAL_WHISPER_SECRET || "";
     const ollamaUrl = await env.STATS.get("config_ollama_url") || env.OLLAMA_BASE_URL || "";
     const model = await env.STATS.get("config_whisper_model") || "";
-    
+
     // Attempt to sync from DB if Redis is empty but we want to be sure it's consistent
     // In a real scenario, we might want to load from DB on startup and populate Redis.
-    
+
     return Response.json({ provider, localUrl, localSecret, ollamaUrl, model });
 }
 
 export async function updateWhisperConfig(env: Env, req: Request): Promise<Response> {
     const { provider, localUrl, localSecret, ollamaUrl, model } = await req.json() as any;
     const { default: ServerSetting } = await import("../models/ServerSetting");
-    
+
     const settings = [
         { key: "config_whisper_provider", value: provider },
         { key: "config_local_whisper_url", value: localUrl },
@@ -240,7 +241,7 @@ export async function updateWhisperConfig(env: Env, req: Request): Promise<Respo
         if (s.value !== undefined && s.value !== null) {
             // Save to Redis (for fast access in workers/manager)
             await env.STATS.put(s.key, String(s.value));
-            
+
             // Save to MongoDB (for persistence)
             await ServerSetting.findOneAndUpdate(
                 { key: s.key },
@@ -249,14 +250,14 @@ export async function updateWhisperConfig(env: Env, req: Request): Promise<Respo
             );
         }
     }
-    
+
     return Response.json({ success: true });
 }
 
 export async function handleGetPodLogs(env: Env, podName: string): Promise<Response> {
     const managerUrl = (env.MANAGER_URL || "http://tg-client-manager:3000").replace(/\/$/, '');
     const secret = (env.MANAGER_SECRET || "changeme").trim();
-    
+
     try {
         const res = await fetch(`${managerUrl}/internal/logs/${podName}?secret=${secret}`, {
             headers: { "x-manager-secret": secret }
@@ -280,8 +281,8 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-manager-secret": secret },
             body: JSON.stringify({ userId })
-        }).catch(() => {});
-        
+        }).catch(() => { });
+
         if (session) {
             // Then spawn
             return await proxyToManager(`${managerUrl}/spawn?secret=${secret}`, {
@@ -302,13 +303,13 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
         const listRaw = await env.STATS.get("users_list") || "[]";
         const list = JSON.parse(listRaw).filter((id: string) => id !== userId);
         await env.STATS.put("users_list", JSON.stringify(list));
-        
+
         // Also delete pod
         await fetch(`${managerUrl}/delete?secret=${secret}`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-manager-secret": secret },
             body: JSON.stringify({ userId })
-        }).catch(() => {});
+        }).catch(() => { });
     }
     return Response.json({ success: true });
 }
@@ -353,7 +354,7 @@ export async function syncSettingsToRedis(env: Env) {
     try {
         const { default: ServerSetting } = await import("../models/ServerSetting");
         const settings = await ServerSetting.find({ category: 'whisper' });
-        
+
         for (const s of settings) {
             console.log(`[Settings] Syncing ${s.key} -> ${s.value}`);
             await env.STATS.put(s.key, String(s.value));

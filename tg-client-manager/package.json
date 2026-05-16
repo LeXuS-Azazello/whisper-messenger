@@ -19,7 +19,6 @@
     "prebuilt-tdlib": "latest",
     "qrcode": "^1.5.3",
     "adm-zip": "^0.5.10",
-    "tdweb": "^1.8.0",
     "mongoose": "^8.23.1"
   },
   "devDependencies": {

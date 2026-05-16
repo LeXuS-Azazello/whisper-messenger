@@ -16,13 +16,7 @@ export const renderHome = (googleClientId: string, origin: string) => {
                 <link rel="stylesheet" href="/assets/css/home.css" />
                 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
                 <script src="https://accounts.google.com/gsi/client" async defer></script>
-                <script type="importmap" dangerouslySetInnerHTML={{
-                    __html: JSON.stringify({
-                        imports: {
-                            "tdweb": "https://unpkg.com/tdweb@1.8.0/dist/tdweb.js"
-                        }
-                    })
-                }} />
+
             </head>
             <body>
                 <div class="bg-glow"></div>
@@ -77,11 +71,11 @@ export const renderHome = (googleClientId: string, origin: string) => {
                         </div>
                     </div>
 
-                    <div id="success-view" style="display:none; text-align:center; padding: 20px 0;">
+                    <div id="success-view" style={{ display: 'none', textAlign: 'center', padding: '20px 0' }}>
                         <CheckCircleIcon size={56} color="#22c55e" />
                         <h2 class="title">Check your inbox</h2>
-                        <p class="subtitle" style="margin-top:16px;">We've sent a secure login link to your email address. It expires in 15 minutes.</p>
-                        <button class="btn-primary" style="margin-top:32px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);" onClick={"location.reload()" as any}>
+                        <p class="subtitle" style={{ marginTop: '16px' }}>We've sent a secure login link to your email address. It expires in 15 minutes.</p>
+                        <button class="btn-primary" style={{ marginTop: '32px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }} onclick="location.reload()">
                             <ArrowLeftIcon size={16} /> Back to Login
                         </button>
                     </div>

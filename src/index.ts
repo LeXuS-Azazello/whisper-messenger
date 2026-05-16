@@ -236,7 +236,7 @@ export default {
         const secret = (env.MANAGER_SECRET || "changeme").trim();
         const proxyUrl = new URL(`${managerUrl}${url.pathname}${url.search}`);
         proxyUrl.searchParams.set("secret", secret);
-        
+
         const managerReq = new Request(proxyUrl.toString(), {
           method: req.method,
           headers: req.headers,
@@ -261,8 +261,8 @@ export default {
             });
           }
         }
-        
-        return new Response(renderHome(env.GOOGLE_CLIENT_ID || "", publicOrigin, env.TELEGRAM_BOT_USERNAME), {
+
+        return new Response(renderHome(env.GOOGLE_CLIENT_ID || "", publicOrigin), {
           headers: { "Content-Type": "text/html; charset=utf-8" }
         });
       }

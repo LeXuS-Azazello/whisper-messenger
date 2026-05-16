@@ -111,6 +111,10 @@ export const renderDashboard = (user: UserSession) => {
                                     <a href="https://business.facebook.com/" target="_blank" class="btn btn-secondary btn-xs">💼 Business</a>
                                 </div>
 
+                                <div class="guide-toggle" onclick="this.nextElementSibling.classList.toggle('active'); this.classList.toggle('active')">
+                                    <span>⚙️ Setup Instructions</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
                                 <div class="setup-guide meta">
                                     <h4 class="guide-title">⚙️ Required App Settings:</h4>
                                     <div class="guide-content">
@@ -163,6 +167,10 @@ export const renderDashboard = (user: UserSession) => {
                                     <a href="https://business.facebook.com/wa/manage/phone-numbers/" target="_blank" class="btn btn-secondary btn-xs">📱 Manager</a>
                                     <a href="https://developers.facebook.com/apps/" target="_blank" class="btn btn-secondary btn-xs">⚙️ Developers</a>
                                 </div>
+                                <div class="guide-toggle" onclick="this.nextElementSibling.classList.toggle('active'); this.classList.toggle('active')">
+                                    <span>⚙️ Webhook Setup</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
                                 <div class="setup-guide wa">
                                     <h4 class="guide-title">⚙️ Webhook Setup:</h4>
                                     <div class="guide-content">
@@ -209,6 +217,10 @@ export const renderDashboard = (user: UserSession) => {
                             <div class="card-content">
                                 <div class="button-group">
                                     <a href="https://developers.line.biz/console/" target="_blank" class="btn btn-secondary btn-xs">📱 Developers Console</a>
+                                </div>
+                                <div class="guide-toggle" onclick="this.nextElementSibling.classList.toggle('active'); this.classList.toggle('active')">
+                                    <span>⚙️ Webhook Setup</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                 </div>
                                 <div class="setup-guide line">
                                     <h4 class="guide-title">⚙️ Webhook Setup:</h4>

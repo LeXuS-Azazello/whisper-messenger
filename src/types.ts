@@ -63,6 +63,7 @@ export interface Env {
   CF_ACCESS_CLIENT_SECRET?: string;
   MANAGER_SECRET?: string;
   MANAGER_URL?: string;
+  MANAGER_PUBLIC_URL?: string;
 }
 
 export interface HealthChecks {

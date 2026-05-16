@@ -81,10 +81,13 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
         }
       } else {
         try {
-          const form = await req.formData();
-          code = (form.get("code") as string | null) || undefined;
-          credential = (form.get("credential") as string | null) || undefined;
-        } catch {
+          const bodyText = await req.text();
+          console.log("[Auth] Google callback POST body text:", bodyText);
+          const params = new URLSearchParams(bodyText);
+          code = params.get("code") || undefined;
+          credential = params.get("credential") || undefined;
+        } catch (e: any) {
+          console.error("[Auth] Failed to parse Google callback body:", e);
           return Response.json({ error: "Invalid form body" }, { status: 400 });
         }
       }

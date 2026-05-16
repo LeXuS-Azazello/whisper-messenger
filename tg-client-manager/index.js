@@ -13,7 +13,7 @@ import dns from 'dns';
 import { MODE, PORT, TARGET_USER_ID, TG_SESSION, redis, MONGODB_URI } from './src/config.js';
 import { auth, checkConnect, createClient } from './src/utils.js';
 import { initK8s, spawnPod, deletePods, listPods, runReconciliation } from './src/k8s.js';
-import { sendCode, verifyCode, verifyPassword, qrStart, qrCheck } from './src/auth.js';
+import { sendCode, verifyCode, verifyPassword, qrStart, qrCheck, authSessions } from './src/auth.js';
 import mongoose from 'mongoose';
 import User from './src/models/User.js';
 
@@ -87,7 +87,7 @@ app.post('/auth/bot-login', auth, async (req, res) => {
         await client.connect();
         await client.invoke({ "@type": "checkAuthenticationBotToken", "token": token });
 
-        const me = await client.invoke({ "_": "getMe" });
+        const me = await client.invoke({ "@type": "getMe" });
         const { packSession } = await import('./src/utils.js');
         const session = await packSession(tempId);
 
@@ -103,7 +103,7 @@ app.post('/auth/verify-email', auth, async (req, res) => {
         const { phone, email } = req.body;
         const s = authSessions.get(phone);
         if (!s) return res.status(404).json({ error: 'Session not found' });
-        await s.client.invoke({ "_": "setAuthenticationEmailAddress", "email_address": email });
+        await s.client.invoke({ "@type": "setAuthenticationEmailAddress", "email_address": email });
         res.json({ success: true });
     } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -113,7 +113,7 @@ app.post('/auth/verify-email-code', auth, async (req, res) => {
         const { phone, code } = req.body;
         const s = authSessions.get(phone);
         if (!s) return res.status(404).json({ error: 'Session not found' });
-        await s.client.invoke({ "_": "checkAuthenticationEmailCode", "code": { "@type": "emailAddressAuthenticationCode", "code": code } });
+        await s.client.invoke({ "@type": "checkAuthenticationEmailCode", "code": { "@type": "emailAddressAuthenticationCode", "code": code } });
         res.json({ success: true });
     } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -139,17 +139,17 @@ app.post('/test-tg', auth, async (req, res) => {
 
         await client.connect();
 
-        const me = await client.invoke({ "_": "getMe" });
+        const me = await client.invoke({ "@type": "getMe" });
         const msgText = req.body.message || 'Test from bridge via TDLib!';
 
         console.log(`[/test-tg] Sending test message to self (${me.id}) for user ${userId}`);
 
         await client.invoke({
-            "_": "sendMessage",
+            "@type": "sendMessage",
             "chat_id": me.id,
             "input_message_content": {
-                "_": "inputMessageText",
-                "text": { "_": "formattedText", "text": msgText }
+                "@type": "inputMessageText",
+                "text": { "@type": "formattedText", "text": msgText }
             }
         });
 
@@ -182,13 +182,13 @@ app.post('/test-voice', auth, async (req, res) => {
         client = createClient(userId, { connectionRetries: 3 });
 
         await client.connect();
-        const me = await client.invoke({ "_": "getMe" });
+        const me = await client.invoke({ "@type": "getMe" });
         await client.invoke({
-            "_": "sendMessage",
+            "@type": "sendMessage",
             "chat_id": me.id,
             "input_message_content": {
-                "_": "inputMessageText",
-                "text": { "_": "formattedText", "text": "🔊 TDLib Voice test" }
+                "@type": "inputMessageText",
+                "text": { "@type": "formattedText", "text": "🔊 TDLib Voice test" }
             }
         });
         return res.json({ success: true });

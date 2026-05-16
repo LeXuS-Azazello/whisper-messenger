@@ -1,4 +1,5 @@
-import TdClient from './tdweb/index.js';
+import { Client as TdClient } from 'tdl';
+import { getTdlib } from 'prebuilt-tdlib';
 
 import AdmZip from 'adm-zip';
 import { API_ID, API_HASH, DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION, SECRET } from './config.js';
@@ -6,30 +7,17 @@ import net from 'net';
 import path from 'path';
 import fs from 'fs';
 
-let isTdlibConfigured = false;
-
 export function createClient(userId, options = {}) {
     const dbDir = path.join('/tmp/tdlib', String(userId || 'manager'));
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-    const client = new TdClient({
-        instanceName: String(userId || 'manager'),
-        onUpdate: options.onUpdate
+    const client = new TdClient(getTdlib(), {
+        apiId: Number(API_ID),
+        apiHash: API_HASH,
+        databaseDirectory: dbDir,
+        filesDirectory: path.join(dbDir, 'files'),
+        ...options
     });
-
-    // Compatibility shim for code expecting tdl-like interface
-    client.on = (event, callback) => {
-        if (event === 'update') {
-            client.options.onUpdate = callback;
-        }
-    };
-    client.connect = async () => {
-        // TDWeb handles connection during init in worker
-        return true;
-    };
-    client.close = async () => {
-        client.terminate();
-    };
 
     return client;
 }

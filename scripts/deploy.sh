@@ -18,7 +18,8 @@ echo ""
 # Load environment variables
 if [ -f .env ]; then
     export $(grep -v '^#' .env | xargs)
-    echo ">>> Creating/Updating whisper-messenger-env secret from .env..."
+    echo ">>> Recreating whisper-messenger-env secret from .env..."
+    kubectl delete secret whisper-messenger-env -n "$NAMESPACE" --ignore-not-found
     kubectl create secret generic whisper-messenger-env --from-env-file=.env -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 fi
 

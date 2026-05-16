@@ -11,7 +11,7 @@ export const authSessions = new Map();
 
 function getTdlibParams(dbDir) {
     return {
-        "_": "setTdlibParameters",
+        "@type": "setTdlibParameters",
         "parameters": {
             "database_directory": dbDir,
             "use_message_database": true,
@@ -62,33 +62,15 @@ export async function sendCode(req, res) {
         });
 
         client.on('update', async (update) => {
-            if (update['_'] !== 'updateAuthorizationState') return;
+            if (update['@type'] !== 'updateAuthorizationState') return;
             
             const state = update.authorization_state;
-            const type = state['_'] || state['@type'];
+            const type = state['@type'];
             console.log(`[/send-code] Auth state for ${phoneClean}: ${type}`);
 
             try {
-                if (type === 'authorizationStateWaitTdlibParameters') {
-                    client.send({
-                        "_": "setTdlibParameters",
-                        "parameters": {
-                            "database_directory": path.join('/tmp/tdlib', phoneClean),
-                            "use_message_database": true,
-                            "use_secret_chats": false,
-                            "api_id": Number(API_ID),
-                            "api_hash": API_HASH,
-                            "system_language_code": "en",
-                            "device_model": "Node.js TDLib Manager",
-                            "system_version": "Linux",
-                            "application_version": "1.0.0",
-                            "enable_storage_optimizer": true
-                        }
-                    });
-                } else if (type === 'authorizationStateWaitEncryptionKey') {
-                    await client.invoke({ "_": "checkDatabaseEncryptionKey", "encryption_key": "" });
-                } else if (type === 'authorizationStateWaitPhoneNumber') {
-                    await client.invoke({ "_": "setAuthenticationPhoneNumber", "phone_number": phoneClean });
+                if (type === 'authorizationStateWaitPhoneNumber') {
+                    await client.invoke({ "@type": "setAuthenticationPhoneNumber", "phone_number": phoneClean });
                 } else if (type === 'authorizationStateWaitCode') {
                     if (!session.responded) {
                         session.responded = true;
@@ -113,7 +95,7 @@ export async function sendCode(req, res) {
                         res.json({ success: true, requiresEmailCode: true });
                     }
                 } else if (type === 'authorizationStateReady') {
-                    const me = await client.invoke({ "_": "getMe" });
+                    const me = await client.invoke({ "@type": "getMe" });
                     session.user = me;
                     session.status = 'done';
                 } else if (type === 'authorizationStateClosing' || type === 'authorizationStateClosed' || type === 'authorizationStateLoggingOut') {
@@ -178,7 +160,7 @@ export async function verifyCode(req, res) {
         if (!s) return res.status(404).json({ error: 'Session not found' });
         
         console.log(`[/verify-code] Checking code for ${phone}`);
-        await s.client.invoke({ "_": "checkAuthenticationCode", "code": String(code) });
+        await s.client.invoke({ "@type": "checkAuthenticationCode", "code": String(code) });
         
         // Wait for ready state
         for (let i=0; i<20; i++) {
@@ -229,7 +211,7 @@ export async function verifyPassword(req, res) {
         const s = authSessions.get(phone);
         if (!s) return res.status(404).json({ error: 'Session not found' });
 
-        await s.client.invoke({ "_": "checkAuthenticationPassword", "password": password });
+        await s.client.invoke({ "@type": "checkAuthenticationPassword", "password": password });
         
         // Wait for ready
         for (let i=0; i<20; i++) {
@@ -270,39 +252,22 @@ export async function qrStart(req, res) {
         tempId = `qr-${Date.now()}`;
         client = createClient(tempId);
         const session = { client, status: 'connecting', id: tempId, createdAt: Date.now(), responded: false };
+        authSessions.set(tempId, session);
         
         client.on('error', (err) => {
             console.error(`[/qr-start] TDLib client error for ${tempId}:`, err);
         });
 
         client.on('update', async (update) => {
-            if (update['_'] !== 'updateAuthorizationState') return;
+            if (update['@type'] !== 'updateAuthorizationState') return;
 
             const state = update.authorization_state;
-            const type = state['_'] || state['@type'];
+            const type = state['@type'];
             console.log(`[/qr-start] Auth state for ${tempId}: ${type}`);
 
             try {
-                if (type === 'authorizationStateWaitTdlibParameters') {
-                    client.send({
-                        "_": "setTdlibParameters",
-                        "parameters": {
-                            "database_directory": path.join('/tmp/tdlib', tempId),
-                            "use_message_database": true,
-                            "use_secret_chats": false,
-                            "api_id": Number(API_ID),
-                            "api_hash": API_HASH,
-                            "system_language_code": "en",
-                            "device_model": "Node.js TDLib Manager",
-                            "system_version": "Linux",
-                            "application_version": "1.0.0",
-                            "enable_storage_optimizer": true
-                        }
-                    });
-                } else if (type === 'authorizationStateWaitEncryptionKey') {
-                    await client.invoke({ "_": "checkDatabaseEncryptionKey", "encryption_key": "" });
-                } else if (type === 'authorizationStateWaitPhoneNumber') {
-                    await client.invoke({ "_": "requestQrCodeAuthentication" });
+                if (type === 'authorizationStateWaitPhoneNumber') {
+                    await client.invoke({ "@type": "requestQrCodeAuthentication" });
                 } else if (type === 'authorizationStateWaitOtherDeviceConfirmation') {
                     console.log(`[/qr-start] QR Link received for ${tempId}: ${state.link}`);
                     session.qrUrl = state.link;
@@ -314,7 +279,7 @@ export async function qrStart(req, res) {
                     }
                     session.status = 'qr_ready';
                 } else if (type === 'authorizationStateReady') {
-                    const me = await client.invoke({ "_": "getMe" });
+                    const me = await client.invoke({ "@type": "getMe" });
                     session.user = me;
                     session.status = 'done';
                 } else if (type === 'authorizationStateClosing' || type === 'authorizationStateClosed') {
@@ -340,7 +305,6 @@ export async function qrStart(req, res) {
             return res.status(500).json({ error: 'QR timeout' });
         }
 
-        authSessions.set(tempId, session);
         res.json({ qrUrl: session.qrUrl, qrDataUrl: session.qrDataUrl, token: tempId });
     } catch (e) {
         if (client) try { await client.close(); } catch (err) { }

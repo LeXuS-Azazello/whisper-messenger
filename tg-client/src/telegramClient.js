@@ -1,4 +1,4 @@
-import TdClient from './tdweb/index.js';
+import { createClient } from './utils.js';
 import { 
     TARGET_USER_ID, TG_API_ID, TG_API_HASH, 
     OLLAMA_BASE_URL, WHISPER_TURBO_URL, WHISPER_PROVIDER,
@@ -13,7 +13,14 @@ let client = null;
 const filePromises = new Map();
 
 function logUpdate(update) {
-    // console.log('[tg-client] UPDATE:', JSON.stringify(update, null, 1));
+    if (update['@type'] === 'updateFile') {
+        const file = update.file;
+        if (file.local.is_completed && filePromises.has(file.id)) {
+            const { resolve } = filePromises.get(file.id);
+            filePromises.delete(file.id);
+            resolve(file);
+        }
+    }
 }
 
 function logError(err, context = '') {
@@ -36,14 +43,24 @@ async function transcribeAudio(audioBuffer, mimeType) {
     formData.append('model', model);
     formData.append('language', 'auto');
 
-    const response = await fetch(`${url}/v1/audio/transcriptions`, {
-        method: 'POST',
-        body: formData
-    });
+    try {
+        const response = await fetch(`${url}/v1/audio/transcriptions`, {
+            method: 'POST',
+            body: formData,
+            signal: AbortSignal.timeout(60000) // 60s timeout
+        });
 
-    if (!response.ok) throw new Error(`Transcriber error (${response.status}): ${await response.text()}`);
-    const data = await response.json();
-    return data.text || data.transcription || '';
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Transcriber error (${response.status}): ${errorText}`);
+        }
+        
+        const data = await response.json();
+        return data.text || data.transcription || '';
+    } catch (e) {
+        console.error(`[tg-client] Transcription failed: ${e.message}`);
+        throw e;
+    }
 }
 
 async function handleNewMessage(message) {
@@ -68,7 +85,7 @@ async function handleNewMessage(message) {
         try {
             // 1. Download file
             console.log(`[tg-client] ⏳ Downloading file ${file_id}...`);
-            const file = await client.invoke({
+            let file = await client.invoke({
                 '@type': 'downloadFile',
                 file_id: file_id,
                 priority: 1,
@@ -79,7 +96,16 @@ async function handleNewMessage(message) {
 
             if (!file.local.is_completed) {
                 console.log(`[tg-client] ⏳ Waiting for file ${file_id} to complete...`);
-                // Wait for updateFile (simplified for now as we use synchronous: true)
+                file = await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        filePromises.delete(file_id);
+                        reject(new Error('File download timed out'));
+                    }, 30000);
+                    filePromises.set(file_id, { resolve: (f) => {
+                        clearTimeout(timeout);
+                        resolve(f);
+                    }, reject });
+                });
             }
 
             const localPath = file.local.path;
@@ -115,6 +141,8 @@ async function handleNewMessage(message) {
                     headers: { 'Content-Type': 'application/json', 'x-manager-secret': secret },
                     body: JSON.stringify({ userId: TARGET_USER_ID, secret })
                 }).catch(e => console.error('[tg-client] Failed to update stats:', e.message));
+            } else {
+                console.log('[tg-client] ⚠️ Empty transcription, skipping reply');
             }
 
         } catch (e) {
@@ -128,54 +156,37 @@ export async function startUserClient() {
 
     console.log(`[tg-client] Initializing user client for ${TARGET_USER_ID}...`);
 
-    client = new TdClient({
-        onUpdate: (update) => {
-            logUpdate(update);
-            if (update['@type'] === 'updateNewMessage') {
-                handleNewMessage(update.message);
-            }
-        },
-        instanceName: `user_${TARGET_USER_ID}`,
-        useDatabase: true
+    if (TG_SESSION && TG_SESSION.length > 100) {
+        console.log(`[tg-client] 📦 Found session in environment, unpacking...`);
+        const { unpackSession } = await import('./utils.js');
+        unpackSession(TARGET_USER_ID, TG_SESSION);
+    }
+
+    client = createClient(TARGET_USER_ID);
+
+    client.on('update', (update) => {
+        logUpdate(update);
+        if (update['@type'] === 'updateNewMessage') {
+            handleNewMessage(update.message);
+        }
     });
 
-    client.onError = (err) => {
+    client.on('error', (err) => {
         logError(err, 'TDLib');
-    };
-
-    const dbDir = `/tmp/tdlib/user_${TARGET_USER_ID}`;
-    if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
-
-    await client.invoke({
-        '@type': 'setTdlibParameters',
-        database_directory: dbDir,
-        files_directory: `${dbDir}/files`,
-        use_file_database: true,
-        use_chat_info_database: true,
-        use_message_database: true,
-        use_secret_chats: false,
-        api_id: TG_API_ID,
-        api_hash: TG_API_HASH,
-        system_language_code: 'en',
-        device_model: DEVICE_MODEL,
-        application_version: APP_VERSION,
-        system_version: SYSTEM_VERSION,
-        enable_storage_optimizer: true
     });
 
-    console.log(`[tg-client] Waiting for authorization state...`);
-    // Session should be already unpacked to dbDir by manager or restore logic
-    // We just wait for auth state to become ready
+    console.log(`[tg-client] Connecting to TDLib...`);
+    await client.connect();
+    console.log(`[tg-client] Connected! Waiting for messages...`);
 }
 
 export async function startTelegramClient() {
-    // This is the debug/console-only mode used in some scripts
     await startUserClient();
 }
 
 export function stopTelegramClient() {
     if (client) {
-        client.terminate();
+        client.close();
         client = null;
     }
 }
