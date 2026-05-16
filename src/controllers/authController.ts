@@ -251,7 +251,7 @@ export async function handleEmailVerify(env: Env, token: string | null, url: URL
   );
 
   const publicOrigin = getPublicOrigin(env, url.origin);
-  return new Response(renderAuthPage(undefined, false, publicOrigin, 'verified'), {
+  return new Response(renderAuthPage(undefined, false, publicOrigin, 'verified', env.GOOGLE_CLIENT_ID), {
     headers: { "Content-Type": "text/html; charset=utf-8" }
   });
 }

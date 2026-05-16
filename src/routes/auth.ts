@@ -47,7 +47,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
   const successType = url.searchParams.get('success');
   if (method === 'GET' && successType) {
-      return new Response(renderAuthPage(undefined, false, publicOrigin, successType), {
+      return new Response(renderAuthPage(undefined, false, publicOrigin, successType, env.GOOGLE_CLIENT_ID), {
           headers: { "Content-Type": "text/html; charset=utf-8" }
       });
   }
@@ -59,7 +59,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
             headers: { "Location": "/dashboard" }
         });
     }
-    return new Response(renderAuthPage(undefined, false, publicOrigin), {
+    return new Response(renderAuthPage(undefined, false, publicOrigin, undefined, env.GOOGLE_CLIENT_ID), {
         headers: { "Content-Type": "text/html; charset=utf-8" }
     });
   }

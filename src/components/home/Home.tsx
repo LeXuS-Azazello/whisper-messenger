@@ -69,19 +69,16 @@ export const renderHome = (googleClientId: string, origin: string) => {
                                 </div>
                                 <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large"></div>
 
-                                {/* Telegram QR Login - pure tdweb */}
-                                <button id="qr-login-btn" class="btn-telegram" style={{ marginTop: '8px', background: '#229ED9', color: 'white', width: '100%' }}>
-                                    Login with Telegram QR Code
-                                </button>
-
-                                {/* Restore existing session (same device) */}
-                                <button id="restore-session-btn" class="btn-telegram" style={{ marginTop: '8px', background: '#0f766e', color: 'white', width: '100%', fontSize: '14px' }}>
-                                    Restore Session (already logged in)
-                                </button>
-
-                                <div id="qr-container" style={{ display: 'none', textAlign: 'center', marginTop: '16px' }}>
-                                    <img id="qr-img" alt="Telegram QR" style={{ width: '220px', height: '220px', borderRadius: '12px' }} />
+                            <div class="google-btn-wrapper" style={{ flexDirection: 'column', gap: '15px' }}>
+                                <div id="g_id_onload"
+                                    data-client_id={googleClientId}
+                                    data-context="signin"
+                                    data-ux_mode="redirect"
+                                    data-login_uri={`${origin}/auth/google/callback`}
+                                    data-auto_prompt="false">
                                 </div>
+                                <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large"></div>
+                            </div>
                             </div>
                         </div>
 

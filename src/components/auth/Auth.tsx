@@ -7,7 +7,7 @@ interface Message {
     text: string;
 }
 
-export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin?: string, successMessage?: string) => {
+export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin?: string, successMessage?: string, googleClientId?: string) => {
     if (isAuthenticated) {
         return "<!DOCTYPE html>" + render(
             <html lang="en">
@@ -144,7 +144,7 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
                 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet" />
                 <link rel="stylesheet" href="/assets/css/auth.css" />
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+                <script src="https://accounts.google.com/gsi/client" async defer></script>
             </head>
             <body class="auth-page">
                 <div class="login-container">
@@ -176,111 +176,20 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                         )}
 
                         <div id="auth-flow">
-                            {/* Step 1: Simple Telegram Connection */}
-                            <div id="simple-start-section" class="auth-section active">
-                                <div style={{ fontSize: '48px', marginBottom: '1rem', textAlign: 'center' }}>🚀</div>
-                                <h3 style={{ textAlign: 'center', marginBottom: '0.75rem', fontSize: '1.25rem' }}>One-Click Connection</h3>
-                                <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.938rem', marginBottom: '1.5rem', lineHeight: '1.5' }}>
-                                    We'll open your Telegram app to authorize the connection securely.
-                                </p>
-                                <button class="btn btn-telegram" id="tg-simple-connect-btn" style={{ height: '56px', fontSize: '1.125rem', fontWeight: '700' }}>
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-                                    </svg>
-                                    Connect Telegram Now
-                                </button>
-
-                                <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-                                    <button id="show-manual-btn" style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '0.875rem', cursor: 'pointer', textDecoration: 'underline' }}>
-                                        Use phone number or QR code instead
-                                    </button>
+                            {/* Google Authentication Section */}
+                            <div id="google-auth-section" style={{ textAlign: 'center', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <div id="g_id_onload"
+                                    data-client_id={googleClientId}
+                                    data-context="signin"
+                                    data-ux_mode="redirect"
+                                    data-login_uri={`${origin}/auth/google/callback`}
+                                    data-auto_prompt="false">
                                 </div>
-                            </div>
-
-                            {/* Phone Number Section */}
-                            <div id="phone-section" class="auth-section">
-                                <div class="input-group">
-                                    <label class="input-label">Phone Number</label>
-                                    <input type="tel" id="tg-phone-input" class="input-field" placeholder="+66 85 093 2800" autoComplete="tel" />
-                                </div>
-                                <button class="btn btn-telegram" id="tg-send-code-btn">
-                                    <span class="btn-text">Send Verification Code</span>
-                                </button>
-                                <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-                                    <button id="back-to-simple-btn" class="btn-secondary" style={{ background: 'none', border: 'none', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
-                                        ← Back
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Verification Code Section */}
-                            <div id="code-section" class="auth-section">
-                                <div class="input-group">
-                                    <label class="input-label">Verification Code</label>
-                                    <input type="text" id="tg-code-input" class="input-field" placeholder="Enter 5-digit code" autoComplete="one-time-code" maxLength={5} />
-                                </div>
-                                <button class="btn btn-success" id="tg-verify-btn">
-                                    <span class="btn-text">Confirm & Connect</span>
-                                </button>
-                                <p style={{ fontSize: '0.813rem', marginTop: '0.75rem', color: 'var(--text-dim)', textAlign: 'center' }}>
-                                    Check your Telegram app for the verification code.
-                                </p>
-                                <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-                                    <button id="back-to-phone-btn" class="btn-secondary" style={{ background: 'none', border: 'none', padding: '0.5rem 1rem', fontSize: '0.875rem' }}>
-                                        ← Use different number
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Password Section (2FA) */}
-                            <div id="password-section" class="auth-section">
-                                <div class="input-group">
-                                    <label class="input-label">Two-Factor Authentication</label>
-                                    <div class="input-wrapper">
-                                        <input type="password" id="tg-password-input" class="input-field" placeholder="Your 2FA password" autoComplete="current-password" />
-                                    </div>
-                                </div>
-                                <button class="btn" id="tg-password-btn">
-                                    <span class="btn-text">Unlock Account</span>
-                                </button>
-                                <p style={{ fontSize: '0.813rem', marginTop: '0.75rem', color: 'var(--text-dim)', textAlign: 'center' }}>
-                                    Your account is protected with Two-Factor Authentication.
-                                </p>
-                            </div>
-
-                            {/* QR Code Section */}
-                            <div id="qr-section" class="auth-section" style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-                                <div class="qr-container">
-                                    <div id="qr-code-container" style={{ marginBottom: '1rem' }}></div>
-                                    <p style={{ fontSize: '0.813rem', color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
-                                        Scan with Telegram app: Settings → Devices → Scan QR
-                                    </p>
-                                    <a id="tg-app-link" href="#" target="_blank" rel="noopener" class="tg-app-link" style={{ display: 'none' }}>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M22 2L11 13"></path>
-                                            <path d="M22 2l-7 20-4-9-9-4 20-7z"></path>
-                                        </svg>
-                                        Open Telegram App
-                                    </a>
-                                </div>
-                                <p id="qr-status" style={{ fontSize: '0.938rem', fontWeight: '500', color: 'var(--primary)' }}>Initializing QR code...</p>
+                                <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="outline" data-size="large" data-logo_alignment="left" style={{ width: '100%' }}></div>
                             </div>
 
                             {/* Divider */}
                             <div class="section-divider">OR</div>
-
-                            {/* Google Authentication Section */}
-                            <div id="google-auth-section" style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                                <a href="/auth/google/callback" class="btn btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'white', color: '#1f2937', border: '1px solid #e5e7eb' }}>
-                                    <svg width="20" height="20" viewBox="0 0 48 48">
-                                        <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
-                                        <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
-                                        <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z" />
-                                        <path fill="#1976D2" d="M43.611,20.083L43.611,20.083L42,20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
-                                    </svg>
-                                    Continue with Google
-                                </a>
-                            </div>
 
                             {/* Email Authentication Section */}
                             <div id="email-auth-section" class="auth-section active" style={{ textAlign: 'center' }}>
@@ -383,33 +292,6 @@ export const renderAuthPage = (error?: string, isAuthenticated?: boolean, origin
                                 <button class="btn btn-success" id="reset-password-btn">
                                     <span class="btn-text">Reset Password</span>
                                 </button>
-                            </div>
-
-                            {/* QR Button (from manual flow) */}
-                            <div style={{ marginTop: '1.5rem' }}>
-                                <button class="btn btn-secondary" id="tg-show-qr-btn" style={{ width: '100%' }}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
-                                        <rect x="3" y="3" width="7" height="7"></rect>
-                                        <rect x="14" y="3" width="7" height="7"></rect>
-                                        <rect x="14" y="14" width="7" height="7"></rect>
-                                        <rect x="3" y="14" width="7" height="7"></rect>
-                                    </svg>
-                                    Login with QR Code
-                                </button>
-                            </div>
-
-                        </div>
-
-                        {/* Success Message (for Telegram connection) */}
-                        <div id="success-message" style={{ display: 'none' }}>
-                            <div class="success-view">
-                                <div class="success-icon">
-                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="20 6 9 17 4 12"></polyline>
-                                    </svg>
-                                </div>
-                                <h3>Successfully Connected!</h3>
-                                <p>Your account is now connected. You'll be redirected to your dashboard shortly.</p>
                             </div>
                         </div>
                     </div>
