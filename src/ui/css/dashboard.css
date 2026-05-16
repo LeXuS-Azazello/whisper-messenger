@@ -236,6 +236,49 @@ header {
     width: auto;
 }
 
+/* Input Fields */
+.input-group {
+    margin-bottom: 1.25rem;
+}
+
+.input-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.input-field {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    color: var(--text-main);
+    font-size: 1rem;
+    font-family: inherit;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+}
+
+.input-field:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.input-field::placeholder {
+    color: var(--text-dim);
+    opacity: 0.7;
+}
+
+.input-field.error {
+    border-color: var(--danger);
+}
+
 /* List Items */
 .config-list {
     list-style: none;
@@ -322,6 +365,8 @@ header {
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     transform: scale(0.95) translateY(10px);
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .modal-overlay.active .modal-content {
@@ -579,6 +624,7 @@ header {
 .bridge-details {
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .bridge-label {
@@ -591,6 +637,9 @@ header {
     font-size: 1rem;
     font-weight: 700;
     color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .bridge-status {
@@ -956,6 +1005,7 @@ header {
         margin: 1rem;
         width: calc(100% - 2rem);
         max-height: 85vh;
+        overflow-y: auto;
         border-radius: 20px;
     }
 
