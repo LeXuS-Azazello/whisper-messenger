@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Basic elements
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalOverlay = document.getElementById('tg-modal-overlay');
     const modalClose = document.getElementById('tg-modal-close');
     const openModalBtn = document.getElementById('open-tg-modal-btn');
-    
+
     // Steps
     const steps = {
         choice: document.getElementById('tg-step-1'),
@@ -59,12 +59,22 @@ document.addEventListener('DOMContentLoaded', function() {
     if (modalClose) {
         modalClose.addEventListener('click', closeModal);
     }
-    
+
+    // Quick Connect buttons
+    document.getElementById('quick-qr-btn')?.addEventListener('click', () => {
+        openModal();
+        document.getElementById('choose-qr-btn')?.click();
+    });
+    document.getElementById('quick-bot-btn')?.addEventListener('click', () => {
+        openModal();
+        document.getElementById('choose-bot-btn')?.click();
+    });
+
     // Choice selection
     document.getElementById('choose-qr-btn')?.addEventListener('click', () => {
         showStep('loading');
         document.getElementById('loading-text').innerText = 'Generating QR Code...';
-        
+
         fetch('/auth/qr-start', { method: 'POST' })
             .then(r => r.json())
             .then(data => {
@@ -127,15 +137,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Phone Auth
     const sendCodeBtn = document.getElementById('modal-send-code-btn');
     const phoneInput = document.getElementById('modal-tg-phone');
-    
+
     if (sendCodeBtn) {
         sendCodeBtn.onclick = () => {
             const phone = phoneInput.value.trim();
             if (!phone) return alert('Please enter phone number');
-            
+
             showStep('loading');
             document.getElementById('loading-text').innerText = 'Sending code...';
-            
+
             fetch('/auth/send-code', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone })
@@ -157,15 +167,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const verifyCodeBtn = document.getElementById('modal-verify-code-btn');
     const codeInput = document.getElementById('modal-tg-code');
-    
+
     if (verifyCodeBtn) {
         verifyCodeBtn.onclick = () => {
             const code = codeInput.value.trim();
             if (!code) return alert('Enter code');
-            
+
             showStep('loading');
             document.getElementById('loading-text').innerText = 'Verifying...';
-            
+
             fetch('/auth/verify-code', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: currentPhone, code })
@@ -189,15 +199,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const verifyPasswordBtn = document.getElementById('modal-verify-password-btn');
     const passwordInput = document.getElementById('modal-tg-password');
-    
+
     if (verifyPasswordBtn) {
         verifyPasswordBtn.onclick = () => {
             const password = passwordInput.value.trim();
             if (!password) return alert('Enter password');
-            
+
             showStep('loading');
             document.getElementById('loading-text').innerText = 'Checking password...';
-            
+
             fetch('/auth/verify-password', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone: currentPhone, password })
@@ -263,7 +273,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function startQrPolling(token) {
         stopQrPolling();
-        
+
         qrTimeoutId = setTimeout(() => {
             stopQrPolling();
             alert('QR code expired');
@@ -347,9 +357,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('save-wa-btn')?.addEventListener('click', () => {
         fetch('/dashboard/save-wa', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                whatsappToken: document.getElementById('wa-token').value, 
-                whatsappPhoneId: document.getElementById('wa-phone-id').value 
+            body: JSON.stringify({
+                whatsappToken: document.getElementById('wa-token').value,
+                whatsappPhoneId: document.getElementById('wa-phone-id').value
             })
         }).then(() => location.reload());
     });

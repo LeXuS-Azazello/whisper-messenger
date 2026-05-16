@@ -190,9 +190,9 @@ export async function handleRestartTg(env: Env, userId: string, user: UserSessio
   return Response.json(data, { status: res.status });
 }
 
-export function showDashboard(user: UserSession): Response {
+export function showDashboard(user: UserSession, env: Env): Response {
     try {
-        const html = renderDashboard(user);
+        const html = renderDashboard(user, env.TELEGRAM_BOT_USERNAME);
         return new Response(html, { headers: { 
             "Content-Type": "text/html; charset=utf-8",
             "Cross-Origin-Opener-Policy": "same-origin-allow-popups"

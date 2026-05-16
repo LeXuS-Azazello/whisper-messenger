@@ -17,7 +17,7 @@ export async function handleTelegramSendCode(env: Env, req: Request): Promise<Re
   const secret = (env.MANAGER_SECRET || "changeme").trim();
 
   console.log(`[Auth] Proxied /send-code to ${managerUrl}/send-code`);
-  const managerRes = await fetch(`${managerUrl}/send-code?secret=${secret}`, {
+  const managerRes = await fetch(`${managerUrl}/auth/send-code?secret=${secret}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -40,7 +40,7 @@ export async function handleTelegramVerifyCode(env: Env, req: Request, currentUs
   const managerUrl = getManagerUrl(env);
   const secret = (env.MANAGER_SECRET || "changeme").trim();
 
-  const managerRes = await fetch(`${managerUrl}/verify-code?secret=${secret}`, {
+  const managerRes = await fetch(`${managerUrl}/auth/verify-code?secret=${secret}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -110,7 +110,7 @@ export async function handleTelegramVerifyPassword(env: Env, req: Request, curre
   const managerUrl = getManagerUrl(env);
   const secret = (env.MANAGER_SECRET || "changeme").trim();
 
-  const managerRes = await fetch(`${managerUrl}/verify-password?secret=${secret}`, {
+  const managerRes = await fetch(`${managerUrl}/auth/verify-password?secret=${secret}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -171,7 +171,7 @@ export async function handleTelegramVerifyPassword(env: Env, req: Request, curre
   const respBody = await managerRes.clone().arrayBuffer();
   const headers: Record<string, string> = {};
   managerRes.headers.forEach((value, key) => { headers[key] = value; });
-  return new Response(body, { status: managerRes.status, statusText: managerRes.statusText, headers });
+  return new Response(respBody, { status: managerRes.status, statusText: managerRes.statusText, headers });
 }
 
 // Stubs for removed flows
@@ -193,7 +193,7 @@ export async function handleTelegramQrStart(env: Env): Promise<Response> {
   const secret = (env.MANAGER_SECRET || "changeme").trim();
 
   console.log(`[Auth] Proxied /qr-start to ${managerUrl}/qr-start`);
-  const managerRes = await fetch(`${managerUrl}/qr-start?secret=${secret}`, {
+  const managerRes = await fetch(`${managerUrl}/auth/qr-start?secret=${secret}`, {
     method: "POST",
     headers: { "x-manager-secret": secret }
   });
@@ -211,7 +211,7 @@ export async function handleTelegramQrCheck(env: Env, token: string | null, curr
   const secret = (env.MANAGER_SECRET || "changeme").trim();
   const managerUrl = getManagerUrl(env);
 
-  const managerRes = await fetch(`${managerUrl}/qr-check?token=${token}&secret=${secret}${currentUserId ? `&userId=${currentUserId}` : ''}`, {
+  const managerRes = await fetch(`${managerUrl}/auth/qr-check?token=${token}&secret=${secret}${currentUserId ? `&userId=${currentUserId}` : ''}`, {
     headers: { "x-manager-secret": secret }
   });
 
@@ -278,44 +278,10 @@ export async function handleTelegramVerifyEmail(env: Env, req: Request): Promise
   const managerUrl = getManagerUrl(env);
   const secret = (env.MANAGER_SECRET || "changeme").trim();
 
-  return await fetch(`${managerUrl}/verify-email?secret=${secret}`, {
+  return await fetch(`${managerUrl}/auth/verify-email?secret=${secret}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-manager-secret": secret },
     body: JSON.stringify({ phone, email })
   });
 }
 
-export async function handleTelegramBotLogin(env: Env, req: Request, currentUserId: string | null, ctx: any): Promise<Response> {
-  const { token } = await req.json() as any;
-  const managerUrl = getManagerUrl(env);
-  const secret = (env.MANAGER_SECRET || "changeme").trim();
-
-  const managerRes = await fetch(`${managerUrl}/bot-login?secret=${secret}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-manager-secret": secret },
-    body: JSON.stringify({ token, userId: currentUserId })
-  });
-
-  if (managerRes.ok) {
-    const data = await managerRes.clone().json() as ManagerUserData;
-    if (data.success && data.session) {
-      const userId = currentUserId || data.userId || `bot_${data.session.substring(0, 8)}`;
-      await User.findOneAndUpdate({ userId }, { userId, firstName: data.firstName || "Telegram Bot" }, { upsert: true });
-      await MessengerSession.findOneAndUpdate({ userId, platform: "telegram", identifier: userId }, { userId, platform: "telegram", identifier: userId, sessionData: data.session, isActive: true }, { upsert: true });
-      await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
-      
-      ctx.waitUntil(fetch(`${managerUrl}/spawn`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-manager-secret': secret },
-        body: JSON.stringify({ userId, session: data.session })
-      }).catch((e: any) => console.error("[Auth] Bot spawn error:", e)));
-
-      if (!currentUserId) return await createSessionResponse(userId, env, true);
-    }
-  }
-
-  const body = await managerRes.clone().arrayBuffer();
-  const headers: Record<string, string> = {};
-  managerRes.headers.forEach((value, key) => { headers[key] = value; });
-  return new Response(body, { status: managerRes.status, statusText: managerRes.statusText, headers });
-}

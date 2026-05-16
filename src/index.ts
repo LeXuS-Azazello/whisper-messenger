@@ -262,7 +262,7 @@ export default {
           }
         }
         
-        return new Response(renderHome(env.GOOGLE_CLIENT_ID || "", publicOrigin), {
+        return new Response(renderHome(env.GOOGLE_CLIENT_ID || "", publicOrigin, env.TELEGRAM_BOT_USERNAME), {
           headers: { "Content-Type": "text/html; charset=utf-8" }
         });
       }

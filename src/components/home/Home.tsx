@@ -17,11 +17,11 @@ export const renderHome = (googleClientId: string, origin: string) => {
                 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
                 <script src="https://accounts.google.com/gsi/client" async defer></script>
                 <script type="importmap" dangerouslySetInnerHTML={{
-                  __html: JSON.stringify({
-                    imports: {
-                      "tdweb": "https://unpkg.com/tdweb@1.8.0/dist/tdweb.js"
-                    }
-                  })
+                    __html: JSON.stringify({
+                        imports: {
+                            "tdweb": "https://unpkg.com/tdweb@1.8.0/dist/tdweb.js"
+                        }
+                    })
                 }} />
             </head>
             <body>
@@ -41,25 +41,25 @@ export const renderHome = (googleClientId: string, origin: string) => {
                                 <MailIcon size={18} color="rgba(255,255,255,0.4)" />
                                 <input type="email" id="email-input" class="styled-input" placeholder="Email address" />
                             </div>
-                            
-                            <div class="email-input-wrapper" id="password-wrapper" style={{ marginTop: '12px' }}>
-                                <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }}>
+
+                             <div class="email-input-wrapper" id="password-wrapper">
+                                <div class="input-icon">
                                     <LockIcon size={18} color="rgba(255,255,255,0.4)" />
                                 </div>
                                 <input type="password" id="password-input" class="styled-input" placeholder="Password" />
                             </div>
 
-                            <button class="btn-primary" id="login-btn" style={{ marginTop: '16px' }}>
+                            <button class="btn-primary" id="login-btn">
                                 Sign In
                             </button>
-                            
+
                             <div id="status-msg" class="status-msg"></div>
 
                             <div class="divider">
                                 <span>OR CONTINUE WITH</span>
                             </div>
 
-                            <div class="google-btn-wrapper" style={{ flexDirection: 'column', gap: '15px' }}>
+                            <div class="google-btn-wrapper">
                                 <div id="g_id_onload"
                                     data-client_id={googleClientId}
                                     data-context="signin"
@@ -68,23 +68,12 @@ export const renderHome = (googleClientId: string, origin: string) => {
                                     data-auto_prompt="false">
                                 </div>
                                 <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large"></div>
-
-                            <div class="google-btn-wrapper" style={{ flexDirection: 'column', gap: '15px' }}>
-                                <div id="g_id_onload"
-                                    data-client_id={googleClientId}
-                                    data-context="signin"
-                                    data-ux_mode="redirect"
-                                    data-login_uri={`${origin}/auth/google/callback`}
-                                    data-auto_prompt="false">
-                                </div>
-                                <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large"></div>
-                            </div>
                             </div>
                         </div>
 
-                        <div class="footer-links" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
+                        <div class="footer-links">
                             <a href="/auth?action=forgot" class="link" id="forgot-pass-btn">Forgot password?</a>
-                            <a href="/auth?action=register" class="link" id="register-btn" style={{ fontWeight: '600', color: 'var(--primary)' }}>Create account</a>
+                            <a href="/auth?action=register" class="link" id="register-btn" style={{ fontWeight: '600' }}>Create account</a>
                         </div>
                     </div>
 

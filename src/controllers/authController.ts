@@ -514,6 +514,7 @@ export async function handleThreadsCallback(env: Env, code: string, userId: stri
   return Response.redirect(`${publicOrigin}/dashboard`, 302);
 }
 
+
 export function handleLogout(): Response {
   return new Response("Redirect", { status: 302, headers: { "Location": "/", "Set-Cookie": "session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT" } });
 }

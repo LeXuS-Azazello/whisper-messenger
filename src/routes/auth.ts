@@ -21,24 +21,22 @@ import {
   handleTelegramVerifyPassword,
   handleTelegramQrStart,
   handleTelegramQrCheck,
-  handleTelegramVerifyEmail,
-  handleTelegramBotLogin
+  handleTelegramVerifyEmail
 } from "../controllers/telegramAuthController";
 
 export async function handlePublicAuth(env: Env, req: Request, currentUserId: string | null, ctx: { waitUntil: (p: Promise<any>) => void }): Promise<Response> {
   const url = new URL(req.url);
   const method = req.method;
   const publicOrigin = getPublicOrigin(env, url.origin);
-  
+
   // Normalize pathname: remove trailing slash and ensure it starts with /auth for internal logic
   let pathname = url.pathname;
   if (pathname !== "/" && pathname.endsWith("/")) {
     pathname = pathname.slice(0, -1);
   }
-  
+
   // If the path doesn't start with /auth, but it's one of our known routes, add the prefix for matching
   const knownRoutes = [
-    "/send-code", "/verify-code", "/verify-password", "/qr-start", "/qr-check", 
     "/login", "/register", "/logout", "/email/send", "/email/verify", "/forgot-password", "/reset-password"
   ];
   if (knownRoutes.includes(pathname)) {
@@ -47,20 +45,20 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
   const successType = url.searchParams.get('success');
   if (method === 'GET' && successType) {
-      return new Response(renderAuthPage(undefined, false, publicOrigin, successType, env.GOOGLE_CLIENT_ID), {
-          headers: { "Content-Type": "text/html; charset=utf-8" }
-      });
+    return new Response(renderAuthPage(undefined, false, publicOrigin, successType, env.GOOGLE_CLIENT_ID), {
+      headers: { "Content-Type": "text/html; charset=utf-8" }
+    });
   }
 
   if (method === "GET" && (pathname === "/auth" || pathname === "/auth/reset-password")) {
     if (currentUserId) {
-        return new Response(null, {
-            status: 302,
-            headers: { "Location": "/dashboard" }
-        });
+      return new Response(null, {
+        status: 302,
+        headers: { "Location": "/dashboard" }
+      });
     }
     return new Response(renderAuthPage(undefined, false, publicOrigin, undefined, env.GOOGLE_CLIENT_ID), {
-        headers: { "Content-Type": "text/html; charset=utf-8" }
+      headers: { "Content-Type": "text/html; charset=utf-8" }
     });
   }
 
@@ -200,13 +198,11 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     return await handleTelegramVerifyEmail(env, req);
   }
 
-  if (pathname === "/auth/bot-login") {
-    return await handleTelegramBotLogin(env, req, currentUserId, ctx);
-  }
 
   if (pathname === "/auth/logout") {
     return handleLogout();
   }
 
-  return new Response("Not found", { status: 404 });
+
+  return new Response(`Not found: ${pathname}`, { status: 404 });
 }
