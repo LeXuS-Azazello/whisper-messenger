@@ -70,21 +70,8 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
             return await getTgStatus(env);
         }
 
-        if (method === "POST" && pathname === "/admin/tg-send-code") {
-            return await tgSendCode(env, req);
-        }
-
-        if (method === "POST" && pathname === "/admin/tg-verify-code") {
-            return await tgVerifyCode(env, req);
-        }
-
-        if (method === "POST" && pathname === "/admin/tg-qr-login") {
-            return await tgQrLogin(env);
-        }
-
-        if (method === "GET" && pathname === "/admin/tg-qr-check") {
-            return await tgQrCheck(env, url.searchParams.get("token"));
-        }
+        // All Telegram auth (QR, phone code, etc.) moved to pure tdweb in browser.
+        // Only tg-client-manager orchestration remains.
 
         if (method === "POST" && pathname === "/admin/tg-test-msg") {
             return await tgTestMsg(env, req);

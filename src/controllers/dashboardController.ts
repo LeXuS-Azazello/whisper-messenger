@@ -191,8 +191,17 @@ export async function handleRestartTg(env: Env, userId: string, user: UserSessio
 }
 
 export function showDashboard(user: UserSession): Response {
-    return new Response(renderDashboard(user), { headers: { 
-        "Content-Type": "text/html; charset=utf-8",
-        "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
-    } });
+    try {
+        const html = renderDashboard(user);
+        return new Response(html, { headers: { 
+            "Content-Type": "text/html; charset=utf-8",
+            "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
+        } });
+    } catch (e: any) {
+        console.error("[Dashboard] Rendering failed:", e);
+        return new Response(`<html><body><h1>Dashboard Error</h1><p>${e.message}</p><a href="/">Back to Home</a></body></html>`, {
+            status: 500,
+            headers: { "Content-Type": "text/html; charset=utf-8" }
+        });
+    }
 }

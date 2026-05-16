@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - frontend.yaml
+  - frontend-network-policy.yaml
   - redis.yaml
   - mongodb.yaml
   - network-policy.yaml
@@ -12,20 +13,7 @@ resources:
   - tg-bot-test.yaml
   - whisper-turbo.yaml
   - voicemsg-cf.yaml
-
-  # - cert-manager.yaml
-  - grafana.yaml
-  - prometheus.yaml
-  - static.yaml
-  - grafana-ingress.yaml
   - rbac.yaml
-  - ingress.yaml
-  - ingress-nginx.yaml
-
-secretGenerator:
-- name: grafana-basic-auth
-  files:
-    - auth
 
 images:
   - name: mongo
@@ -34,27 +22,8 @@ images:
   - name: redis
     newName: harbor.dev.takatan.cloud/devcenter/redis
     newTag: 7-alpine
-  - name: prom/prometheus
-    newName: harbor.dev.takatan.cloud/devcenter/prometheus
-    newTag: latest
-  - name: fluent/fluentd
-    newName: harbor.dev.takatan.cloud/devcenter/fluentd
-    newTag: v1.16
-  - name: ollama/ollama
-    newName: harbor.dev.takatan.cloud/devcenter/ollama
-    newTag: latest
-  - name: grafana/grafana
-    newName: harbor.dev.takatan.cloud/devcenter/grafana
-    newTag: latest
-  - name: registry.k8s.io/ingress-nginx/controller
-    newName: harbor.dev.takatan.cloud/devcenter/ingress-nginx-controller
-    newTag: v1.15.1
   - name: qwenllm/qwen3-asr
     newName: harbor.dev.takatan.cloud/devcenter/qwen3-asr
     newTag: latest
-  - name: nginx
-
-    newName: harbor.dev.takatan.cloud/devcenter/nginx
-    newTag: alpine
 
 namespace: debugging-testcrash-pub

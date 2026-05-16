@@ -454,7 +454,7 @@ export const renderDashboard = (user: UserSession) => {
                     </div>
                 </div>
 
-                <script src="/assets/js/dashboard.js"></script>
+                <script type="module" src="/assets/js/dashboard.js"></script>
             </body>
         </html>
     );

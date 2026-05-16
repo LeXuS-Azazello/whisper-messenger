@@ -102,12 +102,20 @@ spec:
           set -e
           echo "Starting qwen3-asr pod..."
           # Install system dependencies for audio processing
-          apt-get update && apt-get install -y libsndfile1 ffmpeg --no-install-recommends
+          # Use persistent location for packages
+          export PYTHONUSERBASE=/root/.cache/python_packages
+          export PATH=$PYTHONUSERBASE/bin:$PATH
+
+          # Install dependencies only if not present
+          if ! python3 -c "import torch" 2>/dev/null; then
+            echo "Installing heavy dependencies (torch, torchaudio)..."
+            pip install --user torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          fi
           
-          # Install dependencies (will be cached in /root/.cache/pip via PVC)
-          pip install --upgrade pip
-          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install qwen-asr python-multipart uvicorn fastapi
+          if ! python3 -c "import qwen_asr" 2>/dev/null; then
+            echo "Installing ASR dependencies..."
+            pip install --user qwen-asr python-multipart uvicorn fastapi
+          fi
           
           # Run the server
           python3 /app/cpu_serve.py
@@ -141,6 +149,8 @@ spec:
           value: "info"
         - name: HF_HOME
           value: "/root/.cache/huggingface"
+        - name: PYTHONUSERBASE
+          value: "/root/.cache/python_packages"
         resources:
           requests:
             cpu: "4000m"

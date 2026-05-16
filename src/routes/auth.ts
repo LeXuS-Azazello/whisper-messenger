@@ -1,6 +1,7 @@
 import { Env } from "../types";
 import { renderAuthPage } from "../components/auth/Auth";
 import {
+  getPublicOrigin,
   handleGoogleCallback,
   handleEmailSend,
   handleEmailVerify,
@@ -12,8 +13,7 @@ import {
   handleMetaCallback,
   handleThreadsLogin,
   handleThreadsCallback,
-  handleLogout,
-  getPublicOrigin
+  handleLogout
 } from "../controllers/authController";
 import {
   handleTelegramSendCode,
@@ -175,32 +175,32 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     return await handleThreadsCallback(env, code, userId, url);
   }
 
-  if (method === "POST" && pathname === "/auth/send-code") {
-    return await handleTelegramSendCode(env, req);
-  }
-
-  if (method === "POST" && pathname === "/auth/verify-code") {
-    return await handleTelegramVerifyCode(env, req, currentUserId, url, ctx);
-  }
-
-  if (method === "POST" && pathname === "/auth/verify-password") {
-    return await handleTelegramVerifyPassword(env, req, currentUserId, url, ctx);
-  }
-
-  if (method === "POST" && pathname === "/auth/qr-start") {
+  if (pathname === "/auth/qr-start") {
     return await handleTelegramQrStart(env);
   }
 
-  if (method === "GET" && pathname === "/auth/qr-check") {
+  if (pathname === "/auth/qr-check") {
     const token = url.searchParams.get("token");
     return await handleTelegramQrCheck(env, token, currentUserId, url, ctx);
   }
 
-  if (method === "POST" && pathname === "/auth/verify-email") {
+  if (pathname === "/auth/send-code") {
+    return await handleTelegramSendCode(env, req);
+  }
+
+  if (pathname === "/auth/verify-code") {
+    return await handleTelegramVerifyCode(env, req, currentUserId, url, ctx);
+  }
+
+  if (pathname === "/auth/verify-password") {
+    return await handleTelegramVerifyPassword(env, req, currentUserId, url, ctx);
+  }
+
+  if (pathname === "/auth/verify-email") {
     return await handleTelegramVerifyEmail(env, req);
   }
 
-  if (method === "POST" && pathname === "/auth/bot-login") {
+  if (pathname === "/auth/bot-login") {
     return await handleTelegramBotLogin(env, req, currentUserId, ctx);
   }
 

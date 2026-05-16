@@ -171,8 +171,22 @@ export async function handleTelegramVerifyPassword(env: Env, req: Request, curre
   const respBody = await managerRes.clone().arrayBuffer();
   const headers: Record<string, string> = {};
   managerRes.headers.forEach((value, key) => { headers[key] = value; });
-  return new Response(respBody, { status: managerRes.status, statusText: managerRes.statusText, headers });
+  return new Response(body, { status: managerRes.status, statusText: managerRes.statusText, headers });
 }
+
+// Stubs for removed flows
+export async function handleGoogleCallback(): Promise<Response> { return new Response("Moved", { status: 410 }); }
+export async function handleEmailSend(): Promise<Response> { return new Response("Moved", { status: 410 }); }
+export async function handleEmailVerify(): Promise<Response> { return new Response("Moved", { status: 410 }); }
+export async function handleRegister(): Promise<Response> { return new Response("Moved", { status: 410 }); }
+export async function handleLogin(): Promise<Response> { return new Response("Moved", { status: 410 }); }
+export async function handleForgotPassword(): Promise<Response> { return new Response("Moved", { status: 410 }); }
+export async function handleResetPassword(): Promise<Response> { return new Response("Moved", { status: 410 }); }
+export async function handleThreadsLogin(): Promise<Response> { return new Response("Moved", { status: 410 }); }
+export async function handleThreadsCallback(): Promise<Response> { return new Response("Moved", { status: 410 }); }
+export async function handleLogout(): Promise<Response> { return new Response("Moved", { status: 410 }); }
+export async function handleMetaLogin(): Promise<Response> { return new Response("Moved", { status: 410 }); }
+export async function handleMetaCallback(): Promise<Response> { return new Response("Moved", { status: 410 }); }
 
 export async function handleTelegramQrStart(env: Env): Promise<Response> {
   const managerUrl = getManagerUrl(env);

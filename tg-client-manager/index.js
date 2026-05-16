@@ -56,7 +56,7 @@ app.get('/kv/:key', auth, async (req, res) => {
         const val = await redis.get(req.params.key);
         if (val === null) return res.status(404).send('Not found');
         res.send(val);
-    } catch(e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/kv/:key', auth, async (req, res) => {
@@ -64,33 +64,33 @@ app.post('/kv/:key', auth, async (req, res) => {
         const val = typeof req.body.value === 'string' ? req.body.value : JSON.stringify(req.body.value);
         await redis.set(req.params.key, val);
         res.json({ success: true });
-    } catch(e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.delete('/kv/:key', auth, async (req, res) => {
     try {
         await redis.del(req.params.key);
         res.json({ success: true });
-    } catch(e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/send-code', auth, sendCode);
-app.post('/verify-code', auth, verifyCode);
-app.post('/verify-password', auth, verifyPassword);
-app.post('/qr-start', auth, qrStart);
-app.get('/qr-check', auth, qrCheck);
-app.post('/bot-login', auth, async (req, res) => {
+app.post('/auth/send-code', auth, sendCode);
+app.post('/auth/verify-code', auth, verifyCode);
+app.post('/auth/verify-password', auth, verifyPassword);
+app.post('/auth/qr-start', auth, qrStart);
+app.get('/auth/qr-check', auth, qrCheck);
+app.post('/auth/bot-login', auth, async (req, res) => {
     try {
         const { token, userId } = req.body;
         const tempId = userId || `bot_temp_${Date.now()}`;
         const client = createClient(tempId);
         await client.connect();
         await client.invoke({ "@type": "checkAuthenticationBotToken", "token": token });
-        
-        const me = await client.invoke({ "@type": "getMe" });
+
+        const me = await client.invoke({ "_": "getMe" });
         const { packSession } = await import('./src/utils.js');
         const session = await packSession(tempId);
-        
+
         await client.close();
         res.json({ success: true, session, userId: String(me.id), firstName: me.first_name });
     } catch (e) {
@@ -98,7 +98,7 @@ app.post('/bot-login', auth, async (req, res) => {
     }
 });
 
-app.post('/verify-email', auth, async (req, res) => {
+app.post('/auth/verify-email', auth, async (req, res) => {
     try {
         const { phone, email } = req.body;
         const s = authSessions.get(phone);
@@ -108,7 +108,7 @@ app.post('/verify-email', auth, async (req, res) => {
     } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.post('/verify-email-code', auth, async (req, res) => {
+app.post('/auth/verify-email-code', auth, async (req, res) => {
     try {
         const { phone, code } = req.body;
         const s = authSessions.get(phone);
@@ -124,12 +124,12 @@ app.post('/test-tg', auth, async (req, res) => {
     try {
         const userId = req.body.userId || TARGET_USER_ID;
         if (!userId) return res.status(400).json({ success: false, error: 'No userId' });
-        
+
         console.log(`[/test-tg] Starting TDLib test for ${userId}...`);
-        
+
         const { unpackSession } = await import('./src/utils.js');
         let sessionBase64 = req.body.session || await redis.get(`tg_session_${userId}`);
-        
+
         if (sessionBase64 && sessionBase64.length > 100) {
             console.log(`[/test-tg] Restoring session (length: ${sessionBase64.length}) for ${userId}`);
             unpackSession(userId, sessionBase64);
@@ -138,10 +138,10 @@ app.post('/test-tg', auth, async (req, res) => {
         client = createClient(userId, { connectionRetries: 1 });
 
         await client.connect();
-        
+
         const me = await client.invoke({ "_": "getMe" });
         const msgText = req.body.message || 'Test from bridge via TDLib!';
-        
+
         console.log(`[/test-tg] Sending test message to self (${me.id}) for user ${userId}`);
 
         await client.invoke({
@@ -152,7 +152,7 @@ app.post('/test-tg', auth, async (req, res) => {
                 "text": { "_": "formattedText", "text": msgText }
             }
         });
-        
+
         const duration = Date.now() - start;
         return res.json({ success: true, duration, me });
     } catch (e) {
@@ -161,7 +161,7 @@ app.post('/test-tg', auth, async (req, res) => {
     } finally {
         if (client) {
             console.log(`[/test-tg] Closing test client for ${req.body.userId || TARGET_USER_ID}`);
-            try { await client.close(); } catch (e) {}
+            try { await client.close(); } catch (e) { }
         }
     }
 });
@@ -197,7 +197,7 @@ app.post('/test-voice', auth, async (req, res) => {
     } finally {
         if (client) {
             console.log(`[/test-voice] Closing test client for ${req.body.userId || TARGET_USER_ID}`);
-            try { await client.close(); } catch (e) {}
+            try { await client.close(); } catch (e) { }
         }
     }
 });
@@ -206,7 +206,7 @@ app.post('/spawn', auth, async (req, res) => {
     try {
         const podName = await spawnPod(req.body.userId, req.body.session);
         res.json({ success: true, podName });
-    } catch(err) {
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
@@ -223,11 +223,11 @@ app.post('/delete', auth, async (req, res) => {
 
         // 2. Delete from Redis
         await redis.del(`tg_session_${userId}`);
-        
+
         // 3. Update MongoDB
-        await User.findOneAndUpdate({ userId: String(userId) }, { 
+        await User.findOneAndUpdate({ userId: String(userId) }, {
             $unset: { tgSession: "" },
-            isActive: false 
+            isActive: false
         });
 
         // 4. Delete from local filesystem
@@ -238,7 +238,7 @@ app.post('/delete', auth, async (req, res) => {
         }
 
         res.json({ success: true });
-    } catch(e) {
+    } catch (e) {
         console.error(`[/delete] Error:`, e.message);
         res.status(500).json({ error: e.message });
     }
@@ -249,7 +249,7 @@ app.get('/pods', auth, async (req, res) => {
     try {
         const statuses = await listPods();
         res.json(statuses);
-    } catch(e) {
+    } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
@@ -276,14 +276,14 @@ app.post('/internal/stats', auth, async (req, res) => {
 
         await User.findOneAndUpdate(
             { userId: String(userId) },
-            { 
+            {
                 $inc: { transcriptionCount: 1 },
                 lastActiveAt: new Date()
             },
             { upsert: true }
         );
         res.json({ success: true });
-    } catch(e) {
+    } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
@@ -295,7 +295,7 @@ app.post('/internal/access-revoked', auth, async (req, res) => {
         await deletePods(userId);
         await User.findOneAndUpdate({ userId: String(userId) }, { isActive: false });
         res.json({ success: true });
-    } catch(e) {
+    } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
@@ -303,7 +303,7 @@ app.post('/internal/access-revoked', auth, async (req, res) => {
 app.post('/ollama-pull', auth, async (req, res) => {
     const { url, model } = req.body;
     if (!url || !model) return res.status(400).json({ error: "Missing url or model" });
-    
+
     fetch(`${url}/api/pull`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: model, stream: false })

@@ -1,0 +1,10 @@
+node_modules
+.cache
+models
+*.bin
+*.onnx
+*.pt
+dist
+session.json
+tdlib_session
+tdlib_db

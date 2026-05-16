@@ -56,32 +56,25 @@ if [[ -n "${HARBOR_USER:-}" && -n "${HARBOR_PASS:-}" ]]; then
     IMAGES_TO_MIRROR=(
         "mongo:latest"
         "redis:7-alpine"
-        "prom/prometheus:latest"
-        "fluent/fluentd:v1.16"
         "python:3.12-slim"
-        "grafana/grafana:latest"
-
-        "registry.k8s.io/ingress-nginx/controller:v1.15.1"
-        "nginx:alpine"
     )
     
     for IMG in "${IMAGES_TO_MIRROR[@]}"; do
-        # Extract name and tag
-        case "$IMG" in
-            registry.k8s.io/ingress-nginx/controller:*)
-                NAME="ingress-nginx-controller"
-                TAG_PART="${IMG#*:}"
-                ;;
-            *)
-                # Get base name without prefix
-                BASE=$(echo "$IMG" | awk -F'/' '{print $NF}')
-                NAME="${BASE%:*}"
-                TAG_PART="${BASE#*:}"
-                [[ "$NAME" == "$TAG_PART" ]] && TAG_PART="latest"
-                ;;
-        esac
+        # Get base name without prefix
+        BASE=$(echo "$IMG" | awk -F'/' '{print $NF}')
+        NAME="${BASE%:*}"
+        TAG_PART="${BASE#*:}"
+        [[ "$NAME" == "$TAG_PART" ]] && TAG_PART="latest"
+    
         
         TARGET="${REPO}/${NAME}:${TAG_PART}"
+        
+        # Skip mirroring if already exists (to save bandwidth)
+        if docker manifest inspect "$TARGET" >/dev/null 2>&1; then
+            echo ">>> Image $TARGET already exists in Harbor, skipping mirror."
+            continue
+        fi
+
         echo "Mirroring $IMG -> $TARGET"
         for i in {1..3}; do
             docker pull "$IMG" && break || echo "Failed to pull $IMG, retrying ($i/3)..."
@@ -118,8 +111,8 @@ docker push "$TG_CLIENT_IMAGE"
 docker push "${REPO}/whisper-tg-client:latest"
 echo ""
 
-# Single kustomize apply covers: frontend, redis, network-policy,
-# bridge manager (with RBAC), qwen3-asr, ingress, ingress-nginx, tg-client
+# Single kustomize apply covers: frontend, redis, mongodb, tg-client-manager,
+# tg-client, qwen3-asr, ingress, ingress-nginx, monitoring
 echo ">>> Applying base resources via kustomize..."
 kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || echo "Warning: Some resources failed to apply (likely RBAC restrictions). Proceeding to update images..."
 echo ""
@@ -129,7 +122,6 @@ echo ">>> Updating image tags in Deployments..."
 kubectl set image deployment/echo-frontend frontend="$FRONTEND_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/tg-client-manager manager="$MANAGER_IMAGE" -n "$NAMESPACE"
 kubectl set env deployment/tg-client-manager TG_CLIENT_IMAGE="$TG_CLIENT_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/echo-static build-assets="$FRONTEND_IMAGE" -n "$NAMESPACE"
 echo ""
 
 
@@ -150,4 +142,3 @@ echo "========================================"
 echo ""
 echo "Endpoints:"
 echo "  https://voicemsg.net         -> Frontend"
-echo "  https://grafana.voicemsg.net -> Grafana Dashboard"

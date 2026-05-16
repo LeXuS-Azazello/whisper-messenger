@@ -141,6 +141,68 @@ export async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
     return users;
 }
 
+    const users: UserSession[] = [];
+    const userConfigs = await Promise.all(userIds.map(async (id) => {
+        const metaStr = await env.STATS.get(`user_meta_${id}`);
+        if (!metaStr) return null;
+        try {
+            const meta = JSON.parse(metaStr) as UserSession;
+            const session = await env.STATS.get(`tg_session_${id}`);
+            meta.tgAuthenticated = !!session;
+            return meta;
+        } catch (e) {
+            return null;
+        }
+    }));
+
+    userConfigs.forEach(u => { if (u) users.push(u); });
+
+    // Do not use fetch to manager for pod status in this critical path anymore.
+    // If needed, we can switch to Redis-based status later.
+    // For now we just mark everything as unknown to avoid blocking the admin page.
+    users.forEach(user => {
+        if (user.isActive === undefined) {
+            user.isActive = false;
+            user.currentStatus = 'unknown';
+        }
+    });
+    
+    return users;
+}
+
+    const users: UserSession[] = [];
+    const userConfigs = await Promise.all(userIds.map(async (id) => {
+        const metaStr = await env.STATS.get(`user_meta_${id}`);
+        if (!metaStr) return null;
+        try {
+            const meta = JSON.parse(metaStr) as UserSession;
+            const session = await env.STATS.get(`tg_session_${id}`);
+            meta.tgAuthenticated = !!session;
+            return meta;
+        } catch (e) {
+            return null;
+        }
+    }));
+    
+    userConfigs.forEach(u => { if (u) users.push(u); });
+    
+    // Do not use fetch to manager for pod status in this critical path anymore.
+    // If needed, we can switch to Redis-based status later.
+    // For now we just mark everything as unknown to avoid blocking the admin page.
+    users.forEach(user => {
+        if (user.isActive === undefined) {
+            user.isActive = false;
+            user.currentStatus = 'unknown';
+        }
+    });
+    } catch (e) {
+        console.warn("[Admin] Failed to fetch pod statuses:", e);
+        users.forEach(user => {
+            user.isActive = false;
+            user.currentStatus = 'Unknown';
+        });
+    }
+
 export async function adminLogin(env: Env, req: Request): Promise<Response> {
     const formData = await req.formData();
     const password = formData.get("password")?.toString();

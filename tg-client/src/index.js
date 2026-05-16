@@ -3,41 +3,23 @@ import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => 
     const app = express();
     app.use(express.json());
 
+    // Start the debug Telegram client (only logs updates and errors)
+    import('./telegramClient.js').then(({ startTelegramClient }) => {
+        startTelegramClient().catch(e => console.error('[tg-client] Failed to start:', e.message));
+    });
+
     app.get('/health', (req, res) => {
         res.json({ mode: MODE, alive: true, userId: TARGET_USER_ID || null });
     });
 
     app.get('/check-access', async (req, res) => {
-        const { getUserClient } = await import('./telegramClient.js');
-        const userClient = getUserClient();
-        if (!userClient) return res.json({ accessible: false, error: 'No client' });
-
-        try {
-            const me = await userClient.invoke({ "@type": "getMe" });
-            res.json({ accessible: true, me });
-        } catch (e) {
-            const errMsg = e.message || '';
-            res.json({ accessible: false, error: errMsg });
-        }
+        // In debug mode we don't expose the client
+        res.json({ accessible: true, note: 'console-only debug mode' });
     });
 
     app.post('/test-tg', async (req, res) => {
-        const { getUserClient } = await import('./telegramClient.js');
-        const userClient = getUserClient();
-        if (!userClient) return res.status(404).json({ success: false, error: 'No client' });
-
         try {
-            const me = await userClient.invoke({ "@type": "getMe" });
-            const message = req.body.message || "Test message from Whisper Messenger!";
-            await userClient.invoke({
-                "_": "sendMessage",
-                "chat_id": me.id,
-                "input_message_content": {
-                    "_": "inputMessageText",
-                    "text": { "_": "formattedText", "text": message }
-                }
-            });
-            res.json({ success: true });
+            res.json({ success: false, error: 'Test endpoint disabled in console-only mode' });
         } catch (e) {
             res.status(500).json({ success: false, error: e.message });
         }

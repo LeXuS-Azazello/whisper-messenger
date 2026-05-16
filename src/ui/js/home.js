@@ -1,59 +1,116 @@
-document.addEventListener('DOMContentLoaded', function() {
-    var sendBtn = document.getElementById('send-link-btn');
-    var emailInput = document.getElementById('email-input');
-    var statusMsg = document.getElementById('status-msg');
-    var authView = document.getElementById('auth-view');
-    var successView = document.getElementById('success-view');
+import { getTdClient, startQrLogin, tryRestoreSession, closeTdClient } from './tdlib.js';
 
-    // Check for existing session
-    var sessionMatch = document.cookie.match(/session=([^;]+)/);
+document.addEventListener('DOMContentLoaded', function () {
+    const sessionMatch = document.cookie.match(/session=([^;]+)/);
     if (sessionMatch) {
         window.location.href = '/dashboard';
         return;
     }
 
-    // The forgot password and register buttons are now links to /auth with action params
+    const qrBtn = document.getElementById('qr-login-btn');
+    const restoreBtn = document.getElementById('restore-session-btn');
+    const qrContainer = document.getElementById('qr-container');
+    const qrImg = document.getElementById('qr-img');
+    const statusMsg = document.getElementById('status-msg');
 
-    var loginBtn = document.getElementById('login-btn');
-    var passwordInput = document.getElementById('password-input');
+    // QR Code login
+    if (qrBtn) {
+        qrBtn.onclick = async () => {
+            qrBtn.disabled = true;
+            qrBtn.innerText = 'Connecting to Telegram...';
+            statusMsg.innerText = '';
 
-    if (loginBtn) {
-        loginBtn.onclick = () => {
-            var email = emailInput ? emailInput.value.trim() : '';
-            var password = passwordInput ? passwordInput.value.trim() : '';
-            
-            if (!email || !email.includes('@')) return alert('Please enter a valid email address');
-            if (!password) return alert('Please enter your password');
-            
-            loginBtn.disabled = true;
-            loginBtn.innerText = 'Signing in...';
-            
-            fetch('/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email, password: password })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    window.location.href = '/dashboard';
-                } else {
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Sign In';
-                    if (statusMsg) {
-                        statusMsg.innerText = 'Error: ' + data.error;
-                        statusMsg.style.color = '#ef4444';
+            try {
+                const client = getTdClient(async (update) => {
+                    if (update['@type'] === 'updateAuthorizationState') {
+                        const state = update.authorization_state;
+                        const type = state['@type'] || state['_'];
+
+                        console.log('[home] Auth state update:', type);
+
+                        // States where we can request QR code
+                        const canRequestQR = [
+                            'authorizationStateWaitPhoneNumber',
+                            'authorizationStateWaitPremiumPurchase',
+                            'authorizationStateWaitEmailAddress',
+                            'authorizationStateWaitEmailCode',
+                            'authorizationStateWaitCode',
+                            'authorizationStateWaitRegistration',
+                            'authorizationStateWaitPassword'
+                        ].includes(type);
+
+                        if (canRequestQR) {
+                            const { requestQR } = await import('./tdlib.js');
+                            requestQR(client).catch(err => {
+                                console.error('[home] Failed to request QR:', err);
+                            });
+                        }
+
+                        if (type === 'authorizationStateWaitOtherDeviceConfirmation') {
+                            const link = state.link;
+                            qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(link)}`;
+                            qrContainer.style.display = 'block';
+                            statusMsg.innerText = 'Scan this QR code with your Telegram app';
+                            qrBtn.innerText = 'Login with Telegram QR Code';
+                        }
+
+                        if (type === 'authorizationStateReady') {
+                            statusMsg.innerText = 'Login successful!';
+                            setTimeout(() => window.location.href = '/dashboard', 600);
+                            closeTdClient();
+                        }
+
+                        if (type === 'authorizationStateWaitPassword') {
+                            statusMsg.innerText = '2FA password required (please check your phone)';
+                        }
+
+                        if (type === 'authorizationStateWaitEmailAddress' || type === 'authorizationStateWaitEmailCode') {
+                            statusMsg.innerText = 'Email verification required';
+                        }
                     }
-                }
-            })
-            .catch(err => {
-                loginBtn.disabled = false;
-                loginBtn.innerText = 'Sign In';
-                if (statusMsg) {
-                    statusMsg.innerText = 'Network error. Please try again.';
-                    statusMsg.style.color = '#ef4444';
-                }
-            });
+                });
+
+                await startQrLogin();
+            } catch (e) {
+                statusMsg.innerText = 'Error: ' + e.message;
+                qrBtn.disabled = false;
+                qrBtn.innerText = 'Login with QR Code';
+            }
+        };
+    }
+
+    // Restore Session (existing logged-in device)
+    if (restoreBtn) {
+        restoreBtn.onclick = async () => {
+            restoreBtn.disabled = true;
+            restoreBtn.innerText = 'Checking session...';
+            statusMsg.innerText = '';
+
+            try {
+                const client = getTdClient((update) => {
+                    if (update['@type'] === 'updateAuthorizationState') {
+                        const type = update.authorization_state['@type'];
+
+                        if (type === 'authorizationStateReady') {
+                            statusMsg.innerText = 'Session restored! Redirecting...';
+                            setTimeout(() => window.location.href = '/dashboard', 500);
+                            closeTdClient();
+                        }
+
+                        if (type === 'authorizationStateWaitPhoneNumber') {
+                            statusMsg.innerText = 'No saved session found. Use QR code instead.';
+                            restoreBtn.disabled = false;
+                            restoreBtn.innerText = 'Restore Session';
+                        }
+                    }
+                });
+
+                await tryRestoreSession();
+            } catch (e) {
+                statusMsg.innerText = 'No session found: ' + e.message;
+                restoreBtn.disabled = false;
+                restoreBtn.innerText = 'Restore Session';
+            }
         };
     }
 });

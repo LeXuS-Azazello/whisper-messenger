@@ -11,6 +11,7 @@
     "strict": true,
     "noEmit": false,
     "outDir": "dist",
+    "rootDir": "src",
     "isolatedModules": true,
     "skipLibCheck": true,
     "esModuleInterop": true,

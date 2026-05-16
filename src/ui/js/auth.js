@@ -131,58 +131,13 @@ document.addEventListener('DOMContentLoaded', function() {
         return { level: 'strong', text: 'Strong' };
     }
 
-    // Telegram Simple Connect
-    if (simpleConnectBtn) {
-        simpleConnectBtn.addEventListener('click', function() {
-            this.disabled = true;
-            this.innerHTML = '<span class="loading-spinner"></span> Initializing...';
+    // Telegram auth is now handled via tdweb QR code on the main landing page (/).
+    // This page is only for email/password and other platform linking.
 
-            fetch('/auth/qr-start', { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.qrUrl) {
-                        currentQrToken = data.token;
-                        startQrPolling(data.token);
-
-                        // Redirect to Telegram
-                        window.location.href = data.qrUrl;
-
-                        // Also show QR as backup
-                        setTimeout(() => {
-                            if (qrSection) qrSection.style.display = 'block';
-                            qrCodeContainer.innerHTML = '';
-                            if (data.qrDataUrl) {
-                                qrCodeContainer.innerHTML = `<img src="${data.qrDataUrl}" width="200" height="200" />`;
-                            } else if (window.QRCode) {
-                                new QRCode(qrCodeContainer, {
-                                    text: data.qrUrl,
-                                    width: 200,
-                                    height: 200
-                                });
-                            }
-                            simpleConnectBtn.innerText = 'Check your Telegram app';
-                        }, 2000);
-                    } else {
-                        throw new Error('Failed to get QR code');
-                    }
-                })
-                .catch(err => {
-                    console.error('QR start error:', err);
-                    showMessage('error', 'Failed to initialize Telegram connection. Please try again.', 'auth-flow');
-                    simpleConnectBtn.disabled = false;
-                    simpleConnectBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg> Connect Telegram Now';
-                });
-        });
-    }
-
-    // Manual phone auth flow
-    if (manualBtn) {
-        manualBtn.addEventListener('click', () => {
-            simpleStartSection.style.display = 'none';
-            showSection('phone-section');
-            if (tgShowQrBtn) tgShowQrBtn.style.display = 'block';
-            clearMessages();
-        });
+    // All Telegram authentication (QR code, phone, 2FA) has been moved to pure tdweb.
+    // It is now performed on the main landing page using TdClient from tdweb.
+    // This page (/auth) is only for email/password accounts and linking other platforms.
+});
     }
 
     if (backToSimpleBtn) {

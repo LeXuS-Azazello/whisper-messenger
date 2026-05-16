@@ -8,7 +8,8 @@ class TdWorker {
         const wasmPath = options.wasmPath || path.resolve('node_modules/tdweb/dist/3dee0f934ca1a5946a253599e3e442c6.wasm');
         const jsGluePath = options.jsGluePath || path.resolve('node_modules/tdweb/dist/tdweb.js');
         global.self = global; global.window = global; global.navigator = { userAgent: 'Node.js' };
-        const { default: createTdwebModule } = await import(jsGluePath);
+        const tdwebModule = await import(jsGluePath);
+        const createTdwebModule = tdwebModule.default || tdwebModule;
         this.module = await createTdwebModule({
             instantiateWasm: (imports, successCallback) => {
                 instantiateAny(1, wasmPath, imports).then(instance => successCallback(instance));

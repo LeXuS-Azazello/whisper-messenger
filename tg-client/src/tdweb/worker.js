@@ -29,7 +29,8 @@ class TdWorker {
         global.window = global;
         global.navigator = { userAgent: 'Node.js' };
         
-        const { default: createTdwebModule } = await import(jsGluePath);
+        const tdwebModule = await import(jsGluePath);
+        const createTdwebModule = tdwebModule.default || tdwebModule;
         
         this.module = await createTdwebModule({
             instantiateWasm: (imports, successCallback) => {

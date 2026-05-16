@@ -16,6 +16,13 @@ export const renderHome = (googleClientId: string, origin: string) => {
                 <link rel="stylesheet" href="/assets/css/home.css" />
                 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
                 <script src="https://accounts.google.com/gsi/client" async defer></script>
+                <script type="importmap" dangerouslySetInnerHTML={{
+                  __html: JSON.stringify({
+                    imports: {
+                      "tdweb": "https://unpkg.com/tdweb@1.8.0/dist/tdweb.js"
+                    }
+                  })
+                }} />
             </head>
             <body>
                 <div class="bg-glow"></div>
@@ -61,6 +68,20 @@ export const renderHome = (googleClientId: string, origin: string) => {
                                     data-auto_prompt="false">
                                 </div>
                                 <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large"></div>
+
+                                {/* Telegram QR Login - pure tdweb */}
+                                <button id="qr-login-btn" class="btn-telegram" style={{ marginTop: '8px', background: '#229ED9', color: 'white', width: '100%' }}>
+                                    Login with Telegram QR Code
+                                </button>
+
+                                {/* Restore existing session (same device) */}
+                                <button id="restore-session-btn" class="btn-telegram" style={{ marginTop: '8px', background: '#0f766e', color: 'white', width: '100%', fontSize: '14px' }}>
+                                    Restore Session (already logged in)
+                                </button>
+
+                                <div id="qr-container" style={{ display: 'none', textAlign: 'center', marginTop: '16px' }}>
+                                    <img id="qr-img" alt="Telegram QR" style={{ width: '220px', height: '220px', borderRadius: '12px' }} />
+                                </div>
                             </div>
                         </div>
 
@@ -80,7 +101,7 @@ export const renderHome = (googleClientId: string, origin: string) => {
                     </div>
                 </div>
 
-                <script src="/assets/js/home.js"></script>
+                <script type="module" src="/assets/js/home.js"></script>
             </body>
         </html>
     );

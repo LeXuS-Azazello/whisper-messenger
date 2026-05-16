@@ -3,10 +3,11 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "start": "node --watch --conditions=worker src/index.ts",
+    "start": "npx tsx watch src/server.ts",
     "dev": "npx tsx src/server.ts",
     "test": "npx vitest run",
     "build": "esbuild src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --packages=external --sourcemap",
+    "build:ui": "echo 'UI assets are served directly from src/ui'",
     "deploy:k8s": "bash scripts/deploy.sh"
   },
   "type": "module",
