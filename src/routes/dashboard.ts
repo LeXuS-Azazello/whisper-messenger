@@ -8,7 +8,9 @@ import {
   handleTestTg,
   handleRestartTg,
   showDashboard,
-  incrementUserStats
+  incrementUserStats,
+  handleChangePassword,
+  handleDeleteAccount
 } from "../controllers/dashboardController";
 
 export { incrementUserStats };
@@ -58,7 +60,8 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
           lineToken: dbUser.lineToken,
           lineSecret: dbUser.lineSecret,
           threadsToken: dbUser.threadsToken,
-          threadsUserId: dbUser.threadsUserId
+          threadsUserId: dbUser.threadsUserId,
+          passwordHash: dbUser.passwordHash
         };
 
 
@@ -126,6 +129,12 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
     }
     if (pathname === "/dashboard/restart-tg" || pathname === "/dashboard/") {
       return await handleRestartTg(env, userId, user);
+    }
+    if (pathname === "/dashboard/profile/change-password") {
+      return await handleChangePassword(env, req, userId);
+    }
+    if (pathname === "/dashboard/profile/delete-account") {
+      return await handleDeleteAccount(env, req, userId);
     }
 
     return new Response(`Not found: ${pathname}`, { status: 404 });

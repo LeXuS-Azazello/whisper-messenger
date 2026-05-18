@@ -106,7 +106,8 @@ async function sendEmailMailChannelsFallback(env: Env, to: string, subject: stri
 
 export async function createSessionResponse(userId: string, env: Env, returnJson: boolean = false): Promise<Response> {
   const signedSession = await createSignedSession(userId, env.SESSION_SECRET || "default_session_secret");
-  const cookie = `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${SESSION_MAX_AGE}`;
+  const isSecure = (env.WORKER_URL || "").trim().startsWith("https://");
+  const cookie = `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax;${isSecure ? " Secure;" : ""} Max-Age=${SESSION_MAX_AGE}`;
 
   try {
     await env.STATS.put(`tg_session_${userId}`, signedSession, { expirationTtl: SESSION_MAX_AGE });
@@ -231,7 +232,9 @@ export async function handleGoogleCallback(
         userId, 
         firstName: givenName, 
         username: name,
-        email: email
+        email: email,
+        emailVerified: true,
+        isActive: true
       },
       { upsert: true }
     );

@@ -371,4 +371,180 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('connect-threads-btn')?.addEventListener('click', () => {
         location.href = '/auth/threads/login';
     });
+
+    // Tab Switching Logic
+    const tabButtons = document.querySelectorAll('.nav-item, .bottom-nav-item');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    const sectionTitle = document.getElementById('current-section-title');
+    const sectionSubtitle = document.getElementById('current-section-subtitle');
+
+    const tabMeta = {
+        connections: {
+            title: 'Connections',
+            subtitle: 'Manage your linked accounts and messaging channels'
+        },
+        stats: {
+            title: 'Statistics',
+            subtitle: 'Real-time overview of your voice message transcriptions'
+        },
+        profile: {
+            title: 'Profile Settings',
+            subtitle: 'Update your password and manage account security'
+        },
+        referrals: {
+            title: 'Referrals Program',
+            subtitle: 'Invite your colleagues and earn recurring commission'
+        },
+        billing: {
+            title: 'Plan & Billing',
+            subtitle: 'Check your active package and billing invoices'
+        }
+    };
+
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetTab = btn.getAttribute('data-tab');
+            if (!targetTab) return;
+
+            // Update active states on buttons
+            tabButtons.forEach(b => {
+                if (b.getAttribute('data-tab') === targetTab) {
+                    b.classList.add('active');
+                } else {
+                    b.classList.remove('active');
+                }
+            });
+
+            // Update active states on panes
+            tabPanes.forEach(pane => {
+                pane.classList.remove('active');
+            });
+            const targetPane = document.getElementById(`pane-${targetTab}`);
+            if (targetPane) {
+                targetPane.classList.add('active');
+            }
+
+            // Update titles
+            if (sectionTitle && tabMeta[targetTab]) {
+                sectionTitle.textContent = tabMeta[targetTab].title;
+            }
+            if (sectionSubtitle && tabMeta[targetTab]) {
+                sectionSubtitle.textContent = tabMeta[targetTab].subtitle;
+            }
+
+            // Smooth scroll to top on content change
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    });
+
+    // Profile Settings: Change Password
+    const savePwdBtn = document.getElementById('save-pwd-btn');
+    if (savePwdBtn) {
+        savePwdBtn.addEventListener('click', () => {
+            const oldPwdEl = document.getElementById('profile-old-pwd');
+            const newPwdEl = document.getElementById('profile-new-pwd');
+            const confirmPwdEl = document.getElementById('profile-confirm-pwd');
+
+            const oldPassword = oldPwdEl ? oldPwdEl.value.trim() : '';
+            const newPassword = newPwdEl ? newPwdEl.value.trim() : '';
+            const confirmPassword = confirmPwdEl ? confirmPwdEl.value.trim() : '';
+
+            if (oldPwdEl && !oldPassword) {
+                return alert('Please enter your current password.');
+            }
+            if (!newPassword || newPassword.length < 6) {
+                return alert('New password must be at least 6 characters long.');
+            }
+            if (newPassword !== confirmPassword) {
+                return alert('New passwords do not match.');
+            }
+
+            const originalText = savePwdBtn.innerText;
+            savePwdBtn.innerText = 'Updating...';
+            savePwdBtn.disabled = true;
+
+            fetch('/dashboard/profile/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldPassword, newPassword })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message || 'Password updated successfully!');
+                    if (oldPwdEl) oldPwdEl.value = '';
+                    if (newPwdEl) newPwdEl.value = '';
+                    if (confirmPwdEl) confirmPwdEl.value = '';
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(() => alert('Failed to update password.'))
+            .finally(() => {
+                savePwdBtn.innerText = originalText;
+                savePwdBtn.disabled = false;
+            });
+        });
+    }
+
+    // Profile Settings: Delete Account
+    const deleteAgreeCheck = document.getElementById('profile-delete-agree');
+    const deleteAccountBtn = document.getElementById('profile-delete-btn');
+
+    if (deleteAgreeCheck && deleteAccountBtn) {
+        deleteAgreeCheck.addEventListener('change', () => {
+            deleteAccountBtn.disabled = !deleteAgreeCheck.checked;
+        });
+
+        deleteAccountBtn.addEventListener('click', () => {
+            if (!deleteAgreeCheck.checked) return;
+
+            const confirmTyped = prompt('WARNING: This action is permanent and completely irreversible.\nTo confirm account deletion, please type "DELETE" below:');
+            if (confirmTyped !== 'DELETE') {
+                return alert('Confirmation mismatch. Deletion cancelled.');
+            }
+
+            deleteAccountBtn.innerText = 'Deleting Account...';
+            deleteAccountBtn.disabled = true;
+
+            fetch('/dashboard/profile/delete-account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Your account has been deleted. Redirecting you to home.');
+                    location.href = '/';
+                } else {
+                    alert('Deletion failed: ' + data.error);
+                    deleteAccountBtn.innerText = 'Delete My Entire Account';
+                    deleteAccountBtn.disabled = false;
+                }
+            })
+            .catch(() => {
+                alert('Connection error during deletion.');
+                deleteAccountBtn.innerText = 'Delete My Entire Account';
+                deleteAccountBtn.disabled = false;
+            });
+        });
+    }
+
+    // Copy Referral Link
+    const refCopyBtn = document.getElementById('ref-copy-btn');
+    const refLinkText = document.getElementById('ref-link-text');
+    if (refCopyBtn && refLinkText) {
+        refCopyBtn.addEventListener('click', () => {
+            const textToCopy = refLinkText.innerText.trim();
+            navigator.clipboard.writeText(textToCopy)
+                .then(() => {
+                    const originalText = refCopyBtn.innerText;
+                    refCopyBtn.innerText = '✓';
+                    setTimeout(() => {
+                        refCopyBtn.innerText = originalText;
+                    }, 2000);
+                })
+                .catch(() => alert('Failed to copy link.'));
+        });
+    }
 });

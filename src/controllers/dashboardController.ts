@@ -217,3 +217,75 @@ export function showDashboard(user: UserSession, env: Env): Response {
     });
   }
 }
+
+export async function handleChangePassword(env: Env, req: Request, userId: string): Promise<Response> {
+  try {
+    const { oldPassword, newPassword } = await req.json() as any;
+    if (!newPassword || newPassword.length < 6) {
+      return Response.json({ success: false, error: "New password must be at least 6 characters long." }, { status: 400 });
+    }
+
+    const User = (await import("../models/User")).default;
+    const dbUser = await User.findOne({ userId });
+    if (!dbUser) {
+      return Response.json({ success: false, error: "User not found." }, { status: 404 });
+    }
+
+    if (dbUser.passwordHash) {
+      if (!oldPassword) {
+        return Response.json({ success: false, error: "Old password is required." }, { status: 400 });
+      }
+      const oldHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(oldPassword));
+      const oldHashHex = Array.from(new Uint8Array(oldHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+      if (oldHashHex !== dbUser.passwordHash) {
+        return Response.json({ success: false, error: "Incorrect old password." }, { status: 401 });
+      }
+    }
+
+    const newHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(newPassword));
+    const newHashHex = Array.from(new Uint8Array(newHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    dbUser.passwordHash = newHashHex;
+    await dbUser.save();
+
+    return Response.json({ success: true, message: "Password updated successfully!" });
+  } catch (e: any) {
+    return Response.json({ success: false, error: e.message }, { status: 500 });
+  }
+}
+
+export async function handleDeleteAccount(env: Env, req: Request, userId: string): Promise<Response> {
+  try {
+    console.log(`[Dashboard] Deleting account for user ${userId}`);
+
+    // 1. Clear KV stats & Redis session
+    await env.STATS.delete(`user_meta_${userId}`);
+    await env.STATS.delete(`tg_session_${userId}`);
+
+    // 2. MongoDB Cleanup
+    const User = (await import("../models/User")).default;
+    const MessengerSession = (await import("../models/MessengerSession")).default;
+
+    await MessengerSession.deleteMany({ userId });
+    await User.deleteOne({ userId });
+
+    // 3. Contact Manager to kill pods and local files
+    const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`;
+    const secret = (env.MANAGER_SECRET || "changeme").trim();
+
+    await fetch(`${managerUrl}/delete?secret=${secret}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-manager-secret": secret },
+      body: JSON.stringify({ userId })
+    }).catch(e => console.error("[Dashboard] Manager delete call failed during account deletion:", e));
+
+    return Response.json({ success: true }, {
+      headers: {
+        "Set-Cookie": "session=deleted; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+      }
+    });
+  } catch (e: any) {
+    return Response.json({ success: false, error: e.message }, { status: 500 });
+  }
+}
+
