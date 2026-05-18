@@ -324,8 +324,8 @@ app.get('/internal/logs/:podName', auth, async (req, res) => {
         const kc = new k8s.KubeConfig();
         kc.loadFromDefault();
         const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
-        const logRes = await k8sApi.readNamespacedPodLog(podName, ns, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 200);
-        res.type('text/plain').send(logRes.body);
+        const logRes = await k8sApi.readNamespacedPodLog({ name: podName, namespace: ns, tailLines: 200 });
+        res.type('text/plain').send(logRes?.body || logRes);
     } catch (e) {
         res.status(500).send(`Error fetching logs for pod ${req.params.podName}: ${e.message}`);
     }
