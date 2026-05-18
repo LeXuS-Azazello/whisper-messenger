@@ -95,6 +95,58 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
             }
         }
 
+        // Secure internal reverse proxy for mongo-express UI and API
+        if (pathname === "/admin/mongo" || pathname.startsWith("/admin/mongo/")) {
+            // Standardize path: mongo-express expects basePath to have a trailing slash
+            if (pathname === "/admin/mongo") {
+                return Response.redirect(`${url.origin}/admin/mongo/`, 301);
+            }
+
+            const namespace = env.NAMESPACE || "debugging-testcrash-pub";
+            const mongoExpressUrl = `http://mongo-express.${namespace}.svc.cluster.local:8081`;
+            // Keep the full pathname because ME_CONFIG_SITE_BASEURL is set to "/admin/mongo/"
+            const targetUrl = `${mongoExpressUrl}${pathname}${url.search}`;
+
+            console.log(`[Admin Proxy] Forwarding admin MongoDB request to: ${targetUrl}`);
+
+            try {
+                // Determine headers to forward.
+                const forwardHeaders = new Headers();
+                req.headers.forEach((value, key) => {
+                    if (key.toLowerCase() !== 'connection' && key.toLowerCase() !== 'keep-alive') {
+                        forwardHeaders.set(key, value);
+                    }
+                });
+
+                const proxyReq = new Request(targetUrl, {
+                    method: req.method,
+                    headers: forwardHeaders,
+                    body: req.method !== "GET" && req.method !== "HEAD" ? await req.blob() : undefined,
+                    redirect: "manual"
+                });
+
+                const res = await fetch(proxyReq);
+
+                // Copy headers from downstream response
+                const responseHeaders = new Headers();
+                res.headers.forEach((value, key) => {
+                    responseHeaders.set(key, value);
+                });
+
+                return new Response(res.body, {
+                    status: res.status,
+                    statusText: res.statusText,
+                    headers: responseHeaders
+                });
+            } catch (err: any) {
+                console.error(`[Admin Proxy] Failed to fetch downstream mongo-express service:`, err);
+                return new Response(`<h1>Mongo Express Proxy Error</h1><p>Failed to contact the downstream mongo-express service at <code>${targetUrl}</code>.</p><p>Error: ${err.message || String(err)}</p>`, {
+                    status: 502,
+                    headers: { "Content-Type": "text/html" }
+                });
+            }
+        }
+
         if (method === "POST") {
             const origin = req.headers.get("Origin");
             const host = url.hostname;

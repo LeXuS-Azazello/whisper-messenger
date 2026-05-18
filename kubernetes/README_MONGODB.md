@@ -29,31 +29,28 @@ Since MongoDB Compass is a desktop application, the most secure and performance-
 
 ---
 
-## Method 2: Accessing the Web-Based Mongo Express UI
+## Method 2: Accessing the Web-Based Mongo Express UI (No CLI/Tunnels Required!)
 
-For quick administrative tasks without launching a desktop app, we have deployed `mongo-express` inside the cluster. It is isolated as a `ClusterIP` service (completely secure from external access) and is protected by **Basic Authentication**.
+For quick administrative tasks and querying data without launching a desktop app or using a terminal tunnel, we have integrated a secure, in-cluster **reverse proxy** directly into the admin panel.
 
 ### Step-by-Step Connection:
 
-1. **Establish the Secure Tunnel:**
-   Open a terminal on your local machine and run:
-   ```bash
-   kubectl port-forward svc/mongo-express 8081:8081 -n debugging-testcrash-pub
-   ```
-   *(Keep this terminal window open to maintain the secure tunnel.)*
+1. **Access the Web Interface:**
+   - Open your browser and go directly to:
+     ```text
+     https://voicemsg.net/admin/mongo/
+     ```
 
-2. **Access the Web Interface:**
-   - Open your browser and go to: `http://localhost:8081`
-   - A login prompt will appear.
+2. **Login Credentials:**
+   - If you are not logged in, you will be prompted to log in to the admin panel using your **Admin Secret** first.
+   - Once logged in, the UI will load, and if prompted by basic auth, use:
+     - **Username:** `admin`
+     - **Password:** The value of `ADMIN_SECRET` configured in your `.env` (which is `H@jimeN@maste!`).
 
-3. **Login Credentials:**
-   - **Username:** `admin`
-   - **Password:** The value of `ADMIN_SECRET` configured in your `.env` (which is `H@jimeN@maste!`).
-
-4. **Features Available:**
+3. **Features Available:**
    - View, edit, add, or delete documents and collections.
    - View database stats and index sizes.
-   - Simple, responsive web-based management.
+   - Fully secured inside the frontend's authentication session, meaning no port exposure or CLI tools are required.
 
 ---
 

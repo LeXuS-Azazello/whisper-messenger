@@ -372,11 +372,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         <button class="btn btn-sm restart-btn" data-userid="${u.userId}" title="Restart Pod" style="width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center; background: rgba(245, 158, 11, 0.1); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.2); borderRadius: 10px">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
                         </button>
-                        <button class="btn btn-sm btn-danger deactivate-btn" data-userid="${u.userId}" title="${u.isActive ? 'Stop Pod' : 'Delete User'}" style="width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center; background: ${u.isActive ? 'rgba(239, 68, 68, 0.1)' : 'rgba(107, 114, 128, 0.1)'}; color: ${u.isActive ? '#ef4444' : '#94A3B8'}; border: 1px solid ${u.isActive ? 'rgba(239, 68, 68, 0.2)' : 'rgba(107, 114, 128, 0.2)'}; borderRadius: 10px">
-                            ${u.isActive ? 
-                                '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg>' : 
-                                '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
-                            }
+                        ${u.isActive ? `
+                        <button class="btn btn-sm stop-btn" data-userid="${u.userId}" title="Stop Pod" style="width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); borderRadius: 10px">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg>
+                        </button>
+                        ` : ''}
+                        <button class="btn btn-sm btn-danger delete-btn" data-userid="${u.userId}" title="Delete User" style="width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center; background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3); borderRadius: 10px">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                         </button>
                     </div>
                 </td>
@@ -392,7 +394,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(users => {
                 renderUsers(users);
                 if (lastUpdatedInfo) {
-                    lastUpdatedInfo.innerHTML = `<div class="status-dot" style="width: 6px; height: 6px; animation: pulse 2s infinite"></div> Polling active (5s) • Last updated: ${new Date().toLocaleTimeString()}`;
+                    lastUpdatedInfo.innerHTML = `<div class="status-dot" style="width: 6px; height: 6px; animation: pulse 2s infinite"></div> Polling active (1m) • Last updated: ${new Date().toLocaleTimeString()}`;
                 }
                 
                 // Update summary stats if elements exist
@@ -411,7 +413,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (userTableBody) {
-        setInterval(refreshUsers, 5000);
+        setInterval(refreshUsers, 60000);
         if (forceRefreshBtn) forceRefreshBtn.addEventListener('click', refreshUsers);
 
         userTableBody.addEventListener('click', function(e) {
@@ -438,13 +440,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (d.success) refreshUsers();
                     else alert('Error: ' + d.error);
                 });
-            } else if (btn.classList.contains('deactivate-btn')) {
-                var text = btn.title || btn.innerText;
-                var action = text.includes('Stop') ? 'stop' : 'delete';
-                if (!confirm((action === 'stop' ? 'Stop pod' : 'Delete user') + ' for ' + userId + '?')) return;
+            } else if (btn.classList.contains('stop-btn')) {
+                if (!confirm('Stop pod for ' + userId + '?')) return;
                 fetch('/admin/user-action', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: userId, action: action })
+                    body: JSON.stringify({ userId: userId, action: 'stop' })
+                }).then(r => r.json()).then(d => {
+                    if (d.success) refreshUsers();
+                    else alert('Error: ' + d.error);
+                });
+            } else if (btn.classList.contains('delete-btn')) {
+                if (!confirm('Are you sure you want to completely delete user ' + userId + '? This will delete the user from MongoDB, clear session keys from Redis, and terminate the Telegram pod.')) return;
+                fetch('/admin/user-action', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userId, action: 'delete' })
                 }).then(r => r.json()).then(d => {
                     if (d.success) refreshUsers();
                     else alert('Error: ' + d.error);

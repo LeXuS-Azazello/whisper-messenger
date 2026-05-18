@@ -282,7 +282,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                     <h3 class="card-title" style={{ color: '#fff', fontSize: '1.25rem', marginBottom: '4px' }}>User Management (Telegram Pods)</h3>
                                     <div id="last-updated-info" style={{ fontSize: '10px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                         <div class="status-dot" style={{ width: '6px', height: '6px', animation: 'pulse 2s infinite' }}></div>
-                                        Polling active (5s) • Last updated: {new Date().toLocaleTimeString()}
+                                        Polling active (1m) • Last updated: {new Date().toLocaleTimeString()}
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>

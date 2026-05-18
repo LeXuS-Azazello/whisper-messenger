@@ -225,23 +225,45 @@ export async function handleGoogleCallback(
 
     const userId = `google_${sub}`;
 
-    // Update or create User in MongoDB
-    await User.findOneAndUpdate(
-      { userId },
-      { 
-        userId, 
-        firstName: givenName, 
+    // Find if a user with this email already exists to avoid conflicts
+    let user = null;
+    if (email) {
+      user = await User.findOne({ email });
+    }
+    if (!user) {
+      user = await User.findOne({ userId });
+    }
+
+    if (user) {
+      // Merge Google data into existing user record (maintaining their original userId)
+      user.firstName = user.firstName || givenName;
+      user.username = user.username || name;
+      if (email && !user.email) {
+        user.email = email;
+      }
+      user.emailVerified = true;
+      user.isActive = true;
+      await user.save();
+      console.log(`[Auth] Merged/Updated existing user ${user.userId} with Google identity`);
+    } else {
+      // Create a new user record
+      user = new User({
+        userId,
+        firstName: givenName,
         username: name,
-        email: email,
+        email,
         emailVerified: true,
         isActive: true
-      },
-      { upsert: true }
-    );
+      });
+      await user.save();
+      console.log(`[Auth] Created new Google user record: ${userId}`);
+    }
 
-    console.log(`[Auth] Creating session for user: ${userId}`);
-    await logError("auth", `User ${userId} authenticated via Google`, env);
-    return await createSessionResponse(userId, env);
+    const finalUserId = user.userId;
+
+    console.log(`[Auth] Creating session for user: ${finalUserId}`);
+    await logError("auth", `User ${finalUserId} authenticated via Google`, env);
+    return await createSessionResponse(finalUserId, env);
 
   } catch (error: any) {
     console.error(`[Auth] Google error: ${error}`);
@@ -289,19 +311,27 @@ export async function handleEmailVerify(env: Env, token: string | null, url: URL
   if (!email) return new Response("Invalid or expired link", { status: 400 });
 
   await env.STATS.delete(`email_verify_${token}`);
-  const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
-
-  const user = await User.findOneAndUpdate(
-    { userId },
-    { 
-      userId, 
-      firstName: email.split("@")[0], 
-      email,
-      isActive: true,
-      emailVerified: true
-    },
-    { upsert: true, new: true }
-  );
+  let user = await User.findOne({ email });
+  if (user) {
+    user.emailVerified = true;
+    user.isActive = true;
+    await user.save();
+    console.log(`[Auth] Verified email for existing user: ${user.userId}`);
+  } else {
+    const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    user = await User.findOneAndUpdate(
+      { userId },
+      { 
+        userId, 
+        firstName: email.split("@")[0], 
+        email,
+        isActive: true,
+        emailVerified: true
+      },
+      { upsert: true, new: true }
+    );
+    console.log(`[Auth] Created and verified email for new user: ${userId}`);
+  }
 
   // Send onboarding welcome email in background
   if (user) {
@@ -327,26 +357,34 @@ export async function handleRegister(env: Env, body: any, url: URL): Promise<Res
     return Response.json({ error: "Invalid input. Email, password (min 6 chars), and first name required." }, { status: 400 });
   }
 
-  const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
-
-  const existingUser = await User.findOne({ userId });
-  if (existingUser && existingUser.emailVerified) {
+  const existingUser = await User.findOne({ email });
+  if (existingUser && existingUser.emailVerified && existingUser.passwordHash) {
     return Response.json({ error: "User already exists and is verified" }, { status: 409 });
   }
 
   const passwordHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
   const passwordHashHex = Array.from(new Uint8Array(passwordHash)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-  await User.findOneAndUpdate(
-    { userId },
-    { 
-      userId, 
-      firstName, 
-      email, 
-      passwordHash: passwordHashHex 
-    },
-    { upsert: true }
-  );
+  if (existingUser) {
+    // If the user already exists (e.g. from Google auth, or not yet verified), we merge/update:
+    existingUser.passwordHash = passwordHashHex;
+    existingUser.firstName = existingUser.firstName || firstName;
+    await existingUser.save();
+    console.log(`[Auth] Updated existing user ${existingUser.userId} with email password hash during registration`);
+  } else {
+    const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    await User.findOneAndUpdate(
+      { userId },
+      { 
+        userId, 
+        firstName, 
+        email, 
+        passwordHash: passwordHashHex 
+      },
+      { upsert: true }
+    );
+    console.log(`[Auth] Registered new user with email: ${userId}`);
+  }
 
   const token = crypto.randomUUID();
   await env.STATS.put(`email_verify_${token}`, email, { expirationTtl: EMAIL_VERIFY_TTL });
@@ -378,8 +416,7 @@ export async function handleLogin(env: Env, body: any, url: URL): Promise<Respon
     return Response.json({ error: "Email and password required" }, { status: 400 });
   }
 
-  const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
-  const user = await User.findOne({ userId });
+  const user = await User.findOne({ email });
 
   if (!user) {
     return Response.json({ error: "Invalid email or password" }, { status: 401 });
@@ -416,8 +453,7 @@ export async function handleForgotPassword(env: Env, body: any, url: URL): Promi
   const rateLimit = await env.STATS.get(rateKey);
   if (rateLimit) return Response.json({ error: "Too many requests, try again later" }, { status: 429 });
 
-  const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
-  const user = await User.findOne({ userId });
+  const user = await User.findOne({ email });
 
   if (!user || !user.passwordHash || !user.emailVerified) {
     return Response.json({ success: true, message: "If the email exists, a reset link has been sent." });

@@ -137,7 +137,7 @@ export const renderAuthPage = (
                                             data-login_uri={`${origin}/auth/google/callback`}
                                             data-auto_prompt="false">
                                         </div>
-                                        <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large" data-width="100%"></div>
+                                        <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large" data-width="364"></div>
                                     </div>
 
                                     <div class="footer-links">
@@ -176,7 +176,7 @@ export const renderAuthPage = (
                                     </div>
 
                                     <div class="google-btn-wrapper">
-                                        <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large" data-width="100%"></div>
+                                        <div class="g_id_signin" data-type="standard" data-shape="pill" data-theme="filled_black" data-size="large" data-width="364"></div>
                                     </div>
 
                                     <div class="footer-links" style={{ justifyContent: 'center' }}>

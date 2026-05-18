@@ -104,14 +104,14 @@ export async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
         // 1. Fetch all users from MongoDB
         const dbUsers = await User.find({}).lean();
         
-        // 2. Fetch active pods from tg-client-manager with a fast timeout (2s)
+        // 2. Fetch active pods from tg-client-manager with a safe timeout (5s)
         let activePods: any[] = [];
         try {
             const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
             const secret = (env.MANAGER_SECRET || "changeme").trim();
             const res = await fetch(`${managerUrl}/pods?secret=${secret}`, {
                 headers: { "x-manager-secret": secret },
-                signal: AbortSignal.timeout(2000)
+                signal: AbortSignal.timeout(5000)
             });
             if (res.ok) {
                 activePods = await res.json() as any[];
@@ -189,7 +189,14 @@ export async function getSampleAudio(): Promise<Response> {
 async function proxyToManager(url: string, options: any): Promise<Response> {
     try {
         const res = await fetch(url, options);
-        return res;
+        // Create a new Response object with mutable headers to avoid "TypeError: immutable"
+        // when Hono/middlewares (such as CORS or logs) try to mutate the response headers.
+        const headers = new Headers(res.headers);
+        return new Response(res.body, {
+            status: res.status,
+            statusText: res.statusText,
+            headers
+        });
     } catch (e: any) {
         console.warn("[Admin] Manager proxy failed:", e.message);
         return Response.json({ success: false, error: `Manager unreachable: ${e.message}` }, { status: 503 });
@@ -313,6 +320,9 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
             body: JSON.stringify({ userId })
         });
     } else if (action === "delete") {
+        // Delete user from MongoDB persistence
+        await User.deleteOne({ userId });
+
         await env.STATS.delete(`user_meta_${userId}`);
         await env.STATS.delete(`tg_session_${userId}`);
         const listRaw = await env.STATS.get("users_list") || "[]";

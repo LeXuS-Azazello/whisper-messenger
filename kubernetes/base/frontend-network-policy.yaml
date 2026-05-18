@@ -25,6 +25,13 @@ spec:
   - to:
     - podSelector:
         matchLabels:
+          app: mongo-express
+    ports:
+      - protocol: TCP
+        port: 8081
+  - to:
+    - podSelector:
+        matchLabels:
           app: redis
   - to:
     - podSelector:

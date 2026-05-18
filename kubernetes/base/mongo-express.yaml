@@ -23,6 +23,8 @@ spec:
         - containerPort: 8081
           name: http
         env:
+        - name: ME_CONFIG_SITE_BASEURL
+          value: "/admin/mongo/"
         - name: ME_CONFIG_MONGODB_SERVER
           value: "mongodb"
         - name: ME_CONFIG_MONGODB_PORT
