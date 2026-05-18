@@ -65,10 +65,15 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
                     }
                 });
                 
+                const hasBody = req.method !== "GET" && req.method !== "HEAD" && (
+                    (req.headers.get("content-length") && req.headers.get("content-length") !== "0") ||
+                    req.headers.get("transfer-encoding")
+                );
+                
                 const proxyReq = new Request(targetUrl, {
                     method: req.method,
                     headers: forwardHeaders,
-                    body: req.method !== "GET" && req.method !== "HEAD" ? await req.blob() : undefined,
+                    body: hasBody ? await req.blob() : undefined,
                     redirect: "manual"
                 });
                 
@@ -118,10 +123,15 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
                     }
                 });
 
+                const hasBody = req.method !== "GET" && req.method !== "HEAD" && (
+                    (req.headers.get("content-length") && req.headers.get("content-length") !== "0") ||
+                    req.headers.get("transfer-encoding")
+                );
+                
                 const proxyReq = new Request(targetUrl, {
                     method: req.method,
                     headers: forwardHeaders,
-                    body: req.method !== "GET" && req.method !== "HEAD" ? await req.blob() : undefined,
+                    body: hasBody ? await req.blob() : undefined,
                     redirect: "manual"
                 });
 
