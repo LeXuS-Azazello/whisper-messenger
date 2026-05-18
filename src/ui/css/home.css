@@ -359,3 +359,82 @@ body {
 .logo-icon {
     animation: float 4s ease-in-out infinite;
 }
+
+/* Auth View Sections & Transitions */
+.auth-flow-section {
+    animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Glassmorphic Alerts */
+.status-msg {
+    margin-top: 16px;
+    padding: 12px 16px;
+    font-size: 14px;
+    text-align: center;
+    border-radius: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    transition: all 0.3s ease;
+    display: none;
+}
+
+.status-msg.error {
+    display: block;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+}
+
+.status-msg.success {
+    display: block;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    color: #86efac;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+
+/* Password Strength Indicator */
+.password-strength {
+    margin-top: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    padding: 3px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.password-strength-bar {
+    height: 4px;
+    width: 0;
+    border-radius: 3px;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease;
+}
+
+.password-strength-bar.weak {
+    width: 33%;
+    background: var(--danger);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.password-strength-bar.medium {
+    width: 66%;
+    background: #f59e0b;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+
+.password-strength-bar.strong {
+    width: 100%;
+    background: var(--success);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+.password-strength-text {
+    font-size: 12px;
+    margin-top: 6px;
+    font-weight: 600;
+    text-align: right;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+

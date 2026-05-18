@@ -94,6 +94,16 @@ TG_CLIENT_IMAGE="${REPO}/whisper-tg-client:${TAG}"
 
 echo ">>> Building and pushing Docker images..."
 
+# Inject custom-compiled TDLib if present in workspace root
+HAS_CUSTOM_TDLIB=false
+if [ -d "tdlib" ]; then
+    echo ">>> Custom-compiled TDLib found in workspace root. Copying into build directories..."
+    rm -rf tg-client-manager/tdlib tg-client/tdlib
+    cp -r tdlib tg-client-manager/
+    cp -r tdlib tg-client/
+    HAS_CUSTOM_TDLIB=true
+fi
+
 echo "1. Frontend: $FRONTEND_IMAGE"
 docker build -t "$FRONTEND_IMAGE" -f Dockerfile .
 docker tag "$FRONTEND_IMAGE" "${REPO}/whisper-frontend:latest"
@@ -111,6 +121,12 @@ docker build -t "$TG_CLIENT_IMAGE" -f tg-client/Dockerfile tg-client/
 docker tag "$TG_CLIENT_IMAGE" "${REPO}/whisper-tg-client:latest"
 docker push "$TG_CLIENT_IMAGE"
 docker push "${REPO}/whisper-tg-client:latest"
+
+# Clean up temporary tdlib injections
+if [ "$HAS_CUSTOM_TDLIB" = true ]; then
+    echo ">>> Cleaning up injected tdlib directories..."
+    rm -rf tg-client-manager/tdlib tg-client/tdlib
+fi
 echo ""
 
 # Single kustomize apply covers: frontend, redis, mongodb, tg-client-manager,

@@ -1,375 +1,384 @@
 document.addEventListener('DOMContentLoaded', function () {
-    // Elements
-    // Email auth elements
-    const showEmailAuthBtn = document.getElementById('show-email-auth-btn');
-    const emailLoginSection = document.getElementById('email-login-section');
-    const emailRegisterSection = document.getElementById('email-register-section');
-    const forgotPasswordSection = document.getElementById('forgot-password-section');
-    const resetPasswordSection = document.getElementById('reset-password-section');
-    const emailAuthSection = document.getElementById('email-auth-section');
+    // Check if session cookie already exists and redirect to dashboard
+    const sessionMatch = document.cookie.match(/session=([^;]+)/);
+    if (sessionMatch) {
+        window.location.href = '/dashboard';
+        return;
+    }
 
-    // Email form elements
+    // Elements
+    const statusMsg = document.getElementById('status-msg');
+    const authSubtitle = document.getElementById('auth-subtitle');
+
+    // Forms
+    const loginSection = document.getElementById('login-section');
+    const registerSection = document.getElementById('register-section');
+    const forgotSection = document.getElementById('forgot-section');
+    const resetSection = document.getElementById('reset-section');
+
+    // Login Form Fields
     const emailInput = document.getElementById('email-input');
     const passwordInput = document.getElementById('password-input');
-    const emailLoginBtn = document.getElementById('email-login-btn');
+    const loginBtn = document.getElementById('login-btn');
 
-    const registerFirstNameInput = document.getElementById('register-firstname-input');
-    const registerEmailInput = document.getElementById('register-email-input');
-    const registerPasswordInput = document.getElementById('register-password-input');
-    const emailRegisterBtn = document.getElementById('email-register-btn');
+    // Register Form Fields
+    const registerFirstname = document.getElementById('register-firstname-input');
+    const registerEmail = document.getElementById('register-email-input');
+    const registerPassword = document.getElementById('register-password-input');
+    const registerBtn = document.getElementById('register-btn');
+    const passwordStrength = document.getElementById('password-strength');
+    const strengthBar = document.getElementById('strength-bar');
+    const strengthText = document.getElementById('strength-text');
 
-    const forgotEmailInput = document.getElementById('forgot-email-input');
-    const forgotPasswordBtn = document.getElementById('forgot-password-btn');
+    // Forgot Password Form Fields
+    const forgotEmail = document.getElementById('forgot-email-input');
+    const forgotBtn = document.getElementById('forgot-btn');
 
-    const resetPasswordInput = document.getElementById('reset-password-input');
-    const resetPasswordBtn = document.getElementById('reset-password-btn');
+    // Reset Password Form Fields
+    const resetPassword = document.getElementById('reset-password-input');
+    const resetBtn = document.getElementById('reset-btn');
 
-    // Navigation buttons
-    const showRegisterBtn = document.getElementById('show-register-btn');
-    const backToLoginBtn = document.getElementById('back-to-login-btn');
-    const showForgotPassBtn = document.getElementById('show-forgot-password-btn');
-    const backToLoginFromForgotBtn = document.getElementById('back-to-login-from-forgot-btn');
+    // SPA Links
+    const registerLink = document.getElementById('register-link');
+    const loginLink = document.getElementById('login-link');
+    const forgotPassLink = document.getElementById('forgot-pass-link');
+    const backToLoginLink = document.getElementById('back-to-login-link');
+    const resetBackLink = document.getElementById('reset-back-link');
 
-    // State
-    // Utility functions
-    function showMessage(type, text, containerId = 'auth-flow', prepend = false) {
-        const container = document.getElementById(containerId);
-        if (!container) return;
-
-        const messageHtml = `
-            <div class="message ${type}" style="${prepend ? 'margin-bottom: 1rem;' : ''}">
-                ${type === 'error' ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>' : ''}
-                ${type === 'success' ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
-                ${type === 'warning' ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>' : ''}
-                ${text}
-            </div>
-        `;
-
-        if (prepend) {
-            container.insertAdjacentHTML('afterbegin', messageHtml);
-        } else {
-            // Remove existing messages
-            container.querySelectorAll('.message').forEach(el => el.remove());
-            container.insertAdjacentHTML('afterbegin', messageHtml);
-        }
+    // Helper: Show alert message
+    function showAlert(type, message) {
+        if (!statusMsg) return;
+        statusMsg.innerText = message;
+        statusMsg.className = 'status-msg ' + type;
+        statusMsg.style.display = 'block';
     }
 
-    function clearMessages(containerId = 'auth-flow') {
-        const container = document.getElementById(containerId);
-        if (container) {
-            container.querySelectorAll('.message').forEach(el => el.remove());
-        }
+    // Helper: Clear alert message
+    function clearAlert() {
+        if (!statusMsg) return;
+        statusMsg.style.display = 'none';
+        statusMsg.className = 'status-msg';
+        statusMsg.innerText = '';
     }
 
-    function setButtonLoading(btn, loading, defaultText = '') {
+    // Helper: Set button loading state
+    function setButtonLoading(btn, loading, defaultText) {
         if (!btn) return;
-        const textSpan = btn.querySelector('.btn-text');
         if (loading) {
             btn.disabled = true;
-            if (textSpan) {
-                textSpan.innerHTML = '<span class="loading-spinner"></span> Please wait...';
-            } else {
-                btn.dataset.originalText = btn.innerText;
-                btn.innerText = 'Please wait...';
-            }
+            btn.dataset.originalText = btn.innerText;
+            btn.innerHTML = '<span class="loading-spinner" style="display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(0,0,0,0.2); border-top-color: #000; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle;"></span> Please wait...';
         } else {
             btn.disabled = false;
-            if (textSpan) {
-                textSpan.innerText = defaultText || btn.dataset.originalText || 'Submit';
-            } else {
-                btn.innerText = defaultText || btn.dataset.originalText || 'Submit';
-            }
+            btn.innerText = defaultText || btn.dataset.originalText || 'Submit';
         }
     }
 
-    function showSection(sectionId) {
-        document.querySelectorAll('.auth-section').forEach(el => {
-            el.style.display = 'none';
+    // Helper: Transition to active form section smoothly
+    function transitionToSection(targetSectionName) {
+        clearAlert();
+        
+        // Hide all form sections
+        const sections = [loginSection, registerSection, forgotSection, resetSection];
+        sections.forEach(sec => {
+            if (sec) sec.style.display = 'none';
         });
-        const target = document.getElementById(sectionId);
-        if (target) {
-            target.style.display = 'block';
+
+        // Show the target section and update subtitle
+        if (targetSectionName === 'login') {
+            if (loginSection) loginSection.style.display = 'block';
+            if (authSubtitle) authSubtitle.innerText = 'Personalized voice message transcription for Telegram, WhatsApp & Meta.';
+        } else if (targetSectionName === 'register') {
+            if (registerSection) registerSection.style.display = 'block';
+            if (authSubtitle) authSubtitle.innerText = 'Create an account to start transcribing your voice messages.';
+        } else if (targetSectionName === 'forgot') {
+            if (forgotSection) forgotSection.style.display = 'block';
+            if (authSubtitle) authSubtitle.innerText = "We'll send you a secure link to recover and reset your password.";
+        } else if (targetSectionName === 'reset') {
+            if (resetSection) resetSection.style.display = 'block';
+            if (authSubtitle) authSubtitle.innerText = 'Enter a secure new password for your account below.';
         }
     }
 
-    function calculatePasswordStrength(password) {
+    // SPA Router using pushState
+    function navigateTo(path, viewName) {
+        history.pushState({ view: viewName }, '', path);
+        transitionToSection(viewName);
+    }
+
+    // Bind SPA link clicks
+    if (registerLink) {
+        registerLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            navigateTo('/register', 'register');
+        });
+    }
+
+    if (loginLink) {
+        loginLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            navigateTo('/login', 'login');
+        });
+    }
+
+    if (forgotPassLink) {
+        forgotPassLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            navigateTo('/forgot-password', 'forgot');
+        });
+    }
+
+    if (backToLoginLink) {
+        backToLoginLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            navigateTo('/login', 'login');
+        });
+    }
+
+    if (resetBackLink) {
+        resetBackLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            navigateTo('/login', 'login');
+        });
+    }
+
+    // Listen to browser Back/Forward navigation
+    window.addEventListener('popstate', function(e) {
+        const path = window.location.pathname;
+        if (path === '/register' || path === '/signup') {
+            transitionToSection('register');
+        } else if (path === '/forgot-password') {
+            transitionToSection('forgot');
+        } else if (path === '/reset-password') {
+            transitionToSection('reset');
+        } else {
+            transitionToSection('login');
+        }
+    });
+
+    // Check for success URL parameters on load
+    const urlParams = new URLSearchParams(window.location.search);
+    const successType = urlParams.get('success');
+    if (successType === 'reset') {
+        showAlert('success', 'Password reset complete! Please sign in with your new password.');
+    } else if (successType === 'verified') {
+        showAlert('success', 'Email successfully verified! You can now log in.');
+    } else if (successType === 'registered') {
+        showAlert('success', 'Account created! Please check your email to verify your account.');
+    }
+
+    // Check action query param fallback for old URLs
+    const actionParam = urlParams.get('action');
+    if (actionParam === 'register') {
+        transitionToSection('register');
+    } else if (actionParam === 'forgot') {
+        transitionToSection('forgot');
+    }
+
+    // Password strength estimation logic
+    function estimatePasswordStrength(pwd) {
         let score = 0;
-        if (password.length >= 8) score++;
-        if (password.length >= 12) score++;
-        if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
-        if (/\d/.test(password)) score++;
-        if (/[^a-zA-Z0-9]/.test(password)) score++;
+        if (pwd.length >= 8) score++;
+        if (pwd.length >= 12) score++;
+        if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score++;
+        if (/\d/.test(pwd)) score++;
+        if (/[^a-zA-Z0-9]/.test(pwd)) score++;
 
         if (score <= 2) return { level: 'weak', text: 'Weak' };
-        if (score <= 3) return { level: 'medium', text: 'Medium' };
+        if (score <= 4) return { level: 'medium', text: 'Medium' };
         return { level: 'strong', text: 'Strong' };
     }
 
-    // Telegram auth removed from this page.
-    // It is now performed in the dashboard after email/google login.
-
-// Email authentication sections navigation
-if (showEmailAuthBtn) {
-    showEmailAuthBtn.addEventListener('click', () => {
-        emailAuthSection.style.display = 'none';
-        showSection('email-login-section');
-        clearMessages();
-    });
-}
-
-if (showRegisterBtn) {
-    showRegisterBtn.addEventListener('click', () => {
-        showSection('email-register-section');
-        clearMessages();
-    });
-}
-
-if (backToLoginBtn) {
-    backToLoginBtn.addEventListener('click', () => {
-        showSection('email-login-section');
-        clearMessages();
-    });
-}
-
-if (showForgotPassBtn) {
-    showForgotPassBtn.addEventListener('click', () => {
-        showSection('forgot-password-section');
-        clearMessages();
-    });
-}
-
-if (backToLoginFromForgotBtn) {
-    backToLoginFromForgotBtn.addEventListener('click', () => {
-        showSection('email-login-section');
-        clearMessages();
-    });
-}
-
-// Password strength indicator
-if (registerPasswordInput) {
-    registerPasswordInput.addEventListener('input', function () {
-        const strength = calculatePasswordStrength(this.value);
-        const strengthBar = document.getElementById('strength-bar');
-        const strengthText = document.getElementById('strength-text');
-        const strengthContainer = document.getElementById('password-strength');
-
-        if (this.value.length === 0) {
-            strengthContainer.style.display = 'none';
-            return;
-        }
-
-        strengthContainer.style.display = 'block';
-        strengthBar.className = 'password-strength-bar ' + strength.level;
-        strengthText.innerText = strength.text;
-        strengthText.style.color = strength.level === 'weak' ? 'var(--danger)' :
-            strength.level === 'medium' ? 'var(--warning)' : 'var(--success)';
-    });
-}
-
-// Email login
-if (emailLoginBtn) {
-    emailLoginBtn.addEventListener('click', function () {
-        const email = emailInput.value.trim();
-        const password = passwordInput.value.trim();
-
-        if (!email || !password) {
-            showMessage('error', 'Please enter both email and password', 'email-login-section');
-            return;
-        }
-
-        if (!email.includes('@')) {
-            showMessage('error', 'Please enter a valid email address', 'email-login-section');
-            emailInput.classList.add('error');
-            return;
-        }
-
-        setButtonLoading(this, true);
-        clearMessages();
-
-        fetch('/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email, password: password })
-        })
-            .then(r => {
-                if (r.status === 302 || r.redirected) {
-                    window.location.href = '/dashboard';
-                    return;
-                }
-                return r.json().then(data => {
-                    if (data.success) {
-                        showMessage('success', 'Login successful! Redirecting...', 'email-login-section');
-                        setTimeout(() => window.location.href = '/dashboard', 1000);
-                    } else {
-                        showMessage('error', data.error || 'Invalid credentials', 'email-login-section');
-                        passwordInput.classList.add('error');
-                    }
-                });
-            })
-            .catch(err => {
-                showMessage('error', 'Network error. Please try again.', 'email-login-section');
-            })
-            .finally(() => {
-                setButtonLoading(this, false, 'Sign In');
-            });
-    });
-}
-
-// Email registration
-if (emailRegisterBtn) {
-    emailRegisterBtn.addEventListener('click', function () {
-        const firstName = registerFirstNameInput.value.trim();
-        const email = registerEmailInput.value.trim();
-        const password = registerPasswordInput.value.trim();
-
-        if (!firstName || !email || !password) {
-            showMessage('error', 'Please fill in all fields', 'email-register-section');
-            return;
-        }
-
-        if (!email.includes('@')) {
-            showMessage('error', 'Please enter a valid email address', 'email-register-section');
-            return;
-        }
-
-        if (password.length < 6) {
-            showMessage('error', 'Password must be at least 6 characters', 'email-register-section');
-            return;
-        }
-
-        setButtonLoading(this, true);
-        clearMessages();
-
-        fetch('/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ firstName: firstName, email: email, password: password })
-        })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showMessage('success', 'Registration successful! Please check your email to verify your account.', 'email-register-section');
-                    setTimeout(() => {
-                        showSection('email-login-section');
-                    }, 2500);
-                } else {
-                    showMessage('error', data.error || 'Registration failed', 'email-register-section');
-                }
-            })
-            .catch(err => {
-                showMessage('error', 'Network error. Please try again.', 'email-register-section');
-            })
-            .finally(() => {
-                setButtonLoading(this, false, 'Create Account');
-            });
-    });
-}
-
-// Forgot password
-if (forgotPasswordBtn) {
-    forgotPasswordBtn.addEventListener('click', function () {
-        const email = forgotEmailInput.value.trim();
-
-        if (!email || !email.includes('@')) {
-            showMessage('error', 'Please enter a valid email address', 'forgot-password-section');
-            return;
-        }
-
-        setButtonLoading(this, true);
-        clearMessages();
-
-        fetch('/auth/forgot-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email })
-        })
-            .then(r => r.json())
-            .then(data => {
-                showMessage('success', data.message || 'If the email exists, a reset link has been sent.', 'forgot-password-section');
-                setTimeout(() => {
-                    showSection('email-login-section');
-                    emailInput.value = email;
-                }, 2000);
-            })
-            .catch(err => {
-                showMessage('error', 'Network error. Please try again.', 'forgot-password-section');
-            })
-            .finally(() => {
-                setButtonLoading(this, false, 'Send Reset Link');
-            });
-    });
-}
-
-// Reset password (from email link)
-const urlParams = new URLSearchParams(window.location.search);
-const action = urlParams.get('action');
-if (action === 'register') {
-    emailAuthSection.style.display = 'none';
-    showSection('email-register-section');
-} else if (action === 'forgot') {
-    emailAuthSection.style.display = 'none';
-    showSection('forgot-password-section');
-}
-
-const resetToken = urlParams.get('token');
-if (resetToken && window.location.pathname === '/auth/reset-password') {
-    if (emailAuthSection) emailAuthSection.style.display = 'none';
-    if (resetPasswordSection) resetPasswordSection.style.display = 'block';
-
-    if (resetPasswordBtn) {
-        resetPasswordBtn.addEventListener('click', function () {
-            const password = resetPasswordInput.value.trim();
-
-            if (!password || password.length < 6) {
-                showMessage('error', 'Password must be at least 6 characters', 'reset-password-section');
+    if (registerPassword) {
+        registerPassword.addEventListener('input', function () {
+            const val = this.value;
+            if (!val || val.length === 0) {
+                if (passwordStrength) passwordStrength.style.display = 'none';
                 return;
             }
 
-            setButtonLoading(this, true);
-            clearMessages();
+            if (passwordStrength) passwordStrength.style.display = 'block';
+            const strength = estimatePasswordStrength(val);
 
-            fetch('/auth/reset-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: resetToken, password: password })
-            })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        showMessage('success', 'Password reset successful! Redirecting to login...', 'reset-password-section');
-                        setTimeout(() => {
-                            window.location.href = '/auth?reset=success';
-                        }, 1500);
-                    } else {
-                        showMessage('error', data.error || 'Reset failed', 'reset-password-section');
-                    }
-                })
-                .catch(err => {
-                    showMessage('error', 'Network error. Please try again.', 'reset-password-section');
-                })
-                .finally(() => {
-                    setButtonLoading(this, false, 'Reset Password');
-                });
+            if (strengthBar) {
+                strengthBar.className = 'password-strength-bar ' + strength.level;
+            }
+            if (strengthText) {
+                strengthText.innerText = strength.text;
+                strengthText.style.color = strength.level === 'weak' ? '#ef4444' :
+                                           strength.level === 'medium' ? '#f59e0b' : '#10b981';
+            }
         });
     }
-}
 
-// Auto-focus first input on section show
-const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-        if (mutation.target.style.display === 'block') {
-            const firstInput = mutation.target.querySelector('input');
-            if (firstInput) firstInput.focus();
-        }
-    });
+    // Submit: Email Login
+    if (loginBtn) {
+        loginBtn.addEventListener('click', async function () {
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            if (!email || !password) {
+                showAlert('error', 'Please enter both your email and password.');
+                return;
+            }
+
+            if (!email.includes('@')) {
+                showAlert('error', 'Please enter a valid email address.');
+                return;
+            }
+
+            setButtonLoading(loginBtn, true);
+            clearAlert();
+
+            try {
+                const res = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await res.json();
+                if (data.success || res.status === 302 || res.redirected) {
+                    showAlert('success', 'Sign in successful! Redirecting...');
+                    setTimeout(() => window.location.href = '/dashboard', 600);
+                } else {
+                    showAlert('error', data.error || 'Invalid email or password.');
+                    setButtonLoading(loginBtn, false, 'Sign In');
+                }
+            } catch (err) {
+                showAlert('error', 'Network error. Please check your connection.');
+                setButtonLoading(loginBtn, false, 'Sign In');
+            }
+        });
+    }
+
+    // Submit: Email Registration
+    if (registerBtn) {
+        registerBtn.addEventListener('click', async function () {
+            const firstName = registerFirstname.value.trim();
+            const email = registerEmail.value.trim();
+            const password = registerPassword.value.trim();
+
+            if (!firstName || !email || !password) {
+                showAlert('error', 'Please fill out all registration fields.');
+                return;
+            }
+
+            if (!email.includes('@')) {
+                showAlert('error', 'Please enter a valid email address.');
+                return;
+            }
+
+            if (password.length < 6) {
+                showAlert('error', 'Password must be at least 6 characters long.');
+                return;
+            }
+
+            setButtonLoading(registerBtn, true);
+            clearAlert();
+
+            try {
+                const res = await fetch('/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ firstName, email, password })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    showAlert('success', 'Registration successful! Verification link sent to your email.');
+                    registerFirstname.value = '';
+                    registerEmail.value = '';
+                    registerPassword.value = '';
+                    if (passwordStrength) passwordStrength.style.display = 'none';
+                    setTimeout(() => {
+                        navigateTo('/login?success=registered', 'login');
+                    }, 2500);
+                } else {
+                    showAlert('error', data.error || 'Registration failed. Please try again.');
+                    setButtonLoading(registerBtn, false, 'Create Account');
+                }
+            } catch (err) {
+                showAlert('error', 'Network error. Please try again.');
+                setButtonLoading(registerBtn, false, 'Create Account');
+            }
+        });
+    }
+
+    // Submit: Forgot Password
+    if (forgotBtn) {
+        forgotBtn.addEventListener('click', async function () {
+            const email = forgotEmail.value.trim();
+
+            if (!email || !email.includes('@')) {
+                showAlert('error', 'Please enter a valid email address.');
+                return;
+            }
+
+            setButtonLoading(forgotBtn, true);
+            clearAlert();
+
+            try {
+                const res = await fetch('/auth/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await res.json();
+                showAlert('success', data.message || 'If the email exists, a reset link has been sent.');
+                forgotEmail.value = '';
+                setTimeout(() => {
+                    navigateTo('/login', 'login');
+                }, 3000);
+            } catch (err) {
+                showAlert('error', 'Network error. Please try again.');
+                setButtonLoading(forgotBtn, false, 'Send Recovery Link');
+            }
+        });
+    }
+
+    // Submit: Reset Password
+    if (resetBtn) {
+        resetBtn.addEventListener('click', async function () {
+            const password = resetPassword.value.trim();
+            const token = urlParams.get('token');
+
+            if (!token) {
+                showAlert('error', 'Invalid or expired password reset link.');
+                return;
+            }
+
+            if (!password || password.length < 6) {
+                showAlert('error', 'Password must be at least 6 characters long.');
+                return;
+            }
+
+            setButtonLoading(resetBtn, true);
+            clearAlert();
+
+            try {
+                const res = await fetch('/auth/reset-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, password })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    showAlert('success', 'Password successfully reset! Redirecting...');
+                    resetPassword.value = '';
+                    setTimeout(() => {
+                        window.location.href = '/login?success=reset';
+                    }, 1500);
+                } else {
+                    showAlert('error', data.error || 'Reset failed. Token might be expired.');
+                    setButtonLoading(resetBtn, false, 'Update Password');
+                }
+            } catch (err) {
+                showAlert('error', 'Network error. Please try again.');
+                setButtonLoading(resetBtn, false, 'Update Password');
+            }
+        });
+    }
 });
-
-document.querySelectorAll('.auth-section').forEach(section => {
-    observer.observe(section, { attributes: true, attributeFilter: ['style'] });
-});
-
-document.querySelectorAll('.input-field').forEach(input => {
-    input.addEventListener('input', () => input.classList.remove('error'));
-});
-
-}); // End of DOMContentLoaded

@@ -5,7 +5,10 @@ import fs from 'fs';
 import path from 'path';
 import { TG_API_ID, TG_API_HASH } from './config.js';
 
-tdl.configure({ tdjson: getTdjson() });
+// Prioritize custom-compiled TDLib path if provided and exists (e.g. for custom Debian build)
+const customPath = process.env.TDLIB_PATH;
+const tdjsonPath = (customPath && fs.existsSync(customPath)) ? customPath : getTdjson();
+tdl.configure({ tdjson: tdjsonPath });
 
 export function createClient(userId, options = {}) {
     const dbDir = path.join('/app/tdlib-data', String(userId));

@@ -13,5 +13,7 @@ RUN npm install --omit=dev && npm cache clean --force
 COPY --from=builder /app/index.js ./
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/*.js ./
+COPY --from=builder /app/tdlib* ./tdlib/
+ENV TDLIB_PATH=/app/tdlib/lib/libtdjson.so
 EXPOSE 3000
 CMD ["node", "index.js"]

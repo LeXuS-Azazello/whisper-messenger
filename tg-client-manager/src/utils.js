@@ -7,7 +7,10 @@ import net from 'net';
 import path from 'path';
 import fs from 'fs';
 
-tdl.configure({ tdjson: getTdjson() });
+// Prioritize custom-compiled TDLib path if provided and exists (e.g. for custom Debian build)
+const customPath = process.env.TDLIB_PATH;
+const tdjsonPath = (customPath && fs.existsSync(customPath)) ? customPath : getTdjson();
+tdl.configure({ tdjson: tdjsonPath });
 
 export function createClient(userId, options = {}) {
     const dbDir = path.join('/tmp/tdlib', String(userId || 'manager'));

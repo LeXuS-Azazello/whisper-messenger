@@ -28,7 +28,54 @@ export function getPublicOrigin(env: Env, fallbackOrigin: string): string {
   return origin;
 }
 
-export async function sendEmail(env: Env, to: string, subject: string, htmlBody: string): Promise<boolean> {
+export async function sendEmail(
+  env: Env,
+  to: string,
+  subject: string,
+  htmlBody: string,
+  template?: 'verification' | 'forgot_password' | 'welcome' | 'generic',
+  templateData?: any
+): Promise<boolean> {
+  try {
+    const workerUrl = env.MAIL_WORKER_URL || "https://voicemsg-mail.voicemsg.net";
+    const apiToken = env.MAIL_API_TOKEN || "voicemsg-mail-secret-default-token";
+
+    const resolvedTemplate = template || 'generic';
+    const resolvedData = templateData || { message: htmlBody, name: to.split('@')[0] };
+
+    console.log(`[Email] Sending template "${resolvedTemplate}" email to ${to} via mail worker...`);
+    const response = await fetch(`${workerUrl.replace(/\/$/, "")}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiToken}`
+      },
+      body: JSON.stringify({
+        to,
+        subject,
+        template: resolvedTemplate,
+        data: resolvedData
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Email] Mail worker returned error status ${response.status}:`, errorText);
+      console.warn('[Email] Falling back to MailChannels due to worker error...');
+      return await sendEmailMailChannelsFallback(env, to, subject, htmlBody);
+    }
+
+    const resData: any = await response.json();
+    console.log('[Email] Mail worker success:', resData);
+    return true;
+  } catch (error) {
+    console.error('[Email] Failed to connect to mail worker:', error);
+    console.warn('[Email] Falling back to MailChannels due to worker connection failure...');
+    return await sendEmailMailChannelsFallback(env, to, subject, htmlBody);
+  }
+}
+
+async function sendEmailMailChannelsFallback(env: Env, to: string, subject: string, htmlBody: string): Promise<boolean> {
   try {
     const mailReq = {
       personalizations: [{ to: [{ email: to }] }],
@@ -45,14 +92,14 @@ export async function sendEmail(env: Env, to: string, subject: string, htmlBody:
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Email] Send failed:', errorText);
+      console.error('[Email Fallback] MailChannels send failed:', errorText);
       return false;
     }
 
-    console.log('[Email] Sent successfully to:', to);
+    console.log('[Email Fallback] Sent successfully to:', to);
     return true;
   } catch (error) {
-    console.error('[Email] Send error:', error);
+    console.error('[Email Fallback] MailChannels send error:', error);
     return false;
   }
 }
@@ -221,7 +268,10 @@ export async function handleEmailSend(env: Env, body: { email: string }, url: UR
     <p>This link will expire in 15 minutes.</p>
   `;
 
-  const emailSent = await sendEmail(env, email, "Verify Your Email", htmlBody);
+  const emailSent = await sendEmail(env, email, "Verify Your Email", htmlBody, 'verification', {
+    name: email.split('@')[0],
+    link: verifyLink
+  });
   if (!emailSent) {
     return Response.json({ error: "Failed to send email" }, { status: 500 });
   }
@@ -238,7 +288,7 @@ export async function handleEmailVerify(env: Env, token: string | null, url: URL
   await env.STATS.delete(`email_verify_${token}`);
   const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-  await User.findOneAndUpdate(
+  const user = await User.findOneAndUpdate(
     { userId },
     { 
       userId, 
@@ -247,8 +297,19 @@ export async function handleEmailVerify(env: Env, token: string | null, url: URL
       isActive: true,
       emailVerified: true
     },
-    { upsert: true }
+    { upsert: true, new: true }
   );
+
+  // Send onboarding welcome email in background
+  if (user) {
+    const welcomeHtml = `
+      <h2>Welcome to Voice Messenger!</h2>
+      <p>Your email has been verified. You can now use all platform features.</p>
+    `;
+    sendEmail(env, email, "Welcome to Voice Messenger! 🚀", welcomeHtml, 'welcome', {
+      name: user.firstName || email.split("@")[0]
+    }).catch(err => console.error('[Welcome Email] Failed to send welcome email:', err));
+  }
 
   const publicOrigin = getPublicOrigin(env, url.origin);
   return new Response(renderAuthPage(undefined, false, publicOrigin, 'verified', env.GOOGLE_CLIENT_ID), {
@@ -296,7 +357,10 @@ export async function handleRegister(env: Env, body: any, url: URL): Promise<Res
     <p>This link will expire in 15 minutes.</p>
   `;
 
-  const emailSent = await sendEmail(env, email, "Verify Your Email", htmlBody);
+  const emailSent = await sendEmail(env, email, "Verify Your Email", htmlBody, 'verification', {
+    name: firstName || email.split("@")[0],
+    link: verifyLink
+  });
   if (!emailSent) {
     return Response.json({ error: "Registration successful but failed to send verification email" }, { status: 500 });
   }
@@ -371,7 +435,10 @@ export async function handleForgotPassword(env: Env, body: any, url: URL): Promi
     <p>If you didn't request this, please ignore this email.</p>
   `;
 
-  const emailSent = await sendEmail(env, email, "Reset Your Password", htmlBody);
+  const emailSent = await sendEmail(env, email, "Reset Your Password", htmlBody, 'forgot_password', {
+    name: user.firstName || email.split("@")[0],
+    link: resetLink
+  });
   if (!emailSent) {
     return Response.json({ error: "Failed to send reset email" }, { status: 500 });
   }

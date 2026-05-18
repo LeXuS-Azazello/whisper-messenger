@@ -29,10 +29,43 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   const method = req.method;
   const publicOrigin = getPublicOrigin(env, url.origin);
 
-  // Normalize pathname: remove trailing slash and ensure it starts with /auth for internal logic
+  // Normalize pathname: remove trailing slash
   let pathname = url.pathname;
   if (pathname !== "/" && pathname.endsWith("/")) {
     pathname = pathname.slice(0, -1);
+  }
+
+  // Handle all authentication GET requests
+  if (method === "GET") {
+    // If the user has a valid active session, direct them to their dashboard
+    if (currentUserId) {
+      return new Response(null, {
+        status: 302,
+        headers: { "Location": "/dashboard" }
+      });
+    }
+
+    const successType = url.searchParams.get('success');
+    const action = url.searchParams.get('action');
+
+    const authGetPaths = ["/auth", "/login", "/register", "/signup", "/forgot-password", "/reset-password", "/auth/reset-password"];
+    const isAuthGet = authGetPaths.includes(pathname);
+
+    if (isAuthGet) {
+      // Determine the default active view
+      let activeView: 'login' | 'register' | 'forgot' | 'reset' | 'success' = 'login';
+      if (pathname === '/register' || pathname === '/signup' || action === 'register') {
+        activeView = 'register';
+      } else if (pathname === '/forgot-password' || action === 'forgot') {
+        activeView = 'forgot';
+      } else if (pathname === '/reset-password' || pathname === '/auth/reset-password' || action === 'reset') {
+        activeView = 'reset';
+      }
+
+      return new Response(renderAuthPage(undefined, false, publicOrigin, successType || undefined, env.GOOGLE_CLIENT_ID, activeView), {
+        headers: { "Content-Type": "text/html; charset=utf-8" }
+      });
+    }
   }
 
   // If the path doesn't start with /auth, but it's one of our known routes, add the prefix for matching
@@ -41,25 +74,6 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
   ];
   if (knownRoutes.includes(pathname)) {
     pathname = "/auth" + pathname;
-  }
-
-  const successType = url.searchParams.get('success');
-  if (method === 'GET' && successType) {
-    return new Response(renderAuthPage(undefined, false, publicOrigin, successType, env.GOOGLE_CLIENT_ID), {
-      headers: { "Content-Type": "text/html; charset=utf-8" }
-    });
-  }
-
-  if (method === "GET" && (pathname === "/auth" || pathname === "/auth/reset-password")) {
-    if (currentUserId) {
-      return new Response(null, {
-        status: 302,
-        headers: { "Location": "/dashboard" }
-      });
-    }
-    return new Response(renderAuthPage(undefined, false, publicOrigin, undefined, env.GOOGLE_CLIENT_ID), {
-      headers: { "Content-Type": "text/html; charset=utf-8" }
-    });
   }
 
   if (pathname === "/auth/google/callback") {

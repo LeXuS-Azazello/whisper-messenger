@@ -4,5 +4,6 @@ RUN apt-get update && apt-get install -y ffmpeg python3 make g++ gcc && rm -rf /
 COPY package*.json ./
 RUN npm install --omit=dev && npm cache clean --force
 COPY . .
+ENV TDLIB_PATH=/app/tdlib/lib/libtdjson.so
 EXPOSE 3001
 CMD ["node", "src/index.js"]

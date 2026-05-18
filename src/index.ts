@@ -176,7 +176,15 @@ export default {
       }
 
       // ─── Auth routes ────────────────────────────────────────────────────────
-      if (pathStartsWith(pathname, "/auth")) {
+      const isAuthRoute = pathStartsWith(pathname, "/auth") ||
+                          pathname === "/login" ||
+                          pathname === "/register" ||
+                          pathname === "/signup" ||
+                          pathname === "/forgot-password" ||
+                          pathname === "/reset-password" ||
+                          pathname === "/logout";
+
+      if (isAuthRoute) {
         // Extract userId from session cookie
         const sessionCookie = req.headers.get("Cookie")?.match(/session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;

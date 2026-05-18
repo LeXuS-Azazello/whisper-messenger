@@ -53,6 +53,10 @@ export interface Env {
   SMTP_PORT?: string;
   SMTP_SECURE?: string;
 
+  // Mail Worker Config
+  MAIL_WORKER_URL?: string;
+  MAIL_API_TOKEN?: string;
+
   // Cloudflare Config
   CLOUDFLARE_GLOBAL_TOKEN?: string;
   CLOUDFLARE_ZONE_ID?: string;
