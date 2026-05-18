@@ -64,12 +64,12 @@ describe('Authentication Merging and Conflict Resolution', () => {
         save: vi.fn().mockResolvedValue(true),
       };
 
-      vi.spyOn(User, 'findOne').mockImplementation(async (query: any) => {
+      vi.spyOn(User, 'findOne').mockImplementation((async (query: any) => {
         if (query.email === 'lexus@example.com') {
           return existingUser as any;
         }
         return null;
-      });
+      }) as any);
 
       const response = await handleGoogleCallback(
         mockEnv,

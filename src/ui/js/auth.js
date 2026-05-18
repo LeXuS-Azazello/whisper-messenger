@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
     // Check if session cookie already exists and redirect to dashboard
-    const sessionMatch = document.cookie.match(/session=([^;]+)/);
+    const sessionMatch = document.cookie.match(/(?:^|;)\s*session=([^;]+)/);
     if (sessionMatch) {
         window.location.href = '/dashboard';
         return;

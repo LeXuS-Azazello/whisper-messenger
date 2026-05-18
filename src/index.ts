@@ -186,7 +186,7 @@ export default {
 
       if (isAuthRoute) {
         // Extract userId from session cookie
-        const sessionCookie = req.headers.get("Cookie")?.match(/session=([^;]+)/)?.[1];
+        const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;
         if (sessionCookie) {
           currentUserId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
@@ -197,7 +197,7 @@ export default {
 
       // ─── Dashboard routes (authenticated) ──────────────────────────────────
       if (pathStartsWith(pathname, "/dashboard")) {
-        const sessionCookie = req.headers.get("Cookie")?.match(/session=([^;]+)/)?.[1];
+        const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;
         if (sessionCookie) {
           currentUserId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
@@ -220,7 +220,7 @@ export default {
 
       // ─── Whisper test route ────────────────────────────────────────────────
       if (req.method === "POST" && pathname === "/test-whisper") {
-        const cookieAuth = req.headers.get("Cookie")?.match(/admin_session=([^;]+)/)?.[1];
+        const cookieAuth = req.headers.get("Cookie")?.match(/(?:^|;)\s*admin_session=([^;]+)/)?.[1];
         const adminId = cookieAuth ? await verifySession(cookieAuth, env.ADMIN_SECRET) : null;
         if (adminId !== "admin") return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
 
@@ -260,7 +260,7 @@ export default {
 
       // ─── Home page (/) ──────────────────────────────────────────────────────
       if (pathname === "/") {
-        const sessionCookie = req.headers.get("Cookie")?.match(/session=([^;]+)/)?.[1];
+        const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
         if (sessionCookie) {
           const userId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
           if (userId) {

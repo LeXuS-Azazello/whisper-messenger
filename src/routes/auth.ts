@@ -174,7 +174,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
   if (method === "GET" && pathname === "/auth/meta/callback") {
     const code = url.searchParams.get("code");
-    const userId = currentUserId || req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1];
+    const userId = currentUserId || req.headers.get("Cookie")?.match(/(?:^|;)\s*user_id=([^;]+)/)?.[1];
     if (!code || !userId) return new Response("Missing parameters", { status: 400 });
     return await handleMetaCallback(env, code, userId, url);
   }
@@ -185,7 +185,7 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
   if (method === "GET" && pathname === "/auth/threads/callback") {
     const code = url.searchParams.get("code");
-    const userId = currentUserId || req.headers.get("Cookie")?.match(/user_id=([^;]+)/)?.[1];
+    const userId = currentUserId || req.headers.get("Cookie")?.match(/(?:^|;)\s*user_id=([^;]+)/)?.[1];
     if (!code || !userId) return new Response("Missing parameters", { status: 400 });
     return await handleThreadsCallback(env, code, userId, url);
   }

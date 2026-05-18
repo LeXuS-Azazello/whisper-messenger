@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function () {
-    const sessionMatch = document.cookie.match(/session=([^;]+)/);
+    const sessionMatch = document.cookie.match(/(?:^|;)\s*session=([^;]+)/);
     if (sessionMatch) {
         window.location.href = '/dashboard';
         return;

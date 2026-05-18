@@ -25,7 +25,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
             pathname = pathname.slice(0, -1);
         }
 
-        const cookieAuth = req.headers.get("Cookie")?.match(/admin_session=([^;]+)/)?.[1];
+        const cookieAuth = req.headers.get("Cookie")?.match(/(?:^|;)\s*admin_session=([^;]+)/)?.[1];
         const adminId = cookieAuth ? await verifySession(cookieAuth, env.ADMIN_SECRET) : null;
 
         if (method === "POST" && pathname === "/admin/login") {
