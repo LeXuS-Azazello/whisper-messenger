@@ -40,9 +40,11 @@ export async function verifySession(session: string, secret: string): Promise<st
   const key = await getSigningKey(secret);
   const encoder = new TextEncoder();
 
-  // Convert hex back to buffer
+  // Convert hex back to buffer safely
+  const hexMatches = hashHex.match(/.{1,2}/g);
+  if (!hexMatches) return null;
   const hashBytes = new Uint8Array(
-    hashHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+    hexMatches.map(byte => parseInt(byte, 16))
   );
 
   const isValid = await crypto.subtle.verify(

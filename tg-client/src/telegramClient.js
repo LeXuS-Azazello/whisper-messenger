@@ -159,10 +159,23 @@ export async function startUserClient() {
 
     console.log(`[tg-client] Initializing user client for ${TARGET_USER_ID}...`);
 
-    if (TG_SESSION && TG_SESSION.length > 100) {
-        console.log(`[tg-client] 📦 Found session in environment, unpacking...`);
+    let sessionData = TG_SESSION;
+    if (!sessionData || sessionData.length < 100) {
+        console.log(`[tg-client] 🔍 Session not in environment, checking Redis...`);
+        try {
+            sessionData = await redis.get(`tg_session_${TARGET_USER_ID}`);
+            if (sessionData) {
+                console.log(`[tg-client] 📦 Found session in Redis (length: ${sessionData.length})`);
+            }
+        } catch (redisErr) {
+            console.error(`[tg-client] Failed to get session from Redis:`, redisErr.message);
+        }
+    }
+
+    if (sessionData && sessionData.length > 100) {
+        console.log(`[tg-client] 📦 Unpacking session...`);
         const { unpackSession } = await import('./utils.js');
-        unpackSession(TARGET_USER_ID, TG_SESSION);
+        unpackSession(TARGET_USER_ID, sessionData);
     }
 
     client = createClient(TARGET_USER_ID);
@@ -181,6 +194,25 @@ export async function startUserClient() {
     console.log(`[tg-client] Connecting to TDLib...`);
     await client.connect();
     console.log(`[tg-client] Connected! Waiting for messages...`);
+}
+
+export async function sendTestMessage(messageText) {
+    if (!client) {
+        throw new Error('Telegram client is not initialized or connected.');
+    }
+    const me = await client.invoke({ "_": "getMe" });
+    const msgText = messageText || 'Test from Whisper Messenger!';
+    console.log(`[tg-client] Sending test message to self (${me.id})`);
+    
+    await client.invoke({
+        "_": "sendMessage",
+        "chat_id": me.id,
+        "input_message_content": {
+            "_": "inputMessageText",
+            "text": { "_": "formattedText", "text": msgText }
+        }
+    });
+    return me;
 }
 
 export async function startTelegramClient() {

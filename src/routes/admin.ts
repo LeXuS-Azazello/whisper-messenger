@@ -37,7 +37,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         }
 
         if (adminId !== "admin") {
-            if (method === "POST" || pathname.endsWith(".json") || pathname.includes("/tg-") || pathname.includes("/user-action")) {
+            if (method === "POST" || pathname.endsWith(".json") || pathname.includes("/tg-") || pathname.includes("/user-action") || pathname.includes("/admin/tester") || pathname.includes("/admin/mongo")) {
                 return new Response(JSON.stringify({ success: false, error: "Unauthorized. Please login." }), {
                     status: 401,
                     headers: { "Content-Type": "application/json" }
@@ -98,14 +98,14 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         // Secure internal reverse proxy for mongo-express UI and API
         if (pathname === "/admin/mongo" || pathname.startsWith("/admin/mongo/")) {
             // Standardize path: mongo-express expects basePath to have a trailing slash
-            if (pathname === "/admin/mongo") {
+            if (url.pathname === "/admin/mongo") {
                 return Response.redirect(`${url.origin}/admin/mongo/`, 301);
             }
 
             const namespace = env.NAMESPACE || "debugging-testcrash-pub";
             const mongoExpressUrl = `http://mongo-express.${namespace}.svc.cluster.local:8081`;
             // Keep the full pathname because ME_CONFIG_SITE_BASEURL is set to "/admin/mongo/"
-            const targetUrl = `${mongoExpressUrl}${pathname}${url.search}`;
+            const targetUrl = `${mongoExpressUrl}${url.pathname}${url.search}`;
 
             console.log(`[Admin Proxy] Forwarding admin MongoDB request to: ${targetUrl}`);
 

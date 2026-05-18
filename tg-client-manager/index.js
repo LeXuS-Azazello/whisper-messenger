@@ -127,6 +127,36 @@ app.post('/test-tg', auth, async (req, res) => {
 
         console.log(`[/test-tg] Starting TDLib test for ${userId}...`);
 
+        // Check if there is already a running pod for this user
+        if (MODE === 'MANAGER') {
+            try {
+                const runningPods = await listPods().catch(() => []);
+                const userPod = runningPods.find(p => String(p.userId) === String(userId) && p.status === 'Running' && p.podIP);
+                if (userPod) {
+                    console.log(`[/test-tg] User ${userId} has a running pod at ${userPod.podIP}. Routing request to the pod.`);
+                    const podUrl = `http://${userPod.podIP}:3001/test-tg`;
+                    const podRes = await fetch(podUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message: req.body.message
+                        }),
+                        signal: AbortSignal.timeout(10000)
+                    });
+                    const podData = await podRes.json().catch(() => ({ error: 'Pod bridge error' }));
+                    if (podRes.ok) {
+                        const duration = Date.now() - start;
+                        return res.json({ success: true, duration, me: podData.me, routedToPod: true });
+                    } else {
+                        throw new Error(podData.error || `Pod returned error code ${podRes.status}`);
+                    }
+                }
+            } catch (podErr) {
+                console.error(`[/test-tg] Failed to contact/forward to user pod:`, podErr.message);
+                return res.status(500).json({ success: false, error: `User pod communication failed: ${podErr.message}` });
+            }
+        }
+
         const { unpackSession } = await import('./src/utils.js');
         let sessionBase64 = req.body.session || await redis.get(`tg_session_${userId}`);
 
@@ -171,6 +201,35 @@ app.post('/test-voice', auth, async (req, res) => {
     try {
         const userId = req.body.userId || TARGET_USER_ID;
 
+        // Check if there is already a running pod for this user
+        if (MODE === 'MANAGER') {
+            try {
+                const runningPods = await listPods().catch(() => []);
+                const userPod = runningPods.find(p => String(p.userId) === String(userId) && p.status === 'Running' && p.podIP);
+                if (userPod) {
+                    console.log(`[/test-voice] User ${userId} has a running pod at ${userPod.podIP}. Routing request to the pod.`);
+                    const podUrl = `http://${userPod.podIP}:3001/test-tg`;
+                    const podRes = await fetch(podUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message: "🔊 TDLib Voice test"
+                        }),
+                        signal: AbortSignal.timeout(10000)
+                    });
+                    const podData = await podRes.json().catch(() => ({ error: 'Pod bridge error' }));
+                    if (podRes.ok) {
+                        return res.json({ success: true, routedToPod: true });
+                    } else {
+                        throw new Error(podData.error || `Pod returned error code ${podRes.status}`);
+                    }
+                }
+            } catch (podErr) {
+                console.error(`[/test-voice] Failed to contact/forward to user pod:`, podErr.message);
+                return res.status(500).json({ success: false, error: `User pod communication failed: ${podErr.message}` });
+            }
+        }
+
         // Restore session from Redis to avoid phone prompt
         const { unpackSession } = await import('./src/utils.js');
         const sessionBase64 = await redis.get(`tg_session_${userId}`);
@@ -204,7 +263,11 @@ app.post('/test-voice', auth, async (req, res) => {
 
 app.post('/spawn', auth, async (req, res) => {
     try {
-        const podName = await spawnPod(req.body.userId, req.body.session);
+        const { userId, session } = req.body;
+        if (session && session.length > 100) {
+            await redis.set(`tg_session_${userId}`, session, 'EX', 86400 * 30);
+        }
+        const podName = await spawnPod(userId, session);
         res.json({ success: true, podName });
     } catch (err) {
         res.status(500).json({ error: err.message });

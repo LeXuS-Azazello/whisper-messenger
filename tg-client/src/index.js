@@ -14,8 +14,11 @@ import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => 
 
     app.post('/test-tg', async (req, res) => {
         try {
-            res.json({ success: false, error: 'Test endpoint disabled in console-only mode' });
+            const { sendTestMessage } = await import('./telegramClient.js');
+            const me = await sendTestMessage(req.body.message);
+            res.json({ success: true, me });
         } catch (e) {
+            console.error('[tg-client] /test-tg error:', e.message);
             res.status(500).json({ success: false, error: e.message });
         }
     });

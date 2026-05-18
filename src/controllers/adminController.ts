@@ -313,7 +313,7 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
             return await proxyToManager(`${managerUrl}/spawn?secret=${secret}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-manager-secret": secret },
-                body: JSON.stringify({ userId, session })
+                body: JSON.stringify({ userId })
             });
         }
     } else if (action === "stop") {

@@ -1,7 +1,7 @@
 import * as k8s from '@kubernetes/client-node';
 import https from 'https';
 import fs from 'fs';
-import { MODE, API_ID, API_HASH, SECRET, WORKER_URL, DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION } from './config.js';
+import { MODE, API_ID, API_HASH, SECRET, WORKER_URL, DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION, redis } from './config.js';
 import { withTimeout } from './utils.js';
 import User from './models/User.js';
 
@@ -77,6 +77,26 @@ export async function spawnPod(userId, session) {
         }
     } catch (e) {}
 
+    // Retrieve session from Redis / MongoDB if missing
+    let sessionData = session;
+    if (!sessionData || sessionData.length < 100) {
+        console.log(`[/spawn] Session not provided or too short in arguments, loading from Redis for user ${safeUserId}`);
+        try {
+            sessionData = await redis.get(`tg_session_${safeUserId}`);
+            if (!sessionData) {
+                console.log(`[/spawn] Session not found in Redis, falling back to MongoDB for user ${safeUserId}`);
+                const dbUser = await User.findOne({ userId: safeUserId });
+                if (dbUser && dbUser.tgSession) {
+                    sessionData = dbUser.tgSession;
+                    // Cache it back to Redis
+                    await redis.set(`tg_session_${safeUserId}`, sessionData, 'EX', 86400 * 30);
+                }
+            }
+        } catch (e) {
+            console.error(`[/spawn] Failed to retrieve session from Redis/MongoDB:`, e.message);
+        }
+    }
+
     // Load template from ConfigMap
     let podManifest;
     try {
@@ -106,7 +126,7 @@ export async function spawnPod(userId, session) {
     (container.env || []).forEach(e => envMap.set(e.name, e));
 
     envMap.set('TARGET_USER_ID', { name: 'TARGET_USER_ID', value: safeUserId });
-    const sessVal = session || '';
+    const sessVal = (sessionData && sessionData.length < 200000) ? sessionData : '';
     envMap.set('TG_SESSION', { name: 'TG_SESSION', value: sessVal });
     
     container.env = Array.from(envMap.values());
@@ -176,7 +196,8 @@ export async function listPods() {
             userId: labels.userId,
             status: p?.status?.phase,
             startTime: p?.status?.startTime,
-            podName: p?.metadata?.name
+            podName: p?.metadata?.name,
+            podIP: p?.status?.podIP
         };
     });
 }

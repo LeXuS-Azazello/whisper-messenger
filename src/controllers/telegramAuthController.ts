@@ -48,7 +48,7 @@ async function saveAuthSessionData(env: Env, data: any, currentUserId: string | 
   const spawnPromise = fetch(`${managerUrl}/spawn`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-manager-secret": managerSecret },
-    body: JSON.stringify({ userId, session: data.session })
+    body: JSON.stringify({ userId })
   }).catch(e => console.error("[Auth] Failed to trigger spawn:", e.message));
 
   if (ctx && ctx.waitUntil) {

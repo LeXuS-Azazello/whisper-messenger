@@ -239,25 +239,6 @@ export default {
         }
       }
 
-      // ─── Manager API proxy (spawn, delete, etc.) ────────────────────────────
-      // These endpoints are called by the frontend JS and need to reach the manager
-      if (pathname === "/spawn" || pathname === "/delete-pod") {
-        const secret = (env.MANAGER_SECRET || "changeme").trim();
-        const proxyUrl = new URL(`${managerUrl}${url.pathname}${url.search}`);
-        proxyUrl.searchParams.set("secret", secret);
-
-        const managerReq = new Request(proxyUrl.toString(), {
-          method: req.method,
-          headers: req.headers,
-          body: req.body,
-          redirect: "manual",
-          duplex: 'half'
-        } as any);
-        managerReq.headers.set("x-manager-secret", secret);
-        managerReq.headers.set("x-forwarded-for", req.headers.get("CF-Connecting-IP") || "");
-        return await fetch(managerReq);
-      }
-
       // ─── Home page (/) ──────────────────────────────────────────────────────
       if (pathname === "/") {
         const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
