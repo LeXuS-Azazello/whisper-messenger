@@ -5,7 +5,7 @@ import { Env } from '../types';
 
 vi.mock('../models/User', () => {
   const mockSave = vi.fn().mockResolvedValue(true);
-  
+
   // A constructor/function mock that acts as a class
   const MockUserClass = function (this: any, data: any) {
     Object.assign(this, data);
@@ -52,20 +52,20 @@ describe('Authentication Merging and Conflict Resolution', () => {
       // Mock Google OAuth token exchange & userinfo responses
       fetchSpy.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ id: '12345', email: 'lexus@example.com', name: 'Google Name' })
+        json: async () => ({ id: '12345', email: 'lexus@debug.org.ua', name: 'Google Name' })
       } as any);
 
       // Existing email-based user doc
       const existingUser = {
         userId: 'email_lexus_example_com',
-        email: 'lexus@example.com',
+        email: 'lexus@debug.org.ua',
         firstName: 'Lexus',
         emailVerified: true,
         save: vi.fn().mockResolvedValue(true),
       };
 
       vi.spyOn(User, 'findOne').mockImplementation((async (query: any) => {
-        if (query.email === 'lexus@example.com') {
+        if (query.email === 'lexus@debug.org.ua') {
           return existingUser as any;
         }
         return null;
@@ -79,7 +79,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
       );
 
       expect(response.status).toBe(200);
-      expect(User.findOne).toHaveBeenCalledWith({ email: 'lexus@example.com' });
+      expect(User.findOne).toHaveBeenCalledWith({ email: 'lexus@debug.org.ua' });
       expect(existingUser.save).toHaveBeenCalled();
       expect(existingUser.firstName).toBe('Lexus'); // untouched
       expect(existingUser.userId).toBe('email_lexus_example_com'); // unchanged userId!
@@ -88,11 +88,11 @@ describe('Authentication Merging and Conflict Resolution', () => {
 
   describe('handleEmailVerify with an existing Google-registered user', () => {
     it('should find the user by email and mark verified instead of creating a new email user', async () => {
-      (mockEnv.STATS.get as any).mockResolvedValueOnce('lexus@example.com');
+      (mockEnv.STATS.get as any).mockResolvedValueOnce('lexus@debug.org.ua');
 
       const existingUser = {
         userId: 'google_12345',
-        email: 'lexus@example.com',
+        email: 'lexus@debug.org.ua',
         emailVerified: false,
         save: vi.fn().mockResolvedValue(true),
       };
@@ -106,7 +106,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
       );
 
       expect(response.status).toBe(200);
-      expect(User.findOne).toHaveBeenCalledWith({ email: 'lexus@example.com' });
+      expect(User.findOne).toHaveBeenCalledWith({ email: 'lexus@debug.org.ua' });
       expect(existingUser.emailVerified).toBe(true);
       expect(existingUser.save).toHaveBeenCalled();
     });
@@ -117,7 +117,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
       // Mock existing google user who doesn't have a passwordHash yet
       const existingUser = {
         userId: 'google_12345',
-        email: 'lexus@example.com',
+        email: 'lexus@debug.org.ua',
         emailVerified: true,
         save: vi.fn().mockResolvedValue(true),
       };
@@ -126,7 +126,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
 
       const response = await handleRegister(
         mockEnv,
-        { email: 'lexus@example.com', password: 'new-password-123', firstName: 'Lexus' },
+        { email: 'lexus@debug.org.ua', password: 'new-password-123', firstName: 'Lexus' },
         new URL('https://voicemsg.net/auth/register')
       );
 
@@ -140,7 +140,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
     it('should return a 409 conflict if user is already verified AND already has a passwordHash', async () => {
       const existingUser = {
         userId: 'email_lexus_example_com',
-        email: 'lexus@example.com',
+        email: 'lexus@debug.org.ua',
         emailVerified: true,
         passwordHash: 'somehash123',
         save: vi.fn(),
@@ -150,7 +150,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
 
       const response = await handleRegister(
         mockEnv,
-        { email: 'lexus@example.com', password: 'new-password-123', firstName: 'Lexus' },
+        { email: 'lexus@debug.org.ua', password: 'new-password-123', firstName: 'Lexus' },
         new URL('https://voicemsg.net/auth/register')
       );
 
@@ -171,7 +171,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
 
       const response = await handleRegister(
         mockEnv,
-        { email: 'lexus-new@example.com', password: 'new-password-123', firstName: 'Lexus' },
+        { email: 'lexus-new@debug.org.ua', password: 'new-password-123', firstName: 'Lexus' },
         new URL('https://voicemsg.net/auth/register')
       );
 
@@ -191,7 +191,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
     it('should ensure an existing unverified user has emailVerified: false and isActive: false during re-registration', async () => {
       const existingUser = {
         userId: 'email_lexus_example_com',
-        email: 'lexus@example.com',
+        email: 'lexus@debug.org.ua',
         emailVerified: false,
         isActive: true, // starts true, should be forced to false
         save: vi.fn().mockResolvedValue(true),
@@ -207,7 +207,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
 
       const response = await handleRegister(
         mockEnv,
-        { email: 'lexus@example.com', password: 'new-password-123', firstName: 'Lexus' },
+        { email: 'lexus@debug.org.ua', password: 'new-password-123', firstName: 'Lexus' },
         new URL('https://voicemsg.net/auth/register')
       );
 
@@ -224,7 +224,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
     it('should look up by email directly to successfully authenticate merged/google accounts with passwords', async () => {
       const existingUser = {
         userId: 'google_12345',
-        email: 'lexus@example.com',
+        email: 'lexus@debug.org.ua',
         emailVerified: true,
         passwordHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', // SHA-256 of empty string for simplicity or hash
       };
@@ -241,7 +241,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
 
       const response = await handleLogin(
         mockEnv,
-        { email: 'lexus@example.com', password },
+        { email: 'lexus@debug.org.ua', password },
         new URL('https://voicemsg.net/auth/login')
       );
 
@@ -249,7 +249,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.userId).toBe('google_12345');
-      expect(User.findOne).toHaveBeenCalledWith({ email: 'lexus@example.com' });
+      expect(User.findOne).toHaveBeenCalledWith({ email: 'lexus@debug.org.ua' });
     });
   });
 });

@@ -29,7 +29,7 @@ describe('Auth Email Sender Integration', () => {
 
     const result = await sendEmail(
       mockEnv,
-      'user@example.com',
+      'user@debug.org.ua',
       'Verify Email',
       '<h2>Verify</h2>',
       'verification',
@@ -45,7 +45,7 @@ describe('Auth Email Sender Integration', () => {
         'Authorization': 'Bearer test-api-token-123'
       },
       body: JSON.stringify({
-        to: 'user@example.com',
+        to: 'user@debug.org.ua',
         subject: 'Verify Email',
         template: 'verification',
         data: { name: 'John Doe', link: 'https://voicemsg.net/verify' }
@@ -69,7 +69,7 @@ describe('Auth Email Sender Integration', () => {
 
     const result = await sendEmail(
       mockEnv,
-      'user@example.com',
+      'user@debug.org.ua',
       'Verify Email',
       '<h2>Verify</h2>',
       'verification',
@@ -85,7 +85,7 @@ describe('Auth Email Sender Integration', () => {
     // Check second call (MailChannels fallback)
     expect(fetchSpy.mock.calls[1][0]).toBe('https://api.mailchannels.net/tx/v1/send');
     expect(JSON.parse(fetchSpy.mock.calls[1][1].body)).toEqual({
-      personalizations: [{ to: [{ email: 'user@example.com' }] }],
+      personalizations: [{ to: [{ email: 'user@debug.org.ua' }] }],
       from: { email: 'no-reply@voicemsg.net', name: 'Voice Messenger' },
       subject: 'Verify Email',
       content: [{ type: 'text/html', value: '<h2>Verify</h2>' }]
@@ -104,7 +104,7 @@ describe('Auth Email Sender Integration', () => {
 
     const result = await sendEmail(
       mockEnv,
-      'user@example.com',
+      'user@debug.org.ua',
       'Verify Email',
       '<h2>Verify</h2>',
       'verification',
