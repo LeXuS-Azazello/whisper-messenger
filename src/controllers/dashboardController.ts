@@ -6,28 +6,30 @@ export async function incrementUserStats(userId: string, env: Env, platform: str
   const global = await env.STATS.get(globalKey);
   await env.STATS.put(globalKey, String(parseInt(global || "0", 10) + 1));
 
+  const lastActiveAt = Date.now();
   const metaRaw = await env.STATS.get(`user_meta_${userId}`);
   if (metaRaw) {
     const meta: UserSession = JSON.parse(metaRaw);
     meta.transcriptionCount = (meta.transcriptionCount || 0) + 1;
-    meta.lastActiveAt = Date.now();
+    meta.lastActiveAt = lastActiveAt;
     await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+  }
 
-    try {
-      const User = (await import("../models/User")).default;
-      await User.findOneAndUpdate(
-        { userId },
-        {
-          $inc: { transcriptionCount: 1 },
-          $set: { lastActiveAt: new Date(meta.lastActiveAt) }
-        },
-        { upsert: true }
-      );
-    } catch (e) {
-      console.error("[Stats] Failed to update MongoDB:", e);
-    }
+  try {
+    const User = (await import("../models/User")).default;
+    await User.findOneAndUpdate(
+      { userId },
+      {
+        $inc: { transcriptionCount: 1 },
+        $set: { lastActiveAt: new Date(lastActiveAt) }
+      },
+      { upsert: true }
+    );
+  } catch (e) {
+    console.error("[Stats] Failed to update MongoDB:", e);
   }
 }
+
 
 export async function handleSaveMeta(env: Env, req: Request, userId: string, user: UserSession): Promise<Response> {
   const { metaToken } = await req.json() as any;

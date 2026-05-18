@@ -150,18 +150,24 @@ spec:
           # Run the server
           python3 /app/serve_whisper.py
 
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          failureThreshold: 120
+          periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 60
+          initialDelaySeconds: 5
           periodSeconds: 10
           timeoutSeconds: 5
         livenessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 120
+          initialDelaySeconds: 15
           periodSeconds: 30
           timeoutSeconds: 10
 

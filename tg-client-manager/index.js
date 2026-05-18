@@ -10,7 +10,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dns from 'dns';
 
-import { MODE, PORT, TARGET_USER_ID, TG_SESSION, redis, MONGODB_URI } from './src/config.js';
+import { MODE, PORT, TARGET_USER_ID, TG_SESSION, redis, MONGODB_URI, SECRET, WORKER_URL } from './src/config.js';
 import { auth, checkConnect, createClient } from './src/utils.js';
 import { initK8s, spawnPod, deletePods, listPods, runReconciliation } from './src/k8s.js';
 import { sendCode, verifyCode, verifyPassword, qrStart, qrCheck, authSessions } from './src/auth.js';
@@ -337,17 +337,49 @@ app.post('/internal/stats', auth, async (req, res) => {
         const { userId } = req.body;
         if (!userId) return res.status(400).json({ error: 'Missing userId' });
 
-        await User.findOneAndUpdate(
-            { userId: String(userId) },
-            {
-                $inc: { transcriptionCount: 1 },
-                lastActiveAt: new Date()
-            },
-            { upsert: true }
-        );
+        // Forward to the main frontend web app to update the KV/Redis cache AND the database
+        const targetUrl = WORKER_URL || 'http://echo-frontend';
+        const cleanUrl = targetUrl.replace(/\/$/, '') + '/internal/stats';
+
+        console.log(`[manager] Forwarding stats increment for ${userId} to ${cleanUrl}`);
+
+        const response = await fetch(cleanUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: String(userId), secret: SECRET })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text().catch(() => '');
+            console.error(`[manager] Failed to forward stats to frontend: ${response.status} - ${errText}`);
+            // Fallback: update DB locally if frontend communication fails
+            await User.findOneAndUpdate(
+                { userId: String(userId) },
+                {
+                    $inc: { transcriptionCount: 1 },
+                    lastActiveAt: new Date()
+                },
+                { upsert: true }
+            );
+        }
+
         res.json({ success: true });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        console.error(`[manager] Error forwarding stats:`, e);
+        // Fallback: update DB locally
+        try {
+            await User.findOneAndUpdate(
+                { userId: String(userId) },
+                {
+                    $inc: { transcriptionCount: 1 },
+                    lastActiveAt: new Date()
+                },
+                { upsert: true }
+            );
+        } catch (dbErr) {
+            console.error(`[manager] Fallback database update failed:`, dbErr);
+        }
+        res.json({ success: true }); // Still return success to client so it doesn't retry endlessly
     }
 });
 
