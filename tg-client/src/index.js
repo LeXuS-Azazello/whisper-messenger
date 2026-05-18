@@ -3,11 +3,6 @@ import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => 
     const app = express();
     app.use(express.json());
 
-    // Start the debug Telegram client (only logs updates and errors)
-    import('./telegramClient.js').then(({ startTelegramClient }) => {
-        startTelegramClient().catch(e => console.error('[tg-client] Failed to start:', e.message));
-    });
-
     app.get('/health', (req, res) => {
         res.json({ mode: MODE, alive: true, userId: TARGET_USER_ID || null });
     });

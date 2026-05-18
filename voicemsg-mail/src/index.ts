@@ -96,14 +96,21 @@ app.post('/send', async (c) => {
       fromName = String(fromName || '');
     }
     fromName = fromName.trim();
+    if (!fromName) {
+      fromName = 'Voice Messenger';
+    }
 
     console.log(`[Mail Worker] Sending email to: ${to}, Template: ${template}, Subject: ${subject}`);
 
-    const recipient: { email: string; name?: string } = { email: to.trim() };
-    const sender: { email: string; name?: string } = { email: fromEmail };
-    if (fromName) {
-      sender.name = fromName;
-    }
+    const recipient = { 
+      email: to.trim(), 
+      name: to.trim().split('@')[0] || 'Recipient'
+    };
+    
+    const sender = { 
+      email: fromEmail, 
+      name: fromName 
+    };
 
     await c.env.SEND_EMAIL.send({
       to: [recipient],

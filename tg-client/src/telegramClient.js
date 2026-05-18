@@ -69,6 +69,7 @@ async function handleNewMessage(message) {
     let mime_type = '';
 
     console.log(`[tg-client] 📩 Received message in chat ${chat_id} of type: ${type}`);
+    console.log(`[tg-client] 📝 Full Message Details:`, JSON.stringify(message, null, 2));
 
     if (type === 'messageText') {
         const text = message.content.text?.text || '';

@@ -24,7 +24,7 @@ data:
             { "name": "TG_API_HASH", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "TELEGRAM_APP_HASH"}} },
             { "name": "TG_SESSION", "value": "" },
             { "name": "MANAGER_URL", "value": "http://tg-client-manager:3000" },
-            { "name": "MANAGER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "BRIDGE_SECRET"}} },
+            { "name": "MANAGER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "MANAGER_SECRET"}} },
             { "name": "REDIS_URL", "value": "redis://redis:6379" },
             { "name": "MONGODB_URI", "value": "mongodb://mongodb:27017/voicemsg" },
             { "name": "DEVICE_MODEL", "value": "Desktop Linux" },

@@ -138,7 +138,7 @@ fi
 echo ""
 
 # Single kustomize apply covers: frontend, redis, mongodb, tg-client-manager,
-# tg-client, whisper-turbo, ingress, ingress-nginx, monitoring
+# tg-client, whisper-turbo, voicemsg-cf, monitoring
 echo ">>> Applying base resources via kustomize..."
 kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || echo "Warning: Some resources failed to apply (likely RBAC restrictions). Proceeding to update images..."
 echo ""
@@ -160,8 +160,6 @@ echo ""
 echo "--- Services ---"
 kubectl get svc -n "$NAMESPACE"
 echo ""
-echo "--- Ingresses ---"
-kubectl get ingress -n "$NAMESPACE" 2>/dev/null || true
 echo ""
 echo "========================================"
 echo "  Deployment Complete!"

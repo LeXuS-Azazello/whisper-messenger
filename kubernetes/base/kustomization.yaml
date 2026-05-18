@@ -15,6 +15,8 @@ resources:
   - rbac.yaml
   - cert-manager.yaml
   - voicemsg-tester.yaml
+  - voicemsg-cf.yaml
+
 
 images:
   - name: mongo

@@ -4,13 +4,3 @@ kind: Kustomization
 resources:
 - base
 
-namespace: $(NAMESPACE)
-
-patches:
-- target:
-    kind: Ingress
-    name: voicemsg-ingress
-  patch: |-
-    - op: replace
-      path: /spec/rules/0/host
-      value: $(DOMAIN)

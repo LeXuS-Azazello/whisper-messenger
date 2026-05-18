@@ -28,6 +28,14 @@ spec:
         env:
         - name: MODE
           value: "MANAGER"
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         - name: TG_API_ID
           valueFrom:
             secretKeyRef:
