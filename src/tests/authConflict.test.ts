@@ -158,6 +158,66 @@ describe('Authentication Merging and Conflict Resolution', () => {
       expect(response.status).toBe(409);
       expect(data.error).toContain('already exists and is verified');
     });
+
+    it('should set emailVerified: false and isActive: false for a completely new registration', async () => {
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce(null);
+      const findOneAndUpdateSpy = vi.spyOn(User, 'findOneAndUpdate').mockResolvedValueOnce({} as any);
+
+      // Mock email sending
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true })
+      } as any);
+
+      const response = await handleRegister(
+        mockEnv,
+        { email: 'lexus-new@example.com', password: 'new-password-123', firstName: 'Lexus' },
+        new URL('https://voicemsg.net/auth/register')
+      );
+
+      const data = await response.json() as any;
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(findOneAndUpdateSpy).toHaveBeenCalledWith(
+        { userId: 'email_lexus_new_example_com' },
+        expect.objectContaining({
+          emailVerified: false,
+          isActive: false
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should ensure an existing unverified user has emailVerified: false and isActive: false during re-registration', async () => {
+      const existingUser = {
+        userId: 'email_lexus_example_com',
+        email: 'lexus@example.com',
+        emailVerified: false,
+        isActive: true, // starts true, should be forced to false
+        save: vi.fn().mockResolvedValue(true),
+      };
+
+      vi.spyOn(User, 'findOne').mockResolvedValueOnce(existingUser as any);
+
+      // Mock email sending
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true })
+      } as any);
+
+      const response = await handleRegister(
+        mockEnv,
+        { email: 'lexus@example.com', password: 'new-password-123', firstName: 'Lexus' },
+        new URL('https://voicemsg.net/auth/register')
+      );
+
+      const data = await response.json() as any;
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(existingUser.emailVerified).toBe(false);
+      expect(existingUser.isActive).toBe(false);
+      expect(existingUser.save).toHaveBeenCalled();
+    });
   });
 
   describe('handleLogin', () => {

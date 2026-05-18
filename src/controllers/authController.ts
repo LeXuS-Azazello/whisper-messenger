@@ -369,6 +369,10 @@ export async function handleRegister(env: Env, body: any, url: URL): Promise<Res
     // If the user already exists (e.g. from Google auth, or not yet verified), we merge/update:
     existingUser.passwordHash = passwordHashHex;
     existingUser.firstName = existingUser.firstName || firstName;
+    if (!existingUser.emailVerified) {
+      existingUser.emailVerified = false;
+      existingUser.isActive = false;
+    }
     await existingUser.save();
     console.log(`[Auth] Updated existing user ${existingUser.userId} with email password hash during registration`);
   } else {
@@ -379,11 +383,13 @@ export async function handleRegister(env: Env, body: any, url: URL): Promise<Res
         userId, 
         firstName, 
         email, 
-        passwordHash: passwordHashHex 
+        passwordHash: passwordHashHex,
+        emailVerified: false,
+        isActive: false
       },
       { upsert: true }
     );
-    console.log(`[Auth] Registered new user with email: ${userId}`);
+    console.log(`[Auth] Registered new user with email: ${userId} (inactive and unverified until activated)`);
   }
 
   const token = crypto.randomUUID();
