@@ -422,6 +422,8 @@ export async function handleLogin(env: Env, body: any, url: URL): Promise<Respon
     return Response.json({ error: "Invalid email or password" }, { status: 401 });
   }
 
+  const userId = user.userId;
+
   if (!user.passwordHash) {
     return Response.json({ error: "This account uses a different login method" }, { status: 401 });
   }
@@ -460,7 +462,7 @@ export async function handleForgotPassword(env: Env, body: any, url: URL): Promi
   }
 
   const resetToken = crypto.randomUUID();
-  await env.STATS.put(`password_reset_${resetToken}`, userId, { expirationTtl: EMAIL_VERIFY_TTL });
+  await env.STATS.put(`password_reset_${resetToken}`, user.userId, { expirationTtl: EMAIL_VERIFY_TTL });
   await env.STATS.put(rateKey, "1", { expirationTtl: RATE_LIMIT_TTL });
 
   const publicOrigin = getPublicOrigin(env, url.origin);

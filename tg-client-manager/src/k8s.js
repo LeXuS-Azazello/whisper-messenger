@@ -63,7 +63,7 @@ export async function spawnPod(userId, session) {
     console.log(`[/spawn] Spawning tg-client pod for user ${safeUserId} in namespace ${ns}`);
 
     try {
-        const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 10000).catch(() => null);
+        const existing = await withTimeout(k8sApi.listNamespacedPod(ns), 10000).catch(() => null);
         const allPods = existing?.body?.items || existing?.items || [];
         const items = allPods.filter(p => p.metadata.labels?.userId === safeUserId);
 
@@ -71,7 +71,7 @@ export async function spawnPod(userId, session) {
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
                 console.log(`[/spawn] Deleting stale pod ${p.metadata.name}...`);
-                await k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: ns }).catch(() => {});
+                await k8sApi.deleteNamespacedPod(p.metadata.name, ns).catch(() => {});
             }
             await new Promise(r => setTimeout(r, 1000));
         }
@@ -80,7 +80,7 @@ export async function spawnPod(userId, session) {
     // Load template from ConfigMap
     let podManifest;
     try {
-        const cm = await k8sApi.readNamespacedConfigMap({ name: 'tg-client-pod-template', namespace: ns });
+        const cm = await k8sApi.readNamespacedConfigMap('tg-client-pod-template', ns);
         const templateJson = cm.body.data['pod-template.json'];
 
         podManifest = JSON.parse(templateJson);
@@ -133,7 +133,7 @@ export async function spawnPod(userId, session) {
     }
 
     console.log(`[/spawn] Creating pod ${podName} from template (Session length: ${sessVal.length})...`);
-    await withTimeout(k8sApi.createNamespacedPod({ namespace: ns, body: podManifest }), 30000);
+    await withTimeout(k8sApi.createNamespacedPod(ns, podManifest), 30000);
 
 
     console.log(`[/spawn] Successfully spawned ${podName}`);
@@ -146,7 +146,7 @@ export async function deletePods(userId) {
 
     console.log(`[/delete] Deleting tg-client pods for user ${safeUserId}`);
     const ns = getNamespace();
-    const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 5000).catch(() => null);
+    const existing = await withTimeout(k8sApi.listNamespacedPod(ns), 5000).catch(() => null);
     const allItems = existing?.body?.items || existing?.items || [];
     const items = allItems.filter(p => p.metadata.labels?.userId === safeUserId);
 
@@ -154,7 +154,7 @@ export async function deletePods(userId) {
         for (const p of items) {
             if (!p?.metadata?.name) continue;
             console.log(`[/delete] Deleting pod ${p.metadata.name}...`);
-            await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: ns }), 5000).catch(err => {
+            await withTimeout(k8sApi.deleteNamespacedPod(p.metadata.name, ns), 5000).catch(err => {
 
                 console.error(`[/delete] Failed to delete pod ${p.metadata.name}:`, err.message);
             });
@@ -166,7 +166,7 @@ export async function listPods() {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const ns = getNamespace();
     console.log(`[/pods] Fetching tg-client pods in namespace ${ns}`);
-    const pods = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 10000).catch(() => null);
+    const pods = await withTimeout(k8sApi.listNamespacedPod(ns), 10000).catch(() => null);
 
 
     const items = pods?.body?.items || pods?.items || [];

@@ -179,7 +179,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                                 <a href="https://business.facebook.com/" target="_blank" class="btn btn-secondary btn-xs">💼 Business</a>
                                             </div>
 
-                                            <div class="guide-toggle" onclick="this.nextElementSibling.classList.toggle('active'); this.classList.toggle('active')">
+                                            <div class="guide-toggle" onClick={(e) => { e.currentTarget.nextElementSibling?.classList.toggle('active'); e.currentTarget.classList.toggle('active'); }}>
                                                 <span>⚙️ Setup Instructions</span>
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                             </div>
@@ -189,22 +189,22 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                                     <div class="guide-item">
                                                         <strong>App Domains:</strong>
                                                         <div class="copy-box">
-                                                             <code onclick={`navigator.clipboard.writeText('${env.DOMAIN}')`}>{env.DOMAIN}</code>
-                                                             <button class="copy-btn" onclick={`navigator.clipboard.writeText('${env.DOMAIN}')`}>📋</button>
+                                                             <code onClick={() => navigator.clipboard.writeText(env.DOMAIN || '')}>{env.DOMAIN}</code>
+                                                             <button class="copy-btn" onClick={() => navigator.clipboard.writeText(env.DOMAIN || '')}>📋</button>
                                                         </div>
                                                     </div>
                                                     <div class="guide-item">
                                                         <strong>Privacy Policy URL:</strong>
                                                         <div class="copy-box">
-                                                             <code onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/privacy')`}>{env.DOMAIN}/privacy</code>
-                                                             <button class="copy-btn" onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/privacy')`}>📋</button>
+                                                             <code onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN || ''}/privacy`)}>{env.DOMAIN}/privacy</code>
+                                                             <button class="copy-btn" onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN || ''}/privacy`)}>📋</button>
                                                         </div>
                                                     </div>
                                                     <div class="guide-item">
                                                         <strong>OAuth Redirect URI:</strong>
                                                         <div class="copy-box">
-                                                             <code onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/auth/meta/callback')`}>.../auth/meta/callback</code>
-                                                             <button class="copy-btn" onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/auth/meta/callback')`}>📋</button>
+                                                             <code onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN || ''}/auth/meta/callback`)}>.../auth/meta/callback</code>
+                                                             <button class="copy-btn" onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN || ''}/auth/meta/callback`)}>📋</button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -238,7 +238,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                                 <a href="https://business.facebook.com/wa/manage/phone-numbers/" target="_blank" class="btn btn-secondary btn-xs">📱 Manager</a>
                                                 <a href="https://developers.facebook.com/apps/" target="_blank" class="btn btn-secondary btn-xs">⚙️ Developers</a>
                                             </div>
-                                            <div class="guide-toggle" onclick="this.nextElementSibling.classList.toggle('active'); this.classList.toggle('active')">
+                                            <div class="guide-toggle" onClick={(e) => { e.currentTarget.nextElementSibling?.classList.toggle('active'); e.currentTarget.classList.toggle('active'); }}>
                                                 <span>⚙️ Webhook Setup</span>
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                             </div>
@@ -248,8 +248,8 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                                     <div class="guide-item">
                                                         <strong>Callback URL:</strong>
                                                         <div class="copy-box">
-                                                             <code onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/webhooks/whatsapp')`}>.../webhooks/whatsapp</code>
-                                                             <button class="copy-btn" onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/webhooks/whatsapp')`}>📋</button>
+                                                             <code onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN}/webhooks/whatsapp`)}>.../webhooks/whatsapp</code>
+                                                             <button class="copy-btn" onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN}/webhooks/whatsapp`)}>📋</button>
                                                         </div>
                                                     </div>
                                                     <div class="guide-item">
@@ -292,7 +292,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                             <div class="button-group">
                                                 <a href="https://developers.line.biz/console/" target="_blank" class="btn btn-secondary btn-xs">📱 Developers Console</a>
                                             </div>
-                                            <div class="guide-toggle" onclick="this.nextElementSibling.classList.toggle('active'); this.classList.toggle('active')">
+                                            <div class="guide-toggle" onClick={(e) => { e.currentTarget.nextElementSibling?.classList.toggle('active'); e.currentTarget.classList.toggle('active'); }}>
                                                 <span>⚙️ Webhook Setup</span>
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                             </div>
@@ -302,8 +302,8 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                                     <div class="guide-item">
                                                         <strong>Webhook URL:</strong>
                                                         <div class="copy-box">
-                                                             <code onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/webhooks/line/${user.userId}')`}>.../webhooks/line/{user.userId.substring(0, 8)}...</code>
-                                                             <button class="copy-btn" onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/webhooks/line/${user.userId}')`}>📋</button>
+                                                             <code onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN}/webhooks/line/${user.userId}`)}>.../webhooks/line/{user.userId.substring(0, 8)}...</code>
+                                                             <button class="copy-btn" onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN}/webhooks/line/${user.userId}`)}>📋</button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -555,10 +555,10 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                         <div class="card-content">
                                             <p class="card-description">Copy this link and send it to your friends or share on social media.</p>
                                             <div class="copy-box ref-copy-box">
-                                                <code id="ref-link-text" onclick={`navigator.clipboard.writeText('https://voicemsg.net/ref/${user.userId.substring(0, 8)}')`}>
+                                                <code id="ref-link-text" onClick={() => navigator.clipboard.writeText(`https://voicemsg.net/ref/${user.userId.substring(0, 8)}`)}>
                                                     https://voicemsg.net/ref/{user.userId.substring(0, 8)}
                                                 </code>
-                                                <button class="copy-btn" id="ref-copy-btn">📋</button>
+                                                <button class="copy-btn" id="ref-copy-btn" onClick={() => navigator.clipboard.writeText(`https://voicemsg.net/ref/${user.userId.substring(0, 8)}`)}>📋</button>
                                             </div>
                                             <div class="referral-social-share" style={{ marginTop: '1.25rem' }}>
                                                 <span class="social-share-title">Quick Share:</span>
@@ -590,7 +590,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                                     <span class="metric-lbl">Earned Balance</span>
                                                 </div>
                                             </div>
-                                            <button class="btn btn-primary" style={{ marginTop: '1rem' }} onclick="alert('Withdrawals are processed automatically once the balance exceeds $50.00 USD.')">
+                                            <button class="btn btn-primary" style={{ marginTop: '1rem' }} onClick={() => alert('Withdrawals are processed automatically once the balance exceeds $50.00 USD.')}>
                                                 Request Payout (Min $50)
                                             </button>
                                         </div>
@@ -731,7 +731,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                                     <li>Whatsapp + Meta advanced replies</li>
                                                     <li>Priority chat support</li>
                                                 </ul>
-                                                <button class="btn btn-primary btn-full" onclick="alert('Payment gateway integration will be launched soon! Stay tuned.')">Upgrade to Pro</button>
+                                                <button class="btn btn-primary btn-full" onClick={() => alert('Payment gateway integration will be launched soon! Stay tuned.')}>Upgrade to Pro</button>
                                             </div>
 
                                             <div class="pricing-card">
@@ -746,7 +746,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                                     <li>Direct server API keys</li>
                                                     <li>24/7 dedicated support manager</li>
                                                 </ul>
-                                                <button class="btn btn-secondary btn-full" onclick="alert('Please contact enterprise sales: sales@voicemsg.net')">Contact Sales</button>
+                                                <button class="btn btn-secondary btn-full" onClick={() => alert('Please contact enterprise sales: sales@voicemsg.net')}>Contact Sales</button>
                                             </div>
                                         </div>
                                     </div>
@@ -929,7 +929,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                 <div class="success-icon">✓</div>
                                 <h3 class="success-title">Connected!</h3>
                                 <p class="modal-description">Your account has been successfully linked.</p>
-                                <button class="btn btn-primary" onclick="location.reload()">Great!</button>
+                                <button class="btn btn-primary" onClick={() => location.reload()}>Great!</button>
                             </div>
                         </div>
 

@@ -159,7 +159,7 @@ export interface UserSession {
   session: string;
   platform: "telegram";
   createdAt: number;
-  lastActiveAt: number;
+  lastActiveAt?: number;
   isActive: boolean;
   currentStatus?: string;
   lastStartedAt?: number;
