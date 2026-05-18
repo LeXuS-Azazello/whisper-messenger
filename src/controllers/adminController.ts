@@ -6,6 +6,7 @@ import { createSignedSession } from "../session";
 import { sampleAudioBase64 } from "../sample_audio";
 import mongoose from "mongoose";
 import path from "path";
+import User from "../models/User";
 
 export async function runDiagnostics(env: Env): Promise<Response> {
     const results: DiagnosticResults = {
@@ -99,40 +100,68 @@ export async function runDiagnostics(env: Env): Promise<Response> {
 }
 
 export async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
-    const userIdsRaw = await env.STATS.get("users_list");
-    let userIds: string[] = userIdsRaw ? JSON.parse(userIdsRaw) : [];
-
-    if (userIds.length > 50) {
-        userIds = userIds.slice(-50);
-    }
-
-    const users: UserSession[] = [];
-    const userConfigs = await Promise.all(userIds.map(async (id) => {
-        const metaStr = await env.STATS.get(`user_meta_${id}`);
-        if (!metaStr) return null;
+    try {
+        // 1. Fetch all users from MongoDB
+        const dbUsers = await User.find({}).lean();
+        
+        // 2. Fetch active pods from tg-client-manager with a fast timeout (2s)
+        let activePods: any[] = [];
         try {
-            const meta = JSON.parse(metaStr) as UserSession;
-            const session = await env.STATS.get(`tg_session_${id}`);
-            meta.tgAuthenticated = !!session;
-            return meta;
-        } catch (e) {
-            return null;
+            const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
+            const secret = (env.MANAGER_SECRET || "changeme").trim();
+            const res = await fetch(`${managerUrl}/pods?secret=${secret}`, {
+                headers: { "x-manager-secret": secret },
+                signal: AbortSignal.timeout(2000)
+            });
+            if (res.ok) {
+                activePods = await res.json() as any[];
+            }
+        } catch (e: any) {
+            console.warn("[Admin] Failed to fetch active pods from manager:", e.message);
         }
-    }));
 
-    userConfigs.forEach(u => { if (u) users.push(u); });
+        const podsMap = new Map<string, any>();
+        activePods.forEach(p => {
+            if (p.userId) podsMap.set(String(p.userId), p);
+        });
 
-    // Do not use fetch to manager for pod status in this critical path anymore.
-    // If needed, we can switch to Redis-based status later.
-    // For now we just mark everything as unknown to avoid blocking the admin page.
-    users.forEach(user => {
-        if (user.isActive === undefined) {
-            user.isActive = false;
-            user.currentStatus = 'unknown';
+        const users: UserSession[] = [];
+        for (const dbUser of dbUsers) {
+            const userId = dbUser.userId;
+            
+            // Check if user has an active Telegram session in Redis
+            const session = await env.STATS.get(`tg_session_${userId}`);
+            
+            // Get user meta (firstName, username, etc.) from Redis or fall back to DB
+            const metaStr = await env.STATS.get(`user_meta_${userId}`);
+            let meta: Partial<UserSession> = {};
+            if (metaStr) {
+                try { meta = JSON.parse(metaStr); } catch (e) {}
+            }
+
+            const podInfo = podsMap.get(String(userId));
+            const isActive = !!podInfo;
+            
+            users.push({
+                userId,
+                firstName: meta.firstName || dbUser.firstName || "Telegram User",
+                username: meta.username || dbUser.username || "",
+                phone: meta.phone || "",
+                tgAuthenticated: !!session,
+                isActive,
+                currentStatus: podInfo ? podInfo.status : "STOPPED",
+                podName: podInfo ? podInfo.podName : undefined,
+                lastStartedAt: podInfo && podInfo.startTime ? new Date(podInfo.startTime).getTime() : undefined,
+                transcriptionCount: dbUser.transcriptionCount || 0,
+                lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : undefined
+            });
         }
-    });
-
-    return users;
+        
+        return users;
+    } catch (err: any) {
+        console.error("[Admin] fetchUsersWithStatus error:", err);
+        return [];
+    }
 }
 
 export async function adminLogin(env: Env, req: Request): Promise<Response> {
