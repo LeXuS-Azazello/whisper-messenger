@@ -46,6 +46,55 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
             return showAdminLogin();
         }
 
+        // Secure internal reverse proxy for voicemsg-tester diagnostics dashboard and API
+        if (pathname === "/admin/tester" || pathname.startsWith("/admin/tester/")) {
+            const namespace = env.NAMESPACE || "debugging-testcrash-pub";
+            const testerUrl = `http://voicemsg-tester.${namespace}.svc.cluster.local:3000`;
+            const proxyPath = pathname.replace(/^\/admin\/tester/, "") || "/";
+            const targetUrl = `${testerUrl}${proxyPath}${url.search}`;
+            
+            console.log(`[Admin Proxy] Forwarding admin diagnostics request to: ${targetUrl}`);
+            
+            try {
+                // Determine headers to forward.
+                const forwardHeaders = new Headers();
+                req.headers.forEach((value, key) => {
+                    // Do not forward connection headers to avoid downstream issues
+                    if (key.toLowerCase() !== 'connection' && key.toLowerCase() !== 'keep-alive') {
+                        forwardHeaders.set(key, value);
+                    }
+                });
+                
+                const proxyReq = new Request(targetUrl, {
+                    method: req.method,
+                    headers: forwardHeaders,
+                    body: req.method !== "GET" && req.method !== "HEAD" ? await req.blob() : undefined,
+                    redirect: "manual"
+                });
+                
+                const res = await fetch(proxyReq);
+                
+                // Copy headers from downstream response
+                const responseHeaders = new Headers();
+                res.headers.forEach((value, key) => {
+                    responseHeaders.set(key, value);
+                });
+                
+                // Return proxy response
+                return new Response(res.body, {
+                    status: res.status,
+                    statusText: res.statusText,
+                    headers: responseHeaders
+                });
+            } catch (err: any) {
+                console.error(`[Admin Proxy] Failed to fetch downstream tester service:`, err);
+                return new Response(`<h1>Tester Proxy Error</h1><p>Failed to contact the downstream tester service at <code>${targetUrl}</code>.</p><p>Error: ${err.message || String(err)}</p>`, {
+                    status: 502,
+                    headers: { "Content-Type": "text/html" }
+                });
+            }
+        }
+
         if (method === "POST") {
             const origin = req.headers.get("Origin");
             const host = url.hostname;

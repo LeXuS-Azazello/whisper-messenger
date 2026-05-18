@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voicemsg-tester
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: voicemsg-tester
+  template:
+    metadata:
+      labels:
+        app: voicemsg-tester
+    spec:
+      imagePullSecrets:
+      - name: harbor-pull-secret
+      containers:
+      - name: tester
+        image: harbor.dev.takatan.cloud/devcenter/whisper-tester:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        env:
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/voicemsg"
+        - name: MAIL_WORKER_URL
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: MAIL_WORKER_URL
+              optional: true
+        - name: MAIL_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: MAIL_API_TOKEN
+              optional: true
+        - name: LOCAL_WHISPER_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: LOCAL_WHISPER_SECRET
+              optional: true
+        - name: WHISPER_TURBO_URL
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: WHISPER_TURBO_URL
+              optional: true
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voicemsg-tester
+spec:
+  type: ClusterIP
+  selector:
+    app: voicemsg-tester
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http

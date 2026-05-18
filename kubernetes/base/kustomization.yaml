@@ -14,6 +14,7 @@ resources:
   - whisper-turbo.yaml
   - rbac.yaml
   - cert-manager.yaml
+  - voicemsg-tester.yaml
 
 images:
   - name: mongo
