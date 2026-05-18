@@ -90,17 +90,24 @@ app.post('/send', async (c) => {
       return c.json({ error: 'Internal Server Error: Cloudflare SEND_EMAIL binding is not configured' }, 500);
     }
 
-    const fromEmail = c.env.EMAIL_FROM || `no-reply@${domain}`;
-    const fromName = c.env.EMAIL_FROM_NAME || 'Voice Messenger';
+    const fromEmail = (c.env.EMAIL_FROM || `no-reply@${domain}`).trim();
+    let fromName = c.env.EMAIL_FROM_NAME || 'Voice Messenger';
+    if (typeof fromName !== 'string') {
+      fromName = String(fromName || '');
+    }
+    fromName = fromName.trim();
 
     console.log(`[Mail Worker] Sending email to: ${to}, Template: ${template}, Subject: ${subject}`);
 
+    const recipient: { email: string; name?: string } = { email: to.trim() };
+    const sender: { email: string; name?: string } = { email: fromEmail };
+    if (fromName) {
+      sender.name = fromName;
+    }
+
     await c.env.SEND_EMAIL.send({
-      to: [{ email: to }],
-      from: {
-        email: fromEmail,
-        name: fromName
-      },
+      to: [recipient],
+      from: sender,
       subject: subject,
       html: html,
       text: text

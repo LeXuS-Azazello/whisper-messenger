@@ -59,6 +59,7 @@ if [[ -n "${HARBOR_USER:-}" && -n "${HARBOR_PASS:-}" ]]; then
         "mongo:latest"
         "redis:7-alpine"
         "python:3.12-slim"
+        "mongo-express:latest"
     )
     
     for IMG in "${IMAGES_TO_MIRROR[@]}"; do

@@ -6,6 +6,7 @@ resources:
   - frontend-network-policy.yaml
   - redis.yaml
   - mongodb.yaml
+  - mongo-express.yaml
   - network-policy.yaml
   - tg-client-manager.yaml
   - tg-client.yaml
@@ -21,5 +22,8 @@ images:
   - name: redis
     newName: harbor.dev.takatan.cloud/devcenter/redis
     newTag: 7-alpine
+  - name: mongo-express
+    newName: harbor.dev.takatan.cloud/devcenter/mongo-express
+    newTag: latest
 
 namespace: debugging-testcrash-pub
