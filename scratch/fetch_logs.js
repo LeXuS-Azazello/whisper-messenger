@@ -1,6 +1,5 @@
-
 const MANAGER_SECRET = '2x9c4v7b1n5m8a3d6f0g2h9i4j7k1l5m3n0o8p6q2r9s4t1u7v3w5x0y8z2a6b9c3d1e4f7g0h';
-const POD_NAME = 'qwen3-asr-6f889546c9-q9jj9';
+const POD_NAME = 'whisper-turbo-xxxxxxxxx-xxxxx';
 
 async function getLogs() {
     try {

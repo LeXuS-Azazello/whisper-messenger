@@ -1,10 +1,10 @@
 # 🎙️ Voice Messenger
 
-> **The ultimate multi-platform voice-to-text bridge connecting Meta (FB/Insta), WhatsApp, LINE, and Telegram to state-of-the-art ASR (Qwen3-ASR).**
+> **The ultimate multi-platform voice-to-text bridge connecting Meta (FB/Insta), WhatsApp, LINE, and Telegram to state-of-the-art ASR (Whisper large-v3-turbo).**
 
 [![Architecture](https://img.shields.io/badge/Architecture-Kubernetes--Native-blue?style=for-the-badge&logo=kubernetes)]()
 [![Backend](https://img.shields.io/badge/Stack-Node.js%20%7C%20TypeScript%20%7C%20Hono-green?style=for-the-badge&logo=node.js)]()
-[![AI](https://img.shields.io/badge/AI-Qwen3--ASR%20(Ollama)-orange?style=for-the-badge&logo=openai)]()
+[![AI](https://img.shields.io/badge/AI-Whisper%20Turbo-orange?style=for-the-badge&logo=openai)]()
 
 ---
 
@@ -15,7 +15,7 @@ Voice Messenger is a robust, multi-tenant system designed to transcribe voice me
 ### 🌟 Supported Platforms
 - **Meta**: 🟦 Facebook Messenger & 🟪 Instagram
 - **WhatsApp**: 🟩 WhatsApp Cloud API
-- **Telegram**: 🛩️ Personal Accounts (MTProto) & Bot API
+- **Telegram**: 🛩️ Personal client Accounts (tdlib)  and telegram manager 
 - **LINE**: 🟢 Messaging API
 - **Threads**: 🪡 Meta Threads
 
@@ -33,10 +33,10 @@ graph TD
     BridgeMgr -->|Orchestration| K8s[Kubernetes API]
     K8s -->|Spawn| TGClient[tg-client Pods / Per-User]
     
-    TGClient -->|Voice Data| ASR[Qwen3-ASR / Ollama]
+    TGClient -->|Voice Data| ASR[]
     Frontend -->|Webhook Data| ASR
     
-    TGClient -->|Transcription| Telegram((Telegram MTProto))
+    TGClient -->|Transcription| Telegram((Telegram tdlib))
     Frontend -->|Reply| PlatformAPIs((Messenger / WhatsApp / etc.))
 ```
 
@@ -50,11 +50,8 @@ graph TD
     *   A specialized Kubernetes controller that manages the lifecycle of `tg-client` pods.
     *   Handles Telegram authentication flows (Phone/QR) and pod orchestration.
 3.  **tg-client** (`tg-client/`):
-    *   Persistent MTProto clients spawned **on-demand** for each Telegram user.
+    *   Persistent tdlib clients spawned **on-demand** for each Telegram user.
     *   Listen for voice messages in real-time and process them via the AI pipeline.
-4.  **AI Engine** (`qwen3-asr`):
-    *   Self-hosted Ollama instance running the **Qwen3-ASR** model for high-accuracy speech recognition.
-    *   Optimized for purely CPU-bound clusters (12+ Cores, 32GB+ RAM) via `vLLM` CPU mode fallback.
 
 ---
 
@@ -65,7 +62,7 @@ graph TD
 | **Backend** | TypeScript, Node.js, Hono, Express |
 | **Frontend** | Preact, SSR, Vanilla CSS (Premium Aesthetics) |
 | **Database** | Redis (Queue/Stats), MongoDB (Persistence) |
-| **AI/ASR** | Ollama, Qwen3-ASR |
+| **AI/ASR** | Whisper Turbo |
 | **Infrastructure** | Kubernetes (Kustomize), Docker |
 | **Monitoring** | Prometheus, Grafana, Fluentd |
 | **Ingress** | NGINX |
@@ -87,32 +84,13 @@ The project uses a streamlined deployment script that builds the images, pushes 
 npm run deploy:k8s
 ```
 
-### Local Development
-1.  **Install dependencies**:
-    ```bash
-    npm install
-    cd mtproto-bridge && npm install
-    cd ../tg-client && npm install
-    ```
-2.  **Run Frontend**:
-    ```bash
-    npm run dev
-    ```
-3.  **Run Bridge Manager**:
-    ```bash
-    cd mtproto-bridge && npm run dev
-    ```
-
----
-
 ## 🔌 System Endpoints
 
 | Service | Endpoint | Role |
 | :--- | :--- | :--- |
 | **Frontend** | `https://voicemsg.net` | Main Dashboard & Landing |
 | **Client Manager** | `http://tg-client-manager:3000` *(Internal)* | Manager Logic |
-| **AI API** | `http://qwen3-asr:8000` *(Internal)* | Ollama/Qwen3-ASR Access |
-| **Monitoring** | `https://grafana.voicemsg.net` | System Health & Stats |
+| **AI API** | `http://whisper-turbo:8000` *(Internal)* | Whisper Turbo Access |
 
 ---
 
@@ -137,7 +115,7 @@ npm run deploy:k8s
 
 ## 🛡️ Security & Privacy
 *   **Dual-Factor Verification**: Requests between Frontend and Bridge are signed with a shared `BRIDGE_SECRET`.
-*   **Internal Network Isolation**: `qwen3-asr` (AI engine) and `tg-client-manager` are strictly exposed **only via internal Kubernetes ClusterIP**. They are not accessible from the public internet.
+*   **Internal Network Isolation**: `whisper-turbo` (AI engine) and `tg-client-manager` are strictly exposed **only via internal Kubernetes ClusterIP**. They are not accessible from the public internet.
 *   **Per-User Pod Isolation**: User-specific `tg-client` pods are strictly isolated within the cluster.
 *   **Self-Destruct Logic**: If a user revokes Telegram access, the `tg-client` pod intercepts the authorization failure, gracefully clears the user session in the MongoDB/Redis backend, and automatically triggers its own deletion to preserve cluster resources.
 *   **Zero-Storage Policy**: Audio files and transcribed text are processed purely in RAM buffers and never saved to persistence storage.

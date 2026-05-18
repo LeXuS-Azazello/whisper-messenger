@@ -4,8 +4,6 @@ kind: Kustomization
 resources:
 - ../../base
 
-namespace: debugging-testcrash-pub
-
 patches:
 - target:
     kind: Ingress

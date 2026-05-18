@@ -32,12 +32,9 @@ jobs:
         run: |
           kubectl apply -f kubernetes/whisper-messenger-env-secret.yaml -n debugging-testcrash-pub
 
-      - name: Deploy Qwen3-ASR & monitoring
+      - name: Deploy Qwen3-ASR
         run: |
           kubectl apply -f kubernetes/qwen3-asr.yaml -n debugging-testcrash-pub
-          kubectl apply -f kubernetes/grafana.yaml -n debugging-testcrash-pub
-          kubectl apply -f kubernetes/prometheus.yaml -n debugging-testcrash-pub
-          kubectl apply -f kubernetes/fluentd.yaml -n debugging-testcrash-pub
 
       - name: Restart frontend for latest code
         run: |

@@ -2,26 +2,22 @@ import { Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
 import fs from 'fs';
 import path from 'path';
-import { TELEGRAM_BOT_TOKEN, OLLAMA_BASE_URL, REDIS_URL, redis } from './config.js';
+import { TELEGRAM_BOT_TOKEN, REDIS_URL, redis } from './config.js';
 
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
 console.log(`[bot-test] Starting bot with token ${TELEGRAM_BOT_TOKEN.split(':')[0]}...`);
 
 async function transcribeAudio(audioBuffer, mimeType) {
-    const provider = process.env.WHISPER_PROVIDER || 'qwen3-asr';
-    const qwenUrl = OLLAMA_BASE_URL || 'http://qwen3-asr:8000';
-    const whisperUrl = process.env.WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
-    
-    const url = provider === 'whisper-turbo' ? whisperUrl : qwenUrl;
-    console.log(`[bot-test] 🤖 Using provider: ${provider} at ${url}`);
+    const url = process.env.WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
+    console.log(`[bot-test] 🤖 Using Whisper Turbo at ${url}`);
     
     const startTime = Date.now();
 
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: mimeType });
     formData.append('file', blob, 'audio.ogg');
-    formData.append('model', provider === 'whisper-turbo' ? 'openai/whisper-large-v3-turbo' : 'Qwen/Qwen3-ASR-0.6B');
+    formData.append('model', 'openai/whisper-large-v3-turbo');
     formData.append('language', 'auto');
 
     const response = await fetch(`${url}/v1/audio/transcriptions`, {
@@ -31,7 +27,7 @@ async function transcribeAudio(audioBuffer, mimeType) {
 
     if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`${provider} error (${response.status}): ${errorText}`);
+        throw new Error(`Whisper Turbo error (${response.status}): ${errorText}`);
     }
 
     const data = await response.json();

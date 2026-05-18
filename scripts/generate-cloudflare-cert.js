@@ -2,34 +2,31 @@
 
 /**
  * Cloudflare Origin CA Certificate Generator for Kubernetes
- * Генерирует/обновляет Origin CA сертификат через Cloudflare API
- * и создает/обновляет Kubernetes TLS Secret для nginx ingress
+ * Генерирует сертификат для env.DOMAIN через Cloudflare API
+ * и создает Kubernetes TLS Secret
  *
  * Использование:
  *   npm run cert:generate
  *
- * Требует environment variables:
+ * Требует environment variables (from .env):
+ *   DOMAIN                - Main domain (e.g. voicemsg.net)
  *   CLOUDFLARE_CERT_TOKEN - API token с правами Origin CA
- *   CLOUDFLARE_ZONE_ID   - Zone ID для домена voicemsg.net
+ *   CLOUDFLARE_ZONE_ID    - Zone ID для домена
+ *   NAMESPACE             - Kubernetes namespace
  */
 import 'dotenv/config';
-import https from 'https';
-import { execSync } from 'child_process';
-import * as fs from 'fs';
+
+const DOMAIN = process.env.DOMAIN || 'voicemsg.net';
+const NAMESPACE = process.env.NAMESPACE || 'debugging-testcrash-pub';
 
 // Конфигурация
 const CONFIG = {
-  domains: [
-    'voicemsg.net',
-    'bridge.voicemsg.net',
-    'asr.voicemsg.net',
-    'grafana.voicemsg.net',
-  ],
-  certificateName: 'voicemsg-origin-cert',
+  domains: [DOMAIN],
+  certificateName: `${DOMAIN}-origin-cert`,
   kubernetes: {
-    namespace: 'debugging-testcrash-pub',
-    secretName: 'voicemsg-tls-cert',
-    issuerName: 'letsencrypt-dns01', // не используется, но оставляем для совместимости
+    namespace: NAMESPACE,
+    secretName: `${DOMAIN}-tls-cert`,
+    issuerName: 'letsencrypt-dns01',
   },
   cloudflare: {
     apiToken: process.env.CLOUDFLARE_CERT_TOKEN,
@@ -185,13 +182,10 @@ spec:
   ingressClassName: nginx
   tls:
   - hosts:
-    - voicemsg.net
-    - bridge.voicemsg.net
-    - asr.voicemsg.net
-    - grafana.voicemsg.net
+    - ${DOMAIN}
     secretName: ${CONFIG.kubernetes.secretName}
   rules:
-    - host: voicemsg.net
+    - host: ${DOMAIN}
       http:
         paths:
           - path: /
@@ -201,36 +195,6 @@ spec:
                 name: echo-frontend
                 port:
                   number: 80
-    - host: bridge.voicemsg.net
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: tg-client-manager
-                port:
-                  number: 3000
-    - host: asr.voicemsg.net
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: qwen3-asr
-                port:
-                  number: 11434
-    - host: grafana.voicemsg.net
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: grafana
-                port:
-                  number: 3000
 `;
 
   const ingressFile = '/tmp/voicemsg-ingress.yaml';

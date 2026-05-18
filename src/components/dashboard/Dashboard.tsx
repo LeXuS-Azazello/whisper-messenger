@@ -1,9 +1,9 @@
 /** @jsxImportSource preact */
 import React from 'preact/compat';
 import { render } from 'preact-render-to-string';
-import type { UserSession } from '../../types';
+import type { Env, UserSession } from '../../types';
 
-export const renderDashboard = (user: UserSession) => {
+export const renderDashboard = (user: UserSession, env: Env) => {
     const isTgConnected = !!user.session;
 
     return "<!DOCTYPE html>" + render(
@@ -121,22 +121,22 @@ export const renderDashboard = (user: UserSession) => {
                                         <div class="guide-item">
                                             <strong>App Domains:</strong>
                                             <div class="copy-box">
-                                                <code onclick="navigator.clipboard.writeText('voicemsg.net')">voicemsg.net</code>
-                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('voicemsg.net')">📋</button>
+                                                 <code onclick={`navigator.clipboard.writeText('${env.DOMAIN}')`}>{env.DOMAIN}</code>
+                                                 <button class="copy-btn" onclick={`navigator.clipboard.writeText('${env.DOMAIN}')`}>📋</button>
                                             </div>
                                         </div>
                                         <div class="guide-item">
                                             <strong>Privacy Policy URL:</strong>
                                             <div class="copy-box">
-                                                <code onclick="navigator.clipboard.writeText('https://voicemsg.net/privacy')">voicemsg.net/privacy</code>
-                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('https://voicemsg.net/privacy')">📋</button>
+                                                 <code onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/privacy')`}>{env.DOMAIN}/privacy</code>
+                                                 <button class="copy-btn" onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/privacy')`}>📋</button>
                                             </div>
                                         </div>
                                         <div class="guide-item">
                                             <strong>OAuth Redirect URI:</strong>
                                             <div class="copy-box">
-                                                <code onclick="navigator.clipboard.writeText('https://voicemsg.net/auth/meta/callback')">.../auth/meta/callback</code>
-                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('https://voicemsg.net/auth/meta/callback')">📋</button>
+                                                 <code onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/auth/meta/callback')`}>.../auth/meta/callback</code>
+                                                 <button class="copy-btn" onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/auth/meta/callback')`}>📋</button>
                                             </div>
                                         </div>
                                     </div>
@@ -177,8 +177,8 @@ export const renderDashboard = (user: UserSession) => {
                                         <div class="guide-item">
                                             <strong>Callback URL:</strong>
                                             <div class="copy-box">
-                                                <code onclick="navigator.clipboard.writeText('https://voicemsg.net/webhooks/whatsapp')">.../webhooks/whatsapp</code>
-                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('https://voicemsg.net/webhooks/whatsapp')">📋</button>
+                                                 <code onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/webhooks/whatsapp')`}>.../webhooks/whatsapp</code>
+                                                 <button class="copy-btn" onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/webhooks/whatsapp')`}>📋</button>
                                             </div>
                                         </div>
                                         <div class="guide-item">
@@ -228,8 +228,8 @@ export const renderDashboard = (user: UserSession) => {
                                         <div class="guide-item">
                                             <strong>Webhook URL:</strong>
                                             <div class="copy-box">
-                                                <code onclick={`navigator.clipboard.writeText('https://voicemsg.net/webhooks/line/${user.userId}')`}>.../webhooks/line/{user.userId.substring(0, 8)}...</code>
-                                                <button class="copy-btn" onclick={`navigator.clipboard.writeText('https://voicemsg.net/webhooks/line/${user.userId}')`}>📋</button>
+                                                 <code onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/webhooks/line/${user.userId}')`}>.../webhooks/line/{user.userId.substring(0, 8)}...</code>
+                                                 <button class="copy-btn" onclick={`navigator.clipboard.writeText('https://${env.DOMAIN}/webhooks/line/${user.userId}')`}>📋</button>
                                             </div>
                                         </div>
                                     </div>

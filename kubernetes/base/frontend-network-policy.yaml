@@ -2,7 +2,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: echo-frontend-network-policy
-  namespace: debugging-testcrash-pub
 spec:
   podSelector:
     matchLabels:
@@ -32,15 +31,8 @@ spec:
         matchLabels:
           app: tg-client-manager
     ports:
-    - protocol: TCP
-      port: 3000
-  - to:
-    - podSelector:
-        matchLabels:
-          app: qwen3-asr
-    ports:
-    - protocol: TCP
-      port: 8000
+      - protocol: TCP
+        port: 3000
   - to:
     - ipBlock:
         cidr: 0.0.0.0/0 # Allow external internet access for Meta/Google APIs

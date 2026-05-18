@@ -1,5 +1,5 @@
 /**
- * MTProto Bridge — Manager-only (orchestrates tg-client PODs)
+ * TDLib Bridge — Manager-only (orchestrates tg-client PODs)
  * 
  * tg-client runs as a separate POD/process per user.
  * This process only handles auth, pod orchestration, and admin routes.
@@ -299,22 +299,6 @@ app.post('/internal/access-revoked', auth, async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
-
-app.post('/ollama-pull', auth, async (req, res) => {
-    const { url, model } = req.body;
-    if (!url || !model) return res.status(400).json({ error: "Missing url or model" });
-
-    fetch(`${url}/api/pull`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: model, stream: false })
-    }).then(async r => {
-        if (!r.ok) console.error(`[ollama] Pull failed with status: ${r.status}`);
-        else console.log(`[ollama] Pull ${model} finished successfully!`);
-    }).catch(e => console.error(`[ollama] Pull ${model} error:`, e.message));
-
-    res.json({ success: true, message: `Download started in the background for ${model}` });
-});
-
 const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
 
 if (isMain) {

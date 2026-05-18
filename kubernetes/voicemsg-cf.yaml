@@ -6,7 +6,7 @@ metadata:
   labels:
     app: echo-frontend
   annotations:
-    service.nlb.kube-dc.com/expose-route: "http,https"
+    service.nlb.kube-dc.com/expose-route: "http"
     service.nlb.kube-dc.com/route-hostname: "voicemsg.net"
     network.kube-dc.com/external-network-type: "cloud"
 spec:
@@ -18,7 +18,4 @@ spec:
       port: 80
       targetPort: 3000
       protocol: TCP
-    - name: https
-      port: 443
-      targetPort: 3000
-      protocol: TCP
+

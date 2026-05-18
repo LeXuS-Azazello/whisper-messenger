@@ -172,16 +172,8 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                             <div style={{ marginTop: '10px' }}>
                                 <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                        <input type="radio" name="whisper_provider" value="qwen3-asr" id="provider-qwen3-asr" checked={(checks as any).WHISPER_PROVIDER === 'qwen3-asr'} />
-                                        <span style={{ fontSize: '14px', fontWeight: '600' }}>Qwen3-ASR</span>
-                                    </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
                                         <input type="radio" name="whisper_provider" value="whisper-turbo" id="provider-whisper-turbo" checked={(checks as any).WHISPER_PROVIDER === 'whisper-turbo'} />
                                         <span style={{ fontSize: '14px', fontWeight: '600' }}>Whisper Turbo</span>
-                                    </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                        <input type="radio" name="whisper_provider" value="ollama" id="provider-ollama" checked={(checks as any).WHISPER_PROVIDER === 'ollama'} />
-                                        <span style={{ fontSize: '14px', fontWeight: '600' }}>Ollama</span>
                                     </label>
                                 </div>
 
@@ -193,20 +185,6 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                     <div class="input-group" style={{ marginTop: '10px' }}>
                                         <label class="input-label">Auth Secret (Optional)</label>
                                         <input type="password" id="local-whisper-secret" class="input-field" placeholder="Bearer secret" />
-                                    </div>
-                                </div>
-
-                                <div id="ollama-config-section" style={{ display: 'none', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '12px', marginBottom: '15px' }}>
-                                    <div class="input-group">
-                                        <label class="input-label">Ollama Base URL</label>
-                                        <input type="text" id="ollama-url" class="input-field" placeholder="http://ollama:11434" />
-                                    </div>
-                                    <div class="input-group" style={{ marginTop: '10px' }}>
-                                        <label class="input-label">Model Name</label>
-                                        <div style={{ display: 'flex', gap: '10px' }}>
-                                            <input type="text" id="ollama-model-select" class="input-field" placeholder="qwen2-audio" style={{ flex: 1 }} />
-                                            <button class="btn btn-sm" id="pull-ollama-btn" style={{ margin: 0, width: 'auto', background: '#3B82F6' }}>Pull / Download</button>
-                                        </div>
                                     </div>
                                 </div>
 

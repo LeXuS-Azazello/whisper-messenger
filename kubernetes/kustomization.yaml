@@ -4,7 +4,7 @@ kind: Kustomization
 resources:
 - base
 
-namespace: debugging-testcrash-pub
+namespace: $(NAMESPACE)
 
 patches:
 - target:
@@ -13,4 +13,4 @@ patches:
   patch: |-
     - op: replace
       path: /spec/rules/0/host
-      value: voicemsg.net
+      value: $(DOMAIN)

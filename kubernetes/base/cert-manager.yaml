@@ -12,7 +12,6 @@ spec:
     solvers:
     - dns01:
         cloudflare:
-          email: admin@voicemsg.net
           apiTokenSecretRef:
             name: cloudflare-api-token
             key: api-token

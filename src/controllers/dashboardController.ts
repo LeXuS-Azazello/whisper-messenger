@@ -134,7 +134,7 @@ export async function handleDisconnectTg(env: Env, userId: string, user: UserSes
   }
 
   // 5. Tell Manager to kill pods and local files
-  const managerUrl = (env.MANAGER_URL || "").trim() || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000";
+  const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`;
   const secret = (env.MANAGER_SECRET || "changeme").trim();
 
   await fetch(`${managerUrl}/delete?secret=${secret}`, {
@@ -148,7 +148,7 @@ export async function handleDisconnectTg(env: Env, userId: string, user: UserSes
 
 export async function handleTestTg(env: Env, user: UserSession): Promise<Response> {
   if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-  const managerUrl = (env.MANAGER_URL || "").trim() || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000";
+  const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`;
   const secret = (env.MANAGER_SECRET || "changeme").trim();
   
   try {
@@ -171,7 +171,7 @@ export async function handleTestTg(env: Env, user: UserSession): Promise<Respons
 
 export async function handleRestartTg(env: Env, userId: string, user: UserSession): Promise<Response> {
   if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-  const managerUrl = (env.MANAGER_URL || "").trim() || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000";
+  const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`;
   const secret = (env.MANAGER_SECRET || "changeme").trim();
 
   try {
@@ -202,7 +202,7 @@ export async function handleRestartTg(env: Env, userId: string, user: UserSessio
 
 export function showDashboard(user: UserSession, env: Env): Response {
   try {
-    const html = renderDashboard(user);
+    const html = renderDashboard(user, env);
     return new Response(html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",

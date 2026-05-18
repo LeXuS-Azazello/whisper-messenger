@@ -5,25 +5,10 @@ export async function transcribeWithFallback(
   env: Env,
   providerOverride?: string
 ): Promise<{ text: string; model?: string }> {
-  // Try to get provider from override, then Redis, fallback to env var, then to default
-  const provider = providerOverride || await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || "qwen3-asr";
-  
-  let url = "";
-  let modelName = "";
+  const url = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || "http://whisper-turbo:8000";
+  const modelName = "openai/whisper-large-v3-turbo";
 
-  if (provider === "whisper-turbo") {
-    url = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || "http://whisper-turbo:8000";
-    modelName = "openai/whisper-large-v3-turbo";
-  } else if (provider === "ollama") {
-    url = await env.STATS.get("config_ollama_url") || env.OLLAMA_BASE_URL || "http://qwen3-asr:8000";
-    modelName = await env.STATS.get("config_whisper_model") || "qwen2-audio";
-  } else {
-    // Default to Qwen3-ASR
-    url = env.QWEN_ASR_URL || env.OLLAMA_BASE_URL || "http://qwen3-asr:8000";
-    modelName = "Qwen/Qwen3-ASR-0.6B";
-  }
-
-  if (!url) throw new Error(`${provider} URL not configured`);
+  if (!url) throw new Error("Whisper Turbo URL not configured");
 
   const formData = new FormData();
   const blob = new Blob([audio], { type: "audio/ogg" });
@@ -47,7 +32,7 @@ export async function transcribeWithFallback(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`${provider} error ${response.status}: ${errorText}`);
+      throw new Error(`Whisper Turbo error ${response.status}: ${errorText}`);
     }
 
     const result = await response.json() as any;
@@ -56,7 +41,7 @@ export async function transcribeWithFallback(
     // Hallucination cleanup: remove repeating sentences (3+ repetitions)
     text = text.replace(/(.+?\.)\s*\1\s*\1(\s*\1)*/g, '$1 $1');
 
-    return { text, model: provider };
+    return { text, model: "whisper-turbo" };
   } catch (e) {
     clearTimeout(timeoutId);
     throw e;

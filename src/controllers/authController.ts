@@ -20,9 +20,9 @@ export function getPublicOrigin(env: Env, fallbackOrigin: string): string {
     }
   }
 
-  // Enforce https and remove subdomains for voicemsg.net
-  if (origin.includes("voicemsg.net")) {
-    origin = "https://voicemsg.net";
+  // Enforce https and remove subdomains for env.DOMAIN
+  if (origin.includes(env.DOMAIN)) {
+    origin = `https://${env.DOMAIN}`;
   }
 
   return origin;
@@ -32,7 +32,7 @@ export async function sendEmail(env: Env, to: string, subject: string, htmlBody:
   try {
     const mailReq = {
       personalizations: [{ to: [{ email: to }] }],
-      from: { email: env.EMAIL_FROM || 'no-reply@voicemsg.net', name: 'Voice Messenger' },
+      from: { email: env.EMAIL_FROM || `no-reply@${env.DOMAIN}`, name: 'Voice Messenger' },
       subject: subject,
       content: [{ type: 'text/html', value: htmlBody }]
     };

@@ -1,7 +1,7 @@
 import { createClient } from './utils.js';
 import { 
     TARGET_USER_ID, TG_API_ID, TG_API_HASH, 
-    OLLAMA_BASE_URL, WHISPER_TURBO_URL, WHISPER_PROVIDER,
+    WHISPER_TURBO_URL, WHISPER_PROVIDER,
     MANAGER_URL, MANAGER_SECRET, TG_SESSION,
     DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION,
     redis
@@ -28,14 +28,10 @@ function logError(err, context = '') {
 }
 
 async function transcribeAudio(audioBuffer, mimeType) {
-    const provider = WHISPER_PROVIDER || 'qwen3-asr';
-    const qwenUrl = OLLAMA_BASE_URL || 'http://qwen3-asr:8000';
-    const whisperUrl = WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
-    
-    const url = provider === 'whisper-turbo' ? whisperUrl : qwenUrl;
-    const model = provider === 'whisper-turbo' ? 'openai/whisper-large-v3-turbo' : 'Qwen/Qwen3-ASR-0.6B';
+    const url = WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
+    const model = 'openai/whisper-large-v3-turbo';
 
-    console.log(`[tg-client] 🤖 Transcribing with ${provider} at ${url}...`);
+    console.log(`[tg-client] 🤖 Transcribing with Whisper Turbo at ${url}...`);
 
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: mimeType });

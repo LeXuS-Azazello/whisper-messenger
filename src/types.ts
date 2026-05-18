@@ -43,11 +43,9 @@ export interface Env {
   META_SYSTEM_USER_ID?: string;
   STATS: KVLike;
   // Whisper Config
-  WHISPER_PROVIDER?: "cloudflare" | "local" | "ollama" | "qwen3-asr" | "whisper-turbo";
+  WHISPER_PROVIDER?: "local" | "whisper-turbo";
   LOCAL_WHISPER_SECRET?: string;
-  QWEN_ASR_URL?: string;
   WHISPER_TURBO_URL?: string;
-  OLLAMA_BASE_URL?: string;
   
   // SMTP Config
   EMAIL_FROM?: string;
@@ -64,6 +62,8 @@ export interface Env {
   MANAGER_SECRET?: string;
   MANAGER_URL?: string;
   MANAGER_PUBLIC_URL?: string;
+  DOMAIN: string;
+  NAMESPACE: string;
 }
 
 export interface HealthChecks {

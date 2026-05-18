@@ -2,7 +2,6 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: whisper-turbo-script
-  namespace: debugging-testcrash-pub
 data:
   serve_whisper.py: |
     import os
@@ -16,6 +15,8 @@ data:
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+    if device == "cpu":
+        torch.set_num_threads(8)
     model_id = "openai/whisper-large-v3-turbo"
 
     print(f"Loading Whisper Turbo model on {device}...")
@@ -57,25 +58,33 @@ data:
         task: str = Form(default="transcribe")
     ):
         print(f"Received transcription request: {file.filename}")
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as tmp:
-            tmp.write(await file.read())
-            tmp_path = tmp.name
+        content = await file.read()
+        
+        import asyncio
+        loop = asyncio.get_event_loop()
+        
+        def process_audio():
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
 
-        try:
-            generate_kwargs = {"task": task}
-            if language and language != "auto":
-                generate_kwargs["language"] = language
-                
-            result = pipe(tmp_path, generate_kwargs=generate_kwargs)
-            text = result.get("text", "")
-            print(f"Transcription success: {text[:50]}...")
-        except Exception as e:
-            print(f"Error transcribing: {e}")
-            text = ""
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+            try:
+                generate_kwargs = {"task": task}
+                if language and language != "auto":
+                    generate_kwargs["language"] = language
+                    
+                result = pipe(tmp_path, generate_kwargs=generate_kwargs)
+                text = result.get("text", "")
+                print(f"Transcription success: {text[:50]}...")
+            except Exception as e:
+                print(f"Error transcribing: {e}")
+                text = ""
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            return text
 
+        text = await loop.run_in_executor(None, process_audio)
         return {"text": text}
     
     if __name__ == "__main__":
@@ -86,7 +95,6 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: whisper-turbo-cache
-  namespace: debugging-testcrash-pub
 spec:
   accessModes:
     - ReadWriteOnce
@@ -99,7 +107,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: whisper-turbo
-  namespace: debugging-testcrash-pub
 spec:
   replicas: 1
   selector:
@@ -111,6 +118,8 @@ spec:
     metadata:
       labels:
         app: whisper-turbo
+      annotations:
+        rollout-trigger: "202605170416"
     spec:
       imagePullSecrets:
       - name: harbor-pull-secret
@@ -192,7 +201,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: whisper-turbo
-  namespace: debugging-testcrash-pub
 spec:
   selector:
     app: whisper-turbo

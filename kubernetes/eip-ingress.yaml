@@ -1,9 +1,0 @@
-# External IP for ingress-nginx LoadBalancer
-# Binds a public EIP to the ingress controller for direct internet access
-apiVersion: kube-dc.com/v1
-kind: EIp
-metadata:
-  name: voicemsg-eip
-  namespace: debugging-testcrash-pub
-spec:
-  externalNetworkType: public

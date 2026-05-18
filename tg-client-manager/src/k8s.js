@@ -113,8 +113,8 @@ export async function spawnPod(userId, session) {
     
     // Add dynamic config from Redis as Environment Variables
     try {
-        const provider = await redis.get("config_whisper_provider") || 'qwen3-asr';
-        const model = await redis.get("config_whisper_model") || 'Qwen/Qwen3-ASR-0.6B';
+        const provider = await redis.get("config_whisper_provider") || 'whisper-turbo';
+        const model = await redis.get("config_whisper_model") || 'openai/whisper-large-v3-turbo';
         const turboUrl = await redis.get("config_local_whisper_url") || 'http://whisper-turbo:8000';
         
         container.env.push({ name: 'WHISPER_PROVIDER', value: provider });

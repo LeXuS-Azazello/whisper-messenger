@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-NEW_NS="${1:-debugging-testcrash-pub}"
+NEW_NS=$(grep '^NAMESPACE=' '../.env' 2>/dev/null | cut -d= -f2 || echo 'debugging-testcrash-pub')
 
 echo "Switching all kubernetes manifests to namespace: $NEW_NS"
 

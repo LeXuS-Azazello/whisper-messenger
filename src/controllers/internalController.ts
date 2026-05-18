@@ -10,19 +10,14 @@ export async function handleConfig(env: Env, _req: Request, url: URL): Promise<R
   }
 
   // Try STATS KV first, then fall back to env or defaults
-  const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || "qwen3-asr";
+  const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || "whisper-turbo";
   const localUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || "";
   const localSecret = await env.STATS.get("config_local_whisper_secret") || env.LOCAL_WHISPER_SECRET || "";
-  const ollamaUrl = await env.STATS.get("config_ollama_url") || env.OLLAMA_BASE_URL || "";
-  const model = await env.STATS.get("config_whisper_model") || "";
 
   return Response.json({
     provider,
-    model,
     localUrl,
     localSecret,
-    ollamaUrl,
-    qwenUrl: env.QWEN_ASR_URL || "http://qwen3-asr:8000"
   });
 }
 
@@ -144,7 +139,7 @@ export async function handleAccessRevoked(env: Env, req: Request): Promise<Respo
       await env.STATS.delete(`tg_session_${userId}`);
       
       // Tell Manager to delete the pod
-      const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+      const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
       const managerSecret = (env.MANAGER_SECRET || "changeme").trim();
       await fetch(`${managerUrl}/delete?secret=${managerSecret}`, {
         method: "POST",

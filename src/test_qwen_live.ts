@@ -5,17 +5,16 @@ import { sampleAudioBase64 } from './sample_audio';
 const mockEnv = {
   STATS: {
     get: async (key: string) => {
-      if (key === 'config_whisper_provider') return 'qwen3-asr';
-      if (key === 'config_ollama_url') return process.env.QWEN_URL || 'http://100.65.0.209:11434';
+      if (key === 'config_local_whisper_url') return process.env.WHISPER_URL || 'http://whisper-turbo:8000';
       return null;
     },
   },
-  OLLAMA_BASE_URL: process.env.QWEN_URL || 'http://100.65.0.209:11434',
+  WHISPER_TURBO_URL: process.env.WHISPER_URL || 'http://whisper-turbo:8000',
 } as any;
 
 async function runTest() {
-  console.log('Testing Qwen3-ASR Transcription...');
-  console.log('Target URL:', mockEnv.OLLAMA_BASE_URL);
+  console.log('Testing Whisper Turbo Transcription...');
+  console.log('Target URL:', mockEnv.WHISPER_TURBO_URL);
   
   const audioBuffer = Buffer.from(sampleAudioBase64.split(',')[1], 'base64').buffer;
   

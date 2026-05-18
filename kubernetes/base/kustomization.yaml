@@ -8,12 +8,11 @@ resources:
   - mongodb.yaml
   - network-policy.yaml
   - tg-client-manager.yaml
-  - qwen3-asr.yaml
   - tg-client.yaml
   - tg-bot-test.yaml
   - whisper-turbo.yaml
-  - voicemsg-cf.yaml
   - rbac.yaml
+  - cert-manager.yaml
 
 images:
   - name: mongo
@@ -22,8 +21,5 @@ images:
   - name: redis
     newName: harbor.dev.takatan.cloud/devcenter/redis
     newTag: 7-alpine
-  - name: qwenllm/qwen3-asr
-    newName: harbor.dev.takatan.cloud/devcenter/qwen3-asr
-    newTag: latest
 
 namespace: debugging-testcrash-pub

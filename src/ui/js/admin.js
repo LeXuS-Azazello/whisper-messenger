@@ -165,40 +165,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Whisper Config Logic
     function loadWhisperConfig() {
         fetch('/admin/whisper-config').then(r => r.json()).then(data => {
-            const providerLocal = document.getElementById('provider-local');
-            const providerCf = document.getElementById('provider-cf');
-            const providerOllama = document.getElementById('provider-ollama');
-            const ollamaSection = document.getElementById('ollama-config-section');
+            const providerWhisperTurbo = document.getElementById('provider-whisper-turbo');
             const localSection = document.getElementById('local-config-section');
-            const modelSelect = document.getElementById('ollama-model-select');
             
             const localUrlInput = document.getElementById('local-whisper-url');
             const localSecretInput = document.getElementById('local-whisper-secret');
-            const ollamaUrlInput = document.getElementById('ollama-url');
             
-            if (data.provider === 'local') {
-                if (providerLocal) providerLocal.checked = true;
-                if (localSection) localSection.style.display = 'block';
-            } else if (data.provider === 'whisper-turbo') {
-                const providerWhisperTurbo = document.getElementById('provider-whisper-turbo');
+            if (data.provider === 'whisper-turbo') {
                 if (providerWhisperTurbo) providerWhisperTurbo.checked = true;
                 if (localSection) localSection.style.display = 'block';
-            } else if (data.provider === 'ollama') {
-                if (providerOllama) providerOllama.checked = true;
-                if (ollamaSection) ollamaSection.style.display = 'block';
-            } else if (data.provider === 'qwen3-asr') {
-                const providerQwen = document.getElementById('provider-qwen3-asr');
-                if (providerQwen) providerQwen.checked = true;
-            } else {
-                if (providerCf) providerCf.checked = true;
             }
 
-            if (modelSelect && data.model) {
-                modelSelect.value = data.model;
-            }
             if (localUrlInput && data.localUrl) localUrlInput.value = data.localUrl;
             if (localSecretInput && data.localSecret) localSecretInput.value = data.localSecret;
-            if (ollamaUrlInput && data.ollamaUrl) ollamaUrlInput.value = data.ollamaUrl;
 
             const statusTag = document.getElementById('whisper-status-tag');
             if (statusTag) statusTag.innerText = data.provider.replace('-', ' ').toUpperCase();
@@ -208,10 +187,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelectorAll('input[name="whisper_provider"]').forEach(input => {
         input.addEventListener('change', (e) => {
-            const ollamaSection = document.getElementById('ollama-config-section');
             const localSection = document.getElementById('local-config-section');
-            if (ollamaSection) ollamaSection.style.display = e.target.value === 'ollama' ? 'block' : 'none';
-            if (localSection) localSection.style.display = (e.target.value === 'local' || e.target.value === 'whisper-turbo') ? 'block' : 'none';
+            if (localSection) localSection.style.display = (e.target.value === 'whisper-turbo' || e.target.value === 'local') ? 'block' : 'none';
         });
     });
 
@@ -221,18 +198,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const checked = document.querySelector('input[name="whisper_provider"]:checked');
             if (!checked) return;
             const provider = checked.value;
-            const modelSelect = document.getElementById('ollama-model-select');
-            const model = modelSelect ? modelSelect.value : null;
             
             const localUrl = document.getElementById('local-whisper-url')?.value || '';
             const localSecret = document.getElementById('local-whisper-secret')?.value || '';
-            const ollamaUrl = document.getElementById('ollama-url')?.value || '';
             
             saveWhisperBtn.innerText = 'Saving...';
             fetch('/admin/whisper-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ provider, model, localUrl, localSecret, ollamaUrl })
+                body: JSON.stringify({ provider, localUrl, localSecret })
             }).then(r => r.json()).then(d => {
                 alert(d.success ? 'AI config saved' : 'Error: ' + d.error);
                 saveWhisperBtn.innerText = 'Save AI Config';
@@ -240,33 +214,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }).catch(e => {
                 alert('Save failed: ' + e.message);
                 saveWhisperBtn.innerText = 'Save AI Config';
-            });
-        });
-    }
-
-    const pullBtn = document.getElementById('pull-ollama-btn');
-    if (pullBtn) {
-        pullBtn.addEventListener('click', () => {
-            const modelSelect = document.getElementById('ollama-model-select');
-            const urlInput = document.getElementById('ollama-url');
-            const model = modelSelect ? modelSelect.value.trim() : '';
-            const ollamaUrl = urlInput ? urlInput.value.trim() : '';
-            
-            if (!model || !ollamaUrl) return alert("Enter Ollama Base URL and Model name first.");
-            
-            pullBtn.innerText = 'Pulling...';
-            pullBtn.disabled = true;
-            fetch('/admin/ollama-pull', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: ollamaUrl, model: model })
-            }).then(r => r.json()).then(d => {
-                alert(d.success ? `✅ Successfully requested Ollama to pull "${model}"!\n\nThe download has started in the background. Check your Ollama server logs or try using the model in a few minutes.` : '❌ Error: ' + d.error);
-            }).catch(e => {
-                alert('Pull request failed: ' + e.message);
-            }).finally(() => {
-                pullBtn.innerText = 'Pull / Download';
-                pullBtn.disabled = false;
             });
         });
     }
@@ -306,7 +253,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (recordTestBtn) {
         recordTestBtn.addEventListener('click', async () => {
             const checked = document.querySelector('input[name="whisper_provider"]:checked');
-            const provider = checked ? checked.value : 'qwen3-asr';
+            const provider = checked ? checked.value : 'whisper-turbo';
             
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });

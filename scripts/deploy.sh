@@ -5,7 +5,8 @@ echo "========================================"
 echo "  Echo Messenger K8s Deployment"
 echo "========================================"
 
-NAMESPACE="${NAMESPACE:-debugging-testcrash-pub}"
+DOMAIN=$(grep '^DOMAIN=' .env 2>/dev/null | cut -d= -f2 || echo 'voicemsg.net')
+NAMESPACE=$(grep '^NAMESPACE=' .env 2>/dev/null | cut -d= -f2 || echo 'debugging-testcrash-pub')
 echo "Namespace: $NAMESPACE"
 echo ""
 
@@ -47,7 +48,7 @@ if [[ -n "${HARBOR_USER:-}" && -n "${HARBOR_PASS:-}" ]]; then
       --docker-server="$HARBOR_HOST" \
       --docker-username="$HARBOR_USER" \
       --docker-password="$HARBOR_PASS" \
-      --docker-email="admin@voicemsg.net" \
+      --docker-email="admin@$(grep '^DOMAIN=' .env | cut -d= -f2)" \
       -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
     
     echo ">>> Logging into Harbor..."
@@ -113,7 +114,7 @@ docker push "${REPO}/whisper-tg-client:latest"
 echo ""
 
 # Single kustomize apply covers: frontend, redis, mongodb, tg-client-manager,
-# tg-client, qwen3-asr, ingress, ingress-nginx, monitoring
+# tg-client, whisper-turbo, ingress, ingress-nginx, monitoring
 echo ">>> Applying base resources via kustomize..."
 kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || echo "Warning: Some resources failed to apply (likely RBAC restrictions). Proceeding to update images..."
 echo ""
@@ -142,4 +143,4 @@ echo "  Deployment Complete!"
 echo "========================================"
 echo ""
 echo "Endpoints:"
-echo "  https://voicemsg.net         -> Frontend"
+echo "  https://${DOMAIN}         -> Frontend"

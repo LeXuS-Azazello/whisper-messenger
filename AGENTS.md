@@ -20,7 +20,7 @@ Only use one domain "voicemsg.net" else kubernetes services use by internal IP
 
 
 ## Project Structure & Module Organization
-Voice Messenger is a multi-tenant voice-to-text  connecting Meta (FB/Insta), WhatsApp, and Telegram to  Qwen3-ASR.
+Voice Messenger is a multi-tenant voice-to-text  connecting Meta (FB/Insta), WhatsApp, and Telegram to  large-v3-turbo.
 
 - **Kubernetes Configs (`kubernetes/`)**: Infrastructure definitions ingress controllers.
 

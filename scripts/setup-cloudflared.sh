@@ -47,11 +47,10 @@ echo "Credentials saved to cloudflared/credentials.json"
 
 # Set up DNS routes
 echo ""
-echo ">>> Setting up DNS routes for voicemsg.net..."
-cloudflared tunnel route dns echo-messenger-tunnel voicemsg.net || true
-cloudflared tunnel route dns echo-messenger-tunnel bridge.voicemsg.net || true
-cloudflared tunnel route dns echo-messenger-tunnel asr.voicemsg.net || true
-cloudflared tunnel route dns echo-messenger-tunnel grafana.voicemsg.net || true
+DOMAIN="${DOMAIN:-voicemsg.net}"
+NAMESPACE="${NAMESPACE:-debugging-testcrash-pub}"
+echo ">>> Setting up DNS routes for ${DOMAIN}..."
+cloudflared tunnel route dns echo-messenger-tunnel "${DOMAIN}" || true
 
 echo ""
 echo "=== Cloudflared Setup Complete ==="

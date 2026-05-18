@@ -14,7 +14,7 @@ import { verifySession } from "./session";
  * Uses MANAGER_URL env var, falls back to internal K8s service name.
  */
 function getManagerUrl(env: Env): string {
-  return (env.MANAGER_URL || "").trim() || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000";
+  return (env.MANAGER_URL || "").trim() || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`;
 }
 
 function getPublicOrigin(env: Env, fallbackOrigin: string): string {
@@ -28,9 +28,9 @@ function getPublicOrigin(env: Env, fallbackOrigin: string): string {
     }
   }
 
-  // Enforce https and remove subdomains for voicemsg.net
-  if (origin.includes("voicemsg.net")) {
-    origin = "https://voicemsg.net";
+  // Enforce https and remove subdomains for env.DOMAIN
+  if (origin.includes(env.DOMAIN)) {
+    origin = `https://${env.DOMAIN}`;
   }
 
   return origin;
@@ -60,7 +60,7 @@ export default {
       }
 
       // Health check
-      if (pathname === "/health") return Response.json({ ok: true });
+      if (pathname === "/health") return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
 
       // Diagnostic logs
       if (pathname === "/internal/diagnostic-logs") {
@@ -214,20 +214,20 @@ export default {
       if (req.method === "POST" && pathname === "/test-whisper") {
         const cookieAuth = req.headers.get("Cookie")?.match(/admin_session=([^;]+)/)?.[1];
         const adminId = cookieAuth ? await verifySession(cookieAuth, env.ADMIN_SECRET) : null;
-        if (adminId !== "admin") return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
+        if (adminId !== "admin") return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
 
         const formData = await req.formData();
         const file = formData.get("file") as File;
-        if (!file) return Response.json({ success: false, error: "No file provided" });
+        if (!file) return new Response(JSON.stringify({ success: false, error: "No file provided" }), { headers: { "Content-Type": "application/json" } });
 
         try {
           const { transcribeWithFallback } = await import("./whisper");
           const buffer = await file.arrayBuffer();
           const providerOverride = url.searchParams.get("provider") || undefined;
           const res = await transcribeWithFallback(buffer, env, providerOverride);
-          return Response.json({ success: true, text: res.text, model: res.model });
+          return new Response(JSON.stringify({ success: true, text: res.text, model: res.model }), { headers: { "Content-Type": "application/json" } });
         } catch (e: any) {
-          return Response.json({ success: false, error: e.message });
+          return new Response(JSON.stringify({ success: false, error: e.message }), { headers: { "Content-Type": "application/json" } });
         }
       }
 

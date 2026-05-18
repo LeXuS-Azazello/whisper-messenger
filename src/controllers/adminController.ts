@@ -6,7 +6,6 @@ import { createSignedSession } from "../session";
 import { sampleAudioBase64 } from "../sample_audio";
 import mongoose from "mongoose";
 import path from "path";
-import { env } from "process";
 
 export async function runDiagnostics(env: Env): Promise<Response> {
     const results: DiagnosticResults = {
@@ -50,7 +49,7 @@ export async function runDiagnostics(env: Env): Promise<Response> {
 
     // 3. Test Manager (tg-client-manager)
     try {
-        const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+        const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
         const secret = (env.MANAGER_SECRET || "changeme").trim();
         const start = Date.now();
         const res = await fetch(`${managerUrl}/health?secret=${secret}`, {
@@ -75,27 +74,21 @@ export async function runDiagnostics(env: Env): Promise<Response> {
 
     // 4. Test ASR
     try {
-        const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || 'qwen3-asr';
-        let asrUrl = "";
-        if (provider === 'whisper-turbo') {
-            asrUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
-        } else {
-            asrUrl = await env.STATS.get("config_ollama_url") || env.OLLAMA_BASE_URL || 'http://qwen3-asr:8000';
-        }
+        const asrUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
 
         const start = Date.now();
         const res = await fetch(`${asrUrl}/v1/models`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
         const lat = Date.now() - start;
 
         if (res && res.ok) {
-            results.asr = { status: 'healthy', message: `${provider} active (Latency: ${lat}ms)` };
+            results.asr = { status: 'healthy', message: `whisper-turbo active (Latency: ${lat}ms)` };
         } else {
             // Try simple ping
             const ping = await fetch(asrUrl, { method: 'HEAD', signal: AbortSignal.timeout(2000) }).catch(() => null);
             if (ping) {
-                results.asr = { status: 'healthy', message: `${provider} reachable (No /v1/models, Latency: ${lat}ms)` };
+                results.asr = { status: 'healthy', message: `whisper-turbo reachable (No /v1/models, Latency: ${lat}ms)` };
             } else {
-                results.asr = { status: 'unhealthy', message: `${provider} at ${asrUrl} is unreachable` };
+                results.asr = { status: 'unhealthy', message: `whisper-turbo at ${asrUrl} is unreachable` };
             }
         }
     } catch (e: any) {
@@ -175,7 +168,7 @@ async function proxyToManager(url: string, options: any): Promise<Response> {
 }
 
 export async function getTgStatus(env: Env): Promise<Response> {
-    const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+    const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
     const secret = (env.MANAGER_SECRET || "changeme").trim();
     return await proxyToManager(`${managerUrl}/health?secret=${secret}`, {
         headers: { "x-manager-secret": secret }
@@ -187,7 +180,7 @@ export async function getTgStatus(env: Env): Promise<Response> {
 
 export async function tgTestMsg(env: Env, req: Request): Promise<Response> {
     const { userId, message } = await req.json() as any;
-    const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+    const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
     const secret = (env.MANAGER_SECRET || "changeme").trim();
 
     // Get session for the user if userId is provided, otherwise it uses manager's own
@@ -213,28 +206,21 @@ export async function getUsersJson(env: Env): Promise<Response> {
 }
 
 export async function getWhisperConfig(env: Env): Promise<Response> {
-    const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || 'qwen3-asr';
+    const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || 'whisper-turbo';
     const localUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || "";
     const localSecret = await env.STATS.get("config_local_whisper_secret") || env.LOCAL_WHISPER_SECRET || "";
-    const ollamaUrl = await env.STATS.get("config_ollama_url") || env.OLLAMA_BASE_URL || "";
-    const model = await env.STATS.get("config_whisper_model") || "";
 
-    // Attempt to sync from DB if Redis is empty but we want to be sure it's consistent
-    // In a real scenario, we might want to load from DB on startup and populate Redis.
-
-    return Response.json({ provider, localUrl, localSecret, ollamaUrl, model });
+    return Response.json({ provider, localUrl, localSecret });
 }
 
 export async function updateWhisperConfig(env: Env, req: Request): Promise<Response> {
-    const { provider, localUrl, localSecret, ollamaUrl, model } = await req.json() as any;
+    const { provider, localUrl, localSecret } = await req.json() as any;
     const { default: ServerSetting } = await import("../models/ServerSetting");
 
     const settings = [
         { key: "config_whisper_provider", value: provider },
         { key: "config_local_whisper_url", value: localUrl },
-        { key: "config_local_whisper_secret", value: localSecret },
-        { key: "config_ollama_url", value: ollamaUrl },
-        { key: "config_whisper_model", value: model }
+        { key: "config_local_whisper_secret", value: localSecret }
     ];
 
     for (const s of settings) {
@@ -271,7 +257,7 @@ export async function handleGetPodLogs(env: Env, podName: string): Promise<Respo
 
 export async function userAction(env: Env, req: Request): Promise<Response> {
     const { userId, action } = await req.json() as any;
-    const managerUrl = (env.MANAGER_URL || "http://tg-client-manager.debugging-testcrash-pub.svc.cluster.local:3000").replace(/\/$/, '');
+    const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
     const secret = (env.MANAGER_SECRET || "changeme").trim();
 
     if (action === "restart") {
@@ -316,7 +302,7 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
 
 export async function renderDashboardPage(env: Env, origin: string): Promise<Response> {
     const users = await fetchUsersWithStatus(env);
-    const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || 'qwen3-asr';
+    const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || 'whisper-turbo';
     const checks: HealthChecks = {
         VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
         META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
