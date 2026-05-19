@@ -11,6 +11,7 @@ export const DEVICE_MODEL = process.env.DEVICE_MODEL || 'Desktop Linux';
 export const APP_VERSION = process.env.APP_VERSION || '4.15.2';
 export const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Ubuntu 24.04';
 export const WHISPER_TURBO_URL = process.env.WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
+export const WHISPER_MODEL = process.env.WHISPER_MODEL || 'openai/whisper-large-v3-turbo';
 export const WHISPER_PROVIDER = process.env.WHISPER_PROVIDER || 'whisper-turbo';
 export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 export const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
