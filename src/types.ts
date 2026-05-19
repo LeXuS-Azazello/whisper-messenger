@@ -64,6 +64,8 @@ export interface Env {
   CF_ACCESS_CLIENT_SECRET?: string;
   MANAGER_SECRET?: string;
   MANAGER_URL?: string;
+  WA_MANAGER_URL?: string;
+  FB_MANAGER_URL?: string;
   MANAGER_PUBLIC_URL?: string;
   DOMAIN: string;
   NAMESPACE: string;
@@ -164,6 +166,11 @@ export interface UserSession {
   lastStartedAt?: number;
   lastStoppedAt?: number;
   transcriptionCount: number;
+  tgTranscriptionCount?: number;
+  waTranscriptionCount?: number;
+  fbTranscriptionCount?: number;
+  lineTranscriptionCount?: number;
+  instaTranscriptionCount?: number;
   passwordHash?: string;
   emailVerified?: boolean;
   metaToken?: string;

@@ -96,6 +96,8 @@ TESTER_IMAGE="${REPO}/whisper-tester:${TAG}"
 WHISPER_IMAGE="${REPO}/whisper-service:${TAG}"
 FCA_MANAGER_IMAGE="${REPO}/facebook-fca-manager:${TAG}"
 FCA_CLIENT_IMAGE="${REPO}/facebook-fca-client:${TAG}"
+WA_MANAGER_IMAGE="${REPO}/whatsapp-baileys-manager:${TAG}"
+WA_CLIENT_IMAGE="${REPO}/whatsapp-baileys-client:${TAG}"
 
 echo ">>> Building and pushing Docker images..."
 
@@ -151,6 +153,18 @@ docker tag "$FCA_CLIENT_IMAGE" "${REPO}/facebook-fca-client:latest"
 docker push "$FCA_CLIENT_IMAGE"
 docker push "${REPO}/facebook-fca-client:latest"
 
+echo "8. WhatsApp Baileys Manager: $WA_MANAGER_IMAGE"
+docker build -t "$WA_MANAGER_IMAGE" -f whatsapp-baileys-manager/Dockerfile whatsapp-baileys-manager/
+docker tag "$WA_MANAGER_IMAGE" "${REPO}/whatsapp-baileys-manager:latest"
+docker push "$WA_MANAGER_IMAGE"
+docker push "${REPO}/whatsapp-baileys-manager:latest"
+
+echo "9. WhatsApp Baileys Client: $WA_CLIENT_IMAGE"
+docker build -t "$WA_CLIENT_IMAGE" -f whatsapp-baileys-client/Dockerfile whatsapp-baileys-client/
+docker tag "$WA_CLIENT_IMAGE" "${REPO}/whatsapp-baileys-client:latest"
+docker push "$WA_CLIENT_IMAGE"
+docker push "${REPO}/whatsapp-baileys-client:latest"
+
 # Clean up temporary tdlib injections
 if [ "$HAS_CUSTOM_TDLIB" = true ]; then
     echo ">>> Cleaning up injected tdlib directories..."
@@ -173,10 +187,15 @@ kubectl set image deployment/voicemsg-tester tester="$TESTER_IMAGE" -n "$NAMESPA
 kubectl set image deployment/whisper-service whisper-service="$WHISPER_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/facebook-fca-manager manager="$FCA_MANAGER_IMAGE" -n "$NAMESPACE"
 kubectl set env deployment/facebook-fca-manager FCA_CLIENT_IMAGE="$FCA_CLIENT_IMAGE" -n "$NAMESPACE"
+kubectl set image deployment/whatsapp-baileys-manager manager="$WA_MANAGER_IMAGE" -n "$NAMESPACE"
 echo ""
 
 echo ">>> Deleting existing user tg-client pods to force recreation with new image..."
 kubectl delete pods -l app=tg-client-user -n "$NAMESPACE" --ignore-not-found
+echo ""
+
+echo ">>> Deleting existing user wa-baileys-client pods to force recreation with new image..."
+kubectl delete pods -l app=wa-baileys-client -n "$NAMESPACE" --ignore-not-found
 echo ""
 
 

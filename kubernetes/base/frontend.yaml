@@ -115,6 +115,18 @@ spec:
               name: whisper-messenger-env
               key: MAIL_API_TOKEN
               optional: true
+        - name: WA_MANAGER_URL
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: WA_MANAGER_URL
+              optional: true
+        - name: FB_MANAGER_URL
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: FB_MANAGER_URL
+              optional: true
         resources:
           requests:
             cpu: "200m"

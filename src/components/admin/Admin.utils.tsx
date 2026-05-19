@@ -81,7 +81,11 @@ export const UserRow = ({ user }: UserRowProps) => (
         <td style={{ textAlign: 'center', fontSize: '11px', color: '#94A3B8' }}>{formatUptime(user.lastStartedAt)}</td>
         <td style={{ textAlign: 'center' }}>
             <div style={{ fontWeight: '800', color: '#38BDF8', fontSize: '16px' }}>{user.transcriptionCount || 0}</div>
-            <div style={{ fontSize: '9px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>msgs</div>
+            <div style={{ fontSize: '9px', color: 'var(--text-dim)', display: 'flex', gap: '6px', justifyContent: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
+                {user.tgTranscriptionCount !== undefined && user.tgTranscriptionCount > 0 && <span title="Telegram" style={{ color: '#24A1DE', fontWeight: 'bold' }}>TG:{user.tgTranscriptionCount}</span>}
+                {user.waTranscriptionCount !== undefined && user.waTranscriptionCount > 0 && <span title="WhatsApp" style={{ color: '#25D366', fontWeight: 'bold' }}>WA:{user.waTranscriptionCount}</span>}
+                {user.fbTranscriptionCount !== undefined && user.fbTranscriptionCount > 0 && <span title="Facebook" style={{ color: '#00B2FF', fontWeight: 'bold' }}>FB:{user.fbTranscriptionCount}</span>}
+            </div>
         </td>
         <td style={{ fontSize: '11px', color: '#94A3B8', whiteSpace: 'nowrap' }}>
             {user.lastActiveAt ? new Date(user.lastActiveAt).toLocaleString('en-GB', { hour12: false }) : '-'}

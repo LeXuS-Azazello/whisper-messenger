@@ -457,6 +457,73 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Facebook FCA Logic
+    const connectFbBtn = document.getElementById('connect-fb-fca-btn');
+    const disconnectFbBtn = document.getElementById('disconnect-fb-fca-btn');
+    const fbAppstateInput = document.getElementById('fb-appstate');
+    const fbEmailInput = document.getElementById('fb-email');
+    const fbPasswordInput = document.getElementById('fb-password');
+    const fbStatus = document.getElementById('fb-fca-status');
+
+    if (connectFbBtn) {
+        connectFbBtn.addEventListener('click', async () => {
+            const appState = fbAppstateInput ? fbAppstateInput.value.trim() : '';
+            const email = fbEmailInput ? fbEmailInput.value.trim() : '';
+            const password = fbPasswordInput ? fbPasswordInput.value.trim() : '';
+
+            if (!appState && (!email || !password)) {
+                return alert('Please enter AppState JSON or Email & Password');
+            }
+
+            connectFbBtn.disabled = true;
+            connectFbBtn.innerText = 'Connecting...';
+
+            try {
+                const res = await fetch('/dashboard/facebook/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, appState })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    fbStatus.innerText = 'CONNECTED';
+                    fbStatus.className = 'status-tag active';
+                    disconnectFbBtn.style.display = 'block';
+                    connectFbBtn.style.display = 'none';
+                    if (fbAppstateInput) fbAppstateInput.value = '';
+                    if (fbEmailInput) fbEmailInput.value = '';
+                    if (fbPasswordInput) fbPasswordInput.value = '';
+                    alert('Facebook Messenger connected successfully!');
+                } else {
+                    alert('Connection failed: ' + (data.error || 'Unknown error'));
+                    connectFbBtn.disabled = false;
+                    connectFbBtn.innerText = 'Connect Account';
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Connection error');
+                connectFbBtn.disabled = false;
+                connectFbBtn.innerText = 'Connect Account';
+            }
+        });
+    }
+
+    if (disconnectFbBtn) {
+        disconnectFbBtn.addEventListener('click', async () => {
+            if (!confirm('Disconnect Facebook Messenger account?')) return;
+            try {
+                const res = await fetch('/dashboard/facebook/disconnect', { method: 'POST' });
+                if (res.ok) {
+                    location.reload();
+                } else {
+                    alert('Failed to disconnect');
+                }
+            } catch (e) {
+                alert('Disconnect error');
+            }
+        });
+    }
+
     // Initial status check on load
     window.addEventListener('load', async () => {
         const res = await fetch('/dashboard/whatsapp-web/status');
@@ -467,7 +534,20 @@ document.addEventListener('DOMContentLoaded', function () {
             disconnectWaWebBtn.style.display = 'block';
             connectWaWebBtn.style.display = 'none';
         }
+
+        // Check FB status
+        const fbRes = await fetch('/dashboard/facebook/status');
+        const fbData = await fbRes.json();
+        if (fbData.connected) {
+            if (fbStatus) {
+                fbStatus.innerText = 'CONNECTED';
+                fbStatus.className = 'status-tag active';
+            }
+            if (disconnectFbBtn) disconnectFbBtn.style.display = 'block';
+            if (connectFbBtn) connectFbBtn.style.display = 'none';
+        }
     });
+
     const tabPanes = document.querySelectorAll('.tab-pane');
     const sectionTitle = document.getElementById('current-section-title');
     const sectionSubtitle = document.getElementById('current-section-subtitle');

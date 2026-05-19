@@ -156,6 +156,11 @@ export async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
                 podName: podInfo ? podInfo.podName : undefined,
                 lastStartedAt: podInfo && podInfo.startTime ? new Date(podInfo.startTime).getTime() : undefined,
                 transcriptionCount: dbUser.transcriptionCount || 0,
+                tgTranscriptionCount: dbUser.tgTranscriptionCount || 0,
+                waTranscriptionCount: dbUser.waTranscriptionCount || 0,
+                fbTranscriptionCount: dbUser.fbTranscriptionCount || 0,
+                lineTranscriptionCount: dbUser.lineTranscriptionCount || 0,
+                instaTranscriptionCount: dbUser.instaTranscriptionCount || 0,
                 lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : undefined
             });
         }

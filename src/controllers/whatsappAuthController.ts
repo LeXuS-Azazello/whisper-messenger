@@ -58,3 +58,37 @@ export async function handleWaDisconnect(env: Env, userId: string): Promise<Resp
     return Response.json({ error: e.message }, { status: 500 });
   }
 }
+
+export async function handleTestWa(env: Env, req: Request, userId: string): Promise<Response> {
+  try {
+    const { testRecipient } = await req.json() as any;
+    if (!testRecipient) {
+      return Response.json({ success: false, error: "Missing recipient phone number" }, { status: 400 });
+    }
+
+    const cleanUrl = getManagerUrl(env).replace(/\/$/, '') + '/test-wa';
+
+    const response = await fetch(cleanUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-manager-secret": env.MANAGER_SECRET || "changeme"
+      },
+      body: JSON.stringify({
+        userId,
+        message: "✅ WhatsApp connection test successful!",
+        to: testRecipient
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      throw new Error(`WhatsApp Manager error (${response.status}): ${errText}`);
+    }
+
+    const data = await response.json();
+    return Response.json(data);
+  } catch (e: any) {
+    return Response.json({ success: false, error: e.message });
+  }
+}

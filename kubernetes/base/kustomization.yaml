@@ -19,6 +19,8 @@ resources:
    - voicemsg-tester.yaml
    - voicemsg-cf.yaml
    - whatsapp-baileys-manager.yaml
+   - facebook-fca-manager.yaml
+
 
 
 images:

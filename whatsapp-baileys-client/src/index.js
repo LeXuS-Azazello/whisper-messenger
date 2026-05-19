@@ -354,8 +354,17 @@ function startHttpServer() {
             req.on('end', async () => {
                 try {
                     if (!sock || !sock.user) return respond(res, 503, { error: 'Not fully connected/authenticated' });
-                    const me = sock.user;
-                    respond(res, 200, { success: true, me, userId: TARGET_USER_ID });
+                    const payload = JSON.parse(body || '{}');
+                    const message = payload.message || '✅ WhatsApp connection test successful!';
+                    let targetJid = payload.to;
+                    if (targetJid) {
+                        targetJid = targetJid.includes('@') ? targetJid : `${targetJid.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+                    } else {
+                        targetJid = sock.user.id;
+                    }
+                    console.log(`[WA-Client] Sending test message to ${targetJid}: ${message}`);
+                    await sock.sendMessage(targetJid, { text: message });
+                    respond(res, 200, { success: true, me: sock.user, userId: TARGET_USER_ID, sentTo: targetJid });
                 } catch (e) {
                     respond(res, 500, { error: e.message });
                 }

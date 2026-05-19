@@ -95,7 +95,9 @@ async function processSingleMessage(message) {
                 : '🎤 Transcribing voice message...';
             statusMessage = await safeSendMessage(client, chat_id, message_id, statusText);
 
+            const downloadStart = Date.now();
             const file = await downloadTelegramFile(client, file_id, mime_type);
+            const downloadDuration = ((Date.now() - downloadStart) / 1000).toFixed(1);
             filePath = file.local.path;
             if (!filePath) throw new Error('File download failed: no path');
 
@@ -109,7 +111,9 @@ async function processSingleMessage(message) {
                 }
             } catch (e) {}
 
+            const transcribeStart = Date.now();
             const transcription = await transcribePath(filePath, mime_type, language);
+            const transcribeDuration = ((Date.now() - transcribeStart) / 1000).toFixed(1);
             if (transcription.trim()) {
                 console.log(`[tg-client] Transcription result for msg ${message_id}: ${transcription.trim()}`);
                 const chunks = splitTextIntoChunks(transcription.trim(), 3900);
@@ -120,6 +124,9 @@ async function processSingleMessage(message) {
                     } else {
                         const idx = i + 1;
                         replyText = `(Part ${idx}/${chunks.length})\n\n${replyText}`;
+                    }
+                    if (i === chunks.length - 1) {
+                        replyText += `\n\n⏳${transcribeDuration}s ⬇️${downloadDuration}s`;
                     }
                     await safeSendMessage(client, chat_id, message_id, replyText);
                     if (i < chunks.length - 1) await new Promise(resolve => setTimeout(resolve, 1500));

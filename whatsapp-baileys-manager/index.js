@@ -103,7 +103,8 @@ app.post('/test-wa', auth, async (req, res) => {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            message: req.body.message
+                            message: req.body.message,
+                            to: req.body.to
                         }),
                         signal: AbortSignal.timeout(10000)
                     });
@@ -225,7 +226,7 @@ app.post('/internal/stats', auth, async (req, res) => {
         const response = await fetch(cleanUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: String(userId), secret: SECRET })
+            body: JSON.stringify({ userId: String(userId), secret: SECRET, platform: 'whatsapp' })
         });
 
         if (!response.ok) {
@@ -235,7 +236,7 @@ app.post('/internal/stats', auth, async (req, res) => {
             await User.findOneAndUpdate(
                 { userId: String(userId) },
                 {
-                    $inc: { transcriptionCount: 1 },
+                    $inc: { transcriptionCount: 1, waTranscriptionCount: 1 },
                     lastActiveAt: new Date()
                 },
                 { upsert: true }
@@ -250,7 +251,7 @@ app.post('/internal/stats', auth, async (req, res) => {
             await User.findOneAndUpdate(
                 { userId: String(userId) },
                 {
-                    $inc: { transcriptionCount: 1 },
+                    $inc: { transcriptionCount: 1, waTranscriptionCount: 1 },
                     lastActiveAt: new Date()
                 },
                 { upsert: true }

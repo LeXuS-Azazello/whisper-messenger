@@ -175,6 +175,23 @@ export default {
         return await handleWhatsAppWebAction(env, req, currentUserId);
       }
 
+      // ─── Facebook FCA routes ──────────────────────────────────────────
+      if (pathStartsWith(pathname, "/dashboard/facebook")) {
+        const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
+        let currentUserId: string | null = null;
+        if (sessionCookie) {
+          currentUserId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
+        }
+
+        if (!currentUserId) {
+          return new Response(null, { status: 302, headers: { "Location": "/" } });
+        }
+
+        const { handleFacebookAction } = await import("./routes/facebook");
+        return await handleFacebookAction(env, req, currentUserId);
+      }
+
+
       if (pathStartsWith(pathname, "/dashboard")) {
         const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;

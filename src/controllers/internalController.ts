@@ -52,14 +52,14 @@ export async function handleActiveUsers(env: Env, _req: Request, url: URL): Prom
 
 export async function handleStats(env: Env, req: Request): Promise<Response> {
   try {
-    const { userId, secret } = await req.json() as any;
+    const { userId, secret, platform } = await req.json() as any;
     if (secret !== env.MANAGER_SECRET) {
       return new Response("Unauthorized", { status: 401 });
     }
     
     if (userId) {
       const { incrementUserStats } = await import("./dashboardController");
-      await incrementUserStats(userId, env, "telegram");
+      await incrementUserStats(userId, env, platform || "telegram");
     }
     
     return Response.json({ success: true });
@@ -98,6 +98,11 @@ export async function handleUserMeta(env: Env, req: Request, url: URL): Promise<
         emailVerified: dbUser.emailVerified ?? false,
         isActive: dbUser.isActive ?? true,
         transcriptionCount: dbUser.transcriptionCount || 0,
+        tgTranscriptionCount: dbUser.tgTranscriptionCount || 0,
+        waTranscriptionCount: dbUser.waTranscriptionCount || 0,
+        fbTranscriptionCount: dbUser.fbTranscriptionCount || 0,
+        lineTranscriptionCount: dbUser.lineTranscriptionCount || 0,
+        instaTranscriptionCount: dbUser.instaTranscriptionCount || 0,
         createdAt: dbUser.createdAt ? dbUser.createdAt.getTime() : Date.now(),
         lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : Date.now(),
         session: tgSession?.sessionData || "",

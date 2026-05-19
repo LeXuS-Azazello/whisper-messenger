@@ -3,7 +3,6 @@ import {
   handleSaveMeta,
   handleSaveWa,
   handleSaveLine,
-  handleTestWa,
   handleDisconnectTg,
   handleTestTg,
   handleRestartTg,
@@ -12,6 +11,7 @@ import {
   handleChangePassword,
   handleDeleteAccount
 } from "../controllers/dashboardController";
+import { handleTestWa } from "../controllers/whatsappAuthController";
 
 export { incrementUserStats };
 
@@ -119,7 +119,7 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       return await handleSaveLine(env, req, userId, user);
     }
     if (pathname === "/dashboard/test-wa") {
-      return await handleTestWa(env, req, user);
+      return await handleTestWa(env, req, userId);
     }
     if (pathname === "/dashboard/disconnect-tg") {
       return await handleDisconnectTg(env, userId, user);

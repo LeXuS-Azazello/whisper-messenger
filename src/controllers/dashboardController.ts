@@ -9,18 +9,46 @@ export async function incrementUserStats(userId: string, env: Env, platform: str
   const lastActiveAt = Date.now();
   const metaRaw = await env.STATS.get(`user_meta_${userId}`);
   if (metaRaw) {
-    const meta: UserSession = JSON.parse(metaRaw);
-    meta.transcriptionCount = (meta.transcriptionCount || 0) + 1;
-    meta.lastActiveAt = lastActiveAt;
-    await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+    try {
+      const meta: UserSession = JSON.parse(metaRaw);
+      meta.transcriptionCount = (meta.transcriptionCount || 0) + 1;
+      if (platform === "telegram") {
+        meta.tgTranscriptionCount = (meta.tgTranscriptionCount || 0) + 1;
+      } else if (platform === "whatsapp") {
+        meta.waTranscriptionCount = (meta.waTranscriptionCount || 0) + 1;
+      } else if (platform === "facebook") {
+        meta.fbTranscriptionCount = (meta.fbTranscriptionCount || 0) + 1;
+      } else if (platform === "line") {
+        meta.lineTranscriptionCount = (meta.lineTranscriptionCount || 0) + 1;
+      } else if (platform === "instagram" || platform === "insta" || platform === "meta") {
+        meta.instaTranscriptionCount = (meta.instaTranscriptionCount || 0) + 1;
+      }
+      meta.lastActiveAt = lastActiveAt;
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+    } catch (e) {
+      console.error("[Stats] Failed to update KV user_meta:", e);
+    }
   }
 
   try {
     const User = (await import("../models/User")).default;
+    const incFields: Record<string, number> = { transcriptionCount: 1 };
+    if (platform === "telegram") {
+      incFields.tgTranscriptionCount = 1;
+    } else if (platform === "whatsapp") {
+      incFields.waTranscriptionCount = 1;
+    } else if (platform === "facebook") {
+      incFields.fbTranscriptionCount = 1;
+    } else if (platform === "line") {
+      incFields.lineTranscriptionCount = 1;
+    } else if (platform === "instagram" || platform === "insta" || platform === "meta") {
+      incFields.instaTranscriptionCount = 1;
+    }
+
     await User.findOneAndUpdate(
       { userId },
       {
-        $inc: { transcriptionCount: 1 },
+        $inc: incFields,
         $set: { lastActiveAt: new Date(lastActiveAt) }
       },
       { upsert: true }
@@ -88,25 +116,6 @@ export async function handleSaveLine(env: Env, req: Request, userId: string, use
 
   return Response.json({ success: true });
 
-}
-
-export async function handleTestWa(env: Env, req: Request, user: UserSession): Promise<Response> {
-  try {
-    const { whatsappToken, whatsappPhoneId, testRecipient } = await req.json() as any;
-    const targetToken = whatsappToken || user.whatsappToken;
-    const targetPhoneId = whatsappPhoneId || user.whatsappPhoneId;
-
-    if (!targetToken || !targetPhoneId || !testRecipient) {
-      return Response.json({ success: false, error: "Missing token, phone ID, or recipient" }, { status: 400 });
-    }
-
-    const { sendWhatsAppMessageSafe } = await import("../whatsapp");
-    await sendWhatsAppMessageSafe(targetPhoneId, testRecipient, "✅ WhatsApp connection test successful!", targetToken, env);
-
-    return Response.json({ success: true });
-  } catch (e: any) {
-    return Response.json({ success: false, error: e.message });
-  }
 }
 
 
