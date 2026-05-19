@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: whisper-service-cache
+  namespace: debugging-testcrash-pub
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: local-path
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: audio-transcribe-storage
+  namespace: debugging-testcrash-pub
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: local-path
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whisper-service
+  namespace: debugging-testcrash-pub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whisper-service
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: whisper-service
+      annotations:
+        rollout-trigger: "202605192015"
+    spec:
+      imagePullSecrets:
+      - name: harbor-pull-secret
+      containers:
+      - name: whisper-service
+        image: harbor.dev.takatan.cloud/devcenter/whisper-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: HF_HOME
+          value: "/hf-cache"
+        - name: HUGGING_FACE_HUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: huggingface-token
+              key: HUGGING_FACE_HUB_TOKEN
+        - name: HF_HUB_ENABLE_HF_TRANSFER
+          value: "1"
+        - name: TRANSFORMERS_VERBOSITY
+          value: "warning"
+        resources:
+          requests:
+            cpu: "8000m"
+            memory: "8Gi"
+          limits:
+            cpu: "16000m"
+            memory: "16Gi"
+        volumeMounts:
+        - name: cache
+          mountPath: /hf-cache
+        - name: audio-files
+          mountPath: /shared/tg-files
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          failureThreshold: 120
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 10
+      volumes:
+      - name: cache
+        persistentVolumeClaim:
+          claimName: whisper-service-cache
+      - name: audio-files
+        persistentVolumeClaim:
+          claimName: audio-transcribe-storage
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whisper-service
+  namespace: debugging-testcrash-pub
+spec:
+  selector:
+    app: whisper-service
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000

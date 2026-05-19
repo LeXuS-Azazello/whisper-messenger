@@ -11,7 +11,8 @@ resources:
   - tg-client-manager.yaml
   - tg-client.yaml
   - tg-bot-test.yaml
-  - whisper-turbo.yaml
+  - whisper-service.yaml
+  - huggingface-secret.yaml
   - rbac.yaml
   - cert-manager.yaml
   - voicemsg-tester.yaml

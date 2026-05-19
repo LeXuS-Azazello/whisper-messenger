@@ -28,7 +28,7 @@ spec:
         - name: REDIS_URL
           value: "redis://redis:6379"
         - name: WHISPER_PROVIDER
-          value: "http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000"
+          value: "http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000"
         resources:
           requests:
             cpu: "100m"

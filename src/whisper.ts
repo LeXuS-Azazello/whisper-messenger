@@ -5,7 +5,7 @@ export async function transcribeWithFallback(
   env: Env,
   providerOverride?: string
 ): Promise<{ text: string; model?: string }> {
-  const url = await env.STATS.get("config_local_whisper_url") || env.WHISPER_PROVIDER || "http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000";
+  const url = await env.STATS.get("config_local_whisper_url") || env.WHISPER_PROVIDER || "http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000";
   
 
   if (!url) throw new Error("Whisper Turbo URL not configured");
@@ -31,7 +31,7 @@ export async function transcribeWithFallback(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Whisper Turbo error ${response.status}: ${errorText}`);
+      throw new Error(`whisper-service error ${response.status}: ${errorText}`);
     }
 
     const result = await response.json() as any;
@@ -40,7 +40,7 @@ export async function transcribeWithFallback(
     // Hallucination cleanup: remove repeating sentences (3+ repetitions)
     text = text.replace(/(.+?\.)\s*\1\s*\1(\s*\1)*/g, '$1 $1');
 
-    return { text, model: "whisper-turbo" };
+    return { text, model: "whisper-service" };
   } catch (e) {
     clearTimeout(timeoutId);
     throw e;
