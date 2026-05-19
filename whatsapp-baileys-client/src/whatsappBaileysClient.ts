@@ -91,7 +91,15 @@ export class WhatsAppBaileysClient {
 
   async stop() {
     if (this.sock) {
-      await this.sock.close();
+      try {
+        if (typeof (this.sock as any).logout === 'function') {
+          await (this.sock as any).logout();
+        } else if ((this.sock as any).ws) {
+          (this.sock as any).ws.close();
+        }
+      } catch (e) {
+        console.error('Error stopping socket:', e);
+      }
       this.sock = null;
     }
   }

@@ -30,16 +30,21 @@ export class WhatsAppClient {
     this.client = new Client({
       authStrategy: new RemoteAuth({
         clientId: this.userId,
+        backupSyncIntervalMs: 60000,
         store: {
           save: async (data) => {
-            await this.env.STATS.put(`wa_session_${this.userId}`, data);
+            await this.env.STATS.put(`wa_session_${this.userId}`, JSON.stringify(data));
           },
           extract: async () => {
             const data = await this.env.STATS.get(`wa_session_${this.userId}`);
-            return data ? (data as any) : null;
+            return data ? JSON.parse(data) : null;
           },
           delete: async () => {
             await this.env.STATS.delete(`wa_session_${this.userId}`);
+          },
+          sessionExists: async (options?: any) => {
+            const data = await this.env.STATS.get(`wa_session_${this.userId}`);
+            return !!data;
           }
         }
       }),

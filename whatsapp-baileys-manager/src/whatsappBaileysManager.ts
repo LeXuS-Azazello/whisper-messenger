@@ -2,6 +2,7 @@ import { WhatsAppBaileysClient } from '../../whatsapp-baileys-client/src/whatsap
 import { Env } from '../../src/types';
 import fs from 'fs/promises';
 import path from 'path';
+import { downloadMediaMessage } from 'baileys';
 
 export class WhatsAppBaileysManager {
   private clients: Map<string, WhatsAppBaileysClient> = new Map();
@@ -19,7 +20,7 @@ export class WhatsAppBaileysManager {
     // or a specific prefix. In this case, we can iterate through known users if provided
     // For now, we'll assume the system will call a recovery method or 
     // we'll implement a background scan of session keys if the KV allows.
-    
+
     // For simplicity, you can call this method from the main server start
   }
 
@@ -46,7 +47,7 @@ export class WhatsAppBaileysManager {
 
     this.clients.set(userId, client);
     await client.start();
-    
+
     return { status: 'starting' };
   }
 
@@ -55,18 +56,31 @@ export class WhatsAppBaileysManager {
     if (msg?.message?.audioMessage || msg?.message?.voiceMessage) {
       // For baileys, we need to download the media
       try {
-        const media = await this.clients.get(userId)?.getClient()?.downloadMediaMessage(msg);
+        const client = this.clients.get(userId);
+        if (!client) throw new Error('Client not found');
+        const sock = await client.getClient();
+        if (!sock) throw new Error('Socket not initialized');
+
+        const media = await downloadMediaMessage(
+          msg,
+          'buffer',
+          {},
+          {
+            logger: console as any,
+            reacquireMediaKey: async () => { return undefined; }
+          } as any
+        );
         if (media) {
           const fileName = `wa_${userId}_${Date.now()}.ogg`;
           const filePath = path.join(process.cwd(), 'public/audio', fileName);
-          
+
           await fs.mkdir(path.join(process.cwd(), 'public/audio'), { recursive: true });
           await fs.writeFile(filePath, media);
-          
+
           const audioUrl = `${this.env.DOMAIN}/audio/${fileName}`;
-          
+
           console.log(`[WhatsAppBaileysManager] Audio received from ${msg.key?.remoteJid}, forwarding to queue...`);
-          
+
           await this.env.AUDIO_QUEUE.send({
             userId: userId,
             senderId: msg.key?.remoteJid || '',
