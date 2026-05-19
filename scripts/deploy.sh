@@ -151,6 +151,10 @@ kubectl set env deployment/tg-client-manager TG_CLIENT_IMAGE="$TG_CLIENT_IMAGE" 
 kubectl set image deployment/voicemsg-tester tester="$TESTER_IMAGE" -n "$NAMESPACE"
 echo ""
 
+echo ">>> Deleting existing user tg-client pods to force recreation with new image..."
+kubectl delete pods -l app=tg-client-user -n "$NAMESPACE" --ignore-not-found
+echo ""
+
 
 echo "=== Status ==="
 echo ""

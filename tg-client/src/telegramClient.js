@@ -19,7 +19,8 @@ let myUserId = null;
 const WHISPER_MODEL = 'openai/whisper-large-v3-turbo';
 
 function logUpdate(update) {
-    if (update['_'] === 'updateFile') {
+    const type = update['_'] || update['@type'];
+    if (type === 'updateFile') {
         const file = update.file;
         const fileIdNum = Number(file.id);
         if (file.local.is_completed && filePromises.has(fileIdNum)) {
@@ -82,7 +83,189 @@ async function extractAudioFromVideo(videoPath) {
     }
 }
 
-async function handleNewMessage(message) {
+const incomingQueue = [];
+let isProcessingQueue = false;
+
+export function splitTextIntoChunks(text, limit = 3900) {
+    if (!text) return [];
+    if (text.length <= limit) {
+        return [text];
+    }
+
+    const chunks = [];
+    let currentChunk = "";
+
+    const paragraphs = text.split('\n');
+    for (const paragraph of paragraphs) {
+        // If adding this paragraph exceeds the limit
+        if ((currentChunk + (currentChunk ? '\n' : '') + paragraph).length > limit) {
+            // If the paragraph itself is longer than limit, we need to split it
+            if (paragraph.length > limit) {
+                // Commit currentChunk if it's not empty
+                if (currentChunk) {
+                    chunks.push(currentChunk);
+                    currentChunk = "";
+                }
+
+                // Split by sentences using regex, fallback to paragraph
+                const sentences = paragraph.match(/[^.!?]+[.!?]+(\s+|$)/g) || [paragraph];
+                for (const sentence of sentences) {
+                    const cleanSentence = sentence.trim();
+                    if (!cleanSentence) continue;
+
+                    if ((currentChunk + (currentChunk ? ' ' : '') + cleanSentence).length > limit) {
+                        if (cleanSentence.length > limit) {
+                            if (currentChunk) {
+                                chunks.push(currentChunk);
+                                currentChunk = "";
+                            }
+                            const words = cleanSentence.split(/\s+/).filter(Boolean);
+                            for (const word of words) {
+                                if ((currentChunk + (currentChunk ? ' ' : '') + word).length > limit) {
+                                    if (word.length > limit) {
+                                        if (currentChunk) {
+                                            chunks.push(currentChunk);
+                                            currentChunk = "";
+                                        }
+                                        let tempWord = word;
+                                        while (tempWord.length > limit) {
+                                            chunks.push(tempWord.substring(0, limit));
+                                            tempWord = tempWord.substring(limit);
+                                        }
+                                        currentChunk = tempWord;
+                                    } else {
+                                        chunks.push(currentChunk);
+                                        currentChunk = word;
+                                    }
+                                } else {
+                                    currentChunk = currentChunk ? currentChunk + ' ' + word : word;
+                                }
+                            }
+                        } else {
+                            chunks.push(currentChunk);
+                            currentChunk = cleanSentence;
+                        }
+                    } else {
+                        currentChunk = currentChunk ? currentChunk + ' ' + cleanSentence : cleanSentence;
+                    }
+                }
+            } else {
+                chunks.push(currentChunk);
+                currentChunk = paragraph;
+            }
+        } else {
+            currentChunk = currentChunk ? currentChunk + '\n' + paragraph : paragraph;
+        }
+    }
+
+    if (currentChunk) {
+        chunks.push(currentChunk);
+    }
+
+    return chunks.filter(Boolean);
+}
+
+async function safeSendMessage(chatId, replyToMessageId, text, attempt = 1) {
+    try {
+        const result = await client.invoke({
+            '_': 'sendMessage',
+            chat_id: chatId,
+            reply_to_message_id: replyToMessageId,
+            input_message_content: {
+                '_': 'inputMessageText',
+                text: {
+                    '_': 'formattedText',
+                    text: text
+                }
+            }
+        });
+        return result;
+    } catch (err) {
+        const errorMsg = err.message || '';
+        if (errorMsg.includes('FLOOD_WAIT_') && attempt <= 3) {
+            const match = errorMsg.match(/FLOOD_WAIT_(\d+)/);
+            const waitSeconds = match ? parseInt(match[1], 10) : 5;
+            console.warn(`[tg-client] ⚠️ FLOOD_WAIT encountered. Waiting for ${waitSeconds} seconds before retry (attempt ${attempt}/3)...`);
+            await new Promise(resolve => setTimeout(resolve, waitSeconds * 1000 + 500));
+            return safeSendMessage(chatId, replyToMessageId, text, attempt + 1);
+        }
+        throw err;
+    }
+}
+
+async function deleteMessage(chatId, messageId) {
+    if (!messageId) return;
+    try {
+        await client.invoke({
+            '_': 'deleteMessages',
+            chat_id: chatId,
+            message_ids: [messageId],
+            revoke: true
+        });
+        console.log(`[tg-client] 🗑️ Deleted processing status message ${messageId} in chat ${chatId}`);
+    } catch (deleteErr) {
+        console.warn(`[tg-client] Failed to delete status message ${messageId}:`, deleteErr.message);
+    }
+}
+
+async function processIncomingQueue() {
+    if (isProcessingQueue) return;
+    isProcessingQueue = true;
+
+    while (incomingQueue.length > 0) {
+        const message = incomingQueue.shift();
+        try {
+            console.log(`[tg-client] 🔄 Processing message ${message.id} from queue. Remaining: ${incomingQueue.length}`);
+            await processSingleMessage(message);
+        } catch (queueErr) {
+            console.error(`[tg-client] Error processing message ${message.id} from queue:`, queueErr.message);
+        }
+
+        if (incomingQueue.length > 0) {
+            console.log(`[tg-client] ⏳ Waiting 1.5s before next queued message...`);
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+    }
+
+    isProcessingQueue = false;
+}
+
+export async function handleNewMessage(message) {
+    if (!message || !message.content) return;
+
+    const chat_id = message.chat_id;
+    const type = message.content['_'];
+
+    // Fast pre-filtering to avoid clogging the queue:
+    // 1. Group filtering: Only private messages
+    const isGroup = (typeof chat_id === 'number' && chat_id < 0) || (typeof chat_id === 'string' && chat_id.startsWith('-'));
+    if (isGroup) {
+        return;
+    }
+
+    // Outgoing message filtering
+    const myId = myUserId || (TARGET_USER_ID ? Number(TARGET_USER_ID) : null);
+    const isSelfChat = myId && Number(chat_id) === Number(myId);
+    if (message.is_outgoing && !isSelfChat) {
+        return;
+    }
+
+    // Log text messages immediately without queueing them
+    if (type === 'messageText') {
+        const text = message.content.text?.text || '';
+        console.log(`[tg-client] 💬 Text: "${text}"`);
+        return;
+    }
+
+    // Queue media messages
+    if (type === 'messageVoiceNote' || type === 'messageVideoNote') {
+        console.log(`[tg-client] 📥 Enqueuing media message ${message.id} in chat ${chat_id}`);
+        incomingQueue.push(message);
+        processIncomingQueue();
+    }
+}
+
+async function processSingleMessage(message) {
     if (!message || !message.content) return;
 
     const chat_id = message.chat_id;
@@ -92,18 +275,14 @@ async function handleNewMessage(message) {
     // 1. Group filtering: Only private messages
     const isGroup = (typeof chat_id === 'number' && chat_id < 0) || (typeof chat_id === 'string' && chat_id.startsWith('-'));
     if (isGroup) {
-        // console.log(`[tg-client] 🚫 Skipping message ${message_id} because chat ${chat_id} is a group/channel`);
         return;
     }
 
-    // Outgoing message filtering:
-    // Skip outgoing messages (sent by us) in chats with other people,
-    // but allow them in our own chat (Saved Messages / chat with oneself).
+    // Outgoing message filtering
     const myId = myUserId || (TARGET_USER_ID ? Number(TARGET_USER_ID) : null);
     const isSelfChat = myId && Number(chat_id) === Number(myId);
     if (message.is_outgoing) {
         if (!isSelfChat) {
-            // console.log(`[tg-client] 🚫 Skipping outgoing message ${message_id} in chat ${chat_id} (not Saved Messages)`);
             return;
         }
         console.log(`[tg-client] 📥 Processing outgoing message ${message_id} in Saved Messages/self chat`);
@@ -143,12 +322,9 @@ async function handleNewMessage(message) {
     let file_id = null;
     let mime_type = '';
 
-    console.log(`[tg-client] 📩 Received message in chat ${chat_id} of type: ${type}`);
+    console.log(`[tg-client] 📩 Processing media message in chat ${chat_id} of type: ${type}`);
 
-    if (type === 'messageText') {
-        const text = message.content.text?.text || '';
-        console.log(`[tg-client] 💬 Text: "${text}"`);
-    } else if (type === 'messageVoiceNote') {
+    if (type === 'messageVoiceNote') {
         file_id = message.content.voice_note.voice.id;
         mime_type = 'audio/ogg';
         console.log(`[tg-client] 🎤 Voice message detected in chat ${chat_id}`);
@@ -161,23 +337,56 @@ async function handleNewMessage(message) {
     if (file_id) {
         let tempAudioPath = null;
         let localPath = null;
+        let statusMessage = null;
         try {
+            // Send immediate transcription status message to the user
+            try {
+                const statusText = type === 'messageVideoNote'
+                    ? '📹 Обрабатываю видео-кружок, идет транскрибация...'
+                    : '🎤 Обрабатываю голосовое сообщение, идет транскрибация...';
+                statusMessage = await safeSendMessage(chat_id, message_id, statusText);
+            } catch (statusErr) {
+                console.warn(`[tg-client] Failed to send status message:`, statusErr.message);
+            }
+
             const fileIdNum = Number(file_id);
 
             // Register the promise before invoking the download to avoid race conditions!
             let downloadPromise = null;
             if (!filePromises.has(fileIdNum)) {
                 downloadPromise = new Promise((resolve, reject) => {
+                    const pollInterval = setInterval(async () => {
+                        try {
+                            const currentFile = await client.invoke({
+                                '_': 'getFile',
+                                file_id: file_id
+                            });
+                            if (currentFile && currentFile.local && currentFile.local.is_completed) {
+                                console.log(`[tg-client] ℹ️ Polling fallback detected completed download for file ${file_id}`);
+                                clearInterval(pollInterval);
+                                clearTimeout(timeout);
+                                filePromises.delete(fileIdNum);
+                                resolve(currentFile);
+                            }
+                        } catch (pollErr) {
+                            // Ignore errors during polling
+                        }
+                    }, 1000);
+
                     const timeout = setTimeout(() => {
+                        clearInterval(pollInterval);
                         filePromises.delete(fileIdNum);
                         reject(new Error(`File download timed out for file ${file_id}`));
-                    }, 30000);
+                    }, 60000); // 60s timeout
+
                     filePromises.set(fileIdNum, {
                         resolve: (f) => {
+                            clearInterval(pollInterval);
                             clearTimeout(timeout);
                             resolve(f);
                         },
                         reject: (err) => {
+                            clearInterval(pollInterval);
                             clearTimeout(timeout);
                             reject(err);
                         }
@@ -239,23 +448,38 @@ async function handleNewMessage(message) {
             console.log(`[tg-client] ✅ Transcription: "${transcription.slice(0, 50)}..." in ${transcriptionDuration}s`);
 
             if (transcription.trim()) {
-                const replyText = `🎤 ${transcription.trim()}\n\n` +
-                    `⏱ Скачивание: ${downloadDuration}с | Транскрибация: ${transcriptionDuration}с\n` +
-                    `🤖 Модель: ${WHISPER_MODEL}`;
+                // Split transcription into chunks to respect character limits and avoid FLOOD_WAIT
+                const chunks = splitTextIntoChunks(transcription.trim(), 3900);
+                const totalChunks = chunks.length;
 
-                // 3. Reply with transcription
-                await client.invoke({
-                    '_': 'sendMessage',
-                    chat_id: chat_id,
-                    reply_to_message_id: message_id,
-                    input_message_content: {
-                        '_': 'inputMessageText',
-                        text: {
-                            '_': 'formattedText',
-                            text: replyText
+                for (let i = 0; i < totalChunks; i++) {
+                    let replyText = "";
+                    if (totalChunks === 1) {
+                        replyText = `🎤 ${chunks[i]}\n\n` +
+                            `⏱ Скачивание: ${downloadDuration}с | Транскрибация: ${transcriptionDuration}с\n` +
+                            `🤖 Модель: ${WHISPER_MODEL}`;
+                    } else {
+                        const chunkIndex = i + 1;
+                        if (chunkIndex === 1) {
+                            replyText = `🎤 (Часть ${chunkIndex}/${totalChunks})\n\n${chunks[i]}`;
+                        } else if (chunkIndex < totalChunks) {
+                            replyText = `(Часть ${chunkIndex}/${totalChunks})\n\n${chunks[i]}`;
+                        } else {
+                            replyText = `(Часть ${chunkIndex}/${totalChunks})\n\n${chunks[i]}\n\n` +
+                                `⏱ Скачивание: ${downloadDuration}с | Транскрибация: ${transcriptionDuration}с\n` +
+                                `🤖 Модель: ${WHISPER_MODEL}`;
                         }
                     }
-                });
+
+                    console.log(`[tg-client] 📤 Sending chunk ${i + 1}/${totalChunks} (length: ${replyText.length})...`);
+                    await safeSendMessage(chat_id, message_id, replyText);
+
+                    // Add a delay of 1.5 seconds between successive chunk sends to avoid Telegram spam limits
+                    if (i < totalChunks - 1) {
+                        console.log(`[tg-client] ⏳ Waiting 1.5s before sending next chunk...`);
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                    }
+                }
 
                 // 4. Update stats via manager
                 const managerApi = MANAGER_URL || 'http://tg-client-manager:3000';
@@ -270,8 +494,13 @@ async function handleNewMessage(message) {
             }
 
         } catch (e) {
-            logError(e, 'handleNewMessage');
+            logError(e, 'processSingleMessage');
         } finally {
+            // Delete the transcription status message if it was sent
+            if (statusMessage && statusMessage.id) {
+                await deleteMessage(chat_id, statusMessage.id);
+            }
+
             // Clean up temporary extracted WAV audio file if it was created
             if (tempAudioPath && fs.existsSync(tempAudioPath)) {
                 try {
@@ -306,7 +535,6 @@ async function handleNewMessage(message) {
             }
         }
     }
-}
 
 export async function startUserClient() {
     if (client) return;
