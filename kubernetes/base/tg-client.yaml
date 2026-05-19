@@ -34,9 +34,19 @@ data:
             { "name": "APP_VERSION", "value": "4.15.2" },
             { "name": "SYSTEM_VERSION", "value": "Ubuntu 24.04" }
           ],
+          "volumeMounts": [{
+            "name": "tdlib-storage",
+            "mountPath": "/app/tdlib-data"
+          }],
           "resources": {
             "requests": { "cpu": "50m", "memory": "128Mi" },
             "limits": { "cpu": "200m", "memory": "256Mi" }
+          }
+        }],
+        "volumes": [{
+          "name": "tdlib-storage",
+          "persistentVolumeClaim": {
+            "claimName": "tg-client-pvc-placeholder"
           }
         }],
         "restartPolicy": "Always"

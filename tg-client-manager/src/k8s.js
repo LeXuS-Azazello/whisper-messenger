@@ -59,6 +59,44 @@ function getNamespace() {
     return resolveNamespace();
 }
 
+async function ensureUserPVC(sanitizedId, ns) {
+    const pvcName = `tg-client-pvc-${sanitizedId}`;
+    try {
+        await k8sApi.readNamespacedPersistentVolumeClaim({ name: pvcName, namespace: ns });
+        console.log(`[/spawn] PVC ${pvcName} already exists.`);
+    } catch (err) {
+        const statusCode = err.response?.statusCode || err.statusCode || err.status || 0;
+        if (statusCode === 404 || err.message?.includes('not found') || String(err).includes('not found')) {
+            console.log(`[/spawn] PVC ${pvcName} not found, creating a new 2GB PVC with local-path...`);
+            const pvcManifest = {
+                apiVersion: 'v1',
+                kind: 'PersistentVolumeClaim',
+                metadata: {
+                    name: pvcName,
+                    labels: {
+                        app: 'tg-client-user',
+                        userId: sanitizedId
+                    }
+                },
+                spec: {
+                    accessModes: ['ReadWriteOnce'],
+                    storageClassName: 'local-path',
+                    resources: {
+                        requests: {
+                            storage: '500Mi'
+                        }
+                    }
+                }
+            };
+            await k8sApi.createNamespacedPersistentVolumeClaim({ namespace: ns, body: pvcManifest });
+            console.log(`[/spawn] PVC ${pvcName} successfully created.`);
+        } else {
+            console.error(`[/spawn] Error checking/creating PVC ${pvcName}:`, err.message || err);
+            throw err;
+        }
+    }
+}
+
 export async function spawnPod(userId, session) {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
@@ -66,6 +104,9 @@ export async function spawnPod(userId, session) {
     const ns = getNamespace();
     
     console.log(`[/spawn] Spawning tg-client pod for user ${safeUserId} in namespace ${ns}`);
+
+    // Ensure the 2GB PVC exists for this user
+    await ensureUserPVC(sanitizedId, ns);
 
     try {
         const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 10000).catch(() => null);
@@ -143,7 +184,32 @@ export async function spawnPod(userId, session) {
         userId: safeUserId
     };
 
+    // Dynamically inject/replace the volume and volume mount for the 2GB PVC
+    const pvcName = `tg-client-pvc-${sanitizedId}`;
+    
+    if (!podManifest.spec.volumes) {
+        podManifest.spec.volumes = [];
+    }
+    // Remove existing tdlib-storage volume if it exists (to prevent duplicates)
+    podManifest.spec.volumes = podManifest.spec.volumes.filter(v => v.name !== 'tdlib-storage');
+    podManifest.spec.volumes.push({
+        name: 'tdlib-storage',
+        persistentVolumeClaim: {
+            claimName: pvcName
+        }
+    });
+
     const container = podManifest.spec.containers[0];
+    if (!container.volumeMounts) {
+        container.volumeMounts = [];
+    }
+    // Remove existing tdlib-storage volume mount if it exists
+    container.volumeMounts = container.volumeMounts.filter(vm => vm.name !== 'tdlib-storage');
+    container.volumeMounts.push({
+        name: 'tdlib-storage',
+        mountPath: '/app/tdlib-data'
+    });
+
     console.log(`[/spawn] Step 6: Customizing main container. Image: "${container.image}"`);
     
     // Ensure essential env vars are set/overridden
@@ -199,6 +265,7 @@ export async function spawnPod(userId, session) {
 export async function deletePods(userId) {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
+    const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
 
     console.log(`[/delete] Deleting tg-client pods for user ${safeUserId}`);
     const ns = getNamespace();
@@ -211,10 +278,19 @@ export async function deletePods(userId) {
             if (!p?.metadata?.name) continue;
             console.log(`[/delete] Deleting pod ${p.metadata.name}...`);
             await withTimeout(k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: ns }), 5000).catch(err => {
-
                 console.error(`[/delete] Failed to delete pod ${p.metadata.name}:`, err.message);
             });
         }
+    }
+
+    // Also delete the PVC to clean up storage
+    const pvcName = `tg-client-pvc-${sanitizedId}`;
+    try {
+        console.log(`[/delete] Deleting PVC ${pvcName} for user ${safeUserId}...`);
+        await k8sApi.deleteNamespacedPersistentVolumeClaim({ name: pvcName, namespace: ns }).catch(() => {});
+        console.log(`[/delete] Deleted PVC ${pvcName} for user ${safeUserId}`);
+    } catch (pvcErr) {
+        console.warn(`[/delete] Failed to delete PVC ${pvcName}:`, pvcErr.message);
     }
 }
 

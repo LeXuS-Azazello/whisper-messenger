@@ -23,9 +23,17 @@ function logUpdate(update) {
     if (type === 'updateFile') {
         const file = update.file;
         const fileIdNum = Number(file.id);
-        if (file.local.is_completed && filePromises.has(fileIdNum)) {
-            const { resolve } = filePromises.get(fileIdNum);
-            resolve(file);
+        if (filePromises.has(fileIdNum)) {
+            const downloaded = file.local.downloaded_size;
+            const total = file.expected_size || file.size || 0;
+            const pct = total ? Math.round((downloaded / total) * 100) : 0;
+            console.log(`[tg-client] 📊 File ${fileIdNum} download progress: ${downloaded}/${total} bytes (${pct}%)`);
+            
+            if (file.local.is_completed) {
+                console.log(`[tg-client] ✅ File ${fileIdNum} download completed! Path: ${file.local.path}`);
+                const { resolve } = filePromises.get(fileIdNum);
+                resolve(file);
+            }
         }
     }
 }
@@ -52,14 +60,21 @@ async function downloadTelegramFile(fileId) {
                 '_': 'getFile',
                 file_id: fileIdNum
             });
-            if (currentFile && currentFile.local && currentFile.local.is_completed) {
-                console.log(`[tg-client] ℹ️ Polling fallback detected completed download for file ${fileId}`);
-                cleanup(currentFile);
+            if (currentFile) {
+                const downloaded = currentFile.local.downloaded_size;
+                const total = currentFile.expected_size || currentFile.size || 0;
+                const pct = total ? Math.round((downloaded / total) * 100) : 0;
+                console.log(`[tg-client] ℹ️ Polling fallback state for file ${fileId}: progress=${downloaded}/${total} (${pct}%), completed=${currentFile.local.is_completed}`);
+                
+                if (currentFile.local.is_completed) {
+                    console.log(`[tg-client] ℹ️ Polling fallback detected completed download for file ${fileId}`);
+                    cleanup(currentFile);
+                }
             }
         } catch (pollErr) {
             // Ignore errors during polling
         }
-    }, 1500);
+    }, 2000);
 
     const timeout = setTimeout(() => {
         cleanup(new Error(`File download timed out for file ${fileId}`));
@@ -86,6 +101,19 @@ async function downloadTelegramFile(fileId) {
 
     // Start download
     try {
+        console.log(`[tg-client] ⏳ Fetching initial file state for ${fileId}...`);
+        const fileInfo = await client.invoke({
+            '_': 'getFile',
+            file_id: fileIdNum
+        });
+        console.log(`[tg-client] ℹ️ Initial file state for ${fileId}: path="${fileInfo.local.path}", size=${fileInfo.size}, expected_size=${fileInfo.expected_size}, can_be_downloaded=${fileInfo.local.can_be_downloaded}, is_completed=${fileInfo.local.is_completed}`);
+
+        if (fileInfo.local.is_completed) {
+            console.log(`[tg-client] ✅ File ${fileId} is already completed.`);
+            cleanup(fileInfo);
+            return promise;
+        }
+
         console.log(`[tg-client] ⏳ Initiating download for file ${fileId} with maximum priority...`);
         const file = await client.invoke({
             '_': 'downloadFile',
@@ -97,11 +125,11 @@ async function downloadTelegramFile(fileId) {
         });
 
         if (file.local.is_completed) {
-            console.log(`[tg-client] ✅ File ${fileId} is already completed.`);
+            console.log(`[tg-client] ✅ File ${fileId} download completed synchronously in downloadFile response.`);
             cleanup(file);
         }
     } catch (err) {
-        console.error(`[tg-client] ❌ downloadFile invocation failed for file ${fileId}:`, err.message);
+        console.error(`[tg-client] ❌ downloadFile/getFile invocation failed for file ${fileId}:`, err.message);
         cleanup(err);
     }
 
@@ -603,7 +631,7 @@ export async function startUserClient() {
     }));
     console.log(`[tg-client] Logged in successfully! Waiting for messages...`);
 
-    // Set network/connection options (e.g. prioritize IPv4, set active status)
+    // Set network/connection options (e.g. prioritize IPv4, set active status, enable logging)
     try {
         await Promise.all([
             client.invoke({
@@ -615,9 +643,13 @@ export async function startUserClient() {
                 '_': 'setOption',
                 'name': 'online',
                 'value': { '_': 'optionValueBoolean', 'value': true }
+            }),
+            client.invoke({
+                '_': 'setLogVerbosityLevel',
+                'new_verbosity_level': 3
             })
         ]);
-        console.log(`[tg-client] 🌐 TDLib options set: prefer_ipv6=false, online=true`);
+        console.log(`[tg-client] 🌐 TDLib options set: prefer_ipv6=false, online=true, verbosity=3`);
     } catch (optErr) {
         console.warn(`[tg-client] Failed to set TDLib options:`, optErr.message);
     }
