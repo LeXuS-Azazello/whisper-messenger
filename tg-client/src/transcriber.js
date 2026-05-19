@@ -17,14 +17,15 @@ export async function extractAudioFromVideo(videoPath) {
     }
 }
 
-export async function transcribeAudio(audioBuffer, mimeType) {
+export async function transcribeAudio(audioBuffer, mimeType, language = 'auto') {
     const url = WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: mimeType });
     const fileName = mimeType === 'audio/wav' ? 'audio.wav' : 'audio.ogg';
 
     formData.append('file', blob, fileName);
-    formData.append('language', 'auto');
+    formData.append('language', language);
+    formData.append('chunk_length_s', '30');
 
     const headers = {};
     if (WHISPER_SECRET) {

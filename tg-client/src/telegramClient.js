@@ -62,13 +62,15 @@ export async function handleNewMessage(message) {
         if (message.is_outgoing && !currentIsSelfChat) return;
 
         if (client) {
-            try {
-                const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
-                if (chat && chat.type) {
-                    const chatType = chat.type['_'];
-                    if (chatType !== 'chatTypePrivate' && chatType !== 'chatTypeSecret') return;
-                }
-            } catch (chatErr) {}
+        try {
+            const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
+            if (!chat || !chat.type || (chat.type['_'] !== 'chatTypePrivate' && chat.type['_'] !== 'chatTypeSecret')) {
+                return;
+            }
+        } catch (chatErr) {
+            return;
+        }
+
         }
 
         console.log(`[tg-client] Incoming private/secret message: ${type} from ${chat_id}`);
@@ -92,11 +94,12 @@ async function processSingleMessage(message) {
 
     try {
         const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
-        if (chat && chat.type) {
-            const chatType = chat.type['_'];
-            if (chatType !== 'chatTypePrivate' && chatType !== 'chatTypeSecret') return;
+        if (!chat || !chat.type || (chat.type['_'] !== 'chatTypePrivate' && chat.type['_'] !== 'chatTypeSecret')) {
+            return;
         }
-    } catch (chatErr) {}
+    } catch (chatErr) {
+        return;
+    }
 
     const now = Math.floor(Date.now() / 1000);
     if (message.date && message.date < clientStartTime) {
@@ -137,7 +140,8 @@ async function processSingleMessage(message) {
                 buffer = fs.readFileSync(localPath);
             }
 
-            const transcription = await transcribeAudio(buffer, currentMimeType);
+            const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
+            const transcription = await transcribeAudio(buffer, currentMimeType, chat?.language || 'auto');
             if (transcription.trim()) {
                 console.log(`[tg-client] Transcription result for msg ${message_id}: ${transcription.trim()}`);
                 const chunks = splitTextIntoChunks(transcription.trim(), 3900);
