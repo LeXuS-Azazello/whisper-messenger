@@ -2,7 +2,7 @@ if (process.env.NODE_ENV !== 'production') {
   try {
     await import('dotenv/config');
   } catch (e) {
-    console.warn('dotenv not found, using environment variables');
+    // dotenv is optional in production
   }
 }
 
