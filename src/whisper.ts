@@ -6,7 +6,7 @@ export async function transcribeWithFallback(
   providerOverride?: string
 ): Promise<{ text: string; model?: string }> {
   const url = await env.STATS.get("config_local_whisper_url") || env.WHISPER_PROVIDER || "http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000";
-  const modelName = "openai/whisper-large-v3-turbo";
+  
 
   if (!url) throw new Error("Whisper Turbo URL not configured");
 
