@@ -83,7 +83,7 @@ async function ensureUserPVC(sanitizedId, ns) {
                     storageClassName: 'local-path',
                     resources: {
                         requests: {
-                            storage: '500Mi'
+                            storage: '100Mi'
                         }
                     }
                 }
@@ -102,7 +102,7 @@ export async function spawnPod(userId, session) {
     const safeUserId = String(userId);
     const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
     const ns = getNamespace();
-    
+
     console.log(`[/spawn] Spawning tg-client pod for user ${safeUserId} in namespace ${ns}`);
 
     // Ensure the 2GB PVC exists for this user
@@ -117,11 +117,11 @@ export async function spawnPod(userId, session) {
             for (const p of items) {
                 if (!p?.metadata?.name) continue;
                 console.log(`[/spawn] Deleting stale pod ${p.metadata.name}...`);
-                await k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: ns }).catch(() => {});
+                await k8sApi.deleteNamespacedPod({ name: p.metadata.name, namespace: ns }).catch(() => { });
             }
             await new Promise(r => setTimeout(r, 1000));
         }
-    } catch (e) {}
+    } catch (e) { }
 
     // Retrieve session from Redis / MongoDB if missing
     let sessionData = session;
@@ -156,15 +156,15 @@ export async function spawnPod(userId, session) {
     try {
         const cm = await k8sApi.readNamespacedConfigMap({ name: 'tg-client-pod-template', namespace: ns });
         console.log(`[/spawn] Step 2: ConfigMap response received. Object keys: [${Object.keys(cm || {})}]`);
-        
+
         const dataContainer = cm.body?.data || cm.data || {};
         console.log(`[/spawn] Step 2b: Data keys in ConfigMap: [${Object.keys(dataContainer)}]`);
-        
+
         const templateJson = dataContainer['pod-template.json'];
         if (!templateJson) {
             throw new Error('Key "pod-template.json" not found in ConfigMap data');
         }
-        
+
         console.log(`[/spawn] Step 3: Raw template JSON length: ${templateJson.length} bytes`);
         podManifest = JSON.parse(templateJson);
         console.log(`[/spawn] Step 4: Successfully parsed pod-template JSON. Kind: "${podManifest.kind}", API Version: "${podManifest.apiVersion}"`);
@@ -175,7 +175,7 @@ export async function spawnPod(userId, session) {
 
     const podName = `tg-user-${sanitizedId}-${Date.now().toString().slice(-6)}`;
     console.log(`[/spawn] Step 5: Preparing pod manifest customization. Target Pod Name: "${podName}"`);
-    
+
     // Customize the manifest
     podManifest.metadata.name = podName;
     podManifest.metadata.labels = {
@@ -186,7 +186,7 @@ export async function spawnPod(userId, session) {
 
     // Dynamically inject/replace the volume and volume mount for the 2GB PVC
     const pvcName = `tg-client-pvc-${sanitizedId}`;
-    
+
     if (!podManifest.spec.volumes) {
         podManifest.spec.volumes = [];
     }
@@ -211,7 +211,7 @@ export async function spawnPod(userId, session) {
     });
 
     console.log(`[/spawn] Step 6: Customizing main container. Image: "${container.image}"`);
-    
+
     // Ensure essential env vars are set/overridden
     const envMap = new Map();
     (container.env || []).forEach(e => {
@@ -221,24 +221,24 @@ export async function spawnPod(userId, session) {
 
     console.log(`[/spawn] Step 7: Overriding TARGET_USER_ID = "${safeUserId}"`);
     envMap.set('TARGET_USER_ID', { name: 'TARGET_USER_ID', value: safeUserId });
-    
+
     const sessVal = (sessionData && sessionData.length < 200000) ? sessionData : '';
     console.log(`[/spawn] Step 8: Overriding TG_SESSION (length: ${sessVal.length} characters)`);
     envMap.set('TG_SESSION', { name: 'TG_SESSION', value: sessVal });
-    
+
     container.env = Array.from(envMap.values());
-    
+
     // Add dynamic config from Redis as Environment Variables
     console.log(`[/spawn] Step 9: Loading dynamic configurations from Redis...`);
     try {
         const provider = await redis.get("config_whisper_provider") || 'whisper-turbo';
         const model = await redis.get("config_whisper_model") || 'openai/whisper-large-v3-turbo';
         const turboUrl = await redis.get("config_local_whisper_url") || 'http://whisper-turbo:8000';
-        
+
         container.env.push({ name: 'WHISPER_PROVIDER', value: provider });
         container.env.push({ name: 'WHISPER_MODEL', value: model });
         container.env.push({ name: 'WHISPER_TURBO_URL', value: turboUrl });
-        
+
         console.log(`[/spawn] Redis dynamic config: provider="${provider}", model="${model}", url="${turboUrl}"`);
     } catch (e) {
         console.warn(`[/spawn] Failed to fetch dynamic config from Redis:`, e.message);
@@ -287,7 +287,7 @@ export async function deletePods(userId) {
     const pvcName = `tg-client-pvc-${sanitizedId}`;
     try {
         console.log(`[/delete] Deleting PVC ${pvcName} for user ${safeUserId}...`);
-        await k8sApi.deleteNamespacedPersistentVolumeClaim({ name: pvcName, namespace: ns }).catch(() => {});
+        await k8sApi.deleteNamespacedPersistentVolumeClaim({ name: pvcName, namespace: ns }).catch(() => { });
         console.log(`[/delete] Deleted PVC ${pvcName} for user ${safeUserId}`);
     } catch (pvcErr) {
         console.warn(`[/delete] Failed to delete PVC ${pvcName}:`, pvcErr.message);
@@ -318,11 +318,11 @@ export async function runReconciliation() {
     if (MODE !== 'MANAGER') return;
     try {
         console.log(`[manager] Starting tg-client reconciliation cycle...`);
-        
+
         // Find all active Telegram sessions in MongoDB
-        const activeSessions = await MessengerSession.find({ 
+        const activeSessions = await MessengerSession.find({
             platform: 'telegram',
-            isActive: true 
+            isActive: true
         }).catch(() => []);
 
         // Also fallback to any old User document with a tgSession
@@ -371,7 +371,7 @@ export async function runReconciliation() {
                             await redis.set(`tg_session_${uid}`, session, 'EX', 86400 * 30);
                         }
                     }
-                    
+
                     if (session) {
                         await spawnPod(uid, session);
                     } else {

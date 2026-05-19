@@ -364,6 +364,39 @@ export async function handleNewMessage(message) {
 
     // Queue media messages
     if (type === 'messageVoiceNote' || type === 'messageVideoNote') {
+        // Dynamically fetch and cache myUserId if not set
+        if (!myUserId && client) {
+            try {
+                const me = await client.invoke({ '_': 'getMe' });
+                myUserId = me.id;
+            } catch (meErr) {
+                // ignore/fallback
+            }
+        }
+
+        // Re-verify self chat logic with dynamic myUserId if needed
+        const currentMyId = myUserId || (TARGET_USER_ID ? Number(TARGET_USER_ID) : null);
+        const currentIsSelfChat = currentMyId && Number(chat_id) === Number(currentMyId);
+        if (message.is_outgoing && !currentIsSelfChat) {
+            return;
+        }
+
+        // Deep verify chat type is private or secret before enqueuing
+        if (client) {
+            try {
+                const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
+                if (chat && chat.type) {
+                    const chatType = chat.type['_'];
+                    if (chatType !== 'chatTypePrivate' && chatType !== 'chatTypeSecret') {
+                        console.log(`[tg-client] 🚫 Skipping enqueuing message ${message.id} because chat ${chat_id} is of type "${chatType}" (only private/secret chats allowed)`);
+                        return;
+                    }
+                }
+            } catch (chatErr) {
+                console.warn(`[tg-client] Warning: Failed to get chat info for ${chat_id} during pre-filtering:`, chatErr.message);
+            }
+        }
+
         console.log(`[tg-client] 📥 Enqueuing media message ${message.id} in chat ${chat_id}`);
         incomingQueue.push(message);
         processIncomingQueue();
@@ -692,4 +725,18 @@ export function stopTelegramClient() {
         client.close();
         client = null;
     }
+}
+
+// Test-only helpers for isolated unit testing
+export function __setTestState(mockClient, mockMyUserId) {
+    client = mockClient;
+    myUserId = mockMyUserId;
+}
+
+export function __getIncomingQueue() {
+    return incomingQueue;
+}
+
+export function __clearIncomingQueue() {
+    incomingQueue.length = 0;
 }
