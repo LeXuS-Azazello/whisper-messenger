@@ -10,7 +10,7 @@ export async function handleConfig(env: Env, _req: Request, url: URL): Promise<R
   }
 
   // Try STATS KV first, then fall back to env or defaults
-  const provider = env.WHISPER_PROVIDER || "http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000";
+  const provider = env.WHISPER_PROVIDER || "http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000";
   const localSecret = env.WHISPER_SECRET || "";
 
   return Response.json({

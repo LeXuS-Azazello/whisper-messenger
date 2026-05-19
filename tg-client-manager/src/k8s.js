@@ -231,7 +231,7 @@ export async function spawnPod(userId, session) {
     // Add dynamic config from Redis as Environment Variables
     console.log(`[/spawn] Step 9: Loading dynamic configurations from Redis...`);
     try {
-        const provider = env.WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
+        const provider = env.WHISPER_PROVIDER || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
         
         container.env.push({ name: 'WHISPER_PROVIDER', value: provider });
         

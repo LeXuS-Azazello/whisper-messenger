@@ -421,18 +421,18 @@ app.get('/', (c) => {
       </div>
 
       <!-- Card 2 -->
-      <div class="test-card" id="card-whisper-turbo">
+      <div class="test-card" id="card-whisper-service">
         <div class="test-header">
           <div>
             <div class="test-title">Whisper-Turbo ASR</div>
-            <div class="test-target">http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000</div>
+            <div class="test-target">http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000</div>
           </div>
-          <span class="status-indicator" id="ind-whisper-turbo"></span>
+          <span class="status-indicator" id="ind-whisper-service"></span>
         </div>
         <div class="test-desc">Tests internal service DNS resolution and runs a real 1-second ASR transcription audio check.</div>
         <div class="test-footer">
-          <span class="latency-badge" id="lat-whisper-turbo">-- ms</span>
-          <button class="btn btn-secondary btn-card" onclick="runSingleTest('whisper-turbo')">Run Test</button>
+          <span class="latency-badge" id="lat-whisper-service">-- ms</span>
+          <button class="btn btn-secondary btn-card" onclick="runSingleTest('whisper-service')">Run Test</button>
         </div>
       </div>
 
@@ -554,7 +554,7 @@ app.get('/', (c) => {
       appendToConsole('===========================================');
       appendToConsole('Running full integration test suite...');
       
-      const ids = ['mail-worker', 'whisper-turbo', 'redis', 'mongodb'];
+      const ids = ['mail-worker', 'whisper-service', 'redis', 'mongodb'];
       ids.forEach(id => updateCardUI(id, 'running'));
       
       try {

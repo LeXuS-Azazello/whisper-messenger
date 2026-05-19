@@ -131,9 +131,9 @@ export class TestSuiteRunner {
   async testWhisperTurbo(): Promise<TestResult> {
     const logs: TestLog[] = [];
     const log = this.createLogger(logs);
-    const id = 'whisper-turbo';
+    const id = 'whisper-service';
     const name = 'Whisper-Turbo ASR Transcription';
-    const target = this.env.WHISPER_TURBO_URL || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
+    const target = this.env.WHISPER_TURBO_URL || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
 
     log.info(`Initializing internal transcription test...`);
     log.info(`Target ASR engine URL: ${target}`);
@@ -338,7 +338,7 @@ export class TestSuiteRunner {
     switch (testId) {
       case 'mail-worker':
         return await this.testMailWorker();
-      case 'whisper-turbo':
+      case 'whisper-service':
         return await this.testWhisperTurbo();
       case 'redis':
         return await this.testRedis();

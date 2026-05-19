@@ -165,13 +165,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Whisper Config Logic
     function loadWhisperConfig() {
         fetch('/admin/whisper-config').then(r => r.json()).then(data => {
-            const providerWhisperTurbo = document.getElementById('provider-whisper-turbo');
+            const providerWhisperTurbo = document.getElementById('provider-whisper-service');
             const localSection = document.getElementById('local-config-section');
             
             const localUrlInput = document.getElementById('local-whisper-url');
             const localSecretInput = document.getElementById('local-whisper-secret');
             
-            if (data.provider === 'whisper-turbo') {
+            if (data.provider === 'whisper-service') {
                 if (providerWhisperTurbo) providerWhisperTurbo.checked = true;
                 if (localSection) localSection.style.display = 'block';
             }
@@ -188,7 +188,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('input[name="whisper_provider"]').forEach(input => {
         input.addEventListener('change', (e) => {
             const localSection = document.getElementById('local-config-section');
-            if (localSection) localSection.style.display = (e.target.value === 'whisper-turbo' || e.target.value === 'local') ? 'block' : 'none';
+            if (localSection) localSection.style.display = (e.target.value === 'whisper-service' || e.target.value === 'local') ? 'block' : 'none';
         });
     });
 
@@ -253,7 +253,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (recordTestBtn) {
         recordTestBtn.addEventListener('click', async () => {
             const checked = document.querySelector('input[name="whisper_provider"]:checked');
-            const provider = checked ? checked.value : 'whisper-turbo';
+            const provider = checked ? checked.value : 'whisper-service';
             
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });

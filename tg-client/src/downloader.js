@@ -1,8 +1,21 @@
 import { redis } from './config.js';
+import fs from 'fs';
+import path from 'path';
 
+const SHARED_DIR = '/shared/tg-files';
 const filePromises = new Map();
 
-export async function downloadTelegramFile(client, fileId) {
+function ensureSharedDir() {
+    if (!fs.existsSync(SHARED_DIR)) fs.mkdirSync(SHARED_DIR, { recursive: true });
+}
+
+export function getSharedPath(fileId, mimeType = 'audio/ogg') {
+    ensureSharedDir();
+    const ext = mimeType === 'video/mp4' ? '.mp4' : '.ogg';
+    return path.join(SHARED_DIR, `${fileId}${ext}`);
+}
+
+export async function downloadTelegramFile(client, fileId, mimeType = 'audio/ogg') {
     const fileIdNum = Number(fileId);
 
     if (filePromises.has(fileIdNum)) {
@@ -82,5 +95,14 @@ export async function downloadTelegramFile(client, fileId) {
         cleanup(err);
     }
 
-    return promise;
+    const result = await promise;
+    // Copy the downloaded file (TDLib private dir) into the shared emptyDir volume
+    // so whisper-service can read it from the same path.
+    const srcPath = result.local.path;
+    if (srcPath && fs.existsSync(srcPath)) {
+        const dstPath = getSharedPath(fileId, mimeType);
+        fs.copyFileSync(srcPath, dstPath);
+        result.sharedPath = dstPath;
+    }
+    return result;
 }

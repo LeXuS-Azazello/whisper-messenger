@@ -1,6 +1,6 @@
 # 🎙️ Voice Messenger
 
-> **The ultimate multi-platform voice-to-text bridge connecting Meta (FB/Insta), WhatsApp-web, LINE, and Telegram to state-of-the-art ASR (Whisper large-v3-turbo).**
+> **The ultimate multi-platform voice-to-text connecting Meta (FB/Insta), WhatsApp-web, LINE, and Telegram to state-of-the-art ASR (Whisper large-v3-turbo).**
 
 
 ---
@@ -26,8 +26,8 @@ graph TD
     Ingress -->|/| Frontend[Frontend Server / Hono]
     Frontend -->|Session| Redis[(Redis / Stats & Session)]
     
-    Frontend -->|Internal API| BridgeMgr[Bridge Manager]
-    BridgeMgr -->|Orchestration| K8s[Kubernetes API]
+    Frontend -->|Internal API|  [Manager]
+    
     K8s -->|Spawn| TGClient[tg-client Pods / Per-User]
     
     TGClient -->|Voice Data| ASR[]
@@ -42,8 +42,7 @@ graph TD
 1.  **Frontend Server** (`src/`):
     *   Hono-based Node.js server serving as the primary entry point.
     *   Handles **Webhooks**, **User Authentication** (Google/Email), and the **Dashboard**.
-    *   Proxies bridge commands and serves Preact-rendered UI.
-2.  **Client Manager** (`tg-client-manager/`):
+    **Client Manager** (`tg-client-manager/`):
     *   A specialized Kubernetes controller that manages the lifecycle of `tg-client` pods.
     *   Handles Telegram authentication flows (Phone/QR) and pod orchestration.
 3.  **tg-client** (`tg-client/`):
@@ -111,7 +110,8 @@ npm run deploy:k8s
 ---
 
 ## 🛡️ Security & Privacy
-*   **Dual-Factor Verification**: Requests between Frontend and Bridge are signed with a shared `BRIDGE_SECRET`.
+*   **Dual-Factor Verification**: 
+*   
 *   **Internal Network Isolation**: `whisper-turbo` (AI engine) and `tg-client-manager` are strictly exposed **only via internal Kubernetes ClusterIP**. They are not accessible from the public internet.
 *   **Per-User Pod Isolation**: User-specific `tg-client` pods are strictly isolated within the cluster.
 *   **Self-Destruct Logic**: If a user revokes Telegram access, the `tg-client` pod intercepts the authorization failure, gracefully clears the user session in the MongoDB/Redis backend, and automatically triggers its own deletion to preserve cluster resources.

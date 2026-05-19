@@ -37,6 +37,9 @@ data:
           "volumeMounts": [{
             "name": "tdlib-storage",
             "mountPath": "/app/tdlib-data"
+          }, {
+            "name": "tg-files",
+            "mountPath": "/shared/tg-files"
           }],
           "resources": {
             "requests": { "cpu": "50m", "memory": "128Mi" },
@@ -48,6 +51,9 @@ data:
           "persistentVolumeClaim": {
             "claimName": "tg-client-pvc-placeholder"
           }
+        }, {
+          "name": "tg-files",
+          "emptyDir": {}
         }],
         "restartPolicy": "Always"
       }

@@ -3,12 +3,9 @@ import {
     TARGET_USER_ID,
     redis
 } from './config.js';
-import fs from 'fs';
 import { downloadTelegramFile } from './downloader.js';
-import { transcribeAudio, extractAudioFromVideo, splitTextIntoChunks } from './transcriber.js';
-import { safeSendMessage, deleteMessage, updateManagerStats } from './messenger.js';
-
-let client = null;
+import { transcribePath, deleteSharedFile, splitTextIntoChunks } from './transcriber.js';
+import { safeSendMessage, deleteMessage, updateManagerStats } from './messenger.js';let client = null;
 let myUserId = null;
 const clientStartTime = Math.floor(Date.now() / 1000);
 let oldMessagesProcessed = 0;
@@ -118,41 +115,32 @@ async function processSingleMessage(message) {
     }
 
     if (file_id) {
-        let tempAudioPath = null, localPath = null, statusMessage = null;
+        let filePath = null, localPath = null, statusMessage = null;
         try {
-            const statusText = type === 'messageVideoNote' ? '📹 Transcribing circle video message...' : '🎤 Transcribing voice message...';
+            const statusText = type === 'messageVideoNote'
+                ? '📹 Transcribing circle video message...'
+                : '🎤 Transcribing voice message...';
             statusMessage = await safeSendMessage(client, chat_id, message_id, statusText);
 
-            const file = await downloadTelegramFile(client, file_id);
-            localPath = file.local.path;
-            if (!localPath) throw new Error('File download failed: no local path');
-
-            let buffer, currentMimeType = mime_type;
-            if (type === 'messageVideoNote') {
-                try {
-                    tempAudioPath = await extractAudioFromVideo(localPath);
-                    buffer = fs.readFileSync(tempAudioPath);
-                    currentMimeType = 'audio/wav';
-                } catch (err) {
-                    buffer = fs.readFileSync(localPath);
-                }
-            } else {
-                buffer = fs.readFileSync(localPath);
-            }
+            const file = await downloadTelegramFile(client, file_id, mime_type);
+            filePath = file.sharedPath || file.local.path;
+            if (!filePath) throw new Error('File download failed: no path');
 
             const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
-            const transcription = await transcribeAudio(buffer, currentMimeType, chat?.language || 'auto');
+            const transcription = await transcribePath(filePath, mime_type, chat?.language || 'auto');
             if (transcription.trim()) {
                 console.log(`[tg-client] Transcription result for msg ${message_id}: ${transcription.trim()}`);
+                // delete from shared storage as soon as we have the text
+                deleteSharedFile(filePath).catch(() => {});
                 const chunks = splitTextIntoChunks(transcription.trim(), 3900);
                 for (let i = 0; i < chunks.length; i++) {
                     let replyText = chunks[i];
-                     if (chunks.length === 1) {
-                         replyText = `🎤 ${replyText}`;
-                     } else {
-                         const idx = i + 1;
-                         replyText = `(Part ${idx}/${chunks.length})\n\n${replyText}${idx === chunks.length ? '' : ''}`;
-                     }
+                    if (chunks.length === 1) {
+                        replyText = `🎤 ${replyText}`;
+                    } else {
+                        const idx = i + 1;
+                        replyText = `(Part ${idx}/${chunks.length})\n\n${replyText}`;
+                    }
                     await safeSendMessage(client, chat_id, message_id, replyText);
                     if (i < chunks.length - 1) await new Promise(resolve => setTimeout(resolve, 1500));
                 }
@@ -162,11 +150,9 @@ async function processSingleMessage(message) {
             logError(e, 'processSingleMessage');
         } finally {
             if (statusMessage) await deleteMessage(client, chat_id, statusMessage.id);
-            if (tempAudioPath && fs.existsSync(tempAudioPath)) fs.unlinkSync(tempAudioPath);
+            if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
             if (file_id) {
-                try { await client.invoke({ '_': 'deleteFile', file_id: file_id }); } catch {
-                    if (localPath && fs.existsSync(localPath)) fs.unlinkSync(localPath);
-                }
+                try { await client.invoke({ '_': 'deleteFile', file_id: Number(file_id) }); } catch {}
             }
         }
     }

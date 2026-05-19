@@ -7,7 +7,7 @@ const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 console.log(`[bot-test] Starting bot with token ${TELEGRAM_BOT_TOKEN.split(':')[0]}...`);
 
 async function transcribeAudio(audioBuffer, mimeType) {
-    const url = process.env.WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
+    const url = process.env.WHISPER_PROVIDER || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
     console.log(`[bot-test] 🤖 Using Whisper Turbo at ${url}`);
     
     const startTime = Date.now();

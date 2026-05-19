@@ -75,21 +75,21 @@ export async function runDiagnostics(env: Env): Promise<Response> {
 
     // 4. Test ASR
     try {
-        const asrUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
+        const asrUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_PROVIDER || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
 
         const start = Date.now();
         const res = await fetch(`${asrUrl}/v1/models`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
         const lat = Date.now() - start;
 
         if (res && res.ok) {
-            results.asr = { status: 'healthy', message: `whisper-turbo active (Latency: ${lat}ms)` };
+            results.asr = { status: 'healthy', message: `whisper-service active (Latency: ${lat}ms)` };
         } else {
             // Try simple ping
             const ping = await fetch(asrUrl, { method: 'HEAD', signal: AbortSignal.timeout(2000) }).catch(() => null);
             if (ping) {
-                results.asr = { status: 'healthy', message: `whisper-turbo reachable (No /v1/models, Latency: ${lat}ms)` };
+                results.asr = { status: 'healthy', message: `whisper-service reachable (No /v1/models, Latency: ${lat}ms)` };
             } else {
-                results.asr = { status: 'unhealthy', message: `whisper-turbo at ${asrUrl} is unreachable` };
+                results.asr = { status: 'unhealthy', message: `whisper-service at ${asrUrl} is unreachable` };
             }
         }
     } catch (e: any) {
@@ -245,7 +245,7 @@ export async function getUsersJson(env: Env): Promise<Response> {
 }
 
 export async function getWhisperConfig(env: Env): Promise<Response> {
-    const provider = env.WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
+    const provider = env.WHISPER_PROVIDER || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
     const localSecret = env.WHISPER_SECRET || "";
 
     return Response.json({ provider, localSecret });
@@ -342,7 +342,7 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
 
 export async function renderDashboardPage(env: Env, origin: string): Promise<Response> {
     const users = await fetchUsersWithStatus(env);
-    const provider = env.WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
+    const provider = env.WHISPER_PROVIDER || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
     const checks: HealthChecks = {
         VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
         META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
