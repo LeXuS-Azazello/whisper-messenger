@@ -1,11 +1,3 @@
-if (process.env.NODE_ENV !== 'production') {
-  try {
-    await import('dotenv/config');
-  } catch (e) {
-    // dotenv is optional in production
-  }
-}
-
 export const MODE = process.env.MODE || 'MANAGER';
 
 // WhatsApp Baileys doesn't need API_ID/API_HASH like Telegram
