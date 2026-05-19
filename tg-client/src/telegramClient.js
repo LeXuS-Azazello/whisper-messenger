@@ -535,6 +535,7 @@ async function processSingleMessage(message) {
             }
         }
     }
+}
 
 export async function startUserClient() {
     if (client) return;
