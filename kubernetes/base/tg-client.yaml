@@ -21,19 +21,20 @@ data:
         "containers": [{
           "name": "tg-client",
           "image": "harbor.dev.takatan.cloud/devcenter/whisper-tg-client:latest",
-            "env": [
-              { "name": "MODE", "value": "USER" },
-              { "name": "TG_API_ID", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "TELEGRAM_APP_ID"}} },
-              { "name": "TG_API_HASH", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "TELEGRAM_APP_HASH"}} },
-              { "name": "MANAGER_URL", "value": "http://tg-client-manager:3000" },
-              { "name": "MANAGER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "MANAGER_SECRET"}} },
-              { "name": "REDIS_URL", "value": "redis://redis:6379" },
-              { "name": "MONGODB_URI", "value": "mongodb://mongodb:27017/voicemsg" },
-              { "name": "DEVICE_MODEL", "value": "Desktop Linux" },
-              { "name": "APP_VERSION", "value": "4.15.2" },
-              { "name": "SYSTEM_VERSION", "value": "Ubuntu 24.04" }
-            ],
-
+          "env": [
+            { "name": "MODE", "value": "USER" },
+            { "name": "TG_API_ID", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "TELEGRAM_APP_ID"}} },
+            { "name": "TG_API_HASH", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "TELEGRAM_APP_HASH"}} },
+            { "name": "MANAGER_URL", "value": "http://tg-client-manager:3000" },
+            { "name": "MANAGER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "MANAGER_SECRET"}} },
+            { "name": "REDIS_URL", "value": "redis://redis:6379" },
+            { "name": "MONGODB_URI", "value": "mongodb://mongodb:27017/voicemsg" },
+            { "name": "DEVICE_MODEL", "value": "Desktop Linux" },
+            { "name": "APP_VERSION", "value": "4.15.2" },
+            { "name": "SYSTEM_VERSION", "value": "Ubuntu 24.04" },
+            { "name": "WHISPER_PROVIDER", "value": "http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000" },
+            { "name": "WHISPER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "WHISPER_SECRET"}} }
+          ],
           "volumeMounts": [{
             "name": "tdlib-storage",
             "mountPath": "/app/tdlib-data"
@@ -53,7 +54,9 @@ data:
           }
         }, {
           "name": "tg-files",
-          "emptyDir": {}
+          "persistentVolumeClaim": {
+            "claimName": "audio-transcribe-storage"
+          }
         }],
         "restartPolicy": "Always"
       }

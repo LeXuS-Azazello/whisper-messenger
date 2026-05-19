@@ -93,6 +93,7 @@ FRONTEND_IMAGE="${REPO}/whisper-frontend:${TAG}"
 MANAGER_IMAGE="${REPO}/whisper-tg-client-manager:${TAG}"
 TG_CLIENT_IMAGE="${REPO}/whisper-tg-client:${TAG}"
 TESTER_IMAGE="${REPO}/whisper-tester:${TAG}"
+WHISPER_IMAGE="${REPO}/whisper-service:${TAG}"
 
 echo ">>> Building and pushing Docker images..."
 
@@ -130,6 +131,12 @@ docker tag "$TESTER_IMAGE" "${REPO}/whisper-tester:latest"
 docker push "$TESTER_IMAGE"
 docker push "${REPO}/whisper-tester:latest"
 
+echo "5. Whisper Service: $WHISPER_IMAGE"
+docker build -t "$WHISPER_IMAGE" -f whisper-service/Dockerfile whisper-service/
+docker tag "$WHISPER_IMAGE" "${REPO}/whisper-service:latest"
+docker push "$WHISPER_IMAGE"
+docker push "${REPO}/whisper-service:latest"
+
 # Clean up temporary tdlib injections
 if [ "$HAS_CUSTOM_TDLIB" = true ]; then
     echo ">>> Cleaning up injected tdlib directories..."
@@ -149,6 +156,7 @@ kubectl set image deployment/echo-frontend frontend="$FRONTEND_IMAGE" -n "$NAMES
 kubectl set image deployment/tg-client-manager manager="$MANAGER_IMAGE" -n "$NAMESPACE"
 kubectl set env deployment/tg-client-manager TG_CLIENT_IMAGE="$TG_CLIENT_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/voicemsg-tester tester="$TESTER_IMAGE" -n "$NAMESPACE"
+kubectl set image deployment/whisper-service whisper-service="$WHISPER_IMAGE" -n "$NAMESPACE"
 echo ""
 
 echo ">>> Deleting existing user tg-client pods to force recreation with new image..."

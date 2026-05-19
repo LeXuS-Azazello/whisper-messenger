@@ -2,21 +2,22 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - frontend.yaml
-  - frontend-network-policy.yaml
-  - redis.yaml
-  - mongodb.yaml
-  - mongo-express.yaml
-  - network-policy.yaml
-  - tg-client-manager.yaml
-  - tg-client.yaml
-  - tg-bot-test.yaml
-  - whisper-service.yaml
-  - huggingface-secret.yaml
-  - rbac.yaml
-  - cert-manager.yaml
-  - voicemsg-tester.yaml
-  - voicemsg-cf.yaml
+   - frontend.yaml
+   - frontend-network-policy.yaml
+   - redis.yaml
+   - mongodb.yaml
+   - mongo-express.yaml
+   - network-policy.yaml
+   - tg-client-manager.yaml
+   - tg-client.yaml
+   - tg-bot-test.yaml
+   - whisper-service.yaml
+   - whisper-service-network-policy.yaml
+   - huggingface-secret.yaml
+   - rbac.yaml
+   - cert-manager.yaml
+   - voicemsg-tester.yaml
+   - voicemsg-cf.yaml
 
 
 images:

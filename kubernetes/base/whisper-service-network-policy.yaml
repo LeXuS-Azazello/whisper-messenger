@@ -1,15 +1,13 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: echo-frontend-network-policy
+  name: whisper-service-ingress
+  namespace: debugging-testcrash-pub
 spec:
   podSelector:
     matchLabels:
-      app: echo-frontend
+      app: whisper-service
   policyTypes:
   - Ingress
-  - Egress
   ingress:
-  - {}
-  egress:
   - {}
