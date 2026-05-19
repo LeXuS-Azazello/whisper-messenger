@@ -28,6 +28,8 @@ spec:
         env:
         - name: MODE
           value: "MANAGER"
+        - name: MANAGER_API_SERVER
+          value: "https://kube-api.kube-dc.cloud:6443"
         - name: NAMESPACE
           valueFrom:
             fieldRef:

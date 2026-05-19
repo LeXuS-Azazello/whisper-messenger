@@ -36,6 +36,10 @@ export function initK8s() {
         if (customServer) {
             console.log(`[manager] Overriding K8s server ${cluster?.server} -> ${customServer} (MANAGER_API_SERVER)`);
             cluster.server = customServer;
+            if (cluster) {
+                cluster.skipTLSVerify = true;
+                cluster.insecureSkipTlsVerify = true;
+            }
         }
 
         k8sApi = kc.makeApiClient(k8s.CoreV1Api);
