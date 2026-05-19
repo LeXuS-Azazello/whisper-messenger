@@ -14,11 +14,27 @@ export function createClient(userId, options = {}) {
     const dbDir = path.join('/app/tdlib-data', String(userId));
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
+    console.log(`[tg-client-utils] Creating TDLib client for user "${userId}"`);
+    console.log(`[tg-client-utils] Configured databaseDirectory: ${dbDir}`);
+
     const client = tdl.createClient({
         apiId: Number(TG_API_ID),
         apiHash: TG_API_HASH,
         databaseDirectory: dbDir,
         filesDirectory: path.join(dbDir, 'files'),
+        tdlibParameters: {
+            database_directory: dbDir,
+            files_directory: path.join(dbDir, 'files'),
+            use_message_database: false,
+            use_chat_info_database: false,
+            use_file_database: false,
+            use_secret_chats: true,
+            device_model: "voicemsg-net client-server",
+            system_language_code: "en",
+            system_version: "Linux",
+            application_version: "1.0.0",
+            enable_storage_optimizer: true
+        },
         ...options
     });
     return client;

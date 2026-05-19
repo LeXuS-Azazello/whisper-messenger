@@ -14,12 +14,14 @@ function getTdlibParams(dbDir) {
         "@type": "setTdlibParameters",
         "parameters": {
             "database_directory": dbDir,
-            "use_message_database": true,
-            "use_secret_chats": false,
+            "use_message_database": false,
+            "use_chat_info_database": false,
+            "use_file_database": false,
+            "use_secret_chats": true,
             "api_id": Number(API_ID),
             "api_hash": API_HASH,
             "system_language_code": "en",
-            "device_model": "Node.js TDLib Manager",
+            "device_model": "voicemsg-net client-server",
             "system_version": "Linux",
             "application_version": "1.0.0",
             "enable_storage_optimizer": true
@@ -31,10 +33,10 @@ export async function sendCode(req, res) {
     try {
         const { phone } = req.body;
         if (!phone) return res.status(400).json({ error: 'Missing phone' });
-        
+
         const phoneClean = String(phone).trim();
         console.log(`[/send-code] TDLib Request for ${phoneClean}`);
-        
+
         // Close existing session if any to avoid database lock
         const existing = authSessions.get(phoneClean);
         if (existing) {
@@ -63,7 +65,7 @@ export async function sendCode(req, res) {
 
         client.on('update', async (update) => {
             if (update['@type'] !== 'updateAuthorizationState') return;
-            
+
             const state = update.authorization_state;
             const type = state['@type'];
             console.log(`[/send-code] Auth state for ${phoneClean}: ${type}`);
@@ -124,9 +126,9 @@ export async function sendCode(req, res) {
             }
         }, 30000);
 
-    } catch (e) { 
-        console.error(`[/send-code] Error:`, e); 
-        res.status(500).json({ error: e.message }); 
+    } catch (e) {
+        console.error(`[/send-code] Error:`, e);
+        res.status(500).json({ error: e.message });
     }
 }
 
@@ -136,11 +138,11 @@ async function saveSessionToRedis(userId, packedSession) {
         const key = `tg_session_${userId}`;
         await redis.set(key, packedSession, 'EX', 86400 * 30); // Save for 30 days
         console.log(`[auth] Session for user ${userId} saved to Redis (Key: ${key})`);
-        
+
         // Backup to MongoDB
         await User.findOneAndUpdate(
             { userId: String(userId) },
-            { 
+            {
                 tgSession: packedSession,
                 lastActiveAt: new Date(),
                 isActive: true
@@ -158,12 +160,12 @@ export async function verifyCode(req, res) {
         const { phone, code } = req.body;
         const s = authSessions.get(phone);
         if (!s) return res.status(404).json({ error: 'Session not found' });
-        
+
         console.log(`[/verify-code] Checking code for ${phone}`);
         await s.client.invoke({ "@type": "checkAuthenticationCode", "code": String(code) });
-        
+
         // Wait for ready state
-        for (let i=0; i<20; i++) {
+        for (let i = 0; i < 20; i++) {
             if (s.status === 'done') break;
             if (s.status === 'password_needed') return res.json({ success: false, requiresPassword: true });
             await new Promise(r => setTimeout(r, 500));
@@ -186,15 +188,15 @@ export async function verifyCode(req, res) {
         }
 
         console.log(`[/verify-code] Success! User ID: ${userId}`);
-        
+
         // Save to Redis
         await saveSessionToRedis(userId, packed);
 
         res.json({ success: true, session: packed, userId, firstName, username: s.user?.username });
 
-        
+
         authSessions.delete(phone);
-        
+
         // Close the client as we no longer need it in the manager
         setTimeout(async () => {
             try { await s.client.close(); } catch (e) { }
@@ -212,9 +214,9 @@ export async function verifyPassword(req, res) {
         if (!s) return res.status(404).json({ error: 'Session not found' });
 
         await s.client.invoke({ "@type": "checkAuthenticationPassword", "password": password });
-        
+
         // Wait for ready
-        for (let i=0; i<20; i++) {
+        for (let i = 0; i < 20; i++) {
             if (s.status === 'done') break;
             await new Promise(r => setTimeout(r, 500));
         }
@@ -232,7 +234,7 @@ export async function verifyPassword(req, res) {
 
 
         console.log(`[/verify-password] Success! User ID: ${userId}`);
-        
+
         // Save to Redis
         await saveSessionToRedis(userId, packed);
 
@@ -253,7 +255,7 @@ export async function qrStart(req, res) {
         client = createClient(tempId);
         const session = { client, status: 'connecting', id: tempId, createdAt: Date.now(), responded: false };
         authSessions.set(tempId, session);
-        
+
         client.on('error', (err) => {
             console.error(`[/qr-start] TDLib client error for ${tempId}:`, err);
         });
@@ -293,7 +295,7 @@ export async function qrStart(req, res) {
         console.log(`[/qr-start] Connecting TDLib client for ${tempId}...`);
         await client.connect();
 
-        for (let i=0; i<60; i++) {
+        for (let i = 0; i < 60; i++) {
             if (session.qrUrl) break;
             await new Promise(r => setTimeout(r, 500));
         }
@@ -330,18 +332,18 @@ export async function qrCheck(req, res) {
         const packed = packSession(s.id);
         const tgUserId = s.user?.id?.toString();
         const userId = req.query.userId || tgUserId;
-        
+
         if (!userId) return res.json({ done: false, error: 'User info missing' });
 
 
         console.log(`[/qr-check] Success! User ID: ${userId}`);
-        
+
         // Save to Redis
         await saveSessionToRedis(userId, packed);
 
         const resp = { done: true, session: packed, userId, firstName: s.user.first_name, username: s.user.username };
 
-        
+
         // Cache for 10 seconds to handle late polling
         finishedSessions.set(token, resp);
         setTimeout(() => finishedSessions.delete(token), 10000);
@@ -350,7 +352,7 @@ export async function qrCheck(req, res) {
         try { await s.client.close(); } catch (e) { }
         return res.json(resp);
     }
-    
+
     // Auto-expiry check
     if (Date.now() - (s.createdAt || 0) > 300000) { // 5 minutes
         authSessions.delete(token);

@@ -107,17 +107,29 @@ export async function spawnPod(userId, session) {
 
     // Load template from ConfigMap
     let podManifest;
+    console.log(`[/spawn] Step 1: Loading ConfigMap "tg-client-pod-template" in namespace "${ns}"...`);
     try {
         const cm = await k8sApi.readNamespacedConfigMap({ name: 'tg-client-pod-template', namespace: ns });
-        const templateJson = (cm.body?.data || cm.data || {})['pod-template.json'];
-
+        console.log(`[/spawn] Step 2: ConfigMap response received. Object keys: [${Object.keys(cm || {})}]`);
+        
+        const dataContainer = cm.body?.data || cm.data || {};
+        console.log(`[/spawn] Step 2b: Data keys in ConfigMap: [${Object.keys(dataContainer)}]`);
+        
+        const templateJson = dataContainer['pod-template.json'];
+        if (!templateJson) {
+            throw new Error('Key "pod-template.json" not found in ConfigMap data');
+        }
+        
+        console.log(`[/spawn] Step 3: Raw template JSON length: ${templateJson.length} bytes`);
         podManifest = JSON.parse(templateJson);
+        console.log(`[/spawn] Step 4: Successfully parsed pod-template JSON. Kind: "${podManifest.kind}", API Version: "${podManifest.apiVersion}"`);
     } catch (err) {
-        console.error(`[/spawn] Failed to read pod template from ConfigMap:`, err.message);
-        throw new Error('Pod template missing in cluster');
+        console.error(`[/spawn] Failed to read pod template from ConfigMap:`, err.stack || err.message);
+        throw new Error(`Pod template missing or invalid: ${err.message}`);
     }
 
     const podName = `tg-user-${sanitizedId}-${Date.now().toString().slice(-6)}`;
+    console.log(`[/spawn] Step 5: Preparing pod manifest customization. Target Pod Name: "${podName}"`);
     
     // Customize the manifest
     podManifest.metadata.name = podName;
@@ -128,18 +140,26 @@ export async function spawnPod(userId, session) {
     };
 
     const container = podManifest.spec.containers[0];
+    console.log(`[/spawn] Step 6: Customizing main container. Image: "${container.image}"`);
     
     // Ensure essential env vars are set/overridden
     const envMap = new Map();
-    (container.env || []).forEach(e => envMap.set(e.name, e));
+    (container.env || []).forEach(e => {
+        console.log(`[/spawn] Found existing template env var: "${e.name}" = "${e.value || ''}"`);
+        envMap.set(e.name, e);
+    });
 
+    console.log(`[/spawn] Step 7: Overriding TARGET_USER_ID = "${safeUserId}"`);
     envMap.set('TARGET_USER_ID', { name: 'TARGET_USER_ID', value: safeUserId });
+    
     const sessVal = (sessionData && sessionData.length < 200000) ? sessionData : '';
+    console.log(`[/spawn] Step 8: Overriding TG_SESSION (length: ${sessVal.length} characters)`);
     envMap.set('TG_SESSION', { name: 'TG_SESSION', value: sessVal });
     
     container.env = Array.from(envMap.values());
     
     // Add dynamic config from Redis as Environment Variables
+    console.log(`[/spawn] Step 9: Loading dynamic configurations from Redis...`);
     try {
         const provider = await redis.get("config_whisper_provider") || 'whisper-turbo';
         const model = await redis.get("config_whisper_model") || 'openai/whisper-large-v3-turbo';
@@ -149,22 +169,26 @@ export async function spawnPod(userId, session) {
         container.env.push({ name: 'WHISPER_MODEL', value: model });
         container.env.push({ name: 'WHISPER_TURBO_URL', value: turboUrl });
         
-        console.log(`[/spawn] Dynamic config: provider=${provider}, model=${model}`);
+        console.log(`[/spawn] Redis dynamic config: provider="${provider}", model="${model}", url="${turboUrl}"`);
     } catch (e) {
         console.warn(`[/spawn] Failed to fetch dynamic config from Redis:`, e.message);
     }
 
-    
     // Use image from manager's env if provided, otherwise stick to template
     if (process.env.TG_CLIENT_IMAGE) {
+        console.log(`[/spawn] Overriding container image with process.env.TG_CLIENT_IMAGE: "${process.env.TG_CLIENT_IMAGE}"`);
         container.image = process.env.TG_CLIENT_IMAGE;
     }
 
-    console.log(`[/spawn] Creating pod ${podName} from template (Session length: ${sessVal.length})...`);
-    await withTimeout(k8sApi.createNamespacedPod({ namespace: ns, body: podManifest }), 30000);
+    console.log(`[/spawn] Step 10: Final Pod Manifest payload verified. Sending CREATE pod request to K8s API...`);
+    try {
+        await withTimeout(k8sApi.createNamespacedPod({ namespace: ns, body: podManifest }), 30000);
+        console.log(`[/spawn] Step 11: Successfully created pod "${podName}" in Kubernetes namespace "${ns}"`);
+    } catch (createErr) {
+        console.error(`[/spawn] Step 11 (FAILED): Kubernetes pod creation request rejected:`, createErr.stack || createErr.message || createErr);
+        throw createErr;
+    }
 
-
-    console.log(`[/spawn] Successfully spawned ${podName}`);
     return podName;
 }
 

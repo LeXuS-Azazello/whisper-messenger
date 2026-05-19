@@ -18,7 +18,7 @@ export function getTdClient(onUpdate) {
     instanceName: 'voicemsg',
     jsLogVerbosityLevel: 'info',
     logVerbosityLevel: 2,
-    useDatabase: true
+    useDatabase: false
   });
 
   return tdClient;
@@ -32,14 +32,14 @@ export async function startQrLogin(onUpdate) {
     '@type': 'setTdlibParameters',
     database_directory: '/voicemsg',
     files_directory: '/voicemsg/files',
-    use_file_database: true,
-    use_chat_info_database: true,
-    use_message_database: true,
+    use_file_database: false,
+    use_chat_info_database: false,
+    use_message_database: false,
     use_secret_chats: true,
     api_id: 2496,
     api_hash: '8da85b0d5bfe62527e5b244c209159c3',
     system_language_code: 'en',
-    device_model: 'Web',
+    device_model: 'voicemsg-net client-server',
     application_version: '1.0',
     enable_storage_optimizer: true
   });
@@ -92,14 +92,14 @@ export async function tryRestoreSession(onUpdate) {
     '@type': 'setTdlibParameters',
     database_directory: '/voicemsg',
     files_directory: '/voicemsg/files',
-    use_file_database: true,
-    use_chat_info_database: true,
-    use_message_database: true,
+    use_file_database: false,
+    use_chat_info_database: false,
+    use_message_database: false,
     use_secret_chats: true,
     api_id: 2496,
     api_hash: '8da85b0d5bfe62527e5b244c209159c3',
     system_language_code: 'en',
-    device_model: 'Web',
+    device_model: 'voicemsg-net client-server',
     application_version: '1.0',
     enable_storage_optimizer: true
   });

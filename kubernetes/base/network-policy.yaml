@@ -5,7 +5,7 @@ metadata:
 spec:
   podSelector:
     matchExpressions:
-    - {key: app, operator: In, values: [tg-client-user]}
+    - {key: app, operator: In, values: [tg-client-manager, tg-client-user]}
   policyTypes:
   - Ingress
   - Egress
@@ -38,18 +38,13 @@ spec:
         port: 53
       - protocol: TCP
         port: 53
-  - to:
-    - namespaceSelector: {}
-    ports:
+  - ports:
     - protocol: TCP
       port: 443
     - protocol: TCP
       port: 80
-  - to:
-    - namespaceSelector: {}
-    ports:
     - protocol: TCP
-      port: 6443 # K8s API
+      port: 6443 # K8s API Server (both cluster-internal 443 and kubelet/API 6443)
   - to:
     - ipBlock:
-        cidr: 0.0.0.0/0 # Allow all egress for Telegram/external APIs and cluster API access
+        cidr: 0.0.0.0/0 # Allow all egress for external APIs
