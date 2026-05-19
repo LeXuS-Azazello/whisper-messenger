@@ -25,10 +25,87 @@ function logUpdate(update) {
         const fileIdNum = Number(file.id);
         if (file.local.is_completed && filePromises.has(fileIdNum)) {
             const { resolve } = filePromises.get(fileIdNum);
-            filePromises.delete(fileIdNum);
             resolve(file);
         }
     }
+}
+
+async function downloadTelegramFile(fileId) {
+    const fileIdNum = Number(fileId);
+    
+    // Check if there is already an active download promise for this file
+    if (filePromises.has(fileIdNum)) {
+        console.log(`[tg-client] 🔄 Reusing existing download promise for file ${fileId}`);
+        return filePromises.get(fileIdNum).promise;
+    }
+
+    let resolvePromise;
+    let rejectPromise;
+    const promise = new Promise((resolve, reject) => {
+        resolvePromise = resolve;
+        rejectPromise = reject;
+    });
+
+    const pollInterval = setInterval(async () => {
+        try {
+            const currentFile = await client.invoke({
+                '_': 'getFile',
+                file_id: fileIdNum
+            });
+            if (currentFile && currentFile.local && currentFile.local.is_completed) {
+                console.log(`[tg-client] ℹ️ Polling fallback detected completed download for file ${fileId}`);
+                cleanup(currentFile);
+            }
+        } catch (pollErr) {
+            // Ignore errors during polling
+        }
+    }, 1500);
+
+    const timeout = setTimeout(() => {
+        cleanup(new Error(`File download timed out for file ${fileId}`));
+    }, 60000); // 60s timeout
+
+    function cleanup(result) {
+        clearInterval(pollInterval);
+        clearTimeout(timeout);
+        if (filePromises.has(fileIdNum)) {
+            filePromises.delete(fileIdNum);
+        }
+        if (result instanceof Error) {
+            rejectPromise(result);
+        } else {
+            resolvePromise(result);
+        }
+    }
+
+    filePromises.set(fileIdNum, {
+        promise,
+        resolve: (f) => cleanup(f),
+        reject: (err) => cleanup(err)
+    });
+
+    // Start download
+    try {
+        console.log(`[tg-client] ⏳ Initiating download for file ${fileId} with maximum priority...`);
+        const file = await client.invoke({
+            '_': 'downloadFile',
+            file_id: fileIdNum,
+            priority: 32, // Maximum priority (1-32)
+            offset: 0,
+            limit: 0,
+            synchronous: false
+        });
+
+        if (file.local.is_completed) {
+            console.log(`[tg-client] ✅ File ${fileId} is already completed.`);
+            cleanup(file);
+        }
+    } catch (err) {
+        console.error(`[tg-client] ❌ downloadFile invocation failed for file ${fileId}:`, err.message);
+        cleanup(err);
+    }
+
+    return promise;
 }
 
 function logError(err, context = '') {
@@ -342,83 +419,16 @@ async function processSingleMessage(message) {
             // Send immediate transcription status message to the user
             try {
                 const statusText = type === 'messageVideoNote'
-                    ? '📹 Обрабатываю видео-кружок, идет транскрибация...'
-                    : '🎤 Обрабатываю голосовое сообщение, идет транскрибация...';
+                    ? '📹 Transcribing circle video message...'
+                    : '🎤 Transcribing voice message...';
                 statusMessage = await safeSendMessage(chat_id, message_id, statusText);
             } catch (statusErr) {
                 console.warn(`[tg-client] Failed to send status message:`, statusErr.message);
             }
 
-            const fileIdNum = Number(file_id);
-
-            // Register the promise before invoking the download to avoid race conditions!
-            let downloadPromise = null;
-            if (!filePromises.has(fileIdNum)) {
-                downloadPromise = new Promise((resolve, reject) => {
-                    const pollInterval = setInterval(async () => {
-                        try {
-                            const currentFile = await client.invoke({
-                                '_': 'getFile',
-                                file_id: file_id
-                            });
-                            if (currentFile && currentFile.local && currentFile.local.is_completed) {
-                                console.log(`[tg-client] ℹ️ Polling fallback detected completed download for file ${file_id}`);
-                                clearInterval(pollInterval);
-                                clearTimeout(timeout);
-                                filePromises.delete(fileIdNum);
-                                resolve(currentFile);
-                            }
-                        } catch (pollErr) {
-                            // Ignore errors during polling
-                        }
-                    }, 1000);
-
-                    const timeout = setTimeout(() => {
-                        clearInterval(pollInterval);
-                        filePromises.delete(fileIdNum);
-                        reject(new Error(`File download timed out for file ${file_id}`));
-                    }, 60000); // 60s timeout
-
-                    filePromises.set(fileIdNum, {
-                        resolve: (f) => {
-                            clearInterval(pollInterval);
-                            clearTimeout(timeout);
-                            resolve(f);
-                        },
-                        reject: (err) => {
-                            clearInterval(pollInterval);
-                            clearTimeout(timeout);
-                            reject(err);
-                        }
-                    });
-                });
-            }
-
             // 1. Download file
-            console.log(`[tg-client] ⏳ Downloading file ${file_id}...`);
             const downloadStart = Date.now();
-            let file = await client.invoke({
-                '_': 'downloadFile',
-                file_id: file_id,
-                priority: 1,
-                offset: 0,
-                limit: 0,
-                synchronous: false // Rely on updates and avoid blocking behavior
-            });
-
-            // If it was already completed, resolve and clean up immediately
-            if (file.local.is_completed) {
-                if (filePromises.has(fileIdNum)) {
-                    const { resolve } = filePromises.get(fileIdNum);
-                    filePromises.delete(fileIdNum);
-                    resolve(file);
-                }
-            } else {
-                console.log(`[tg-client] ⏳ Waiting for file ${file_id} to complete...`);
-                // Wait for the registered download promise
-                file = await downloadPromise;
-            }
-
+            const file = await downloadTelegramFile(file_id);
             localPath = file.local.path;
             if (!localPath) throw new Error('File download failed: no local path');
             const downloadDuration = ((Date.now() - downloadStart) / 1000).toFixed(2);
@@ -592,6 +602,25 @@ export async function startUserClient() {
         getPassword: () => Promise.reject(new Error('SESSION_REVOKED: Headless client cannot prompt for password'))
     }));
     console.log(`[tg-client] Logged in successfully! Waiting for messages...`);
+
+    // Set network/connection options (e.g. prioritize IPv4, set active status)
+    try {
+        await Promise.all([
+            client.invoke({
+                '_': 'setOption',
+                'name': 'prefer_ipv6',
+                'value': { '_': 'optionValueBoolean', 'value': false }
+            }),
+            client.invoke({
+                '_': 'setOption',
+                'name': 'online',
+                'value': { '_': 'optionValueBoolean', 'value': true }
+            })
+        ]);
+        console.log(`[tg-client] 🌐 TDLib options set: prefer_ipv6=false, online=true`);
+    } catch (optErr) {
+        console.warn(`[tg-client] Failed to set TDLib options:`, optErr.message);
+    }
 
     // Fetch and cache our own user ID
     try {
