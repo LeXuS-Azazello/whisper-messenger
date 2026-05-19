@@ -1,6 +1,6 @@
 import { createClient } from './utils.js';
-import { 
-    TARGET_USER_ID, TG_API_ID, TG_API_HASH, 
+import {
+    TARGET_USER_ID, TG_API_ID, TG_API_HASH,
     WHISPER_TURBO_URL, WHISPER_PROVIDER,
     MANAGER_URL, MANAGER_SECRET, TG_SESSION,
     DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION,
@@ -8,6 +8,8 @@ import {
 } from './config.js';
 import fs from 'fs';
 import path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
 let client = null;
 const filePromises = new Map();
@@ -17,9 +19,10 @@ let oldMessagesProcessed = 0;
 function logUpdate(update) {
     if (update['_'] === 'updateFile') {
         const file = update.file;
-        if (file.local.is_completed && filePromises.has(file.id)) {
-            const { resolve } = filePromises.get(file.id);
-            filePromises.delete(file.id);
+        const fileIdNum = Number(file.id);
+        if (file.local.is_completed && filePromises.has(fileIdNum)) {
+            const { resolve } = filePromises.get(fileIdNum);
+            filePromises.delete(fileIdNum);
             resolve(file);
         }
     }
@@ -37,7 +40,8 @@ async function transcribeAudio(audioBuffer, mimeType) {
 
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: mimeType });
-    formData.append('file', blob, 'audio.ogg');
+    const fileName = mimeType === 'audio/wav' ? 'audio.wav' : 'audio.ogg';
+    formData.append('file', blob, fileName);
     formData.append('model', model);
     formData.append('language', 'auto');
 
@@ -52,12 +56,27 @@ async function transcribeAudio(audioBuffer, mimeType) {
             const errorText = await response.text();
             throw new Error(`Transcriber error (${response.status}): ${errorText}`);
         }
-        
+
         const data = await response.json();
         return data.text || data.transcription || '';
     } catch (e) {
         console.error(`[tg-client] Transcription failed: ${e.message}`);
         throw e;
+    }
+}
+
+const execPromise = promisify(exec);
+
+async function extractAudioFromVideo(videoPath) {
+    const audioPath = videoPath + '.wav';
+    console.log(`[tg-client] 🎬 Extracting audio from video note ${videoPath} to ${audioPath}...`);
+    try {
+        await execPromise(`ffmpeg -y -i "${videoPath}" -vn -acodec pcm_s16le -ar 16000 -ac 1 "${audioPath}"`);
+        console.log(`[tg-client] 🎬 Audio extraction completed successfully.`);
+        return audioPath;
+    } catch (error) {
+        console.error(`[tg-client] ❌ ffmpeg audio extraction failed:`, error.message);
+        throw error;
     }
 }
 
@@ -67,6 +86,26 @@ async function handleNewMessage(message) {
     const chat_id = message.chat_id;
     const message_id = message.id;
     const type = message.content['_'];
+
+    // 1. Group filtering: Only private messages
+    const isGroup = (typeof chat_id === 'number' && chat_id < 0) || (typeof chat_id === 'string' && chat_id.startsWith('-'));
+    if (isGroup) {
+        console.log(`[tg-client] 🚫 Skipping message ${message_id} because chat ${chat_id} is a group/channel`);
+        return;
+    }
+
+    try {
+        const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
+        if (chat && chat.type) {
+            const chatType = chat.type['_'];
+            if (chatType !== 'chatTypePrivate' && chatType !== 'chatTypeSecret') {
+                console.log(`[tg-client] 🚫 Skipping message ${message_id} because chat ${chat_id} is of type "${chatType}" (only private/secret chats allowed)`);
+                return;
+            }
+        }
+    } catch (chatErr) {
+        console.warn(`[tg-client] Warning: Failed to get chat info for ${chat_id}:`, chatErr.message);
+    }
 
     // Ignore old history messages received on startup
     const now = Math.floor(Date.now() / 1000);
@@ -90,7 +129,6 @@ async function handleNewMessage(message) {
     let mime_type = '';
 
     console.log(`[tg-client] 📩 Received message in chat ${chat_id} of type: ${type}`);
-    console.log(`[tg-client] 📝 Full Message Details:`, JSON.stringify(message, null, 2));
 
     if (type === 'messageText') {
         const text = message.content.text?.text || '';
@@ -106,7 +144,32 @@ async function handleNewMessage(message) {
     }
 
     if (file_id) {
+        let tempAudioPath = null;
+        let localPath = null;
         try {
+            const fileIdNum = Number(file_id);
+
+            // Register the promise before invoking the download to avoid race conditions!
+            let downloadPromise = null;
+            if (!filePromises.has(fileIdNum)) {
+                downloadPromise = new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        filePromises.delete(fileIdNum);
+                        reject(new Error(`File download timed out for file ${file_id}`));
+                    }, 30000);
+                    filePromises.set(fileIdNum, {
+                        resolve: (f) => {
+                            clearTimeout(timeout);
+                            resolve(f);
+                        },
+                        reject: (err) => {
+                            clearTimeout(timeout);
+                            reject(err);
+                        }
+                    });
+                });
+            }
+
             // 1. Download file
             console.log(`[tg-client] ⏳ Downloading file ${file_id}...`);
             let file = await client.invoke({
@@ -115,31 +178,45 @@ async function handleNewMessage(message) {
                 priority: 1,
                 offset: 0,
                 limit: 0,
-                synchronous: true
+                synchronous: false // Rely on updates and avoid blocking behavior
             });
 
-            if (!file.local.is_completed) {
+            // If it was already completed, resolve and clean up immediately
+            if (file.local.is_completed) {
+                if (filePromises.has(fileIdNum)) {
+                    const { resolve } = filePromises.get(fileIdNum);
+                    filePromises.delete(fileIdNum);
+                    resolve(file);
+                }
+            } else {
                 console.log(`[tg-client] ⏳ Waiting for file ${file_id} to complete...`);
-                file = await new Promise((resolve, reject) => {
-                    const timeout = setTimeout(() => {
-                        filePromises.delete(file_id);
-                        reject(new Error('File download timed out'));
-                    }, 30000);
-                    filePromises.set(file_id, { resolve: (f) => {
-                        clearTimeout(timeout);
-                        resolve(f);
-                    }, reject });
-                });
+                // Wait for the registered download promise
+                file = await downloadPromise;
             }
 
-            const localPath = file.local.path;
+            localPath = file.local.path;
             if (!localPath) throw new Error('File download failed: no local path');
 
             console.log(`[tg-client] ✅ Downloaded to ${localPath}. Reading...`);
-            const buffer = fs.readFileSync(localPath);
+            
+            let buffer;
+            let currentMimeType = mime_type;
+
+            if (type === 'messageVideoNote') {
+                try {
+                    tempAudioPath = await extractAudioFromVideo(localPath);
+                    buffer = fs.readFileSync(tempAudioPath);
+                    currentMimeType = 'audio/wav';
+                } catch (err) {
+                    console.error('[tg-client] Failed to extract audio from video note, falling back to original file:', err.message);
+                    buffer = fs.readFileSync(localPath);
+                }
+            } else {
+                buffer = fs.readFileSync(localPath);
+            }
 
             // 2. Transcribe
-            const transcription = await transcribeAudio(buffer, mime_type);
+            const transcription = await transcribeAudio(buffer, currentMimeType);
             console.log(`[tg-client] ✅ Transcription: "${transcription.slice(0, 50)}..."`);
 
             if (transcription.trim()) {
@@ -171,6 +248,39 @@ async function handleNewMessage(message) {
 
         } catch (e) {
             logError(e, 'handleNewMessage');
+        } finally {
+            // Clean up temporary extracted WAV audio file if it was created
+            if (tempAudioPath && fs.existsSync(tempAudioPath)) {
+                try {
+                    fs.unlinkSync(tempAudioPath);
+                    console.log(`[tg-client] 🗑️ Cleaned up temporary audio file: ${tempAudioPath}`);
+                } catch (cleanupErr) {
+                    console.error(`[tg-client] Failed to delete temporary audio file:`, cleanupErr.message);
+                }
+            }
+
+            // Clean up TDLib downloaded file to avoid cluttering local storage
+            if (file_id) {
+                try {
+                    await client.invoke({
+                        '_': 'deleteFile',
+                        file_id: file_id
+                    });
+                    console.log(`[tg-client] 🗑️ Successfully deleted cached TDLib media file: ${file_id}`);
+                } catch (deleteErr) {
+                    console.error(`[tg-client] Failed to delete TDLib file ${file_id}:`, deleteErr.message);
+                    
+                    // Fallback: if TDLib deletion fails, try deleting the file directly from filesystem
+                    if (localPath && fs.existsSync(localPath)) {
+                        try {
+                            fs.unlinkSync(localPath);
+                            console.log(`[tg-client] 🗑️ Fallback: Deleted downloaded file directly from filesystem: ${localPath}`);
+                        } catch (fsErr) {
+                            console.error(`[tg-client] Fallback direct deletion failed for ${localPath}:`, fsErr.message);
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -203,11 +313,8 @@ export async function startUserClient() {
 
     client.on('update', (update) => {
         logUpdate(update);
-        
+
         const type = update['_'] || update['@type'];
-        if (type) {
-            console.log(`[tg-client-update] Received update: ${type}`);
-        }
 
         if (type === 'updateAuthorizationState') {
             const state = update.authorization_state?.['@type'] || update.authorization_state?.['_'];
@@ -242,7 +349,7 @@ export async function sendTestMessage(messageText) {
     const me = await client.invoke({ "_": "getMe" });
     const msgText = messageText || 'Test from Whisper Messenger!';
     console.log(`[tg-client] Sending test message to self (${me.id})`);
-    
+
     await client.invoke({
         "_": "sendMessage",
         "chat_id": me.id,
