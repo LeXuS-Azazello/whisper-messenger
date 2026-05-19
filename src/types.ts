@@ -57,7 +57,7 @@ export interface Env {
   MAIL_API_TOKEN?: string;
 
   // Cloudflare Config
-  CLOUDFLARE_GLOBAL_TOKEN?: string;
+  
   CLOUDFLARE_ZONE_ID?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
   CF_ACCESS_CLIENT_ID?: string;

@@ -1,4 +1,4 @@
-import { makeWASocket, useSingleFileAuthState, delay, DisconnectReason, proto } from '@whiskeysockets/baileys';
+import { makeWASocket, delay, DisconnectReason, proto, useMultiFileAuthState } from 'baileys';
 import qrcode from 'qrcode';
 import { Env } from '../../src/types';
 import fs from 'fs/promises';
@@ -37,7 +37,7 @@ export class WhatsAppBaileysClient {
     });
 
     this.sock.ev.on('connection.update', async (update: any) => {
-      const { connection, lastDisconnect } = update;
+      const { connection, lastDisconnect, qr } = update;
       if (connection === 'open') {
         console.log(`[WhatsAppBaileysClient ${this.userId}] Client is ready!`);
         this.onReady();
@@ -46,6 +46,13 @@ export class WhatsAppBaileysClient {
         // Reconnect after delay
         await delay(5000);
         this.initialize();
+      } else if (qr) {
+        try {
+          const qrImage = await qrcode.toDataURL(qr);
+          this.onQR(qrImage);
+        } catch (err) {
+          console.error(`[WhatsAppBaileysClient ${this.userId}] QR Generation Error:`, err);
+        }
       }
     });
 
@@ -60,30 +67,22 @@ export class WhatsAppBaileysClient {
 
   async initialize() {
     // Load or create auth state
-    this.authState = useSingleFileAuthState(
-      path.join(process.cwd(), 'sessions', `baileys_${this.userId}.json`)
+    const { state, saveCreds } = await useMultiFileAuthState(
+      path.join(process.cwd(), 'sessions', `baileys_${this.userId}`)
     );
+    this.authState = { state, saveCreds };
 
     this.sock = makeWASocket({
-      auth: this.authState,
+      auth: state,
       printQRInTerminal: false,
-      browser: ['Baileys', 'Chrome', '']
+      browser: ['Baileys', 'Chrome', ''],
+      getMessage: async (key) => {
+        // In a real implementation, this would fetch from a DB
+        return undefined;
+      }
     });
 
     this.setupHandlers();
-
-    // Event for QR code
-    this.sock.ev.on('connection.update', async (update : any) => {
-      const { qr } = update;
-      if (qr) {
-        try {
-          const qrImage = await qrcode.toDataURL(qr);
-          this.onQR(qrImage);
-        } catch (err) {
-          console.error(`[WhatsAppBaileysClient ${this.userId}] QR Generation Error:`, err);
-        }
-      }
-    });
   }
 
   async start() {

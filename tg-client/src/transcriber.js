@@ -1,10 +1,18 @@
+import fs from 'fs';
+import path from 'path';
 import { WHISPER_PROVIDER, WHISPER_SECRET } from './config.js';
+
+const MAX_RETRIES = 3;
+const RETRY_DELAYS_MS = [3000, 6000, 12000];
 
 export async function transcribePath(file_path, mime_type, language = 'auto') {
     const url = WHISPER_PROVIDER || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
 
+    const fileBuffer = fs.readFileSync(file_path);
+    const base64Data = fileBuffer.toString('base64');
+
     const payload = {
-        file_path: file_path,
+        file_data: base64Data,
         mime_type: mime_type,
         language: language
     };
@@ -14,32 +22,37 @@ export async function transcribePath(file_path, mime_type, language = 'auto') {
         headers['Authorization'] = `Bearer ${WHISPER_SECRET}`;
     }
 
-    const response = await fetch(`${url}/v1/transcribe-path`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(300000)
-    });
+    let lastError;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const response = await fetch(`${url}/v1/transcribe-base64`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload),
+                signal: AbortSignal.timeout(300000)
+            });
 
-    if (!response.ok) throw new Error(`Transcriber error (${response.status})`);
-    const data = await response.json();
-    return data.text || data.transcription || '';
-}
+            if (!response.ok) throw new Error(`Transcriber HTTP error (${response.status})`);
+            const data = await response.json();
+            return data.text || '';
+        } catch (err) {
+            lastError = err;
+            const isNetworkErr = err.cause?.code === 'ECONNREFUSED'
+                || err.cause?.code === 'ENOTFOUND'
+                || err.cause?.code === 'ECONNRESET'
+                || err.message === 'fetch failed';
 
-export async function deleteSharedFile(file_path) {
-    const url = WHISPER_PROVIDER || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
+            console.error(`[transcriber] Attempt ${attempt}/${MAX_RETRIES} failed (${url}): ${err.message}${err.cause ? ` [${err.cause.code}]` : ''}`);
 
-    const payload = { file_path: file_path };
-    const headers = { 'Content-Type': 'application/json' };
-    if (WHISPER_SECRET) {
-        headers['Authorization'] = `Bearer ${WHISPER_SECRET}`;
+            if (!isNetworkErr || attempt === MAX_RETRIES) break;
+
+            const delay = RETRY_DELAYS_MS[attempt - 1] ?? 6000;
+            console.log(`[transcriber] Retrying in ${delay / 1000}s...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
     }
 
-    fetch(`${url}/v1/delete-file`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-    }).catch(() => {});  // fire-and-forget
+    throw lastError;
 }
 
 

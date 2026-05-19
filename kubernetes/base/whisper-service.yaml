@@ -11,19 +11,6 @@ spec:
       storage: 50Gi
   storageClassName: local-path
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: audio-transcribe-storage
-  namespace: debugging-testcrash-pub
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
-  storageClassName: local-path
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -74,8 +61,6 @@ spec:
         volumeMounts:
         - name: cache
           mountPath: /hf-cache
-        - name: audio-files
-          mountPath: /shared/tg-files
         startupProbe:
           httpGet:
             path: /health
@@ -100,9 +85,6 @@ spec:
       - name: cache
         persistentVolumeClaim:
           claimName: whisper-service-cache
-      - name: audio-files
-        persistentVolumeClaim:
-          claimName: audio-transcribe-storage
 ---
 apiVersion: v1
 kind: Service

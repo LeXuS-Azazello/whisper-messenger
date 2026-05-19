@@ -33,14 +33,11 @@ data:
             { "name": "APP_VERSION", "value": "4.15.2" },
             { "name": "SYSTEM_VERSION", "value": "Ubuntu 24.04" },
             { "name": "WHISPER_PROVIDER", "value": "http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000" },
-            { "name": "WHISPER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "WHISPER_SECRET"}} }
+            { "name": "WHISPER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "WHISPER_SECRET", "optional": true}} }
           ],
           "volumeMounts": [{
             "name": "tdlib-storage",
             "mountPath": "/app/tdlib-data"
-          }, {
-            "name": "tg-files",
-            "mountPath": "/shared/tg-files"
           }],
           "resources": {
             "requests": { "cpu": "50m", "memory": "128Mi" },
@@ -49,14 +46,7 @@ data:
         }],
         "volumes": [{
           "name": "tdlib-storage",
-          "persistentVolumeClaim": {
-            "claimName": "tg-client-pvc-placeholder"
-          }
-        }, {
-          "name": "tg-files",
-          "persistentVolumeClaim": {
-            "claimName": "audio-transcribe-storage"
-          }
+          "emptyDir": {}
         }],
         "restartPolicy": "Always"
       }

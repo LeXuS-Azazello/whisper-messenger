@@ -4,8 +4,13 @@ import {
     redis
 } from './config.js';
 import { downloadTelegramFile } from './downloader.js';
-import { transcribePath, deleteSharedFile, splitTextIntoChunks } from './transcriber.js';
-import { safeSendMessage, deleteMessage, updateManagerStats } from './messenger.js';let client = null;
+import { transcribePath, splitTextIntoChunks } from './transcriber.js';
+import { safeSendMessage, deleteMessage, updateManagerStats } from './messenger.js';
+
+import fs from 'fs';
+
+
+let client = null;
 let myUserId = null;
 const clientStartTime = Math.floor(Date.now() / 1000);
 let oldMessagesProcessed = 0;
@@ -40,37 +45,7 @@ export async function handleNewMessage(message) {
     const isGroup = (typeof chat_id === 'number' && chat_id < 0) || (typeof chat_id === 'string' && chat_id.startsWith('-'));
     if (isGroup) return;
 
-    const myId = myUserId || (TARGET_USER_ID ? Number(TARGET_USER_ID) : null);
-    const isSelfChat = myId && Number(chat_id) === Number(myId);
-    if (message.is_outgoing && !isSelfChat) return;
-
-    if (type === 'messageText') return;
-
     if (type === 'messageVoiceNote' || type === 'messageVideoNote') {
-        if (!myUserId && client) {
-            try {
-                const me = await client.invoke({ '_': 'getMe' });
-                myUserId = me.id;
-            } catch (meErr) {}
-        }
-
-        const currentMyId = myUserId || (TARGET_USER_ID ? Number(TARGET_USER_ID) : null);
-        const currentIsSelfChat = currentMyId && Number(chat_id) === Number(currentMyId);
-        if (message.is_outgoing && !currentIsSelfChat) return;
-
-        if (client) {
-        try {
-            const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
-            if (!chat || !chat.type || (chat.type['_'] !== 'chatTypePrivate' && chat.type['_'] !== 'chatTypeSecret')) {
-                return;
-            }
-        } catch (chatErr) {
-            return;
-        }
-
-        }
-
-        console.log(`[tg-client] Incoming private/secret message: ${type} from ${chat_id}`);
         incomingQueue.push(message);
         processIncomingQueue();
     }
@@ -82,9 +57,7 @@ async function processSingleMessage(message) {
     const message_id = message.id;
     const type = message.content['_'];
 
-    const isGroup = (typeof chat_id === 'number' && chat_id < 0) || (typeof chat_id === 'string' && chat_id.startsWith('-'));
-    if (isGroup) return;
-
+    // Only process private/secret voice/video notes
     const myId = myUserId || (TARGET_USER_ID ? Number(TARGET_USER_ID) : null);
     const isSelfChat = myId && Number(chat_id) === Number(myId);
     if (message.is_outgoing && !isSelfChat) return;
@@ -94,7 +67,7 @@ async function processSingleMessage(message) {
         if (!chat || !chat.type || (chat.type['_'] !== 'chatTypePrivate' && chat.type['_'] !== 'chatTypeSecret')) {
             return;
         }
-    } catch (chatErr) {
+    } catch {
         return;
     }
 
@@ -115,7 +88,7 @@ async function processSingleMessage(message) {
     }
 
     if (file_id) {
-        let filePath = null, localPath = null, statusMessage = null;
+        let filePath = null, statusMessage = null;
         try {
             const statusText = type === 'messageVideoNote'
                 ? '📹 Transcribing circle video message...'
@@ -123,15 +96,22 @@ async function processSingleMessage(message) {
             statusMessage = await safeSendMessage(client, chat_id, message_id, statusText);
 
             const file = await downloadTelegramFile(client, file_id, mime_type);
-            filePath = file.sharedPath || file.local.path;
+            filePath = file.local.path;
             if (!filePath) throw new Error('File download failed: no path');
 
-            const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
-            const transcription = await transcribePath(filePath, mime_type, chat?.language || 'auto');
+            let language = 'auto';
+            try {
+                // Determine language if this is a private chat with a specific user
+                const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
+                if (chat.type['_'] === 'chatTypePrivate') {
+                    const user = await client.invoke({ '_': 'getUser', user_id: chat.type.user_id });
+                    if (user && user.language_code) language = user.language_code;
+                }
+            } catch (e) {}
+
+            const transcription = await transcribePath(filePath, mime_type, language);
             if (transcription.trim()) {
                 console.log(`[tg-client] Transcription result for msg ${message_id}: ${transcription.trim()}`);
-                // delete from shared storage as soon as we have the text
-                deleteSharedFile(filePath).catch(() => {});
                 const chunks = splitTextIntoChunks(transcription.trim(), 3900);
                 for (let i = 0; i < chunks.length; i++) {
                     let replyText = chunks[i];
@@ -152,7 +132,7 @@ async function processSingleMessage(message) {
             if (statusMessage) await deleteMessage(client, chat_id, statusMessage.id);
             if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
             if (file_id) {
-                try { await client.invoke({ '_': 'deleteFile', file_id: Number(file_id) }); } catch {}
+                try { await client.invoke({ '_': 'deleteFile', file_id: Number(file_id) }); } catch { }
             }
         }
     }
@@ -185,14 +165,14 @@ export async function startUserClient() {
         await Promise.all([
             client.invoke({ '_': 'setOption', 'name': 'prefer_ipv6', 'value': { '_': 'optionValueBoolean', 'value': false } }),
             client.invoke({ '_': 'setOption', 'name': 'online', 'value': { '_': 'optionValueBoolean', 'value': true } }),
-            client.invoke({ '_': 'setLogVerbosityLevel', 'new_verbosity_level': 3 })
+            client.invoke({ '_': 'setLogVerbosityLevel', 'new_verbosity_level': 1 })
         ]);
-    } catch (optErr) {}
+    } catch (optErr) { }
 
     try {
         const me = await client.invoke({ '_': 'getMe' });
         myUserId = me.id;
-    } catch (meErr) {}
+    } catch (meErr) { }
 }
 
 export async function sendTestMessage(messageText) {

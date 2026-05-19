@@ -2,18 +2,7 @@ import { redis } from './config.js';
 import fs from 'fs';
 import path from 'path';
 
-const SHARED_DIR = '/shared/tg-files';
 const filePromises = new Map();
-
-function ensureSharedDir() {
-    if (!fs.existsSync(SHARED_DIR)) fs.mkdirSync(SHARED_DIR, { recursive: true });
-}
-
-export function getSharedPath(fileId, mimeType = 'audio/ogg') {
-    ensureSharedDir();
-    const ext = mimeType === 'video/mp4' ? '.mp4' : '.ogg';
-    return path.join(SHARED_DIR, `${fileId}${ext}`);
-}
 
 export async function downloadTelegramFile(client, fileId, mimeType = 'audio/ogg') {
     const fileIdNum = Number(fileId);
@@ -35,7 +24,7 @@ export async function downloadTelegramFile(client, fileId, mimeType = 'audio/ogg
                 '_': 'getFile',
                 file_id: fileIdNum
             });
-            if (currentFile && currentFile.local.is_completed) {
+            if (currentFile && currentFile.local.is_downloading_completed) {
                 cleanup(currentFile);
             }
         } catch (pollErr) {}
@@ -70,7 +59,7 @@ export async function downloadTelegramFile(client, fileId, mimeType = 'audio/ogg
             file_id: fileIdNum
         });
 
-        if (fileInfo.local.is_completed) {
+        if (fileInfo.local.is_downloading_completed) {
             cleanup(fileInfo);
             return promise;
         }
@@ -78,7 +67,7 @@ export async function downloadTelegramFile(client, fileId, mimeType = 'audio/ogg
         await client.invoke({
             '_': 'downloadFile',
             file_id: fileIdNum,
-            priority: 32,
+            priority: 1,
             offset: 0,
             limit: 0
         });
@@ -88,7 +77,7 @@ export async function downloadTelegramFile(client, fileId, mimeType = 'audio/ogg
             file_id: fileIdNum
         });
 
-        if (file.local.is_completed) {
+        if (file.local.is_downloading_completed) {
             cleanup(file);
         }
     } catch (err) {
@@ -96,13 +85,5 @@ export async function downloadTelegramFile(client, fileId, mimeType = 'audio/ogg
     }
 
     const result = await promise;
-    // Copy the downloaded file (TDLib private dir) into the shared emptyDir volume
-    // so whisper-service can read it from the same path.
-    const srcPath = result.local.path;
-    if (srcPath && fs.existsSync(srcPath)) {
-        const dstPath = getSharedPath(fileId, mimeType);
-        fs.copyFileSync(srcPath, dstPath);
-        result.sharedPath = dstPath;
-    }
     return result;
 }

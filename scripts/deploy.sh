@@ -94,6 +94,8 @@ MANAGER_IMAGE="${REPO}/whisper-tg-client-manager:${TAG}"
 TG_CLIENT_IMAGE="${REPO}/whisper-tg-client:${TAG}"
 TESTER_IMAGE="${REPO}/whisper-tester:${TAG}"
 WHISPER_IMAGE="${REPO}/whisper-service:${TAG}"
+FCA_MANAGER_IMAGE="${REPO}/facebook-fca-manager:${TAG}"
+FCA_CLIENT_IMAGE="${REPO}/facebook-fca-client:${TAG}"
 
 echo ">>> Building and pushing Docker images..."
 
@@ -137,6 +139,18 @@ docker tag "$WHISPER_IMAGE" "${REPO}/whisper-service:latest"
 docker push "$WHISPER_IMAGE"
 docker push "${REPO}/whisper-service:latest"
 
+echo "6. FCA Manager: $FCA_MANAGER_IMAGE"
+docker build -t "$FCA_MANAGER_IMAGE" -f facebook-fca-manager/Dockerfile facebook-fca-manager/
+docker tag "$FCA_MANAGER_IMAGE" "${REPO}/facebook-fca-manager:latest"
+docker push "$FCA_MANAGER_IMAGE"
+docker push "${REPO}/facebook-fca-manager:latest"
+
+echo "7. FCA Client: $FCA_CLIENT_IMAGE"
+docker build -t "$FCA_CLIENT_IMAGE" -f facebook-fca-client/Dockerfile facebook-fca-client/
+docker tag "$FCA_CLIENT_IMAGE" "${REPO}/facebook-fca-client:latest"
+docker push "$FCA_CLIENT_IMAGE"
+docker push "${REPO}/facebook-fca-client:latest"
+
 # Clean up temporary tdlib injections
 if [ "$HAS_CUSTOM_TDLIB" = true ]; then
     echo ">>> Cleaning up injected tdlib directories..."
@@ -157,6 +171,8 @@ kubectl set image deployment/tg-client-manager manager="$MANAGER_IMAGE" -n "$NAM
 kubectl set env deployment/tg-client-manager TG_CLIENT_IMAGE="$TG_CLIENT_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/voicemsg-tester tester="$TESTER_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/whisper-service whisper-service="$WHISPER_IMAGE" -n "$NAMESPACE"
+kubectl set image deployment/facebook-fca-manager manager="$FCA_MANAGER_IMAGE" -n "$NAMESPACE"
+kubectl set env deployment/facebook-fca-manager FCA_CLIENT_IMAGE="$FCA_CLIENT_IMAGE" -n "$NAMESPACE"
 echo ""
 
 echo ">>> Deleting existing user tg-client pods to force recreation with new image..."

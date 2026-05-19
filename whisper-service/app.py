@@ -13,7 +13,7 @@ app = FastAPI()
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
 torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
 if device == "cpu":
-    torch.set_num_threads(8)
+    torch.set_num_threads(16)
 model_id = "openai/whisper-large-v3-turbo"
 
 # Prefer the PVC-backed cache dir; fall back to default if not set.
@@ -37,7 +37,7 @@ try:
 
     model.generation_config.cache_implementation = "static"
     model.generation_config.max_new_tokens = 256
-    model.forward = torch.compile(model.forward, mode="reduce-overhead", fullgraph=True)
+    # model.forward = torch.compile(model.forward, mode="reduce-overhead", fullgraph=True)
 
     processor = AutoProcessor.from_pretrained(
         model_id,
@@ -52,6 +52,8 @@ try:
         feature_extractor=processor.feature_extractor,
         torch_dtype=torch_dtype,
         device=device,
+        chunk_length_s=30,
+        batch_size=4,
     )
     print("Model loaded successfully!")
 except Exception as e:
@@ -141,6 +143,59 @@ class DeleteFileRequest(BaseModel):
 async def delete_file_endpoint(body: DeleteFileRequest):
     deleted = delete_file(body.file_path)
     return {"deleted": deleted, "path": body.file_path}
+
+import base64
+
+class TranscribeBase64Request(BaseModel):
+    file_data: str
+    mime_type: str
+    language: str = "auto"
+
+@app.post("/v1/transcribe-base64")
+async def transcribe_base64(body: TranscribeBase64Request):
+    print("Received base64 transcription request")
+    
+    import asyncio
+    loop = asyncio.get_event_loop()
+    
+    def process_base64():
+        try:
+            content = base64.b64decode(body.file_data)
+        except Exception as e:
+            return {"error": f"Invalid base64: {e}", "text": ""}
+            
+        ext = ".ogg" if "ogg" in body.mime_type else (".mp4" if "mp4" in body.mime_type else ".wav")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        try:
+            process_path = tmp_path
+            if body.mime_type.startswith("video/") or any(tmp_path.lower().endswith(ext) for ext in ['.mp4', '.mkv', '.mov', '.avi']):
+                audio_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
+                subprocess.run(['ffmpeg', '-y', '-i', tmp_path, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', audio_tmp], check=True)
+                process_path = audio_tmp
+
+            generate_kwargs = {"max_new_tokens": 448}
+            if body.language and body.language != "auto":
+                generate_kwargs["language"] = body.language
+
+            with sdpa_kernel(SDPBackend.MATH):
+                result = pipe(process_path, generate_kwargs=generate_kwargs)
+
+            text = result.get("text", "")
+            chunks = split_text_into_chunks(text)
+            print(f"Transcription success: {text[:50]}...")
+            return {"text": "\n".join(chunks), "chunks": chunks}
+        except Exception as e:
+            print(f"Error transcribing base64: {e}")
+            return {"error": str(e), "text": ""}
+        finally:
+            if os.path.exists(tmp_path): os.remove(tmp_path)
+            if 'audio_tmp' in locals() and os.path.exists(audio_tmp): os.remove(audio_tmp)
+
+    return await loop.run_in_executor(None, process_base64)
+
 
 @app.post("/v1/audio/transcriptions")
 async def transcribe(
