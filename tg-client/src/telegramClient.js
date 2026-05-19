@@ -32,7 +32,7 @@ function logUpdate(update) {
 
 async function downloadTelegramFile(fileId) {
     const fileIdNum = Number(fileId);
-    
+
     // Check if there is already an active download promise for this file
     if (filePromises.has(fileIdNum)) {
         console.log(`[tg-client] 🔄 Reusing existing download promise for file ${fileId}`);
@@ -466,18 +466,18 @@ async function processSingleMessage(message) {
                     let replyText = "";
                     if (totalChunks === 1) {
                         replyText = `🎤 ${chunks[i]}\n\n` +
-                            `⏱ Скачивание: ${downloadDuration}с | Транскрибация: ${transcriptionDuration}с\n` +
-                            `🤖 Модель: ${WHISPER_MODEL}`;
+                            `⏱ Download: ${downloadDuration}s | Transcription: ${transcriptionDuration}s\n` +
+                            `🤖 Model: ${WHISPER_MODEL}`;
                     } else {
                         const chunkIndex = i + 1;
                         if (chunkIndex === 1) {
-                            replyText = `🎤 (Часть ${chunkIndex}/${totalChunks})\n\n${chunks[i]}`;
+                            replyText = `🎤 (Part ${chunkIndex}/${totalChunks})\n\n${chunks[i]}`;
                         } else if (chunkIndex < totalChunks) {
-                            replyText = `(Часть ${chunkIndex}/${totalChunks})\n\n${chunks[i]}`;
+                            replyText = `(Part ${chunkIndex}/${totalChunks})\n\n${chunks[i]}`;
                         } else {
-                            replyText = `(Часть ${chunkIndex}/${totalChunks})\n\n${chunks[i]}\n\n` +
-                                `⏱ Скачивание: ${downloadDuration}с | Транскрибация: ${transcriptionDuration}с\n` +
-                                `🤖 Модель: ${WHISPER_MODEL}`;
+                            replyText = `(Part ${chunkIndex}/${totalChunks})\n\n${chunks[i]}\n\n` +
+                                `⏱ Download: ${downloadDuration}s | Transcription: ${transcriptionDuration}s\n` +
+                                `🤖 Model: ${WHISPER_MODEL}`;
                         }
                     }
 
