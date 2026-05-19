@@ -11,6 +11,8 @@ import path from 'path';
 
 let client = null;
 const filePromises = new Map();
+const clientStartTime = Math.floor(Date.now() / 1000);
+let oldMessagesProcessed = 0;
 
 function logUpdate(update) {
     if (update['_'] === 'updateFile') {
@@ -65,6 +67,25 @@ async function handleNewMessage(message) {
     const chat_id = message.chat_id;
     const message_id = message.id;
     const type = message.content['_'];
+
+    // Ignore old history messages received on startup
+    const now = Math.floor(Date.now() / 1000);
+    if (message.date) {
+        const messageAge = now - message.date;
+        if (message.date < clientStartTime) {
+            if (messageAge > 1800) { // 30 minutes
+                console.log(`[tg-client] ⏳ Ignoring very old startup message ${message_id} in chat ${chat_id} (age: ${messageAge}s)`);
+                return;
+            }
+            if (oldMessagesProcessed >= 10) {
+                console.log(`[tg-client] ⏳ Skipping startup message ${message_id} in chat ${chat_id} (limit of 10 reached)`);
+                return;
+            }
+            oldMessagesProcessed++;
+            console.log(`[tg-client] 📥 Processing recent startup message ${message_id} in chat ${chat_id} (${oldMessagesProcessed}/10, age: ${messageAge}s)`);
+        }
+    }
+
     let file_id = null;
     let mime_type = '';
 
@@ -205,9 +226,13 @@ export async function startUserClient() {
         logError(err, 'TDLib');
     });
 
-    console.log(`[tg-client] Connecting to TDLib...`);
-    await client.connect();
-    console.log(`[tg-client] Connected! Waiting for messages...`);
+    console.log(`[tg-client] Logging into TDLib...`);
+    await client.login(() => ({
+        getPhoneNumber: () => Promise.reject(new Error('SESSION_REVOKED: Headless client cannot prompt for phone')),
+        getAuthCode: () => Promise.reject(new Error('SESSION_REVOKED: Headless client cannot prompt for auth code')),
+        getPassword: () => Promise.reject(new Error('SESSION_REVOKED: Headless client cannot prompt for password'))
+    }));
+    console.log(`[tg-client] Logged in successfully! Waiting for messages...`);
 }
 
 export async function sendTestMessage(messageText) {

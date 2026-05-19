@@ -22,6 +22,7 @@ export function createClient(userId, options = {}) {
         apiHash: TG_API_HASH,
         databaseDirectory: dbDir,
         filesDirectory: path.join(dbDir, 'files'),
+        skipOldUpdates: true,
         tdlibParameters: {
             database_directory: dbDir,
             files_directory: path.join(dbDir, 'files'),

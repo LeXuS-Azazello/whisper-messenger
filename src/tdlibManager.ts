@@ -19,6 +19,7 @@ export function createTdClient(userId: string, options: any = {}) {
         apiHash: process.env.TELEGRAM_APP_HASH || 'changeme',
         databaseDirectory: dbDir,
         filesDirectory: path.join(dbDir, 'files'),
+        skipOldUpdates: true,
         ...options
     });
 
