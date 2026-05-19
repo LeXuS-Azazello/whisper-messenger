@@ -1,0 +1,55 @@
+import { redis } from './config.js';
+import { TARGET_USER_ID, MANAGER_URL, MANAGER_SECRET } from './config.js';
+
+export async function safeSendMessage(client, chatId, replyToMessageId, text, attempt = 1) {
+    try {
+        const result = await client.invoke({
+            '_': 'sendMessage',
+            chat_id: chatId,
+            reply_to_message_id: replyToMessageId,
+            input_message_content: {
+                '_': 'inputMessageText',
+                text: {
+                    '_': 'formattedText',
+                    text: text
+                }
+            }
+        });
+        return result;
+    } catch (err) {
+        const errorMsg = err.message || '';
+        if (errorMsg.includes('FLOOD_WAIT_') && attempt <= 3) {
+            const match = errorMsg.match(/FLOOD_WAIT_(\d+)/);
+            const waitSeconds = match ? parseInt(match[1], 10) : 5;
+            console.warn(`[messenger] ⚠️ FLOOD_WAIT. Waiting ${waitSeconds}s (attempt ${attempt}/3)...`);
+            await new Promise(resolve => setTimeout(resolve, waitSeconds * 1000 + 500));
+            return safeSendMessage(client, chatId, replyToMessageId, text, attempt + 1);
+        }
+        throw err;
+    }
+}
+
+export async function deleteMessage(client, chatId, messageId) {
+    if (!messageId) return;
+    try {
+        await client.invoke({
+            '_': 'deleteMessages',
+            chat_id: chatId,
+            message_ids: [messageId],
+            revoke: true
+        });
+        console.log(`[messenger] 🗑️ Deleted message ${messageId} in chat ${chatId}`);
+    } catch (deleteErr) {
+        console.warn(`[messenger] Failed to delete message ${messageId}:`, deleteErr.message);
+    }
+}
+
+export async function updateManagerStats(userId) {
+    const managerApi = MANAGER_URL || 'http://tg-client-manager:3000';
+    const secret = MANAGER_SECRET || 'changeme';
+    fetch(`${managerApi}/internal/stats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-manager-secret': secret },
+        body: JSON.stringify({ userId, secret })
+    }).catch(e => console.error('[messenger] Failed to update stats:', e.message));
+}

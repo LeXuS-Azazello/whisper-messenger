@@ -7,7 +7,6 @@ import { TG_API_ID, TG_API_HASH } from './config.js';
 
 const require = createRequire(import.meta.url);
 
-// Prioritize custom-compiled TDLib path if provided and exists (e.g. for custom Debian build)
 const customPath = process.env.TDLIB_PATH;
 let tdjsonPath;
 if (customPath && fs.existsSync(customPath)) {
@@ -17,7 +16,7 @@ if (customPath && fs.existsSync(customPath)) {
         const { getTdjson } = require('prebuilt-tdlib');
         tdjsonPath = getTdjson();
     } catch (e) {
-        throw new Error(`[tg-client-utils] TDLib binary not found! TDLIB_PATH ("${customPath}") does not exist, and 'prebuilt-tdlib' is not installed.`);
+        throw new Error(`[tg-client-utils] TDLib binary not found! Please set TDLIB_PATH or install prebuilt-tdlib.`);
     }
 }
 tdl.configure({ tdjson: tdjsonPath });
@@ -26,10 +25,7 @@ export function createClient(userId, options = {}) {
     const dbDir = path.join('/app/tdlib-data', String(userId));
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-    console.log(`[tg-client-utils] Creating TDLib client for user "${userId}"`);
-    console.log(`[tg-client-utils] Configured databaseDirectory: ${dbDir}`);
-
-    const client = tdl.createClient({
+    return tdl.createClient({
         apiId: Number(TG_API_ID),
         apiHash: TG_API_HASH,
         databaseDirectory: dbDir,
@@ -50,7 +46,6 @@ export function createClient(userId, options = {}) {
         },
         ...options
     });
-    return client;
 }
 
 export function unpackSession(userId, base64) {
@@ -60,10 +55,7 @@ export function unpackSession(userId, base64) {
         if (fs.existsSync(dbDir)) fs.rmSync(dbDir, { recursive: true, force: true });
         fs.mkdirSync(dbDir, { recursive: true });
         const zip = new AdmZip(Buffer.from(base64, 'base64'));
-        const entries = zip.getEntries();
-        console.log(`[utils] Unpacking session for ${userId}: ${entries.length} files found in ZIP`);
         zip.extractAllTo(dbDir, true);
-        console.log(`[utils] Successfully unpacked session for ${userId} to ${dbDir}`);
         return dbDir;
     } catch (e) {
         console.error(`[utils] Failed to unpack session for ${userId}:`, e.message);
