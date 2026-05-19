@@ -105,18 +105,20 @@ login({ appState: appStateParsed }, loginOpts, (err, api) => {
         // Process message & message_reply types
         if (message.type !== 'message' && message.type !== 'message_reply') return;
 
-        const isGroup = message.isGroup;
-        const isPrivate = isGroup === false || (message.threadID === message.senderID);
+        // Only handle incoming one-to-one (private) messages from other users
+        const isGroup = !!message.isGroup;
+        const isFromSelf = String(message.senderID) === String(myId);
+        const isPrivate = !isGroup && !isFromSelf;
 
         if (!isPrivate) return;
-
-        // Ignore outgoing messages unless it's a self-chat (threadID === myId)
-        if (message.senderID === myId && message.threadID !== myId) return;
 
         if (message.attachments && message.attachments.length > 0) {
             for (const attachment of message.attachments) {
                 const isAudio = attachment.type === 'audio' || attachment.type === 'voice_clip';
                 const isVideo = attachment.type === 'video';
+
+                // Only transcribe voice/audio or video attachments in private chats
+                if (!isAudio && !isVideo) continue;
 
                 if (isAudio || isVideo) {
                     const mediaLabel = isVideo ? 'video' : 'voice message';

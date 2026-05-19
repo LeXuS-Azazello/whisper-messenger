@@ -34,9 +34,14 @@ export async function handleLogin(req, res) {
     try {
         login(credentials, loginOpts, async (err, api) => {
             if (err) {
-                console.error(`[auth-fca] Login failed for user ${userId}:`, err);
-                return res.status(401).json({ error: err.error || err.message || 'Login failed' });
-            }
+                    console.error(`[auth-fca] Login failed for user ${userId}:`, err);
+                    const rawMsg = err.error || err.message || 'Login failed';
+                    // If error looks like a JSON parse error, give a clearer hint
+                    if (/JSON|Unexpected|Expected \'\,\' or \'\]\'|position \d+/i.test(String(rawMsg))) {
+                        return res.status(400).json({ error: `Invalid AppState JSON: ${rawMsg}. Ensure you pasted raw AppState JSON (an array) without trailing commas.` });
+                    }
+                    return res.status(401).json({ error: rawMsg });
+                }
 
             try {
                 // Get AppState

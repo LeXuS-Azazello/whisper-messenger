@@ -483,6 +483,18 @@ document.addEventListener('DOMContentLoaded', function () {
             connectFbBtn.innerText = 'Connecting...';
 
             try {
+                // Basic client-side validation: ensure appState is valid JSON before sending
+                if (appState) {
+                    try {
+                        JSON.parse(appState);
+                    } catch (jsonErr) {
+                        alert('Invalid AppState JSON: ' + jsonErr.message + '\nPlease paste raw AppState JSON (an array) without trailing commas.');
+                        connectFbBtn.disabled = false;
+                        connectFbBtn.innerText = 'Connect Account';
+                        return;
+                    }
+                }
+
                 const res = await fetch('/dashboard/facebook/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

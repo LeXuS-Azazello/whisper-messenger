@@ -1,0 +1,13 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "kubectl --kubeconfig=voicemsg-clr-kubeconfig.yaml get": true,
+        "command": true,
+        "kube-dc": true,
+        "kubectl --kubeconfig=voicemsg-clr-kubeconfig.yaml config": true,
+        "kubectl get": true,
+        "/^git add -A && git commit -m \"Validate AppState JSON client-side; improve manager error for invalid AppState\" \\|\\| true && git rev-parse --abbrev-ref HEAD$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
