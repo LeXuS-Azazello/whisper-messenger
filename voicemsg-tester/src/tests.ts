@@ -75,7 +75,7 @@ export class TestSuiteRunner {
 
       // Now run email sending POST request
       log.info(`Executing unmocked POST request to send test email...`);
-      const testEmail = 'test-k8s@voicemsg.net';
+      const testEmail = 'no-reply@voicemsg.net';
       const sendRes = await fetch(`${target.replace(/\/$/, '')}/send`, {
         method: 'POST',
         headers: {
