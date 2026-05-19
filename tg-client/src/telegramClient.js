@@ -16,6 +16,7 @@ const filePromises = new Map();
 const clientStartTime = Math.floor(Date.now() / 1000);
 let oldMessagesProcessed = 0;
 let myUserId = null;
+const WHISPER_MODEL = 'openai/whisper-large-v3-turbo';
 
 function logUpdate(update) {
     if (update['_'] === 'updateFile') {
@@ -35,7 +36,7 @@ function logError(err, context = '') {
 
 async function transcribeAudio(audioBuffer, mimeType) {
     const url = WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
-    const model = 'openai/whisper-large-v3-turbo';
+    const model = WHISPER_MODEL;
 
     console.log(`[tg-client] 🤖 Transcribing with Whisper Turbo at ${url}...`);
 
@@ -91,7 +92,7 @@ async function handleNewMessage(message) {
     // 1. Group filtering: Only private messages
     const isGroup = (typeof chat_id === 'number' && chat_id < 0) || (typeof chat_id === 'string' && chat_id.startsWith('-'));
     if (isGroup) {
-        console.log(`[tg-client] 🚫 Skipping message ${message_id} because chat ${chat_id} is a group/channel`);
+        // console.log(`[tg-client] 🚫 Skipping message ${message_id} because chat ${chat_id} is a group/channel`);
         return;
     }
 
@@ -102,7 +103,7 @@ async function handleNewMessage(message) {
     const isSelfChat = myId && Number(chat_id) === Number(myId);
     if (message.is_outgoing) {
         if (!isSelfChat) {
-            console.log(`[tg-client] 🚫 Skipping outgoing message ${message_id} in chat ${chat_id} (not Saved Messages)`);
+            // console.log(`[tg-client] 🚫 Skipping outgoing message ${message_id} in chat ${chat_id} (not Saved Messages)`);
             return;
         }
         console.log(`[tg-client] 📥 Processing outgoing message ${message_id} in Saved Messages/self chat`);
@@ -186,6 +187,7 @@ async function handleNewMessage(message) {
 
             // 1. Download file
             console.log(`[tg-client] ⏳ Downloading file ${file_id}...`);
+            const downloadStart = Date.now();
             let file = await client.invoke({
                 '_': 'downloadFile',
                 file_id: file_id,
@@ -210,9 +212,10 @@ async function handleNewMessage(message) {
 
             localPath = file.local.path;
             if (!localPath) throw new Error('File download failed: no local path');
+            const downloadDuration = ((Date.now() - downloadStart) / 1000).toFixed(2);
 
-            console.log(`[tg-client] ✅ Downloaded to ${localPath}. Reading...`);
-            
+            console.log(`[tg-client] ✅ Downloaded to ${localPath} in ${downloadDuration}s. Reading...`);
+
             let buffer;
             let currentMimeType = mime_type;
 
@@ -230,10 +233,16 @@ async function handleNewMessage(message) {
             }
 
             // 2. Transcribe
+            const transcriptionStart = Date.now();
             const transcription = await transcribeAudio(buffer, currentMimeType);
-            console.log(`[tg-client] ✅ Transcription: "${transcription.slice(0, 50)}..."`);
+            const transcriptionDuration = ((Date.now() - transcriptionStart) / 1000).toFixed(2);
+            console.log(`[tg-client] ✅ Transcription: "${transcription.slice(0, 50)}..." in ${transcriptionDuration}s`);
 
             if (transcription.trim()) {
+                const replyText = `🎤 ${transcription.trim()}\n\n` +
+                    `⏱ Скачивание: ${downloadDuration}с | Транскрибация: ${transcriptionDuration}с\n` +
+                    `🤖 Модель: ${WHISPER_MODEL}`;
+
                 // 3. Reply with transcription
                 await client.invoke({
                     '_': 'sendMessage',
@@ -243,7 +252,7 @@ async function handleNewMessage(message) {
                         '_': 'inputMessageText',
                         text: {
                             '_': 'formattedText',
-                            text: `🎤 ${transcription}`
+                            text: replyText
                         }
                     }
                 });
@@ -283,7 +292,7 @@ async function handleNewMessage(message) {
                     console.log(`[tg-client] 🗑️ Successfully deleted cached TDLib media file: ${file_id}`);
                 } catch (deleteErr) {
                     console.error(`[tg-client] Failed to delete TDLib file ${file_id}:`, deleteErr.message);
-                    
+
                     // Fallback: if TDLib deletion fails, try deleting the file directly from filesystem
                     if (localPath && fs.existsSync(localPath)) {
                         try {
