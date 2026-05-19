@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whatsapp-client
+  namespace: debugging-testcrash-pub
+spec:
+  replicas: 1 # Note: Manager will scale this or manage multiple internal instances
+  selector:
+    matchLabels:
+      app: whatsapp-client
+  template:
+    metadata:
+      labels:
+        app: whatsapp-client
+    spec:
+      containers:
+      - name: whatsapp-client
+        image: voicemsg.net/whatsapp-client:latest
+        envFrom:
+        - configMapRef:
+            name: app-config
+        volumeMounts:
+        - name: wa-sessions
+          mountPath: /app/.wwebjs_auth
+      volumes:
+      - name: wa-sessions
+        persistentVolumeClaim:
+          claimName: whatsapp-sessions-pvc

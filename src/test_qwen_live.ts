@@ -5,16 +5,16 @@ import { sampleAudioBase64 } from './sample_audio';
 const mockEnv = {
   STATS: {
     get: async (key: string) => {
-      if (key === 'config_local_whisper_url') return process.env.WHISPER_URL || 'http://whisper-turbo:8000';
+      if (key === 'config_local_whisper_url') return process.env.WHISPER_URL || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
       return null;
     },
   },
-  WHISPER_TURBO_URL: process.env.WHISPER_URL || 'http://whisper-turbo:8000',
+  WHISPER_PROVIDER: process.env.WHISPER_URL || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000',
 } as any;
 
 async function runTest() {
   console.log('Testing Whisper Turbo Transcription...');
-  console.log('Target URL:', mockEnv.WHISPER_TURBO_URL);
+  console.log('Target URL:', mockEnv.WHISPER_PROVIDER);
   
   const audioBuffer = Buffer.from(sampleAudioBase64.split(',')[1], 'base64').buffer;
   

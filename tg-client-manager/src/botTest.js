@@ -7,7 +7,7 @@ const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 console.log(`[bot-test] Starting bot with token ${TELEGRAM_BOT_TOKEN.split(':')[0]}...`);
 
 async function transcribeAudio(audioBuffer, mimeType) {
-    const url = process.env.WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
+    const url = process.env.WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
     console.log(`[bot-test] 🤖 Using Whisper Turbo at ${url}`);
     
     const startTime = Date.now();
@@ -15,7 +15,6 @@ async function transcribeAudio(audioBuffer, mimeType) {
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: mimeType });
     formData.append('file', blob, 'audio.ogg');
-    formData.append('model', 'openai/whisper-large-v3-turbo');
     formData.append('language', 'auto');
 
     const response = await fetch(`${url}/v1/audio/transcriptions`, {

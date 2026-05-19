@@ -59,10 +59,10 @@ export default {
         pathname = pathname.slice(0, -1);
       }
 
-      // Health check
+      // ─── Health check ───────────────────────────────────────────────────
       if (pathname === "/health") return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
 
-      // Diagnostic logs
+      // ─── Diagnostic logs ─────────────────────────────────────────────
       if (pathname === "/internal/diagnostic-logs") {
         const secret = url.searchParams.get("secret");
         if (secret !== env.MANAGER_SECRET) return new Response("Unauthorized", { status: 401 });
@@ -72,9 +72,8 @@ export default {
         return await handleGetPodLogs(env, pod);
       }
 
-      // ─── Webhook routes (verify + forward to bridge) ──────────────────────────
-
-      if (pathname === "/webhooks/meta" || pathname === "/webhooks/whatsapp") {
+      // ─── Webhook routes (Meta/Instagram/Line placeholders) ───────────────────
+      if (pathname === "/webhooks/meta" || pathname === "/webhooks/instagram") {
         if (req.method === "GET") {
           const mode = url.searchParams.get("hub.mode");
           const token = url.searchParams.get("hub.verify_token");
@@ -90,63 +89,37 @@ export default {
 
         if (req.method === "POST") {
           const rawBody = await req.text();
-          const verifyError = await verifyWebhook(req, rawBody, env);
-          if (verifyError) return verifyError;
-
           let body: any;
           try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
-
-          // Forward verified webhook to manager
-          const webhookPath = url.pathname + url.search;
-          return fetch(`${managerUrl}${webhookPath}`, {
-            method: req.method,
-            headers: req.headers,
-            body: rawBody,
-            duplex: 'half'
-          } as any);
+          return await handleMetaMessaging(body, env);
         }
       }
 
-      // Telegram webhook
+      if (pathname.startsWith("/webhooks/whatsapp")) {
+        const rawBody = await req.text();
+        let body: any;
+        try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
+        return await handleWhatsApp(body, env);
+      }
+
       if (pathname.startsWith("/webhooks/line/")) {
         const userId = url.pathname.split("/").pop();
         if (!userId) return new Response("Missing User ID", { status: 400 });
 
         const rawBody = await req.text();
-        const signature = req.headers.get("x-line-signature");
-        if (!signature) return new Response("Missing Signature", { status: 400 });
-
         let body: any;
         try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
-
-        const userData = await env.STATS?.get(`user_meta_${userId}`);
-        if (userData) {
-          const user: any = JSON.parse(userData);
-          if (user.lineSecret) {
-            const encoder = new TextEncoder();
-            const key = await crypto.subtle.importKey(
-              'raw', encoder.encode(user.lineSecret),
-              { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-            );
-            const expectedSignature = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody));
-            const expectedSignatureBase64 = btoa(String.fromCharCode(...new Uint8Array(expectedSignature)));
-            if (signature !== expectedSignatureBase64) {
-              console.error(`[line] Signature verification failed for user ${userId}`);
-              return new Response("Invalid Signature", { status: 401 });
-            }
-          }
-        }
-
-        // Forward LINE webhook to manager
-        return fetch(`${managerUrl}${url.pathname}`, {
-          method: req.method,
-          headers: req.headers,
-          body: rawBody,
-          duplex: 'half'
-        } as any);
+        return await handleLine(body, userId, env);
       }
 
-      // ─── Telegram Bot Webhook (for Telegram updates, not LINE) ────────────────
+      if (pathname.startsWith("/webhooks/threads")) {
+        const rawBody = await req.text();
+        let body: any;
+        try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
+        return await handleMetaMessaging(body, env);
+      }
+
+      // ─── Telegram Bot Webhook ───────────────────────────────────────────────
       if (pathname.startsWith("/webhooks/telegram")) {
         const rawBody = await req.text();
         let body: any;
@@ -157,15 +130,6 @@ export default {
           await handleTelegram(update, env);
         }
         return new Response("ok");
-      }
-
-      // ─── Meta Threads Webhook ──────────────────────────────────────────────
-      if (pathname.startsWith("/webhooks/threads")) {
-        const rawBody = await req.text();
-        let body: any;
-        try { body = JSON.parse(rawBody); } catch (e) { return new Response("Bad Request", { status: 400 }); }
-
-        return await handleMetaMessaging(body, env);
       }
 
       // ─── Internal routes (bridge ↔ worker communication) ────────────────────
@@ -195,7 +159,22 @@ export default {
         return await handlePublicAuth(env, req, currentUserId, ctx);
       }
 
-      // ─── Dashboard routes (authenticated) ──────────────────────────────────
+      // ─── WhatsApp Web routes ──────────────────────────────────────────
+      if (pathStartsWith(pathname, "/dashboard/whatsapp-web")) {
+        const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
+        let currentUserId: string | null = null;
+        if (sessionCookie) {
+          currentUserId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
+        }
+
+        if (!currentUserId) {
+          return new Response(null, { status: 302, headers: { "Location": "/" } });
+        }
+
+        const { handleWhatsAppWebAction } = await import("./routes/whatsapp");
+        return await handleWhatsAppWebAction(env, req, currentUserId);
+      }
+
       if (pathStartsWith(pathname, "/dashboard")) {
         const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;

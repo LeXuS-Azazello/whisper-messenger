@@ -1,6 +1,6 @@
 import { createClient } from './utils.js';
 import {
-    TARGET_USER_ID, WHISPER_TURBO_URL,
+    TARGET_USER_ID,
     redis
 } from './config.js';
 import fs from 'fs';
@@ -12,7 +12,6 @@ let client = null;
 let myUserId = null;
 const clientStartTime = Math.floor(Date.now() / 1000);
 let oldMessagesProcessed = 0;
-const WHISPER_MODEL = 'openai/whisper-large-v3-turbo';
 
 function logError(err, context = '') {
     console.error(`[tg-client] ERROR${context ? ' ' + context : ''}:`, err?.stack || err?.message || err);
@@ -72,6 +71,7 @@ export async function handleNewMessage(message) {
             } catch (chatErr) {}
         }
 
+        console.log(`[tg-client] Incoming private/secret message: ${type} from ${chat_id}`);
         incomingQueue.push(message);
         processIncomingQueue();
     }
@@ -139,15 +139,16 @@ async function processSingleMessage(message) {
 
             const transcription = await transcribeAudio(buffer, currentMimeType);
             if (transcription.trim()) {
+                console.log(`[tg-client] Transcription result for msg ${message_id}: ${transcription.trim()}`);
                 const chunks = splitTextIntoChunks(transcription.trim(), 3900);
                 for (let i = 0; i < chunks.length; i++) {
                     let replyText = chunks[i];
-                    if (chunks.length === 1) {
-                        replyText = `🎤 ${replyText}\n\n🤖 Model: ${WHISPER_MODEL}`;
-                    } else {
-                        const idx = i + 1;
-                        replyText = `(Part ${idx}/${chunks.length})\n\n${replyText}${idx === chunks.length ? `\n\n🤖 Model: ${WHISPER_MODEL}` : ''}`;
-                    }
+                     if (chunks.length === 1) {
+                         replyText = `🎤 ${replyText}`;
+                     } else {
+                         const idx = i + 1;
+                         replyText = `(Part ${idx}/${chunks.length})\n\n${replyText}${idx === chunks.length ? '' : ''}`;
+                     }
                     await safeSendMessage(client, chat_id, message_id, replyText);
                     if (i < chunks.length - 1) await new Promise(resolve => setTimeout(resolve, 1500));
                 }

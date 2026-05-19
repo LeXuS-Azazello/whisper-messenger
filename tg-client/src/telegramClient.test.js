@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { 
-    splitTextIntoChunks, 
-    handleNewMessage 
-} from './telegramClient.js';
+import { splitTextIntoChunks } from './transcriber.js';
+import { handleNewMessage } from './telegramClient.js';
 import * as utils from './utils.js';
 import { redis } from './config.js';
 

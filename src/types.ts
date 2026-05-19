@@ -43,9 +43,8 @@ export interface Env {
   META_SYSTEM_USER_ID?: string;
   STATS: KVLike;
   // Whisper Config
-  WHISPER_PROVIDER?: "local" | "whisper-turbo";
-  LOCAL_WHISPER_SECRET?: string;
-  WHISPER_TURBO_URL?: string;
+  WHISPER_PROVIDER?: string;
+  WHISPER_SECRET?: string;
   
   // SMTP Config
   EMAIL_FROM?: string;

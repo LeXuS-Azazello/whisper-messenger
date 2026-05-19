@@ -25,13 +25,11 @@ spec:
             secretKeyRef:
               name: whisper-messenger-env
               key: TELEGRAM_BOT_TOKEN
-        - name: REDIS_URL
-          value: "redis://redis:6379"
-        - name: WHISPER_TURBO_URL
-          value: "http://whisper-turbo:8000"
-        - name: WHISPER_PROVIDER
-          value: "whisper-turbo"
-        resources:
+         - name: REDIS_URL
+           value: "redis://redis:6379"
+         - name: WHISPER_PROVIDER
+           value: "http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000"
+         resources:
           requests:
             cpu: "100m"
             memory: "256Mi"

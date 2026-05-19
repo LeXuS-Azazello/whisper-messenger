@@ -152,7 +152,7 @@ export class TestSuiteRunner {
       formData.append('model', 'openai/whisper-large-v3-turbo');
       formData.append('language', 'auto');
 
-      const whisperSecret = this.env.LOCAL_WHISPER_SECRET || '';
+      const whisperSecret = this.env.WHISPER_SECRET || '';
       log.info(`Dispatching request to ${target}/v1/audio/transcriptions...`);
 
       const response = await fetch(`${target.replace(/\/$/, '')}/v1/audio/transcriptions`, {

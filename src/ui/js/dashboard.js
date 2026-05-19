@@ -372,8 +372,102 @@ document.addEventListener('DOMContentLoaded', function () {
         location.href = '/auth/threads/login';
     });
 
-    // Tab Switching Logic
-    const tabButtons = document.querySelectorAll('.nav-item, .bottom-nav-item');
+    // WhatsApp Web Logic
+    const connectWaWebBtn = document.getElementById('connect-wa-web-btn');
+    const disconnectWaWebBtn = document.getElementById('disconnect-wa-web-btn');
+    const waWebQrContainer = document.getElementById('wa-web-qr-container');
+    const waWebQrImg = document.getElementById('wa-web-qr-img');
+    const waWebStatus = document.getElementById('wa-web-status');
+
+    let waQrPollInterval = null;
+
+    function stopWaQrPolling() {
+        if (waQrPollInterval) clearInterval(waQrPollInterval);
+        waQrPollInterval = null;
+    }
+
+    function startWaQrPolling() {
+        stopWaQrPolling();
+        waQrPollInterval = setInterval(() => {
+            fetch('/dashboard/whatsapp-web/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.connected) {
+                        stopWaQrPolling();
+                        document.getElementById('wa-web-qr-container').style.display = 'none';
+                        waWebStatus.innerText = 'CONNECTED';
+                        waWebStatus.className = 'status-tag active';
+                        disconnectWaWebBtn.style.display = 'block';
+                        connectWaWebBtn.style.display = 'none';
+                        alert('WhatsApp connected successfully!');
+                    }
+                })
+                .catch(err => console.error('WA status poll error:', err));
+        }, 3000);
+    }
+
+    if (connectWaWebBtn) {
+        connectWaWebBtn.addEventListener('click', async () => {
+            connectWaWebBtn.disabled = true;
+            connectWaWebBtn.innerText = 'Initializing...';
+            
+            try {
+                const initRes = await fetch('/dashboard/whatsapp-web/init', { method: 'POST' });
+                const initData = await initRes.json();
+                
+                if (initData.status === 'starting' || initData.status === 'already_running') {
+                    const qrRes = await fetch('/dashboard/whatsapp-web/qr');
+                    const qrData = await qrRes.json();
+                    
+                    if (qrData.qr) {
+                        waWebQrImg.src = qrData.qr;
+                        waWebQrContainer.style.display = 'block';
+                        startWaQrPolling();
+                        connectWaWebBtn.innerText = 'Waiting for scan...';
+                    } else {
+                        // Check if already connected
+                        const statusRes = await fetch('/dashboard/whatsapp-web/status');
+                        const statusData = await statusRes.json();
+                        if (statusData.connected) {
+                            waWebStatus.innerText = 'CONNECTED';
+                            waWebStatus.className = 'status-tag active';
+                            disconnectWaWebBtn.style.display = 'block';
+                            connectWaWebBtn.style.display = 'none';
+                        } else {
+                            alert('QR code not available yet. Please wait a few seconds.');
+                            connectWaWebBtn.disabled = false;
+                            connectWaWebBtn.innerText = 'Connect via QR Code';
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Connection failed');
+                connectWaWebBtn.disabled = false;
+                connectWaWebBtn.innerText = 'Connect via QR Code';
+            }
+        });
+    }
+
+    if (disconnectWaWebBtn) {
+        disconnectWaWebBtn.addEventListener('click', async () => {
+            if (!confirm('Disconnect WhatsApp account?')) return;
+            await fetch('/dashboard/whatsapp-web/disconnect', { method: 'POST' });
+            location.reload();
+        });
+    }
+
+    // Initial status check on load
+    window.addEventListener('load', async () => {
+        const res = await fetch('/dashboard/whatsapp-web/status');
+        const data = await res.json();
+        if (data.connected) {
+            waWebStatus.innerText = 'CONNECTED';
+            waWebStatus.className = 'status-tag active';
+            disconnectWaWebBtn.style.display = 'block';
+            connectWaWebBtn.style.display = 'none';
+        }
+    });
     const tabPanes = document.querySelectorAll('.tab-pane');
     const sectionTitle = document.getElementById('current-section-title');
     const sectionSubtitle = document.getElementById('current-section-subtitle');

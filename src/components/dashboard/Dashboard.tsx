@@ -220,57 +220,35 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                         </div>
                                     </div>
 
-                                    {/* WhatsApp Integration */}
-                                    <div class="card wa-card">
+                                    {/* WhatsApp Web Integration */}
+                                    <div class="card wa-web-card">
                                         <div class="card-header">
                                             <h3 class="card-title">
-                                                <span class="icon-wa">◉</span> WhatsApp
+                                                <span class="icon-wa-web">◉</span> WhatsApp Web
                                             </h3>
-                                            <span class={`status-tag ${user.whatsappToken ? 'active' : 'inactive'}`}>
-                                                {user.whatsappToken ? 'SETUP' : 'NOT SETUP'}
+                                            <span id="wa-web-status" class="status-tag inactive">
+                                                NOT CONNECTED
                                             </span>
                                         </div>
                                         <div class="card-content">
                                             <p class="card-description">
-                                                Link your WhatsApp Business phone number using direct cloud credentials to automate voice replies.
+                                                Connect your personal WhatsApp account instantly by scanning a QR code. No Business API or complex setup required.
                                             </p>
-                                            <div class="button-group-2">
-                                                <a href="https://business.facebook.com/wa/manage/phone-numbers/" target="_blank" class="btn btn-secondary btn-xs">📱 Manager</a>
-                                                <a href="https://developers.facebook.com/apps/" target="_blank" class="btn btn-secondary btn-xs">⚙️ Developers</a>
-                                            </div>
-                                            <div class="guide-toggle" onClick={(e) => { e.currentTarget.nextElementSibling?.classList.toggle('active'); e.currentTarget.classList.toggle('active'); }}>
-                                                <span>⚙️ Webhook Setup</span>
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                            </div>
-                                            <div class="setup-guide wa">
-                                                <h4 class="guide-title">⚙️ Webhook Setup:</h4>
-                                                <div class="guide-content">
-                                                    <div class="guide-item">
-                                                        <strong>Callback URL:</strong>
-                                                        <div class="copy-box">
-                                                             <code onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN}/webhooks/whatsapp`)}>.../webhooks/whatsapp</code>
-                                                             <button class="copy-btn" onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN}/webhooks/whatsapp`)}>📋</button>
-                                                        </div>
-                                                    </div>
-                                                    <div class="guide-item">
-                                                        <strong>Verify Token:</strong>
-                                                        <div class="copy-box">
-                                                            <code class="dimmed">(Check Admin Panel)</code>
-                                                        </div>
-                                                    </div>
+                                            
+                                            <div id="wa-web-qr-container" style={{ display: 'none', textAlign: 'center', marginBottom: '1rem' }}>
+                                                <div class="qr-wrapper" style={{ background: 'white', padding: '10px', display: 'inline-block', borderRadius: '8px' }}>
+                                                    <img id="wa-web-qr-img" src="" style={{ width: '200px', height: '200px' }} />
                                                 </div>
+                                                <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>Scan this QR code with WhatsApp</p>
                                             </div>
-                                            <div class="input-group">
-                                                <label class="input-label">Phone Number ID</label>
-                                                <input type="text" id="wa-phone-id" class="input-field" value={user.whatsappPhoneId || ''} placeholder="1029384..." />
-                                            </div>
-                                            <div class="input-group">
-                                                <label class="input-label">Access Token</label>
-                                                <input type="password" id="wa-token" class="input-field" value={user.whatsappToken || ''} placeholder="EAANH..." />
-                                            </div>
+
                                             <div class="button-group-2">
-                                                <button class="btn btn-primary" id="save-wa-btn">Save Settings</button>
-                                                {user.whatsappToken && <button class="btn btn-secondary" id="test-wa-btn">Test</button>}
+                                                <button class="btn btn-primary" id="connect-wa-web-btn">
+                                                    Connect via QR Code
+                                                </button>
+                                                <button class="btn btn-danger btn-xs" id="disconnect-wa-web-btn" style={{ display: 'none' }}>
+                                                    Disconnect
+                                                </button>
                                             </div>
                                         </div>
                                     </div>

@@ -425,7 +425,7 @@ app.get('/', (c) => {
         <div class="test-header">
           <div>
             <div class="test-title">Whisper-Turbo ASR</div>
-            <div class="test-target">http://whisper-turbo:8000</div>
+            <div class="test-target">http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000</div>
           </div>
           <span class="status-indicator" id="ind-whisper-turbo"></span>
         </div>

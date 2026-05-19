@@ -1,10 +1,7 @@
 # 🎙️ Voice Messenger
 
-> **The ultimate multi-platform voice-to-text bridge connecting Meta (FB/Insta), WhatsApp, LINE, and Telegram to state-of-the-art ASR (Whisper large-v3-turbo).**
+> **The ultimate multi-platform voice-to-text bridge connecting Meta (FB/Insta), WhatsApp-web, LINE, and Telegram to state-of-the-art ASR (Whisper large-v3-turbo).**
 
-[![Architecture](https://img.shields.io/badge/Architecture-Kubernetes--Native-blue?style=for-the-badge&logo=kubernetes)]()
-[![Backend](https://img.shields.io/badge/Stack-Node.js%20%7C%20TypeScript%20%7C%20Hono-green?style=for-the-badge&logo=node.js)]()
-[![AI](https://img.shields.io/badge/AI-Whisper%20Turbo-orange?style=for-the-badge&logo=openai)]()
 
 ---
 
@@ -62,7 +59,7 @@ graph TD
 | **Backend** | TypeScript, Node.js, Hono, Express |
 | **Frontend** | Preact, SSR, Vanilla CSS (Premium Aesthetics) |
 | **Database** | Redis (Queue/Stats), MongoDB (Persistence) |
-| **AI/ASR** | Whisper Turbo |
+| **AI/ASR** | Whisper large-v3-turbo |
 | **Infrastructure** | Kubernetes (Kustomize), Docker |
 | **Monitoring** | Prometheus, Grafana, Fluentd |
 | **Ingress** | NGINX |
@@ -90,7 +87,7 @@ npm run deploy:k8s
 | :--- | :--- | :--- |
 | **Frontend** | `https://voicemsg.net` | Main Dashboard & Landing |
 | **Client Manager** | `http://tg-client-manager:3000` *(Internal)* | Manager Logic |
-| **AI API** | `http://whisper-turbo:8000` *(Internal)* | Whisper Turbo Access |
+| **AI API** | `http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000` *(Internal)* | Whisper Turbo Access |
 
 ---
 

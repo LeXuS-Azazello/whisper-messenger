@@ -5,7 +5,7 @@ export async function transcribeWithFallback(
   env: Env,
   providerOverride?: string
 ): Promise<{ text: string; model?: string }> {
-  const url = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || "http://whisper-turbo:8000";
+  const url = await env.STATS.get("config_local_whisper_url") || env.WHISPER_PROVIDER || "http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000";
   const modelName = "openai/whisper-large-v3-turbo";
 
   if (!url) throw new Error("Whisper Turbo URL not configured");
@@ -13,10 +13,9 @@ export async function transcribeWithFallback(
   const formData = new FormData();
   const blob = new Blob([audio], { type: "audio/ogg" });
   formData.append("file", blob, "audio.ogg");
-  formData.append("model", modelName);
   formData.append("language", "auto");
 
-  const secret = env.LOCAL_WHISPER_SECRET || ""; 
+  const secret = env.WHISPER_SECRET || ""; 
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300000); // 300s (5m) to match Ingress timeout

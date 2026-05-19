@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { WHISPER_TURBO_URL, WHISPER_MODEL } from './config.js';
+import { WHISPER_PROVIDER, WHISPER_SECRET } from './config.js';
 
 const execPromise = promisify(exec);
 
@@ -18,17 +18,22 @@ export async function extractAudioFromVideo(videoPath) {
 }
 
 export async function transcribeAudio(audioBuffer, mimeType) {
-    const url = WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
+    const url = WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: mimeType });
     const fileName = mimeType === 'audio/wav' ? 'audio.wav' : 'audio.ogg';
-    
+
     formData.append('file', blob, fileName);
-    formData.append('model', WHISPER_MODEL);
     formData.append('language', 'auto');
+
+    const headers = {};
+    if (WHISPER_SECRET) {
+        headers['Authorization'] = `Bearer ${WHISPER_SECRET}`;
+    }
 
     const response = await fetch(`${url}/v1/audio/transcriptions`, {
         method: 'POST',
+        headers,
         body: formData,
         signal: AbortSignal.timeout(60000)
     });

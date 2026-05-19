@@ -75,7 +75,7 @@ export async function runDiagnostics(env: Env): Promise<Response> {
 
     // 4. Test ASR
     try {
-        const asrUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || 'http://whisper-turbo:8000';
+        const asrUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
 
         const start = Date.now();
         const res = await fetch(`${asrUrl}/v1/models`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
@@ -245,20 +245,18 @@ export async function getUsersJson(env: Env): Promise<Response> {
 }
 
 export async function getWhisperConfig(env: Env): Promise<Response> {
-    const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || 'whisper-turbo';
-    const localUrl = await env.STATS.get("config_local_whisper_url") || env.WHISPER_TURBO_URL || "";
-    const localSecret = await env.STATS.get("config_local_whisper_secret") || env.LOCAL_WHISPER_SECRET || "";
+    const provider = env.WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
+    const localSecret = env.WHISPER_SECRET || "";
 
-    return Response.json({ provider, localUrl, localSecret });
+    return Response.json({ provider, localSecret });
 }
 
 export async function updateWhisperConfig(env: Env, req: Request): Promise<Response> {
-    const { provider, localUrl, localSecret } = await req.json() as any;
+    const { provider, localSecret } = await req.json() as any;
     const { default: ServerSetting } = await import("../models/ServerSetting");
 
     const settings = [
         { key: "config_whisper_provider", value: provider },
-        { key: "config_local_whisper_url", value: localUrl },
         { key: "config_local_whisper_secret", value: localSecret }
     ];
 
@@ -344,7 +342,7 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
 
 export async function renderDashboardPage(env: Env, origin: string): Promise<Response> {
     const users = await fetchUsersWithStatus(env);
-    const provider = await env.STATS.get("config_whisper_provider") || env.WHISPER_PROVIDER || 'whisper-turbo';
+    const provider = env.WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
     const checks: HealthChecks = {
         VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
         META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),

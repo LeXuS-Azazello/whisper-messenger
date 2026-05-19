@@ -231,15 +231,11 @@ export async function spawnPod(userId, session) {
     // Add dynamic config from Redis as Environment Variables
     console.log(`[/spawn] Step 9: Loading dynamic configurations from Redis...`);
     try {
-        const provider = await redis.get("config_whisper_provider") || 'whisper-turbo';
-        const model = await redis.get("config_whisper_model") || 'openai/whisper-large-v3-turbo';
-        const turboUrl = await redis.get("config_local_whisper_url") || 'http://whisper-turbo:8000';
-
+        const provider = env.WHISPER_PROVIDER || 'http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000';
+        
         container.env.push({ name: 'WHISPER_PROVIDER', value: provider });
-        container.env.push({ name: 'WHISPER_MODEL', value: model });
-        container.env.push({ name: 'WHISPER_TURBO_URL', value: turboUrl });
-
-        console.log(`[/spawn] Redis dynamic config: provider="${provider}", model="${model}", url="${turboUrl}"`);
+        
+        console.log(`[/spawn] Redis dynamic config: provider="${provider}"`);
     } catch (e) {
         console.warn(`[/spawn] Failed to fetch dynamic config from Redis:`, e.message);
     }

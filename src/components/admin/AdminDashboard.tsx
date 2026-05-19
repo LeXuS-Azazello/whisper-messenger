@@ -151,7 +151,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                             </div>
                         </div>
 
-                        <div class="card">
+                        <div class="card" style={{ display: 'none' }}>
                             <div class="card-header">
                                 <h3 class="card-title">
                                     <span style={{ color: '#8B5CF6' }}>✦</span> Echo AI Provider
@@ -180,7 +180,33 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 <div id="local-config-section" style={{ display: 'none', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '12px', marginBottom: '15px' }}>
                                     <div class="input-group">
                                         <label class="input-label">Whisper URL</label>
-                                        <input type="text" id="local-whisper-url" class="input-field" placeholder="http://whisper-turbo:8000" />
+                                        <input type="text" id="local-whisper-url" class="input-field" placeholder="http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000" />
+                                    </div>
+                                    <div class="input-group" style={{ marginTop: '10px' }}>
+                                        <label class="input-label">Auth Secret (Optional)</label>
+                                        <input type="password" id="local-whisper-secret" class="input-field" placeholder="Bearer secret" />
+                                    </div>
+                                </div>
+
+                                <button class="btn" id="save-whisper-btn" style={{ marginTop: '15px', background: '#8B5CF6', width: '100%', borderRadius: '12px', padding: '10px', fontWeight: '600' }}>Save AI Config</button>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                                    <button class="btn" id="test-s2t-btn" style={{ margin: 0, background: 'rgba(139, 92, 246, 0.1)', color: '#8B5CF6', border: '1px solid #8B5CF6', borderRadius: '12px', padding: '10px', fontWeight: '600', fontSize: '12px' }}>Test Sample</button>
+                                    <button class="btn" id="record-test-btn" style={{ margin: 0, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '12px', padding: '10px', fontWeight: '600', fontSize: '12px' }}>Record 5s & Test</button>
+                                </div>
+                            </div>
+                        
+                            <div style={{ marginTop: '10px' }}>
+                                <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <input type="radio" name="whisper_provider" value="whisper-turbo" id="provider-whisper-turbo" checked={(checks as any).WHISPER_PROVIDER === 'whisper-turbo'} />
+                                        <span style={{ fontSize: '14px', fontWeight: '600' }}>Whisper Turbo</span>
+                                    </label>
+                                </div>
+
+                                <div id="local-config-section" style={{ display: 'none', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '12px', marginBottom: '15px' }}>
+                                    <div class="input-group">
+                                        <label class="input-label">Whisper URL</label>
+                                        <input type="text" id="local-whisper-url" class="input-field" placeholder="http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000" />
                                     </div>
                                     <div class="input-group" style={{ marginTop: '10px' }}>
                                         <label class="input-label">Auth Secret (Optional)</label>
@@ -232,8 +258,9 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                                 <h4 style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '700' }}>Active Users Stats</h4>
                                 <div class="user-stats-list">
                                     {users.filter(u => (u.transcriptionCount || 0) > 0)
-                                          .sort((a, b) => (b.transcriptionCount || 0) - (a.transcriptionCount || 0))
-                                          .map(u => (
+                                           .slice()
+                                           .sort((a, b) => (b.transcriptionCount || 0) - (a.transcriptionCount || 0))
+                                           .map(u => (
                                         <div class="user-stat-item" key={u.userId} style={{ marginBottom: '8px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

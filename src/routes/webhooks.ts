@@ -1,24 +1,20 @@
 import { Env, MetaWebhookBody, WhatsAppWebhookBody } from "../types";
 import { TelegramWebhookUpdate } from "../telegram";
-import {
-  processTelegramWebhook,
-  processMetaMessagingWebhook,
-  processWhatsAppWebhook,
-  processLineWebhook
-} from "../controllers/webhookController";
+import { processTelegramWebhook } from "../controllers/webhookController";
 
 export async function handleTelegram(update: TelegramWebhookUpdate, env: Env): Promise<Response> {
   return await processTelegramWebhook(update, env);
 }
 
-export async function handleMetaMessaging(body: MetaWebhookBody, env: Env): Promise<Response> {
-  return await processMetaMessagingWebhook(body, env);
+// Placeholder handlers - to be implemented when Meta/Instagram (Threads) and Line are needed
+export async function handleMetaMessaging(_body: MetaWebhookBody, _env: Env): Promise<Response> {
+  return new Response("Not implemented", { status: 501 });
 }
 
-export async function handleWhatsApp(body: WhatsAppWebhookBody, env: Env): Promise<Response> {
-  return await processWhatsAppWebhook(body, env);
+export async function handleWhatsApp(_body: WhatsAppWebhookBody, _env: Env): Promise<Response> {
+  return new Response("Not implemented", { status: 501 });
 }
 
-export async function handleLine(body: any, userId: string, env: Env): Promise<Response> {
-  return await processLineWebhook(body, userId, env);
+export async function handleLine(_body: any, _userId: string, _env: Env): Promise<Response> {
+  return new Response("Not implemented", { status: 501 });
 }
