@@ -89,6 +89,82 @@ if [[ -n "${HARBOR_USER:-}" && -n "${HARBOR_PASS:-}" ]]; then
 fi
 
 
+FORCE_REBUILD=false
+if [[ "${1:-}" == "--force" || "${1:-}" == "-f" ]]; then
+    FORCE_REBUILD=true
+    echo ">>> Force rebuild enabled!"
+fi
+
+check_dir_changed() {
+    local dir=$1
+    if [ "$FORCE_REBUILD" = "true" ]; then
+        return 0
+    fi
+    
+    local hash_file=".local_build_hashes"
+    mkdir -p "$(dirname "$hash_file")"
+    touch "$hash_file"
+    
+    local current_hash
+    if [ "$dir" = "." ]; then
+        # For frontend, hash root files and src/
+        current_hash=$((find . -maxdepth 1 -type f -not -name '.env' -not -name '.local_build_hashes'; find src -type f) | sort | xargs md5sum | md5sum | cut -d' ' -f1)
+    else
+        current_hash=$(find "$dir" -maxdepth 3 -type f \
+            -not -path '*/.*' \
+            -not -path '*/node_modules/*' \
+            -not -path '*/dist/*' \
+            -not -path '*/public/audio/*' \
+            -not -path '*/sessions/*' \
+            -not -path '*/scratch/*' \
+            -not -path '*/.env' \
+            -not -name 'secret-update.yaml' \
+            -not -name '.local_build_hashes' \
+            2>/dev/null | sort | xargs md5sum 2>/dev/null | md5sum | cut -d' ' -f1)
+    fi
+    
+    local old_hash
+    old_hash=$(grep "^$dir:" "$hash_file" | cut -d':' -f2 || echo "")
+    
+    if [ "$current_hash" = "$old_hash" ]; then
+        return 1 # Not changed
+    else
+        # Update hash
+        grep -v "^$dir:" "$hash_file" > "${hash_file}.tmp" || true
+        echo "$dir:$current_hash" >> "${hash_file}.tmp"
+        mv "${hash_file}.tmp" "$hash_file"
+        return 0 # Changed
+    fi
+}
+
+build_and_push_image() {
+    local name=$1
+    local image_path=$2
+    local dockerfile=$3
+    local image_tag=$4
+    local latest_image="${REPO}/${name}:latest"
+    
+    # Try to check local docker or pull the latest image to check if it exists
+    local has_latest=false
+    if docker image inspect "$latest_image" >/dev/null 2>&1; then
+        has_latest=true
+    elif docker pull "$latest_image" >/dev/null 2>&1; then
+        has_latest=true
+    fi
+    
+    if [ "$has_latest" = "true" ] && ! check_dir_changed "$image_path"; then
+        echo ">>> [SKIP BUILD] $name has not changed. Re-tagging existing latest image..."
+        docker tag "$latest_image" "$image_tag"
+        docker push "$image_tag"
+    else
+        echo ">>> [BUILD] Building and pushing $name..."
+        docker build -t "$image_tag" -f "$dockerfile" "$image_path"
+        docker tag "$image_tag" "$latest_image"
+        docker push "$image_tag"
+        docker push "$latest_image"
+    fi
+}
+
 FRONTEND_IMAGE="${REPO}/whisper-frontend:${TAG}"
 MANAGER_IMAGE="${REPO}/whisper-tg-client-manager:${TAG}"
 TG_CLIENT_IMAGE="${REPO}/whisper-tg-client:${TAG}"
@@ -112,58 +188,31 @@ if [ -d "tdlib" ]; then
 fi
 
 echo "1. Frontend: $FRONTEND_IMAGE"
-docker build -t "$FRONTEND_IMAGE" -f Dockerfile .
-docker tag "$FRONTEND_IMAGE" "${REPO}/whisper-frontend:latest"
-docker push "$FRONTEND_IMAGE"
-docker push "${REPO}/whisper-frontend:latest"
+build_and_push_image "whisper-frontend" "." "Dockerfile" "$FRONTEND_IMAGE"
 
 echo "2. Client Manager: $MANAGER_IMAGE"
-docker build -t "$MANAGER_IMAGE" -f tg-client-manager/Dockerfile tg-client-manager/
-docker tag "$MANAGER_IMAGE" "${REPO}/whisper-tg-client-manager:latest"
-docker push "$MANAGER_IMAGE"
-docker push "${REPO}/whisper-tg-client-manager:latest"
+build_and_push_image "whisper-tg-client-manager" "tg-client-manager" "tg-client-manager/Dockerfile" "$MANAGER_IMAGE"
 
 echo "3. TG Client: $TG_CLIENT_IMAGE"
-docker build -t "$TG_CLIENT_IMAGE" -f tg-client/Dockerfile tg-client/
-docker tag "$TG_CLIENT_IMAGE" "${REPO}/whisper-tg-client:latest"
-docker push "$TG_CLIENT_IMAGE"
-docker push "${REPO}/whisper-tg-client:latest"
+build_and_push_image "whisper-tg-client" "tg-client" "tg-client/Dockerfile" "$TG_CLIENT_IMAGE"
 
 echo "4. Tester Service: $TESTER_IMAGE"
-docker build -t "$TESTER_IMAGE" -f voicemsg-tester/Dockerfile voicemsg-tester/
-docker tag "$TESTER_IMAGE" "${REPO}/whisper-tester:latest"
-docker push "$TESTER_IMAGE"
-docker push "${REPO}/whisper-tester:latest"
+build_and_push_image "whisper-tester" "voicemsg-tester" "voicemsg-tester/Dockerfile" "$TESTER_IMAGE"
 
 echo "5. Whisper Service: $WHISPER_IMAGE"
-docker build -t "$WHISPER_IMAGE" -f whisper-service/Dockerfile whisper-service/
-docker tag "$WHISPER_IMAGE" "${REPO}/whisper-service:latest"
-docker push "$WHISPER_IMAGE"
-docker push "${REPO}/whisper-service:latest"
+build_and_push_image "whisper-service" "whisper-service" "whisper-service/Dockerfile" "$WHISPER_IMAGE"
 
 echo "6. FCA Manager: $FCA_MANAGER_IMAGE"
-docker build -t "$FCA_MANAGER_IMAGE" -f facebook-fca-manager/Dockerfile facebook-fca-manager/
-docker tag "$FCA_MANAGER_IMAGE" "${REPO}/facebook-fca-manager:latest"
-docker push "$FCA_MANAGER_IMAGE"
-docker push "${REPO}/facebook-fca-manager:latest"
+build_and_push_image "facebook-fca-manager" "facebook-fca-manager" "facebook-fca-manager/Dockerfile" "$FCA_MANAGER_IMAGE"
 
 echo "7. FCA Client: $FCA_CLIENT_IMAGE"
-docker build -t "$FCA_CLIENT_IMAGE" -f facebook-fca-client/Dockerfile facebook-fca-client/
-docker tag "$FCA_CLIENT_IMAGE" "${REPO}/facebook-fca-client:latest"
-docker push "$FCA_CLIENT_IMAGE"
-docker push "${REPO}/facebook-fca-client:latest"
+build_and_push_image "facebook-fca-client" "facebook-fca-client" "facebook-fca-client/Dockerfile" "$FCA_CLIENT_IMAGE"
 
 echo "8. WhatsApp Baileys Manager: $WA_MANAGER_IMAGE"
-docker build -t "$WA_MANAGER_IMAGE" -f whatsapp-baileys-manager/Dockerfile whatsapp-baileys-manager/
-docker tag "$WA_MANAGER_IMAGE" "${REPO}/whatsapp-baileys-manager:latest"
-docker push "$WA_MANAGER_IMAGE"
-docker push "${REPO}/whatsapp-baileys-manager:latest"
+build_and_push_image "whatsapp-baileys-manager" "whatsapp-baileys-manager" "whatsapp-baileys-manager/Dockerfile" "$WA_MANAGER_IMAGE"
 
 echo "9. WhatsApp Baileys Client: $WA_CLIENT_IMAGE"
-docker build -t "$WA_CLIENT_IMAGE" -f whatsapp-baileys-client/Dockerfile whatsapp-baileys-client/
-docker tag "$WA_CLIENT_IMAGE" "${REPO}/whatsapp-baileys-client:latest"
-docker push "$WA_CLIENT_IMAGE"
-docker push "${REPO}/whatsapp-baileys-client:latest"
+build_and_push_image "whatsapp-baileys-client" "whatsapp-baileys-client" "whatsapp-baileys-client/Dockerfile" "$WA_CLIENT_IMAGE"
 
 # Clean up temporary tdlib injections
 if [ "$HAS_CUSTOM_TDLIB" = true ]; then
