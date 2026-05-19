@@ -18,6 +18,7 @@ resources:
    - cert-manager.yaml
    - voicemsg-tester.yaml
    - voicemsg-cf.yaml
+   - whatsapp-baileys-manager.yaml
 
 
 images:

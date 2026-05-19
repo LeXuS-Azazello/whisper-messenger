@@ -124,3 +124,16 @@ export async function qrCheck(req, res) {
 
     res.json({ done: false });
 }
+
+export async function sendCode(req, res) {
+    return res.status(400).json({ error: 'Phone/code authentication is not supported for WhatsApp Baileys. Please use QR authentication.' });
+}
+
+export async function verifyCode(req, res) {
+    return res.status(400).json({ error: 'Phone/code authentication is not supported for WhatsApp Baileys. Please use QR authentication.' });
+}
+
+export async function verifyPassword(req, res) {
+    return res.status(400).json({ error: 'Password authentication is not supported for WhatsApp Baileys. Please use QR authentication.' });
+}
+

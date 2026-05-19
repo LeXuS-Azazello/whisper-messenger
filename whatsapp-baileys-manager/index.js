@@ -11,8 +11,10 @@ import { fileURLToPath } from 'url';
 import dns from 'dns';
 
 import { MODE, PORT, TARGET_USER_ID, redis, MONGODB_URI, SECRET, WORKER_URL } from './src/config.js';
-import { initK8s, spawnPod, deletePods, listPods, runReconciliation } from './src/k8s.js';
+import { initK8s, spawnPod, deletePods, listPods, runReconciliation, resolveNamespace } from './src/k8s.js';
 import { sendCode, verifyCode, verifyPassword, qrStart, qrCheck, authSessions } from './src/auth.js';
+import { auth, checkConnect } from './src/utils.js';
+import * as k8s from '@kubernetes/client-node';
 import mongoose from 'mongoose';
 import User from './src/models/User.js';
 import MessengerSession from './src/models/MessengerSession.js';

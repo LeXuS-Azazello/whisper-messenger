@@ -7,7 +7,7 @@ import MessengerSession from './models/MessengerSession.js';
 
 let k8sApi = null;
 
-function resolveNamespace() {
+export function resolveNamespace() {
     if (process.env.POD_NAMESPACE) return process.env.POD_NAMESPACE;
     try {
         const ns = fs.readFileSync('/var/run/secrets/kubernetes.io/serviceaccount/namespace', 'utf8').trim();

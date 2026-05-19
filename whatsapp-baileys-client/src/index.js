@@ -31,6 +31,7 @@ const silentLogger = pino({ level: 'silent' });
 
 let sock        = null;
 let isLoggedOut = false;
+let isReconnecting = false;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -61,7 +62,7 @@ function restoreSessionFromEnv() {
         // If creds.json already on disk (PVC), skip env restore
         const credsPath = path.join(SESSION_DIR, 'creds.json');
         if (fs.existsSync(credsPath)) {
-            console.log('[WA-Client] Session already on disk (PVC), skipping env restore');
+            console.log('[WA-Client] Session already on disk (PVC), skipping env restore to preserve newer credentials');
             return;
         }
 
@@ -80,7 +81,10 @@ async function reportStats() {
     try {
         await fetch(`${MANAGER_URL}/internal/stats`, {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-manager-secret': SECRET
+            },
             body:    JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET }),
             signal:  AbortSignal.timeout(10000),
         });
@@ -93,7 +97,10 @@ async function reportAccessRevoked() {
     try {
         await fetch(`${MANAGER_URL}/internal/access-revoked`, {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-manager-secret': SECRET
+            },
             body:    JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET }),
             signal:  AbortSignal.timeout(10000),
         });
@@ -181,7 +188,7 @@ async function processAudio(msg) {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body:    JSON.stringify({
-                    file_base64: base64Audio,
+                    file_data:   base64Audio,
                     mime_type:   mimeType,
                     language:    'auto',
                 }),
@@ -247,7 +254,17 @@ async function connectToWhatsApp() {
 
         if (qr) {
             // Client pods should never need a new QR — session must already exist
-            console.warn('[WA-Client] ⚠️  QR code generated — session missing or expired!');
+            console.warn('[WA-Client] ⚠️  QR code generated — session missing or expired! Self-destructing...');
+            isLoggedOut = true;
+            try {
+                if (fs.existsSync(SESSION_DIR)) {
+                    fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+                }
+            } catch (e) {
+                console.error('[WA-Client] Failed to clean up session dir:', e.message);
+            }
+            await reportAccessRevoked();
+            process.exit(1);
         }
 
         if (connection === 'close') {
@@ -257,12 +274,25 @@ async function connectToWhatsApp() {
 
             if (isLogout) {
                 isLoggedOut = true;
-                console.log('[WA-Client] Logged out — notifying manager and exiting');
+                console.log('[WA-Client] Logged out — deleting session, notifying manager and exiting');
+                try {
+                    if (fs.existsSync(SESSION_DIR)) {
+                        fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+                    }
+                } catch (e) {
+                    console.error('[WA-Client] Failed to clean up session dir:', e.message);
+                }
                 await reportAccessRevoked();
                 process.exit(0);
             } else {
-                console.log('[WA-Client] Reconnecting in 5s...');
-                setTimeout(connectToWhatsApp, 5000);
+                if (!isReconnecting) {
+                    isReconnecting = true;
+                    console.log('[WA-Client] Reconnecting in 5s...');
+                    setTimeout(() => {
+                        isReconnecting = false;
+                        connectToWhatsApp();
+                    }, 5000);
+                }
             }
         } else if (connection === 'open') {
             console.log(`[WA-Client ${TARGET_USER_ID}] ✅ Connected to WhatsApp!`);
@@ -273,11 +303,33 @@ async function connectToWhatsApp() {
         if (type !== 'notify') return;
         for (const msg of messages) {
             if (!msg.message || msg.key.fromMe) continue;
-            if (msg.message.audioMessage || msg.message.videoMessage) {
-                await enqueue(msg);
+            
+            // Strictly process only private, direct messages (JIDs ending with @s.whatsapp.net)
+            if (!msg.key.remoteJid || !msg.key.remoteJid.endsWith('@s.whatsapp.net')) continue;
+
+            const mediaMsg = getMediaMessage(msg.message);
+            if (mediaMsg) {
+                const clonedMsg = {
+                    ...msg,
+                    message: mediaMsg
+                };
+                await enqueue(clonedMsg);
             }
         }
     });
+}
+
+function getMediaMessage(message) {
+    if (!message) return null;
+    if (message.ephemeralMessage?.message) return getMediaMessage(message.ephemeralMessage.message);
+    if (message.viewOnceMessage?.message) return getMediaMessage(message.viewOnceMessage.message);
+    if (message.viewOnceMessageV2?.message) return getMediaMessage(message.viewOnceMessageV2.message);
+    if (message.documentWithCaptionMessage?.message) return getMediaMessage(message.documentWithCaptionMessage.message);
+    
+    if (message.audioMessage || message.videoMessage) {
+        return message;
+    }
+    return null;
 }
 
 // ─── HTTP Server (manager probes) ────────────────────────────────────────────
@@ -292,7 +344,7 @@ function startHttpServer() {
             return res.end(JSON.stringify({
                 alive:     true,
                 userId:    TARGET_USER_ID,
-                connected: !!sock,
+                connected: !!(sock && sock.user),
             }));
         }
 
@@ -301,7 +353,7 @@ function startHttpServer() {
             req.on('data', d => body += d);
             req.on('end', async () => {
                 try {
-                    if (!sock) return respond(res, 503, { error: 'Not connected' });
+                    if (!sock || !sock.user) return respond(res, 503, { error: 'Not fully connected/authenticated' });
                     const me = sock.user;
                     respond(res, 200, { success: true, me, userId: TARGET_USER_ID });
                 } catch (e) {
