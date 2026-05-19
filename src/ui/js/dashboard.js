@@ -1,6 +1,10 @@
 document.addEventListener('DOMContentLoaded', function () {
     // Basic elements
     const logoutBtn = document.getElementById('logout-btn');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const sectionTitle = document.getElementById('current-section-title');
+    const sectionSubtitle = document.getElementById('current-section-subtitle');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', () => { location.href = '/auth/logout'; });
     }
@@ -598,7 +602,7 @@ document.addEventListener('DOMContentLoaded', function () {
             disconnectWaWebBtn.style.display = 'block';
             connectWaWebBtn.style.display = 'none';
         }
-
+    
         // Check FB status
         const fbRes = await fetch('/dashboard/facebook/status');
         const fbData = await fbRes.json();
@@ -610,7 +614,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (disconnectFbBtn) disconnectFbBtn.style.display = 'block';
             if (connectFbBtn) connectFbBtn.style.display = 'none';
         }
-
+    
         // Check Instagram status
         const instaRes = await fetch('/dashboard/instagram/status');
         const instaData = await instaRes.json();
@@ -623,11 +627,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (connectInstaBtn) connectInstaBtn.style.display = 'none';
         }
     });
-
-    const tabPanes = document.querySelectorAll('.tab-pane');
-    const sectionTitle = document.getElementById('current-section-title');
-    const sectionSubtitle = document.getElementById('current-section-subtitle');
-
+    
     const tabMeta = {
         connections: {
             title: 'Connections',

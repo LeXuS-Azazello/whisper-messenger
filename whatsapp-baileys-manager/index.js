@@ -80,7 +80,10 @@ app.post('/auth/send-code', auth, sendCode);
 app.post('/auth/verify-code', auth, verifyCode);
 app.post('/auth/verify-password', auth, verifyPassword);
 app.post('/auth/qr-start', auth, qrStart);
+import { pairingStart } from './src/auth.js';
+
 app.get('/auth/qr-check', auth, qrCheck);
+app.post('/auth/pairing-start', auth, pairingStart);
 
 app.post('/test-wa', auth, async (req, res) => {
     const start = Date.now();

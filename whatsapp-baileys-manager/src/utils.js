@@ -2,28 +2,28 @@ import net from 'net';
 import { SECRET } from './config.js';
 
 export function auth(req, res, next) {
-  const base = `${req.headers['x-forwarded-proto'] || req.protocol || 'http'}://${req.headers.host}`;
-  const url = new URL(req.originalUrl || req.url, base);
-  const pathname = url.pathname;
-  // Allow public auth routes without secret
-  if (pathname.startsWith('/auth')) {
-    return next();
-  }
-  const s = (req.headers['x-manager-secret'] || req.headers['x-bridge-secret'] || req.query.secret || '').trim();
-  const expected = (SECRET || 'changeme').trim();
-  const isMatched = s === expected;
-  
-  if (!isMatched) {
-    console.warn(`[manager-auth] 401 Unauthorized.
-        Received: "${s ? s.slice(0, 3) + '...' + s.slice(-3) : 'NONE'}" (length: ${s.length})
-        Expected match: "${expected ? expected.slice(0, 3) + '...' + expected.slice(-3) : 'NONE'}" (length: ${expected.length})
-        Headers: ${JSON.stringify(req.headers)}
-        Query: ${JSON.stringify(req.query)}
-        Path: ${req.method} ${req.url}
-        Remote IP: ${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`);
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
+    const base = `${req.headers['x-forwarded-proto'] || req.protocol || 'http'}://${req.headers.host}`;
+    const url = new URL(req.originalUrl || req.url, base);
+    const pathname = url.pathname;
+    // Allow public auth routes without secret
+    if (pathname.startsWith('/auth')) {
+        return next();
+    }
+    const s = (req.headers['x-manager-secret'] || req.headers['x-bridge-secret'] || req.query.secret || '').trim();
+    const expected = (SECRET || 'changeme').trim();
+    const isMatched = s === expected;
+    
+    if (!isMatched) {
+        console.warn(`[manager-auth] 401 Unauthorized.
+            Received: "${s ? s.slice(0, 3) + '...' + s.slice(-3) : 'NONE'}" (length: ${s.length})
+            Expected match: "${expected ? expected.slice(0, 3) + '...' + expected.slice(-3) : 'NONE'}" (length: ${expected.length})
+            Headers: ${JSON.stringify(req.headers)}
+            Query: ${JSON.stringify(req.query)}
+            Path: ${req.method} ${req.url}
+            Remote IP: ${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`);
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
 }
 
 export function withTimeout(promise, ms, name = 'Operation') {

@@ -2,11 +2,12 @@ import { WhatsAppBaileysClient } from '../../whatsapp-baileys-client/src/whatsap
 import { Env } from '../../src/types';
 import fs from 'fs/promises';
 import path from 'path';
-import { downloadMediaMessage } from 'baileys';
+import { downloadMediaMessage } from '@whiskeysockets/baileys';
 
 export class WhatsAppBaileysManager {
   private clients: Map<string, WhatsAppBaileysClient> = new Map();
-  private qrCodes: Map<string, string> = new Map();
+  private qrCodes: Map<string, { qr: string, info: string }> = new Map();
+  private pairingCodes: Map<string, string> = new Map();
   private env: Env;
 
   constructor(env: Env) {
@@ -15,16 +16,9 @@ export class WhatsAppBaileysManager {
 
   async bootstrap() {
     console.log('[WhatsAppBaileysManager] Bootstrapping connected clients...');
-    // Find all users who have a WhatsApp session in KV/Redis
-    // Since KV is not searchable, we typically rely on a list of active users in DB 
-    // or a specific prefix. In this case, we can iterate through known users if provided
-    // For now, we'll assume the system will call a recovery method or 
-    // we'll implement a background scan of session keys if the KV allows.
-
-    // For simplicity, you can call this method from the main server start
   }
 
-  async initUserClient(userId: string) {
+  async initUserClient(userId: string, phoneNumber?: string) {
     if (this.clients.has(userId)) {
       return { status: 'already_running' };
     }
@@ -32,12 +26,17 @@ export class WhatsAppBaileysManager {
     const client = new WhatsAppBaileysClient({
       userId,
       env: this.env,
-      onQR: (qr) => {
-        this.qrCodes.set(userId, qr);
+      onQR: (qr, info) => {
+        this.qrCodes.set(userId, { qr, info });
         console.log(`[WhatsAppBaileysManager] QR generated for user ${userId}`);
+      },
+      onPairingCode: (code) => {
+        this.pairingCodes.set(userId, code);
+        console.log(`[WhatsAppBaileysManager] Pairing code generated for user ${userId}: ${code}`);
       },
       onReady: () => {
         this.qrCodes.delete(userId);
+        this.pairingCodes.delete(userId);
         console.log(`[WhatsAppBaileysManager] User ${userId} is now connected`);
       },
       onMessage: async (msg, uid) => {
@@ -46,15 +45,13 @@ export class WhatsAppBaileysManager {
     });
 
     this.clients.set(userId, client);
-    await client.start();
+    await client.start(phoneNumber);
 
     return { status: 'starting' };
   }
 
   async handleIncomingMessage(msg: any, userId: string) {
-    // Check if it's a voice message (audio)
     if (msg?.message?.audioMessage || msg?.message?.voiceMessage) {
-      // For baileys, we need to download the media
       try {
         const client = this.clients.get(userId);
         if (!client) throw new Error('Client not found');
@@ -101,8 +98,12 @@ export class WhatsAppBaileysManager {
     await client.sendMessage(to, text);
   }
 
-  getQR(userId: string): string | null {
+  getQR(userId: string): { qr: string, info: string } | null {
     return this.qrCodes.get(userId) || null;
+  }
+
+  getPairingCode(userId: string): string | null {
+    return this.pairingCodes.get(userId) || null;
   }
 
   async stopClient(userId: string) {
@@ -114,6 +115,7 @@ export class WhatsAppBaileysManager {
   }
 
   isConnected(userId: string): boolean {
-    return this.clients.has(userId) && !this.qrCodes.has(userId);
+    return this.clients.has(userId) && !this.qrCodes.has(userId) && !this.pairingCodes.has(userId);
   }
 }
+
