@@ -30,7 +30,7 @@ export const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://mongodb:27017/v
 
 export const redis = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', {
     maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
+    enableOfflineQueue: true,
     retryStrategy(times) {
         if (MODE === 'USER') return null;
         return Math.min(times * 50, 2000);

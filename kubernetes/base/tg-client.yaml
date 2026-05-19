@@ -15,6 +15,9 @@ data:
         }
       },
       "spec": {
+        "imagePullSecrets": [
+          { "name": "harbor-pull-secret" }
+        ],
         "containers": [{
           "name": "tg-client",
           "image": "harbor.dev.takatan.cloud/devcenter/whisper-tg-client:latest",

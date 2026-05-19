@@ -182,7 +182,21 @@ export async function startUserClient() {
 
     client.on('update', (update) => {
         logUpdate(update);
-        if (update['_'] === 'updateNewMessage') {
+        
+        const type = update['_'] || update['@type'];
+        if (type) {
+            console.log(`[tg-client-update] Received update: ${type}`);
+        }
+
+        if (type === 'updateAuthorizationState') {
+            const state = update.authorization_state?.['@type'] || update.authorization_state?.['_'];
+            console.log(`[tg-client-auth] 🔑 Authorization state: ${state}`);
+            if (state === 'authorizationStateReady') {
+                console.log(`[tg-client-auth] 🎉 SUCCESS: TELEGRAM ACCOUNT SUCCESSFULLY CONNECTED AND AUTHORIZED! Ready to listen and transcribe voice notes.`);
+            }
+        }
+
+        if (type === 'updateNewMessage') {
             handleNewMessage(update.message);
         }
     });

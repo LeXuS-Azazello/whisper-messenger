@@ -19,7 +19,7 @@ export const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
 
 export const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379', {
     maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
+    enableOfflineQueue: true,
     retryStrategy(times) {
         return Math.min(times * 50, 2000);
     }
