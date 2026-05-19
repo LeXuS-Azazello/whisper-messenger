@@ -116,7 +116,7 @@ async def transcribe_path(body: TranscribePathRequest):
                 tmp_audio_path = extract_audio_from_video(file_path)
                 process_path = tmp_audio_path
 
-            generate_kwargs = {"max_new_tokens": 448}
+            generate_kwargs = {"max_new_tokens": 444}  # 448 max_target_positions minus ~4 special prefix tokens
             if language and language != "auto":
                 generate_kwargs["language"] = language
 
@@ -176,7 +176,7 @@ async def transcribe_base64(body: TranscribeBase64Request):
                 subprocess.run(['ffmpeg', '-y', '-i', tmp_path, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', audio_tmp], check=True)
                 process_path = audio_tmp
 
-            generate_kwargs = {"max_new_tokens": 448}
+            generate_kwargs = {"max_new_tokens": 444}  # 448 max_target_positions minus ~4 special prefix tokens
             if body.language and body.language != "auto":
                 generate_kwargs["language"] = body.language
 
@@ -225,7 +225,7 @@ async def transcribe(
 
             generate_kwargs = {
                 "task": task,
-                "max_new_tokens": 448,
+                "max_new_tokens": 444,  # 448 max_target_positions minus ~4 special prefix tokens
             }
             if language and language != "auto":
                 generate_kwargs["language"] = language

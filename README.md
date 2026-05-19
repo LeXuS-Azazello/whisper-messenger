@@ -90,21 +90,39 @@ npm run deploy:k8s
 
 ---
 
+## 📦 WhatsApp Module Naming Convention
+
+Two separate WhatsApp integration strategies — **do not mix up**:
+
+| Module | Directories | Library | Status |
+| :--- | :--- | :--- | :--- |
+| **Baileys** (current) | `whatsapp-baileys-client/` · `whatsapp-baileys-manager/` | `@whiskeysockets/baileys` | ✅ In development |
+| **whatsapp-web** (next) | `whatsapp-client/` · `whatsapp-client-manager/` | `whatsapp-web.js` | 🔜 Planned |
+
+> **Rule**: `whatsapp-baileys-*` = Baileys library. `whatsapp-client*` = whatsapp-web.js library.
+
+---
+
 ## 📂 Project Structure
 
 ```text
 .
-├── src/                    # Frontend & Webhook logic
-│   ├── components/         # Preact UI components
-│   ├── controllers/        # Business logic
-│   ├── routes/             # API & Webhook routing
-│   └── index.ts            # Entry point
-├── tg-client-manager/      # Client Manager (K8s Orchestrator)
-├── tg-client/              # Per-user Telegram engine
-├── kubernetes/             # Infrastructure definitions
-│   ├── base/               # Kustomize base resources
-│   └── overlays/           # Environment-specific configs
-└── scripts/                # Deployment & utility scripts
+├── src/                         # Frontend & Webhook logic
+│   ├── components/              # Preact UI components
+│   ├── controllers/             # Business logic
+│   ├── routes/                  # API & Webhook routing
+│   └── index.ts                 # Entry point
+├── tg-client-manager/           # Telegram Client Manager (K8s Orchestrator)
+├── tg-client/                   # Per-user Telegram engine (tdlib)
+├── whatsapp-baileys-client/     # WhatsApp client — Baileys library
+├── whatsapp-baileys-manager/    # WhatsApp manager — Baileys library
+├── whatsapp-client/             # WhatsApp client — whatsapp-web.js (planned)
+├── whatsapp-client-manager/     # WhatsApp manager — whatsapp-web.js (planned)
+├── whisper-service/             # ASR Python service (Whisper large-v3-turbo)
+├── kubernetes/                  # Infrastructure definitions
+│   ├── base/                    # Kustomize base resources
+│   └── overlays/                # Environment-specific configs
+└── scripts/                     # Deployment & utility scripts
 ```
 
 ---

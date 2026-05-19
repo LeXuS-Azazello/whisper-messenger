@@ -28,7 +28,7 @@ spec:
       labels:
         app: whisper-service
       annotations:
-        rollout-trigger: "202605192015"
+        rollout-trigger: "202605200100"
     spec:
       imagePullSecrets:
       - name: harbor-pull-secret
