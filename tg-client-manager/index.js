@@ -16,6 +16,7 @@ import { initK8s, spawnPod, deletePods, listPods, runReconciliation } from './sr
 import { sendCode, verifyCode, verifyPassword, qrStart, qrCheck, authSessions } from './src/auth.js';
 import mongoose from 'mongoose';
 import User from './src/models/User.js';
+import MessengerSession from './src/models/MessengerSession.js';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -290,6 +291,10 @@ app.post('/delete', auth, async (req, res) => {
         // 3. Update MongoDB
         await User.findOneAndUpdate({ userId: String(userId) }, {
             $unset: { tgSession: "" },
+            isActive: false
+        });
+        await MessengerSession.findOneAndUpdate({ userId: String(userId), platform: 'telegram' }, {
+            $unset: { sessionData: "" },
             isActive: false
         });
 

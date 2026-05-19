@@ -4,6 +4,7 @@ import fs from 'fs';
 import { MODE, API_ID, API_HASH, SECRET, WORKER_URL, DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION, redis } from './config.js';
 import { withTimeout } from './utils.js';
 import User from './models/User.js';
+import MessengerSession from './models/MessengerSession.js';
 
 
 let k8sApi = null;
@@ -85,9 +86,16 @@ export async function spawnPod(userId, session) {
             sessionData = await redis.get(`tg_session_${safeUserId}`);
             if (!sessionData) {
                 console.log(`[/spawn] Session not found in Redis, falling back to MongoDB for user ${safeUserId}`);
-                const dbUser = await User.findOne({ userId: safeUserId });
-                if (dbUser && dbUser.tgSession) {
-                    sessionData = dbUser.tgSession;
+                const sessionDoc = await MessengerSession.findOne({ userId: safeUserId, platform: 'telegram' });
+                if (sessionDoc && sessionDoc.sessionData) {
+                    sessionData = sessionDoc.sessionData;
+                } else {
+                    const dbUser = await User.findOne({ userId: safeUserId });
+                    if (dbUser && dbUser.tgSession) {
+                        sessionData = dbUser.tgSession;
+                    }
+                }
+                if (sessionData) {
                     // Cache it back to Redis
                     await redis.set(`tg_session_${safeUserId}`, sessionData, 'EX', 86400 * 30);
                 }
@@ -207,23 +215,46 @@ export async function runReconciliation() {
     try {
         console.log(`[manager] Starting tg-client reconciliation cycle...`);
         
-        // Find all users with active sessions in MongoDB
-        const users = await User.find({ 
-            tgSession: { $exists: true, $ne: null },
+        // Find all active Telegram sessions in MongoDB
+        const activeSessions = await MessengerSession.find({ 
+            platform: 'telegram',
             isActive: true 
-        });
+        }).catch(() => []);
 
-        if (!Array.isArray(users)) {
-            console.error(`[manager] Invalid response from MongoDB: expected array`);
-            return;
+        // Also fallback to any old User document with a tgSession
+        const oldUsers = await User.find({
+            tgSession: { $exists: true, $ne: null },
+            isActive: true
+        }).catch(() => []);
+
+        // Combine them to form a unified list of users that should be active
+        const unifiedActiveUsers = new Map();
+        for (const sess of activeSessions) {
+            if (sess && sess.userId) {
+                unifiedActiveUsers.set(String(sess.userId), {
+                    userId: String(sess.userId),
+                    tgSession: sess.sessionData
+                });
+            }
         }
-        console.log(`[manager] Found ${users.length} active users in MongoDB to check`);
+        for (const user of oldUsers) {
+            if (user && user.userId) {
+                const uid = String(user.userId);
+                if (!unifiedActiveUsers.has(uid)) {
+                    unifiedActiveUsers.set(uid, {
+                        userId: uid,
+                        tgSession: user.tgSession
+                    });
+                }
+            }
+        }
+
+        console.log(`[manager] Found ${unifiedActiveUsers.size} active users/sessions in MongoDB to check`);
 
         const runningPods = await listPods().catch(() => []);
         const runningUserIds = new Set(runningPods.map(p => String(p.userId)));
 
-        for (const user of users) {
-            const uid = String(user.userId);
+        for (const [uid, userObj] of unifiedActiveUsers.entries()) {
             if (!runningUserIds.has(uid)) {
                 console.log(`[manager] User ${uid} should be running but no tg-client pod found. Spawning...`);
                 try {
@@ -231,7 +262,7 @@ export async function runReconciliation() {
                     let session = await redis.get(`tg_session_${uid}`);
                     if (!session) {
                         console.log(`[manager] Session not in Redis for ${uid}, using MongoDB backup`);
-                        session = user.tgSession;
+                        session = userObj.tgSession;
                         if (session) {
                             await redis.set(`tg_session_${uid}`, session, 'EX', 86400 * 30);
                         }

@@ -5,7 +5,7 @@ metadata:
 spec:
   podSelector:
     matchExpressions:
-    - {key: app, operator: In, values: [tg-client-manager, tg-client-user]}
+    - {key: app, operator: In, values: [tg-client-user]}
   policyTypes:
   - Ingress
   - Egress
