@@ -1,13 +1,25 @@
 import * as tdl from 'tdl';
-import { getTdjson } from 'prebuilt-tdlib';
 import AdmZip from 'adm-zip';
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 import { TG_API_ID, TG_API_HASH } from './config.js';
+
+const require = createRequire(import.meta.url);
 
 // Prioritize custom-compiled TDLib path if provided and exists (e.g. for custom Debian build)
 const customPath = process.env.TDLIB_PATH;
-const tdjsonPath = (customPath && fs.existsSync(customPath)) ? customPath : getTdjson();
+let tdjsonPath;
+if (customPath && fs.existsSync(customPath)) {
+    tdjsonPath = customPath;
+} else {
+    try {
+        const { getTdjson } = require('prebuilt-tdlib');
+        tdjsonPath = getTdjson();
+    } catch (e) {
+        throw new Error(`[tg-client-utils] TDLib binary not found! TDLIB_PATH ("${customPath}") does not exist, and 'prebuilt-tdlib' is not installed.`);
+    }
+}
 tdl.configure({ tdjson: tdjsonPath });
 
 export function createClient(userId, options = {}) {

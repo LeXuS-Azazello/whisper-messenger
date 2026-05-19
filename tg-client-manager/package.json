@@ -19,7 +19,8 @@
     "prebuilt-tdlib": "latest",
     "qrcode": "^1.5.3",
     "adm-zip": "^0.5.10",
-    "mongoose": "^8.23.1"
+    "mongoose": "^8.23.1",
+    "telegraf": "^4.16.3"
   },
   "devDependencies": {
     "supertest": "^6.3.3",

@@ -14,12 +14,10 @@
     "ioredis": "^5.10.1",
     "express": "^4.19.2",
     "tdl": "^7.4.0",
-    "prebuilt-tdlib": "latest",
-    "adm-zip": "^0.5.10",
-    "telegraf": "^4.16.3"
-
+    "adm-zip": "^0.5.10"
   },
   "devDependencies": {
+    "prebuilt-tdlib": "latest",
     "vitest": "^1.0.0"
   },
   "engines": {

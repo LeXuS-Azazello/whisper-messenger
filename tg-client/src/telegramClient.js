@@ -15,6 +15,7 @@ let client = null;
 const filePromises = new Map();
 const clientStartTime = Math.floor(Date.now() / 1000);
 let oldMessagesProcessed = 0;
+let myUserId = null;
 
 function logUpdate(update) {
     if (update['_'] === 'updateFile') {
@@ -92,6 +93,19 @@ async function handleNewMessage(message) {
     if (isGroup) {
         console.log(`[tg-client] 🚫 Skipping message ${message_id} because chat ${chat_id} is a group/channel`);
         return;
+    }
+
+    // Outgoing message filtering:
+    // Skip outgoing messages (sent by us) in chats with other people,
+    // but allow them in our own chat (Saved Messages / chat with oneself).
+    const myId = myUserId || (TARGET_USER_ID ? Number(TARGET_USER_ID) : null);
+    const isSelfChat = myId && Number(chat_id) === Number(myId);
+    if (message.is_outgoing) {
+        if (!isSelfChat) {
+            console.log(`[tg-client] 🚫 Skipping outgoing message ${message_id} in chat ${chat_id} (not Saved Messages)`);
+            return;
+        }
+        console.log(`[tg-client] 📥 Processing outgoing message ${message_id} in Saved Messages/self chat`);
     }
 
     try {
@@ -340,6 +354,15 @@ export async function startUserClient() {
         getPassword: () => Promise.reject(new Error('SESSION_REVOKED: Headless client cannot prompt for password'))
     }));
     console.log(`[tg-client] Logged in successfully! Waiting for messages...`);
+
+    // Fetch and cache our own user ID
+    try {
+        const me = await client.invoke({ '_': 'getMe' });
+        myUserId = me.id;
+        console.log(`[tg-client] 👤 Authenticated user ID cached: ${myUserId}`);
+    } catch (meErr) {
+        console.error(`[tg-client] Failed to cache user ID during login:`, meErr.message);
+    }
 }
 
 export async function sendTestMessage(messageText) {

@@ -26,6 +26,7 @@ export const DEVICE_MODEL = process.env.DEVICE_MODEL || 'Voicemsg-net';
 export const APP_VERSION = process.env.APP_VERSION || '4.15.2';
 export const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Ubuntu 24.04';
 export const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://mongodb:27017/voicemsg';
+export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 
 
 export const redis = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', {
