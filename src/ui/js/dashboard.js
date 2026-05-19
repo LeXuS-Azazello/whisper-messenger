@@ -524,6 +524,70 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Instagram FCA Logic
+    const connectInstaBtn = document.getElementById('connect-insta-fca-btn');
+    const disconnectInstaBtn = document.getElementById('disconnect-insta-fca-btn');
+    const instaUsernameInput = document.getElementById('insta-username');
+    const instaPasswordInput = document.getElementById('insta-password');
+    const instaStatus = document.getElementById('insta-fca-status');
+
+    if (connectInstaBtn) {
+        connectInstaBtn.addEventListener('click', async () => {
+            const username = instaUsernameInput ? instaUsernameInput.value.trim() : '';
+            const password = instaPasswordInput ? instaPasswordInput.value.trim() : '';
+
+            if (!username || !password) {
+                return alert('Please enter Instagram username and password');
+            }
+
+            connectInstaBtn.disabled = true;
+            connectInstaBtn.innerText = 'Connecting...';
+
+            try {
+                const res = await fetch('/dashboard/instagram/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    instaStatus.innerText = 'CONNECTED';
+                    instaStatus.className = 'status-tag active';
+                    disconnectInstaBtn.style.display = 'block';
+                    connectInstaBtn.style.display = 'none';
+                    if (instaUsernameInput) instaUsernameInput.value = '';
+                    if (instaPasswordInput) instaPasswordInput.value = '';
+                    alert('Instagram connected successfully!');
+                } else {
+                    alert('Connection failed: ' + (data.error || 'Unknown error'));
+                    connectInstaBtn.disabled = false;
+                    connectInstaBtn.innerText = 'Connect Account';
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Connection error');
+                connectInstaBtn.disabled = false;
+                connectInstaBtn.innerText = 'Connect Account';
+            }
+        });
+    }
+
+    if (disconnectInstaBtn) {
+        disconnectInstaBtn.addEventListener('click', async () => {
+            if (!confirm('Disconnect Instagram account?')) return;
+            try {
+                const res = await fetch('/dashboard/instagram/disconnect', { method: 'POST' });
+                if (res.ok) {
+                    location.reload();
+                } else {
+                    alert('Failed to disconnect');
+                }
+            } catch (e) {
+                alert('Disconnect error');
+            }
+        });
+    }
+
     // Initial status check on load
     window.addEventListener('load', async () => {
         const res = await fetch('/dashboard/whatsapp-web/status');
@@ -545,6 +609,18 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             if (disconnectFbBtn) disconnectFbBtn.style.display = 'block';
             if (connectFbBtn) connectFbBtn.style.display = 'none';
+        }
+
+        // Check Instagram status
+        const instaRes = await fetch('/dashboard/instagram/status');
+        const instaData = await instaRes.json();
+        if (instaData.connected) {
+            if (instaStatus) {
+                instaStatus.innerText = 'CONNECTED';
+                instaStatus.className = 'status-tag active';
+            }
+            if (disconnectInstaBtn) disconnectInstaBtn.style.display = 'block';
+            if (connectInstaBtn) connectInstaBtn.style.display = 'none';
         }
     });
 

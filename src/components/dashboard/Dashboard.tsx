@@ -253,47 +253,82 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                         </div>
                                     </div>
 
-                                    {/* Facebook Messenger (FCA) Integration */}
-                                    <div class="card fb-fca-card">
-                                        <div class="card-header">
-                                            <h3 class="card-title">
-                                                <span class="icon-fb-fca">◉</span> Facebook Messenger (FCA)
-                                            </h3>
-                                            <span id="fb-fca-status" class="status-tag inactive">
-                                                NOT CONNECTED
-                                            </span>
-                                        </div>
-                                        <div class="card-content">
-                                            <p class="card-description">
-                                                Connect your Facebook Messenger account using AppState JSON (recommended) or your login credentials.
-                                            </p>
-                                            
-                                            <div class="input-group">
-                                                <label class="input-label">AppState JSON (Recommended)</label>
-                                                <textarea id="fb-appstate" class="input-field" rows={4} placeholder='[{"key": "c_user", "value": "..."}]' style={{ fontFamily: 'monospace', fontSize: '12px' }} />
-                                            </div>
+{/* Facebook Messenger (FCA) Integration */}
+                                     <div class="card fb-fca-card">
+                                         <div class="card-header">
+                                             <h3 class="card-title">
+                                                 <span class="icon-fb-fca">◉</span> Facebook Messenger (FCA)
+                                             </h3>
+                                             <span id="fb-fca-status" class="status-tag inactive">
+                                                 NOT CONNECTED
+                                             </span>
+                                         </div>
+                                         <div class="card-content">
+                                             <p class="card-description">
+                                                 Connect your Facebook Messenger account using AppState JSON (recommended) or your login credentials.
+                                             </p>
+                                             
+                                             <div class="input-group">
+                                                 <label class="input-label">AppState JSON (Recommended)</label>
+                                                 <textarea id="fb-appstate" class="input-field" rows={4} placeholder='[{"key": "c_user", "value": "..."}]' style={{ fontFamily: 'monospace', fontSize: '12px' }} />
+                                             </div>
 
-                                            <div class="or-separator" style={{ textAlign: 'center', margin: '0.5rem 0', color: 'var(--text-dim)', fontSize: '12px' }}>— OR —</div>
+                                             <div class="or-separator" style={{ textAlign: 'center', margin: '0.5rem 0', color: 'var(--text-dim)', fontSize: '12px' }}>— OR —</div>
 
-                                            <div class="input-group">
-                                                <label class="input-label">Email / Username</label>
-                                                <input type="text" id="fb-email" class="input-field" placeholder="email@example.com" />
-                                            </div>
-                                            <div class="input-group">
-                                                <label class="input-label">Password</label>
-                                                <input type="password" id="fb-password" class="input-field" placeholder="••••••••" />
-                                            </div>
+                                             <div class="input-group">
+                                                 <label class="input-label">Email / Username</label>
+                                                 <input type="text" id="fb-email" class="input-field" placeholder="email@example.com" />
+                                             </div>
+                                             <div class="input-group">
+                                                 <label class="input-label">Password</label>
+                                                 <input type="password" id="fb-password" class="input-field" placeholder="••••••••" />
+                                             </div>
 
-                                            <div class="button-group-2" style={{ marginTop: '1rem' }}>
-                                                <button class="btn btn-primary" id="connect-fb-fca-btn">
-                                                    Connect Account
-                                                </button>
-                                                <button class="btn btn-danger btn-xs" id="disconnect-fb-fca-btn" style={{ display: 'none' }}>
-                                                    Disconnect
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
+                                             <div class="button-group-2" style={{ marginTop: '1rem' }}>
+                                                 <button class="btn btn-primary" id="connect-fb-fca-btn">
+                                                     Connect Account
+                                                 </button>
+                                                 <button class="btn btn-danger btn-xs" id="disconnect-fb-fca-btn" style={{ display: 'none' }}>
+                                                     Disconnect
+                                                 </button>
+                                             </div>
+                                         </div>
+                                     </div>
+
+                                     {/* Instagram FCA Integration */}
+                                     <div class="card insta-fca-card">
+                                         <div class="card-header">
+                                             <h3 class="card-title">
+                                                 <span class="icon-insta-fca">◉</span> Instagram Direct (FCA)
+                                             </h3>
+                                             <span id="insta-fca-status" class="status-tag inactive">
+                                                 NOT CONNECTED
+                                             </span>
+                                         </div>
+                                         <div class="card-content">
+                                             <p class="card-description">
+                                                 Connect your Instagram account to transcribe voice messages from Direct Messages automatically.
+                                             </p>
+                                             
+                                             <div class="input-group">
+                                                 <label class="input-label">Instagram Username</label>
+                                                 <input type="text" id="insta-username" class="input-field" placeholder="username" />
+                                             </div>
+                                             <div class="input-group">
+                                                 <label class="input-label">Password</label>
+                                                 <input type="password" id="insta-password" class="input-field" placeholder="••••••••" />
+                                             </div>
+
+                                             <div class="button-group-2" style={{ marginTop: '1rem' }}>
+                                                 <button class="btn btn-primary" id="connect-insta-fca-btn">
+                                                     Connect Account
+                                                 </button>
+                                                 <button class="btn btn-danger btn-xs" id="disconnect-insta-fca-btn" style={{ display: 'none' }}>
+                                                     Disconnect
+                                                 </button>
+                                             </div>
+                                         </div>
+                                     </div>
 
                                     {/* LINE Integration */}
 

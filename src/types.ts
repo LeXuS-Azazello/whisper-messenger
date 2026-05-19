@@ -63,10 +63,11 @@ export interface Env {
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
   MANAGER_SECRET?: string;
-  MANAGER_URL?: string;
-  WA_MANAGER_URL?: string;
-  FB_MANAGER_URL?: string;
-  MANAGER_PUBLIC_URL?: string;
+MANAGER_URL?: string;
+   WA_MANAGER_URL?: string;
+   FB_MANAGER_URL?: string;
+   INSTA_MANAGER_URL?: string;
+   MANAGER_PUBLIC_URL?: string;
   DOMAIN: string;
   NAMESPACE: string;
 }

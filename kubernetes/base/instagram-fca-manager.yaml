@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: insta-fca-pod-template
+  namespace: debugging-testcrash-pub
+data:
+  pod-template.json: |
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "insta-user",
+        "labels": {
+          "app": "instagram-fca-client"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "instagram-fca-client",
+            "image": "harbor.dev.takatan.cloud/devcenter/instagram-fca-client:latest",
+            "imagePullPolicy": "Always",
+            "env": [
+              {
+                "name": "WHISPER_PROVIDER",
+                "value": "http://whisper-service.debugging-testcrash-pub.svc.cluster.local/v1/transcribe-base64"
+              }
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              }
+            }
+          }
+        ],
+        "imagePullSecrets": [
+          {
+            "name": "harbor-pull-secret"
+          }
+        ],
+        "restartPolicy": "Never"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: instagram-fca-manager
+  namespace: debugging-testcrash-pub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: instagram-fca-manager
+  template:
+    metadata:
+      labels:
+        app: instagram-fca-manager
+    spec:
+      serviceAccountName: voicemsg-client-manager
+      imagePullSecrets:
+      - name: harbor-pull-secret
+      containers:
+      - name: manager
+        image: harbor.dev.takatan.cloud/devcenter/instagram-fca-manager:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3005
+        env:
+        - name: MODE
+          value: "MANAGER"
+        - name: PORT
+          value: "3005"
+        - name: SECRET
+          valueFrom:
+            secretKeyRef:
+              name: voicemsg-secrets
+              key: MANAGER_SECRET
+        - name: REDIS_URL
+          value: "redis://redis-master.debugging-testcrash-pub.svc.cluster.local:6379"
+        - name: MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: voicemsg-secrets
+              key: MONGODB_URI
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: instagram-fca-manager
+  namespace: debugging-testcrash-pub
+spec:
+  selector:
+    app: instagram-fca-manager
+  ports:
+  - port: 3005
+    targetPort: 3005

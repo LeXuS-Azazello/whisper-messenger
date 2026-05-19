@@ -1,0 +1,9 @@
+{
+  "name": "instagram-fca-client",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.js",
+  "dependencies": {
+    "instagram-private-api": "^1.49.0"
+  }
+}
