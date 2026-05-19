@@ -410,6 +410,8 @@ if (isMain) {
             // MANAGER: orchestrates tg-client PODs via K8s
             setTimeout(runReconciliation, 3000);
             setInterval(runReconciliation, 60 * 1000); // Check every 1 minute
+        } else if (MODE === 'BOT') {
+            await import('./src/botTest.js');
         }
 
     });

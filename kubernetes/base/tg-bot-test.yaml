@@ -16,7 +16,7 @@ spec:
       - name: harbor-pull-secret
       containers:
       - name: tg-bot
-        image: harbor.dev.takatan.cloud/devcenter/whisper-tg-client:latest
+        image: harbor.dev.takatan.cloud/devcenter/whisper-tg-client-manager:latest
         env:
         - name: MODE
           value: "BOT"
