@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wa-baileys-pod-template
+  namespace: debugging-testcrash-pub
+data:
+  pod-template.json: |
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "wa-baileys-user",
+        "labels": {
+          "app": "wa-baileys-client"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "wa-baileys-client",
+            "image": "harbor.dev.takatan.cloud/devcenter/whatsapp-baileys-client:latest",
+            "imagePullPolicy": "Always",
+            "env": [
+              {
+                "name": "WHISPER_PROVIDER",
+                "value": "http://whisper-service.debugging-testcrash-pub.svc.cluster.local/v1/transcribe-base64"
+              }
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              }
+            }
+          }
+        ],
+        "imagePullSecrets": [
+          {
+            "name": "harbor-pull-secret"
+          }
+        ],
+        "restartPolicy": "Never"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whatsapp-baileys-manager
+  namespace: debugging-testcrash-pub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whatsapp-baileys-manager
+  template:
+    metadata:
+      labels:
+        app: whatsapp-baileys-manager
+    spec:
+      serviceAccountName: voicemsg-client-manager
+      imagePullSecrets:
+      - name: harbor-pull-secret
+      containers:
+      - name: manager
+        image: harbor.dev.takatan.cloud/devcenter/whatsapp-baileys-manager:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3002
+        env:
+        - name: MODE
+          value: "MANAGER"
+        - name: PORT
+          value: "3002"
+        - name: SECRET
+          valueFrom:
+            secretKeyRef:
+              name: voicemsg-secrets
+              key: MANAGER_SECRET
+        - name: REDIS_URL
+          value: "redis://redis-master.debugging-testcrash-pub.svc.cluster.local:6379"
+        - name: MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: voicemsg-secrets
+              key: MONGODB_URI
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whatsapp-baileys-manager
+  namespace: debugging-testcrash-pub
+spec:
+  selector:
+    app: whatsapp-baileys-manager
+  ports:
+  - port: 3002
+    targetPort: 3002
