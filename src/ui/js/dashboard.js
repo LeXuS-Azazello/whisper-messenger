@@ -383,6 +383,40 @@ document.addEventListener('DOMContentLoaded', function () {
     const waWebQrImg = document.getElementById('wa-web-qr-img');
     const waWebStatus = document.getElementById('wa-web-status');
 
+    // WhatsApp sub-tabs
+    const waTabQr = document.getElementById('wa-tab-qr');
+    const waTabCode = document.getElementById('wa-tab-code');
+    const waQrContainerTab = document.getElementById('wa-qr-container-tab');
+    const waCodeContainerTab = document.getElementById('wa-code-container-tab');
+
+    const waGetCodeBtn = document.getElementById('wa-get-code-btn');
+    const waPhoneNumberInput = document.getElementById('wa-phone-number');
+    const waPairingCodeDisplay = document.getElementById('wa-pairing-code-display');
+    const waPairingCodeText = document.getElementById('wa-pairing-code-text');
+    const disconnectWaCodeBtn = document.getElementById('disconnect-wa-web-code-btn');
+
+    if (waTabQr && waTabCode) {
+        waTabQr.addEventListener('click', () => {
+            waTabQr.classList.add('active');
+            waTabCode.classList.remove('active');
+            if (waQrContainerTab) waQrContainerTab.style.display = 'block';
+            if (waCodeContainerTab) waCodeContainerTab.style.display = 'none';
+        });
+
+        waTabCode.addEventListener('click', () => {
+            waTabCode.classList.add('active');
+            waTabQr.classList.remove('active');
+            if (waCodeContainerTab) waCodeContainerTab.style.display = 'block';
+            if (waQrContainerTab) waQrContainerTab.style.display = 'none';
+        });
+    }
+
+    if (disconnectWaCodeBtn) {
+        disconnectWaCodeBtn.addEventListener('click', () => {
+            if (disconnectWaWebBtn) disconnectWaWebBtn.click();
+        });
+    }
+
     let waQrPollInterval = null;
     let waToken = null;
 
@@ -401,19 +435,32 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     if (data.done) {
                         stopWaQrPolling();
-                        document.getElementById('wa-web-qr-container').style.display = 'none';
+                        if (waWebQrContainer) waWebQrContainer.style.display = 'none';
+                        if (waPairingCodeDisplay) waPairingCodeDisplay.style.display = 'none';
                         waWebStatus.innerText = 'CONNECTED';
                         waWebStatus.className = 'status-tag active';
-                        disconnectWaWebBtn.style.display = 'block';
-                        connectWaWebBtn.style.display = 'none';
+                        
+                        if (disconnectWaWebBtn) disconnectWaWebBtn.style.display = 'block';
+                        if (connectWaWebBtn) connectWaWebBtn.style.display = 'none';
+                        if (disconnectWaCodeBtn) disconnectWaCodeBtn.style.display = 'block';
+                        if (waGetCodeBtn) waGetCodeBtn.style.display = 'none';
+
                         alert('WhatsApp connected successfully!');
                         setTimeout(() => location.reload(), 1200);
                     } else if (data.expired) {
                         stopWaQrPolling();
-                        alert('QR code expired');
-                        waWebQrContainer.style.display = 'none';
-                        connectWaWebBtn.disabled = false;
-                        connectWaWebBtn.innerText = 'Connect via QR Code';
+                        alert('Link session expired. Please try again.');
+                        if (waWebQrContainer) waWebQrContainer.style.display = 'none';
+                        if (waPairingCodeDisplay) waPairingCodeDisplay.style.display = 'none';
+                        
+                        if (connectWaWebBtn) {
+                            connectWaWebBtn.disabled = false;
+                            connectWaWebBtn.innerText = 'Generate QR Code';
+                        }
+                        if (waGetCodeBtn) {
+                            waGetCodeBtn.disabled = false;
+                            waGetCodeBtn.innerText = 'Get Pairing Code';
+                        }
                     }
                 })
                 .catch(err => console.error('WA qr-check poll error:', err));
@@ -430,20 +477,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 const initData = await initRes.json();
                 
                 if (initData.status === 'starting' || initData.status === 'already_running') {
-                    // Manager returns { qrUrl, qrDataUrl, token }
                     if (initData.qrDataUrl) {
                         waWebQrImg.src = initData.qrDataUrl;
                         waWebQrContainer.style.display = 'block';
                         startWaQrPolling(initData.token);
                         connectWaWebBtn.innerText = 'Waiting for scan...';
                     } else if (initData.qrUrl) {
-                        // Fallback: render QR from URL (if the manager returned raw string)
                         waWebQrImg.src = initData.qrUrl;
                         waWebQrContainer.style.display = 'block';
                         startWaQrPolling(initData.token);
                         connectWaWebBtn.innerText = 'Waiting for scan...';
                     } else {
-                        // Check if already connected
                         const statusRes = await fetch('/dashboard/whatsapp-web/status');
                         const statusData = await statusRes.json();
                         if (statusData.connected) {
@@ -454,7 +498,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         } else {
                             alert('QR code not available yet. Please wait a few seconds.');
                             connectWaWebBtn.disabled = false;
-                            connectWaWebBtn.innerText = 'Connect via QR Code';
+                            connectWaWebBtn.innerText = 'Generate QR Code';
                         }
                     }
                 }
@@ -462,7 +506,44 @@ document.addEventListener('DOMContentLoaded', function () {
                 console.error(e);
                 alert('Connection failed');
                 connectWaWebBtn.disabled = false;
-                connectWaWebBtn.innerText = 'Connect via QR Code';
+                connectWaWebBtn.innerText = 'Generate QR Code';
+            }
+        });
+    }
+
+    if (waGetCodeBtn) {
+        waGetCodeBtn.addEventListener('click', async () => {
+            const phone = waPhoneNumberInput ? waPhoneNumberInput.value.trim() : '';
+            if (!phone) {
+                return alert('Please enter your phone number');
+            }
+
+            waGetCodeBtn.disabled = true;
+            waGetCodeBtn.innerText = 'Initializing...';
+            if (waPairingCodeDisplay) waPairingCodeDisplay.style.display = 'none';
+
+            try {
+                const res = await fetch('/dashboard/whatsapp-web/send-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone })
+                });
+                const data = await res.json();
+                if (data.success && data.code) {
+                    waPairingCodeText.innerText = data.code;
+                    waPairingCodeDisplay.style.display = 'block';
+                    waGetCodeBtn.innerText = 'Waiting for phone link...';
+                    startWaQrPolling(data.token);
+                } else {
+                    alert('Failed to get code: ' + (data.error || 'Unknown error'));
+                    waGetCodeBtn.disabled = false;
+                    waGetCodeBtn.innerText = 'Get Pairing Code';
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Connection error');
+                waGetCodeBtn.disabled = false;
+                waGetCodeBtn.innerText = 'Get Pairing Code';
             }
         });
     }
@@ -483,32 +564,60 @@ document.addEventListener('DOMContentLoaded', function () {
     const fbPasswordInput = document.getElementById('fb-password');
     const fbStatus = document.getElementById('fb-fca-status');
 
+    // Sub-tab toggling elements
+    const fbTabAppstate = document.getElementById('fb-tab-appstate');
+    const fbTabCreds = document.getElementById('fb-tab-creds');
+    const fbAppstateContainer = document.getElementById('fb-appstate-container');
+    const fbCredsContainer = document.getElementById('fb-creds-container');
+    let fbActiveMethod = 'appstate'; // default
+
+    if (fbTabAppstate && fbTabCreds) {
+        fbTabAppstate.addEventListener('click', () => {
+            fbTabAppstate.classList.add('active');
+            fbTabCreds.classList.remove('active');
+            fbAppstateContainer.style.display = 'block';
+            fbCredsContainer.style.display = 'none';
+            fbActiveMethod = 'appstate';
+        });
+
+        fbTabCreds.addEventListener('click', () => {
+            fbTabCreds.classList.add('active');
+            fbTabAppstate.classList.remove('active');
+            fbCredsContainer.style.display = 'block';
+            fbAppstateContainer.style.display = 'none';
+            fbActiveMethod = 'creds';
+        });
+    }
+
     if (connectFbBtn) {
         connectFbBtn.addEventListener('click', async () => {
-            const appState = fbAppstateInput ? fbAppstateInput.value.trim() : '';
-            const email = fbEmailInput ? fbEmailInput.value.trim() : '';
-            const password = fbPasswordInput ? fbPasswordInput.value.trim() : '';
+            let appState = '';
+            let email = '';
+            let password = '';
 
-            if (!appState && (!email || !password)) {
-                return alert('Please enter AppState JSON or Email & Password');
+            if (fbActiveMethod === 'appstate') {
+                appState = fbAppstateInput ? fbAppstateInput.value.trim() : '';
+                if (!appState) {
+                    return alert('Please enter AppState JSON');
+                }
+                try {
+                    JSON.parse(appState);
+                } catch (jsonErr) {
+                    alert('Invalid AppState JSON: ' + jsonErr.message + '\nPlease paste raw AppState JSON (an array) without trailing commas.');
+                    return;
+                }
+            } else {
+                email = fbEmailInput ? fbEmailInput.value.trim() : '';
+                password = fbPasswordInput ? fbPasswordInput.value.trim() : '';
+                if (!email || !password) {
+                    return alert('Please enter Email / Username and Password');
+                }
             }
 
             connectFbBtn.disabled = true;
             connectFbBtn.innerText = 'Connecting...';
 
             try {
-                // Basic client-side validation: ensure appState is valid JSON before sending
-                if (appState) {
-                    try {
-                        JSON.parse(appState);
-                    } catch (jsonErr) {
-                        alert('Invalid AppState JSON: ' + jsonErr.message + '\nPlease paste raw AppState JSON (an array) without trailing commas.');
-                        connectFbBtn.disabled = false;
-                        connectFbBtn.innerText = 'Connect Account';
-                        return;
-                    }
-                }
-
                 const res = await fetch('/dashboard/facebook/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -623,10 +732,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const res = await fetch('/dashboard/whatsapp-web/status');
         const data = await res.json();
         if (data.connected) {
-            waWebStatus.innerText = 'CONNECTED';
-            waWebStatus.className = 'status-tag active';
-            disconnectWaWebBtn.style.display = 'block';
-            connectWaWebBtn.style.display = 'none';
+            if (waWebStatus) {
+                waWebStatus.innerText = 'CONNECTED';
+                waWebStatus.className = 'status-tag active';
+            }
+            if (disconnectWaWebBtn) disconnectWaWebBtn.style.display = 'block';
+            if (connectWaWebBtn) connectWaWebBtn.style.display = 'none';
+            if (disconnectWaCodeBtn) disconnectWaCodeBtn.style.display = 'block';
+            if (waGetCodeBtn) waGetCodeBtn.style.display = 'none';
         }
     
         // Check FB status

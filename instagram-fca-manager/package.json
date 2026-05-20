@@ -8,6 +8,7 @@
     "mongoose": "^8.23.1",
     "ioredis": "^5.3.0",
     "@kubernetes/client-node": "^0.20.0",
-    "instagram-private-api": "^1.49.0"
+    "re2": "^1.24.1",
+    "instagram-private-api": "^1.46.1"
   }
 }

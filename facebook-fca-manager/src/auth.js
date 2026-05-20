@@ -36,10 +36,15 @@ export async function handleLogin(req, res) {
             if (err) {
                     console.error(`[auth-fca] Login failed for user ${userId}:`, err);
                     const rawMsg = err.error || err.message || 'Login failed';
-                    // If error looks like a JSON parse error, give a clearer hint
-                    if (/JSON|Unexpected|Expected \'\,\' or \'\]\'|position \d+/i.test(String(rawMsg))) {
+                    
+                    if (appState && /JSON|Unexpected|Expected \'\,\' or \'\]\'|position \d+/i.test(String(rawMsg))) {
                         return res.status(400).json({ error: `Invalid AppState JSON: ${rawMsg}. Ensure you pasted raw AppState JSON (an array) without trailing commas.` });
                     }
+                    
+                    if (!appState) {
+                        return res.status(401).json({ error: `Credentials login failed: ${rawMsg}. Facebook blocks direct logins frequently; we highly recommend using AppState JSON instead.` });
+                    }
+                    
                     return res.status(401).json({ error: rawMsg });
                 }
 

@@ -183,3 +183,4 @@ export async function verifyPassword(req, res) {
     return res.status(400).json({ error: 'Password authentication is not supported for WhatsApp Baileys. Please use QR or Pairing Code authentication.' });
 }
 
+

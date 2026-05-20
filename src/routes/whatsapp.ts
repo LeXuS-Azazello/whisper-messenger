@@ -4,7 +4,8 @@ import {
   handleWaInit,
   handleWaQR,
   handleWaQRCheck,
-  handleWaDisconnect
+  handleWaDisconnect,
+  handleWaSendCode
 } from "../controllers/whatsappAuthController";
 
 export async function handleWhatsAppWebAction(env: Env, req: Request, userId: string): Promise<Response> {
@@ -31,6 +32,16 @@ export async function handleWhatsAppWebAction(env: Env, req: Request, userId: st
 
   if (pathname === "/dashboard/whatsapp-web/disconnect" && req.method === "POST") {
     return handleWaDisconnect(env, userId);
+  }
+
+  if (pathname === "/dashboard/whatsapp-web/send-code" && req.method === "POST") {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+    return handleWaSendCode(env, userId, body);
   }
 
   return new Response(JSON.stringify({ error: "Not found" }), {

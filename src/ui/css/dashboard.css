@@ -1926,3 +1926,49 @@ header {
     }
 }
 
+/* Sub-tabs layout switcher inside cards */
+.sub-tabs-container {
+    display: flex;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 0.25rem;
+    margin-bottom: 1.25rem;
+    gap: 0.25rem;
+}
+
+.sub-tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #94a3b8;
+    padding: 0.6rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: center;
+}
+
+.sub-tab-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.sub-tab-btn.active {
+    background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);
+}
+
+.sub-tab-pane {
+    animation: subTabFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes subTabFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}

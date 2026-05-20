@@ -1,6 +1,8 @@
 import { Env, UserSession } from "../types";
 import { renderDashboard } from "../components/dashboard/Dashboard";
 
+
+
 export async function incrementUserStats(userId: string, env: Env, platform: string = "telegram") {
   const globalKey = `stats_${platform}`;
   const global = await env.STATS.get(globalKey);

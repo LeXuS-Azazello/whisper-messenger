@@ -106,3 +106,20 @@ export async function handleTestWa(env: Env, req: Request, userId: string): Prom
     return Response.json({ success: false, error: e.message });
   }
 }
+
+export async function handleWaSendCode(env: Env, userId: string, body: any): Promise<Response> {
+  try {
+    const res = await fetch(`${getManagerUrl(env)}/auth/send-code`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json", 
+        "x-manager-secret": env.MANAGER_SECRET || "changeme" 
+      },
+      body: JSON.stringify({ userId, phone: body.phone })
+    });
+    const data = await res.json();
+    return Response.json(data, { status: res.status });
+  } catch (e: any) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+}
