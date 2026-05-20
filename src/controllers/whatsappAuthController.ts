@@ -46,6 +46,20 @@ export async function handleWaQR(env: Env, userId: string): Promise<Response> {
   return Response.json({ error: "Use /qr-check with token" }, { status: 400 });
 }
 
+export async function handleWaQRCheck(env: Env, userId: string, token?: string): Promise<Response> {
+  try {
+    if (!token) return Response.json({ error: 'Missing token' }, { status: 400 });
+    const url = `${getManagerUrl(env)}/auth/qr-check?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId || 'unknown')}`;
+    const res = await fetch(url, {
+      headers: { "x-manager-secret": env.MANAGER_SECRET || "changeme" }
+    });
+    const data = await res.json();
+    return Response.json(data, { status: res.status });
+  } catch (e: any) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+}
+
 export async function handleWaDisconnect(env: Env, userId: string): Promise<Response> {
   try {
     const res = await fetch(`${getManagerUrl(env)}/delete`, {

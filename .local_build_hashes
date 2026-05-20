@@ -1,9 +1,9 @@
-.:0ad7846c8518c38accb6a81057fe24db
 tg-client-manager:3226ebf0b8b3472ffb33555841c8c722
 tg-client:5a4c6c12587570b09a9d70ecd8d91d7e
 voicemsg-tester:e66c06136e1066756221ace821ab4ffb
 whisper-service:98c103cb55f06c69c26dee2ebdaade41
-facebook-fca-manager:47cfa28e54732948d43a951fd7b226a2
 facebook-fca-client:8f2bc2302099f88332712d9979072ddd
 whatsapp-baileys-manager:cd2e6395a692414e7088ce80ad51301a
 whatsapp-baileys-client:6236e1bfcb1b637eb67888fb00f3c82c
+.:b31dd88917d5802f642dc7ce7dae6d57
+facebook-fca-manager:26952fc851749d4cdf682b2a3472471a

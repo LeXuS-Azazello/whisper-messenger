@@ -111,11 +111,41 @@ export async function handleSaveLine(env: Env, req: Request, userId: string, use
 
   try {
     const User = (await import("../models/User")).default;
-    await User.findOneAndUpdate({ userId }, { $set: { lineToken, lineSecret } });
-  } catch (e) { console.error("[DB] LINE settings persist failed:", e); }
+    const MessengerSession = (await import("../models/MessengerSession")).default;
 
-  return Response.json({ success: true });
+    await User.findOneAndUpdate({ userId }, { $set: { lineToken, lineSecret } }, { upsert: true });
+    await MessengerSession.findOneAndUpdate(
+      { userId, platform: "line" },
+      { sessionData: JSON.stringify({ lineToken, lineSecret }), isActive: true, identifier: userId },
+      { upsert: true }
+    );
+  } catch (e) {
+    console.error("[DB] LINE settings persist failed:", e);
+  }
 
+  const managerUrl = (env.LINE_MANAGER_URL || "").trim() || `http://line-manager.${env.NAMESPACE}.svc.cluster.local:3006`;
+  const secret = (env.MANAGER_SECRET || "changeme").trim();
+
+  try {
+    const res = await fetch(`${managerUrl}/spawn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-manager-secret": secret },
+      body: JSON.stringify({ userId })
+    });
+    const data = await res.json().catch(() => ({ error: "Manager did not return JSON" }));
+
+    if (!res.ok) {
+      console.error("[Dashboard] LINE spawn failed:", data);
+      return Response.json({ error: "Failed to spawn LINE client", details: data }, { status: 500 });
+    }
+
+    user.isActive = true;
+    await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
+    return Response.json(data, { status: res.status });
+  } catch (e: any) {
+    console.error("[Dashboard] LINE spawn request failed:", e);
+    return Response.json({ error: e.message || "Failed to spawn LINE client" }, { status: 500 });
+  }
 }
 
 

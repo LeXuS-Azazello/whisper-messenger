@@ -3,6 +3,7 @@ import {
   handleWaStatus,
   handleWaInit,
   handleWaQR,
+  handleWaQRCheck,
   handleWaDisconnect
 } from "../controllers/whatsappAuthController";
 
@@ -20,6 +21,12 @@ export async function handleWhatsAppWebAction(env: Env, req: Request, userId: st
 
   if (pathname === "/dashboard/whatsapp-web/qr" && req.method === "GET") {
     return handleWaQR(env, userId);
+  }
+
+  if (pathname === "/dashboard/whatsapp-web/qr-check" && req.method === "GET") {
+    const url = new URL(req.url);
+    const token = url.searchParams.get('token') || undefined;
+    return handleWaQRCheck(env, userId, token);
   }
 
   if (pathname === "/dashboard/whatsapp-web/disconnect" && req.method === "POST") {

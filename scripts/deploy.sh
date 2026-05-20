@@ -172,6 +172,8 @@ TESTER_IMAGE="${REPO}/whisper-tester:${TAG}"
 WHISPER_IMAGE="${REPO}/whisper-service:${TAG}"
 FCA_MANAGER_IMAGE="${REPO}/facebook-fca-manager:${TAG}"
 FCA_CLIENT_IMAGE="${REPO}/facebook-fca-client:${TAG}"
+INSTA_MANAGER_IMAGE="${REPO}/instagram-fca-manager:${TAG}"
+INSTA_CLIENT_IMAGE="${REPO}/instagram-fca-client:${TAG}"
 WA_MANAGER_IMAGE="${REPO}/whatsapp-baileys-manager:${TAG}"
 WA_CLIENT_IMAGE="${REPO}/whatsapp-baileys-client:${TAG}"
 
@@ -208,10 +210,16 @@ build_and_push_image "facebook-fca-manager" "facebook-fca-manager" "facebook-fca
 echo "7. FCA Client: $FCA_CLIENT_IMAGE"
 build_and_push_image "facebook-fca-client" "facebook-fca-client" "facebook-fca-client/Dockerfile" "$FCA_CLIENT_IMAGE"
 
-echo "8. WhatsApp Baileys Manager: $WA_MANAGER_IMAGE"
+echo "8. Instagram FCA Manager: $INSTA_MANAGER_IMAGE"
+build_and_push_image "instagram-fca-manager" "instagram-fca-manager" "instagram-fca-manager/Dockerfile" "$INSTA_MANAGER_IMAGE"
+
+echo "9. Instagram FCA Client: $INSTA_CLIENT_IMAGE"
+build_and_push_image "instagram-fca-client" "instagram-fca-client" "instagram-fca-client/Dockerfile" "$INSTA_CLIENT_IMAGE"
+
+echo "10. WhatsApp Baileys Manager: $WA_MANAGER_IMAGE"
 build_and_push_image "whatsapp-baileys-manager" "whatsapp-baileys-manager" "whatsapp-baileys-manager/Dockerfile" "$WA_MANAGER_IMAGE"
 
-echo "9. WhatsApp Baileys Client: $WA_CLIENT_IMAGE"
+echo "11. WhatsApp Baileys Client: $WA_CLIENT_IMAGE"
 build_and_push_image "whatsapp-baileys-client" "whatsapp-baileys-client" "whatsapp-baileys-client/Dockerfile" "$WA_CLIENT_IMAGE"
 
 # Clean up temporary tdlib injections

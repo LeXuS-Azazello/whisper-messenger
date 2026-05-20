@@ -384,19 +384,22 @@ document.addEventListener('DOMContentLoaded', function () {
     const waWebStatus = document.getElementById('wa-web-status');
 
     let waQrPollInterval = null;
+    let waToken = null;
 
     function stopWaQrPolling() {
         if (waQrPollInterval) clearInterval(waQrPollInterval);
         waQrPollInterval = null;
     }
 
-    function startWaQrPolling() {
+    function startWaQrPolling(token) {
         stopWaQrPolling();
+        waToken = token || waToken;
         waQrPollInterval = setInterval(() => {
-            fetch('/dashboard/whatsapp-web/status')
+            const url = '/dashboard/whatsapp-web/qr-check?token=' + encodeURIComponent(waToken || '');
+            fetch(url)
                 .then(r => r.json())
                 .then(data => {
-                    if (data.connected) {
+                    if (data.done) {
                         stopWaQrPolling();
                         document.getElementById('wa-web-qr-container').style.display = 'none';
                         waWebStatus.innerText = 'CONNECTED';
@@ -404,10 +407,17 @@ document.addEventListener('DOMContentLoaded', function () {
                         disconnectWaWebBtn.style.display = 'block';
                         connectWaWebBtn.style.display = 'none';
                         alert('WhatsApp connected successfully!');
+                        setTimeout(() => location.reload(), 1200);
+                    } else if (data.expired) {
+                        stopWaQrPolling();
+                        alert('QR code expired');
+                        waWebQrContainer.style.display = 'none';
+                        connectWaWebBtn.disabled = false;
+                        connectWaWebBtn.innerText = 'Connect via QR Code';
                     }
                 })
-                .catch(err => console.error('WA status poll error:', err));
-        }, 3000);
+                .catch(err => console.error('WA qr-check poll error:', err));
+        }, 2000);
     }
 
     if (connectWaWebBtn) {
@@ -420,13 +430,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 const initData = await initRes.json();
                 
                 if (initData.status === 'starting' || initData.status === 'already_running') {
-                    const qrRes = await fetch('/dashboard/whatsapp-web/qr');
-                    const qrData = await qrRes.json();
-                    
-                    if (qrData.qr) {
-                        waWebQrImg.src = qrData.qr;
+                    // Manager returns { qrUrl, qrDataUrl, token }
+                    if (initData.qrDataUrl) {
+                        waWebQrImg.src = initData.qrDataUrl;
                         waWebQrContainer.style.display = 'block';
-                        startWaQrPolling();
+                        startWaQrPolling(initData.token);
+                        connectWaWebBtn.innerText = 'Waiting for scan...';
+                    } else if (initData.qrUrl) {
+                        // Fallback: render QR from URL (if the manager returned raw string)
+                        waWebQrImg.src = initData.qrUrl;
+                        waWebQrContainer.style.display = 'block';
+                        startWaQrPolling(initData.token);
                         connectWaWebBtn.innerText = 'Waiting for scan...';
                     } else {
                         // Check if already connected
