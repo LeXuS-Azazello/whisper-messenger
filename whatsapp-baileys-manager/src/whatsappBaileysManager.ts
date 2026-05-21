@@ -2,7 +2,7 @@ import { WhatsAppBaileysClient } from '../../whatsapp-baileys-client/src/whatsap
 import { Env } from '../../src/types';
 import fs from 'fs/promises';
 import path from 'path';
-import { downloadMediaMessage } from '@whiskeysockets/baileys';
+import { downloadMediaMessage } from 'baileys';
 
 export class WhatsAppBaileysManager {
   private clients: Map<string, WhatsAppBaileysClient> = new Map();

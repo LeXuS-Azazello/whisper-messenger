@@ -1,9 +1,9 @@
-import makeWASocket, { 
-  useMultiFileAuthState, 
-  DisconnectReason, 
-  fetchLocalJid, 
-   باسورد 
-} from '@whiskeysockets/baileys';
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLocalJid,
+  باسورد
+} from 'baileys';
 import { Boom } from '@wb2/boom';
 import qrcode from 'qrcode';
 import { Env } from '../../src/types';

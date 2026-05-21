@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { TestSuiteRunner } from './tests.js';
+import { TestSuiteRunner } from './tests';
 
 describe('Voice Messenger Production Cluster Integration Tests', () => {
   let runner: TestSuiteRunner;

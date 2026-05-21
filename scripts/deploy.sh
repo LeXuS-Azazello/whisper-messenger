@@ -90,10 +90,16 @@ fi
 
 
 FORCE_REBUILD=false
-if [[ "${1:-}" == "--force" || "${1:-}" == "-f" ]]; then
-    FORCE_REBUILD=true
-    echo ">>> Force rebuild enabled!"
-fi
+BUILD_WHISPER=false
+for arg in "$@"; do
+    if [[ "$arg" == "--force" || "$arg" == "-f" ]]; then
+        FORCE_REBUILD=true
+        echo ">>> Force rebuild enabled!"
+    elif [[ "$arg" == "--build-whisper" ]]; then
+        BUILD_WHISPER=true
+        echo ">>> Whisper-service build enabled!"
+    fi
+done
 
 check_dir_changed() {
     local dir=$1
@@ -176,6 +182,9 @@ INSTA_MANAGER_IMAGE="${REPO}/instagram-fca-manager:${TAG}"
 INSTA_CLIENT_IMAGE="${REPO}/instagram-fca-client:${TAG}"
 WA_MANAGER_IMAGE="${REPO}/whatsapp-baileys-manager:${TAG}"
 WA_CLIENT_IMAGE="${REPO}/whatsapp-baileys-client:${TAG}"
+SAMESAME_IMAGE="${REPO}/samesame:${TAG}"
+WHISPER_V2_IMAGE="${REPO}/whisper-service-v2:${TAG}"
+
 
 echo ">>> Building and pushing Docker images..."
 
@@ -201,8 +210,12 @@ build_and_push_image "whisper-tg-client" "tg-client" "tg-client/Dockerfile" "$TG
 echo "4. Tester Service: $TESTER_IMAGE"
 build_and_push_image "whisper-tester" "voicemsg-tester" "voicemsg-tester/Dockerfile" "$TESTER_IMAGE"
 
-echo "5. Whisper Service: $WHISPER_IMAGE"
-build_and_push_image "whisper-service" "whisper-service" "whisper-service/Dockerfile" "$WHISPER_IMAGE"
+if [ "$BUILD_WHISPER" = "true" ]; then
+    echo "5. Whisper Service: $WHISPER_IMAGE"
+    build_and_push_image "whisper-service" "whisper-service" "whisper-service/Dockerfile" "$WHISPER_IMAGE"
+else
+    echo "5. Whisper Service: (Skipped build - to build, run with --build-whisper)"
+fi
 
 echo "6. FCA Manager: $FCA_MANAGER_IMAGE"
 build_and_push_image "facebook-fca-manager" "facebook-fca-manager" "facebook-fca-manager/Dockerfile" "$FCA_MANAGER_IMAGE"
@@ -222,6 +235,12 @@ build_and_push_image "whatsapp-baileys-manager" "whatsapp-baileys-manager" "what
 echo "11. WhatsApp Baileys Client: $WA_CLIENT_IMAGE"
 build_and_push_image "whatsapp-baileys-client" "whatsapp-baileys-client" "whatsapp-baileys-client/Dockerfile" "$WA_CLIENT_IMAGE"
 
+echo "12. Samesame: $SAMESAME_IMAGE"
+build_and_push_image "samesame" "samesame" "samesame/Dockerfile" "$SAMESAME_IMAGE"
+
+echo "13. Whisper Service v2: $WHISPER_V2_IMAGE"
+build_and_push_image "whisper-service-v2" "whisper-service-v2" "whisper-service-v2/Dockerfile" "$WHISPER_V2_IMAGE"
+
 # Clean up temporary tdlib injections
 if [ "$HAS_CUSTOM_TDLIB" = true ]; then
     echo ">>> Cleaning up injected tdlib directories..."
@@ -231,6 +250,11 @@ echo ""
 
 # Single kustomize apply covers: frontend, redis, mongodb, tg-client-manager,
 # tg-client, whisper-turbo, voicemsg-cf, monitoring
+
+echo ">>> Deleting failed downloader Jobs to force recreate..."
+kubectl delete job samesame-model-downloader -n "$NAMESPACE" --ignore-not-found
+kubectl delete job whisper-service-v2-model-downloader -n "$NAMESPACE" --ignore-not-found
+
 echo ">>> Applying base resources via kustomize..."
 kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || echo "Warning: Some resources failed to apply (likely RBAC restrictions). Proceeding to update images..."
 echo ""
@@ -241,10 +265,14 @@ kubectl set image deployment/echo-frontend frontend="$FRONTEND_IMAGE" -n "$NAMES
 kubectl set image deployment/tg-client-manager manager="$MANAGER_IMAGE" -n "$NAMESPACE"
 kubectl set env deployment/tg-client-manager TG_CLIENT_IMAGE="$TG_CLIENT_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/voicemsg-tester tester="$TESTER_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/whisper-service whisper-service="$WHISPER_IMAGE" -n "$NAMESPACE"
+if [ "$BUILD_WHISPER" = "true" ]; then
+    kubectl set image deployment/whisper-service whisper-service="$WHISPER_IMAGE" -n "$NAMESPACE"
+fi
 kubectl set image deployment/facebook-fca-manager manager="$FCA_MANAGER_IMAGE" -n "$NAMESPACE"
 kubectl set env deployment/facebook-fca-manager FCA_CLIENT_IMAGE="$FCA_CLIENT_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/whatsapp-baileys-manager manager="$WA_MANAGER_IMAGE" -n "$NAMESPACE"
+kubectl set image deployment/samesame samesame="$SAMESAME_IMAGE" -n "$NAMESPACE"
+kubectl set image deployment/whisper-service-v2 whisper-service-v2="$WHISPER_V2_IMAGE" -n "$NAMESPACE"
 echo ""
 
 echo ">>> Deleting existing user tg-client pods to force recreation with new image..."

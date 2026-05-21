@@ -3,7 +3,7 @@ import { Env } from "../types";
 const MANAGER_PORT = 3003;
 
 function getManagerUrl(env: Env) {
-  return env.FB_MANAGER_URL || `http://facebook-fca-manager:${MANAGER_PORT}`;
+  return (env.FB_MANAGER_URL || "").replace(/^"|"$/g, "").trim() || `http://facebook-fca-manager:${MANAGER_PORT}`;
 }
 
 export async function handleFbStatus(env: Env, userId: string): Promise<Response> {

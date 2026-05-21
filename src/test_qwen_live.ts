@@ -5,11 +5,11 @@ import { sampleAudioBase64 } from './sample_audio';
 const mockEnv = {
   STATS: {
     get: async (key: string) => {
-      if (key === 'config_local_whisper_url') return process.env.WHISPER_URL || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
+      if (key === 'config_local_whisper_url') return process.env.WHISPER_URL || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
       return null;
     },
   },
-  WHISPER_PROVIDER: process.env.WHISPER_URL || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000',
+  WHISPER_PROVIDER: process.env.WHISPER_URL || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000',
 } as any;
 
 async function runTest() {

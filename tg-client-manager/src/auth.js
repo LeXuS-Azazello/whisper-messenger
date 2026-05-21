@@ -132,7 +132,7 @@ export async function sendCode(req, res) {
     }
 }
 
-async function saveSessionToRedis(userId, packedSession) {
+async function saveSessionToRedis(userId, packedSession, username) {
     if (!userId || !packedSession) return;
     try {
         const key = `tg_session_${userId}`;
@@ -140,13 +140,17 @@ async function saveSessionToRedis(userId, packedSession) {
         console.log(`[auth] Session for user ${userId} saved to Redis (Key: ${key})`);
 
         // Backup to MongoDB
+        const updateData = {
+            tgSession: packedSession,
+            lastActiveAt: new Date(),
+            isActive: true
+        };
+        if (username) {
+            updateData.username = username;
+        }
         await User.findOneAndUpdate(
             { userId: String(userId) },
-            {
-                tgSession: packedSession,
-                lastActiveAt: new Date(),
-                isActive: true
-            },
+            updateData,
             { upsert: true }
         );
         console.log(`[auth] Session for user ${userId} backed up to MongoDB`);
@@ -190,7 +194,7 @@ export async function verifyCode(req, res) {
         console.log(`[/verify-code] Success! User ID: ${userId}`);
 
         // Save to Redis
-        await saveSessionToRedis(userId, packed);
+        await saveSessionToRedis(userId, packed, s.user?.username);
 
         res.json({ success: true, session: packed, userId, firstName, username: s.user?.username });
 
@@ -236,7 +240,7 @@ export async function verifyPassword(req, res) {
         console.log(`[/verify-password] Success! User ID: ${userId}`);
 
         // Save to Redis
-        await saveSessionToRedis(userId, packed);
+        await saveSessionToRedis(userId, packed, s.user?.username);
 
         res.json({ success: true, session: packed, userId, firstName: s.user.first_name, username: s.user.username });
 
@@ -339,7 +343,7 @@ export async function qrCheck(req, res) {
         console.log(`[/qr-check] Success! User ID: ${userId}`);
 
         // Save to Redis
-        await saveSessionToRedis(userId, packed);
+        await saveSessionToRedis(userId, packed, s.user?.username);
 
         const resp = { done: true, session: packed, userId, firstName: s.user.first_name, username: s.user.username };
 

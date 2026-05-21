@@ -1,0 +1,221 @@
+import { execFileSync } from 'child_process';
+import { existsSync, unlinkSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import crypto from 'crypto';
+import sherpa from 'sherpa-onnx-node';
+
+const MODELS_DIR = process.env.MODELS_DIR || '/models';
+const NUM_THREADS = parseInt(process.env.NUM_THREADS || '4', 10);
+const PUNCT_THREADS = parseInt(process.env.PUNCT_THREADS || '2', 10);
+const TRANSLATE_URL = process.env.TRANSLATE_SERVICE_URL || 'http://translation-service.debugging-testcrash-pub.svc.cluster.local:8001/v1/translate';
+
+const SENSE_VOICE_MODEL = join(MODELS_DIR, 'sense_voice', 'model.int8.onnx');
+const SENSE_VOICE_TOKENS = join(MODELS_DIR, 'sense_voice', 'tokens.txt');
+const VAD_MODEL = join(MODELS_DIR, 'vad', 'silero_vad.onnx');
+const PUNCT_MODEL = join(MODELS_DIR, 'punctuation', 'model.onnx');
+const PUNCT_VOCAB = join(MODELS_DIR, 'punctuation', 'vocab.txt');
+
+const LANG_TO_NLLB = {
+  ru: 'rus_Cyrl', en: 'eng_Latn', zh: 'zho_Hans', de: 'deu_Latn', fr: 'fra_Latn',
+  es: 'spa_Latn', uk: 'ukr_Cyrl', ar: 'arb_Arab', ja: 'jpn_Jpan', ko: 'kor_Hang',
+  it: 'ita_Latn', pt: 'por_Latn', pl: 'pol_Latn', nl: 'nld_Latn',
+  vi: 'vie_Latn', id: 'ind_Latn', th: 'tha_Thai', ms: 'msa_Latn', tr: 'tur_Tglg',
+};
+
+let recognizer = null;
+let vad = null;
+let punctuator = null;
+let isReady = false;
+let isPunctuationEnabled = false;
+
+function ensureModelFiles() {
+  if (!existsSync(SENSE_VOICE_MODEL) || !existsSync(SENSE_VOICE_TOKENS)) {
+    throw new Error(`Missing sherpa-onnx SenseVoice model or tokens in ${join(MODELS_DIR, 'sense_voice')}`);
+  }
+  if (!existsSync(VAD_MODEL)) {
+    throw new Error(`Missing Silero VAD model in ${join(MODELS_DIR, 'vad')}`);
+  }
+}
+
+function initialize() {
+  if (isReady) return;
+  ensureModelFiles();
+
+  // senseVoice must be inside modelConfig — verified against sherpa-onnx-node v1.13.2
+  recognizer = new sherpa.OfflineRecognizer({
+    modelConfig: {
+      senseVoice: {
+        model: SENSE_VOICE_MODEL,
+        language: 'auto',
+        useInverseTextNormalization: 1,
+      },
+      tokens: SENSE_VOICE_TOKENS,
+      numThreads: NUM_THREADS,
+      debug: 0,
+      provider: 'cpu',
+    },
+  });
+
+  vad = new sherpa.VoiceActivityDetector({
+    sileroVad: {
+      model: VAD_MODEL,
+      threshold: 0.5,
+      minSilenceDuration: 0.5,
+      minSpeechDuration: 0.25,
+      windowSize: 512,
+    },
+    sampleRate: 16000,
+    numThreads: 2,
+    debug: 0,
+    provider: 'cpu',
+  });
+
+  if (existsSync(PUNCT_MODEL) && existsSync(PUNCT_VOCAB)) {
+    punctuator = new sherpa.OfflinePunctuation({
+      model: PUNCT_MODEL,
+      vocab: PUNCT_VOCAB,
+      numThreads: PUNCT_THREADS,
+      debug: 0,
+      provider: 'cpu',
+    });
+    isPunctuationEnabled = true;
+  }
+
+  isReady = true;
+}
+
+function decodeAudioToPCM(filePath) {
+  const raw = execFileSync('ffmpeg', [
+    '-y', '-i', filePath,
+    '-vn', '-ar', '16000', '-ac', '1', '-f', 'f32le', 'pipe:1',
+  ], { maxBuffer: 200 * 1024 * 1024 });
+  return new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4);
+}
+
+function applyVAD(pcm) {
+  vad.acceptWaveform(pcm);
+  const segments = [];
+  let total = 0;
+
+  while (!vad.isEmpty()) {
+    const chunk = vad.front();
+    segments.push(chunk.samples);
+    total += chunk.samples.length;
+    vad.pop();
+  }
+
+  if (segments.length === 0) return new Float32Array(0);
+  const merged = new Float32Array(total);
+  let offset = 0;
+  for (const chunk of segments) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return merged;
+}
+
+function transcribePCM(pcm) {
+  if (!pcm || pcm.length === 0) {
+    return { text: '', language: 'unknown' };
+  }
+  const stream = recognizer.createStream();
+  stream.acceptWaveform({ sampleRate: 16000, samples: pcm });
+  recognizer.decode(stream);
+  const result = recognizer.getResult(stream);
+  return {
+    text: result.text?.trim() || '',
+    language: result.lang || 'auto',
+  };
+}
+
+function addPunctuation(text) {
+  if (!text || !punctuator || !isPunctuationEnabled) return text;
+  try {
+    return punctuator.addPunct(text);
+  } catch (error) {
+    console.warn('[whisper-service-v2] Punctuation failed:', error?.message || error);
+    return text;
+  }
+}
+
+export function getAudioHash(buffer) {
+  const prefix = buffer.subarray(0, Math.min(buffer.length, 8192));
+  return crypto.createHash('sha256').update(prefix).digest('hex');
+}
+
+export function makeCacheKey(hash) {
+  return `whisper-v2:cache:${hash}`;
+}
+
+export async function callTranslation(text, detectedLang, targetLanguage) {
+  if (!text || !targetLanguage) return text;
+  const source = LANG_TO_NLLB[detectedLang] || detectedLang;
+  try {
+    const response = await fetch(TRANSLATE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, source_language: source, target_language: targetLanguage }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) {
+      throw new Error(`Translation failed ${response.status}`);
+    }
+    const data = await response.json();
+    return data.text || text;
+  } catch (error) {
+    console.warn('[whisper-service-v2] Translation error:', error?.message || error);
+    return text;
+  }
+}
+
+export async function processFile(filePath, targetLanguage) {
+  initialize();
+  const start = Date.now();
+  const pcmFull = decodeAudioToPCM(filePath);
+  const decodedMs = Date.now() - start;
+  const speech = applyVAD(pcmFull);
+  const vadMs = Date.now() - start - decodedMs;
+  const textResult = transcribePCM(speech);
+  const asrMs = Date.now() - start - decodedMs - vadMs;
+  const text = addPunctuation(textResult.text);
+  let translated = null;
+  if (targetLanguage && text) {
+    translated = await callTranslation(text, textResult.language, targetLanguage);
+  }
+  return {
+    text,
+    language: textResult.language,
+    translated,
+    target_language: targetLanguage || null,
+    metrics: {
+      decodedMs,
+      vadMs,
+      asrMs,
+      durationMs: Date.now() - start,
+      speechSamples: speech.length,
+      rawSamples: pcmFull.length,
+    },
+  };
+}
+
+export async function processBuffer(buffer, targetLanguage) {
+  const tmpFile = join(tmpdir(), `whisper-v2-${crypto.randomBytes(8).toString('hex')}.tmp`);
+  try {
+    writeFileSync(tmpFile, buffer);
+    return await processFile(tmpFile, targetLanguage);
+  } finally {
+    if (existsSync(tmpFile)) {
+      try { unlinkSync(tmpFile); } catch (_) { /* ignore cleanup */ }
+    }
+  }
+}
+
+export function isServiceReady() {
+  try {
+    initialize();
+    return true;
+  } catch (error) {
+    return false;
+  }
+}

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import Redis from 'ioredis';
-import { sampleAudioBase64 } from './sample_audio.js';
+import { sampleAudioBase64 } from './sample_audio';
 
 export interface TestLog {
   timestamp: string;
@@ -133,7 +133,7 @@ export class TestSuiteRunner {
     const log = this.createLogger(logs);
     const id = 'whisper-service';
     const name = 'Whisper-Turbo ASR Transcription';
-    const target = this.env.WHISPER_TURBO_URL || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
+    const target = this.env.WHISPER_TURBO_URL || this.env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
 
     log.info(`Initializing internal transcription test...`);
     log.info(`Target ASR engine URL: ${target}`);

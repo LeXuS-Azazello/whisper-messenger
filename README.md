@@ -96,7 +96,7 @@ Two separate WhatsApp integration strategies — **do not mix up**:
 
 | Module | Directories | Library | Status |
 | :--- | :--- | :--- | :--- |
-| **Baileys** (current) | `whatsapp-baileys-client/` · `whatsapp-baileys-manager/` | `@whiskeysockets/baileys` | ✅ In development |
+| **Baileys** (current) | `whatsapp-baileys-client/` · `whatsapp-baileys-manager/` | `baileys` | ✅ In development |
 | **whatsapp-web** (next) | `whatsapp-client/` · `whatsapp-client-manager/` | `whatsapp-web.js` | 🔜 Planned |
 
 > **Rule**: `whatsapp-baileys-*` = Baileys library. `whatsapp-client*` = whatsapp-web.js library.

@@ -23,7 +23,7 @@ data:
             "env": [
               {
                 "name": "WHISPER_PROVIDER",
-                "value": "http://whisper-service.debugging-testcrash-pub.svc.cluster.local/v1/transcribe-base64"
+                "value": "http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local/v1/transcribe-base64"
               }
             ],
             "resources": {

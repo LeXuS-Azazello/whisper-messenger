@@ -3,7 +3,7 @@ FROM node:20-bookworm-slim
 WORKDIR /app
 
 # Copy dependency definition
-COPY package*.json tsconfig.json ./
+COPY package*.json ./
 
 # Install all dependencies (including devDependencies so vitest is available)
 RUN npm install

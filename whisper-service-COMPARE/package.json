@@ -1,0 +1,13 @@
+{
+  "name": "sherpa-onnx-whisper-service",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Fast ASR service using sherpa-onnx SenseVoice + VAD + Punctuation",
+  "main": "app-sherpa.js",
+  "dependencies": {
+    "express": "^4.19.2",
+    "sherpa-onnx-node": "^1.11.0",
+    "fluent-ffmpeg": "^2.1.3",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0"
+  }
+}

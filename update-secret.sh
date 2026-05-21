@@ -42,6 +42,8 @@ TEMP_FILE=$(mktemp)
 
 cat .env | while IFS='=' read -r key value; do
     if [[ -n "$key" && ! $key =~ ^# && "$key" != "$HF_ENV_KEY" ]]; then
+        # Strip surrounding quotes that are sometimes present in .env values
+        value="${value%\"}"; value="${value#\"}"
         echo "  $key: $(echo -n "$value" | base64 -w 0)" >> "$TEMP_FILE"
     fi
 done

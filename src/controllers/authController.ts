@@ -237,7 +237,6 @@ export async function handleGoogleCallback(
     if (user) {
       // Merge Google data into existing user record (maintaining their original userId)
       user.firstName = user.firstName || givenName;
-      user.username = user.username || name;
       if (email && !user.email) {
         user.email = email;
       }
@@ -250,7 +249,6 @@ export async function handleGoogleCallback(
       user = new User({
         userId,
         firstName: givenName,
-        username: name,
         email,
         emailVerified: true,
         isActive: true

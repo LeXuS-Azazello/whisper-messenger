@@ -1,0 +1,198 @@
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# Вариант B: sherpa-onnx + SenseVoice + Silero VAD + Punctuation
+# Деплоится как НОВЫЙ сервис рядом с текущим whisper-service
+# Клиенты переключаются через env WHISPER_PROVIDER
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── PVC для хранения моделей (скачиваются один раз, ~400MB) ──────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sherpa-models-pvc
+  namespace: debugging-testcrash-pub
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# ── Init Job: скачивает модели если их ещё нет ────────────────────────────────
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sherpa-model-downloader
+  namespace: debugging-testcrash-pub
+  annotations:
+    # Запустить один раз вручную: kubectl apply -f sherpa-onnx.yaml
+    # После загрузки моделей Job завершится
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: downloader
+          image: curlimages/curl:latest
+          command: ["/bin/sh", "/scripts/download-models.sh"]
+          env:
+            - name: MODELS_DIR
+              value: "/models"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: sherpa-models-pvc
+        - name: scripts
+          configMap:
+            name: sherpa-download-scripts
+            defaultMode: 0755
+
+---
+# ── ConfigMap со скриптом загрузки моделей ───────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sherpa-download-scripts
+  namespace: debugging-testcrash-pub
+data:
+  download-models.sh: |
+    #!/bin/sh
+    set -e
+    MODELS_DIR="${MODELS_DIR:-/models}"
+    mkdir -p "$MODELS_DIR/sense_voice" "$MODELS_DIR/vad" "$MODELS_DIR/punctuation"
+
+    BASE="https://github.com/k2-fsa/sherpa-onnx/releases/download"
+
+    # SenseVoice Small INT8 (~250MB) — RU/EN/ZH/JP/KO/...
+    if [ ! -f "$MODELS_DIR/sense_voice/model.int8.onnx" ]; then
+      echo "Downloading SenseVoice..."
+      curl -L -o /tmp/sv.tar.bz2 \
+        "${BASE}/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2"
+      tar -xjf /tmp/sv.tar.bz2 -C "$MODELS_DIR/sense_voice" --strip-components=1
+      rm /tmp/sv.tar.bz2
+    fi
+
+    # Silero VAD (~2MB)
+    if [ ! -f "$MODELS_DIR/vad/silero_vad.onnx" ]; then
+      echo "Downloading Silero VAD..."
+      curl -L -o "$MODELS_DIR/vad/silero_vad.onnx" \
+        "${BASE}/asr-models/silero_vad.onnx"
+    fi
+
+    # CT-Transformer Punctuation (~100MB, RU/EN/ZH)
+    if [ ! -f "$MODELS_DIR/punctuation/model.onnx" ]; then
+      echo "Downloading Punctuation model..."
+      curl -L -o /tmp/punct.tar.bz2 \
+        "${BASE}/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12.tar.bz2"
+      tar -xjf /tmp/punct.tar.bz2 -C "$MODELS_DIR/punctuation" --strip-components=1
+      rm /tmp/punct.tar.bz2
+    fi
+
+    echo "All models downloaded!"
+    ls -lh "$MODELS_DIR"/*/
+
+---
+# ── Deployment ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sherpa-asr-service
+  namespace: debugging-testcrash-pub
+  labels:
+    app: sherpa-asr-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sherpa-asr-service
+  template:
+    metadata:
+      labels:
+        app: sherpa-asr-service
+    spec:
+      containers:
+        - name: sherpa-asr
+          image: harbor.dev.takatan.cloud/devcenter/sherpa-asr:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MODELS_DIR
+              value: "/models"
+            - name: NUM_THREADS
+              value: "4"
+            - name: PORT
+              value: "8000"
+          resources:
+            requests:
+              memory: "512Mi"   # модели маленькие — всего ~400MB
+              cpu: "2"
+            limits:
+              memory: "2Gi"
+              cpu: "4"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10   # быстрый старт (нет тяжёлой загрузки)
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: sherpa-models-pvc
+
+---
+# ── Service (внутренний ClusterIP) ───────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: sherpa-asr-service
+  namespace: debugging-testcrash-pub
+  labels:
+    app: sherpa-asr-service
+spec:
+  selector:
+    app: sherpa-asr-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
+
+# ══════════════════════════════════════════════════════════════════════════════
+# КАК ПЕРЕКЛЮЧИТЬ КЛИЕНТОВ НА НОВЫЙ СЕРВИС:
+#
+# 1. Задеплоить этот файл:
+#    kubectl apply -f kubernetes/sherpa-onnx.yaml -n debugging-testcrash-pub
+#
+# 2. Дождаться загрузки моделей (Job sherpa-model-downloader):
+#    kubectl logs -f job/sherpa-model-downloader -n debugging-testcrash-pub
+#
+# 3. Переключить клиентов через env переменную WHISPER_PROVIDER:
+#    Старый: http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000/v1/transcribe-base64
+#    Новый:  http://sherpa-asr-service.debugging-testcrash-pub.svc.cluster.local:8000/v1/transcribe-base64
+#
+# 4. Обновить секрет или переменную в tg-client-manager / fb-client / wa-client:
+#    kubectl set env deployment/tg-client-manager \
+#      WHISPER_PROVIDER=http://sherpa-asr-service:8000/v1/transcribe-base64 \
+#      -n debugging-testcrash-pub
+#
+# 5. Проверить качество. Если ок — выключить старый whisper-service:
+#    kubectl scale deployment/whisper-service --replicas=0 -n debugging-testcrash-pub
+# ══════════════════════════════════════════════════════════════════════════════

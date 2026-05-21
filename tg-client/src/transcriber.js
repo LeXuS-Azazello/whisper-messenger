@@ -6,7 +6,7 @@ const MAX_RETRIES = 3;
 const RETRY_DELAYS_MS = [3000, 6000, 12000];
 
 export async function transcribePath(file_path, mime_type, language = 'auto') {
-    const url = WHISPER_PROVIDER || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
+    const url = WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
 
     const fileBuffer = fs.readFileSync(file_path);
     const base64Data = fileBuffer.toString('base64');

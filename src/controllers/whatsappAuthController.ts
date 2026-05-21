@@ -3,7 +3,7 @@ import { Env } from "../types";
 const MANAGER_PORT = 3002;
 
 function getManagerUrl(env: Env) {
-  return env.WA_MANAGER_URL || `http://whatsapp-baileys-manager:${MANAGER_PORT}`;
+  return (env.WA_MANAGER_URL || "").replace(/^"|"$/g, "").trim() || `http://whatsapp-baileys-manager:${MANAGER_PORT}`;
 }
 
 export async function handleWaStatus(env: Env, userId: string): Promise<Response> {

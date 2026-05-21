@@ -12,7 +12,10 @@ resources:
    - tg-client.yaml
    - tg-bot-test.yaml
    - whisper-service.yaml
+   - whisper-service-v2.yaml
    - whisper-service-network-policy.yaml
+   - samesame.yaml
+   - samesame-secret.yaml
    - huggingface-secret.yaml
    - rbac.yaml
    - cert-manager.yaml

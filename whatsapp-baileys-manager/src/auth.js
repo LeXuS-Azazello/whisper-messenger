@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 import { redis } from './config.js';
 import User from './models/User.js';
 import MessengerSession from './models/MessengerSession.js';
-import { makeWASocket, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { makeWASocket, useMultiFileAuthState } from 'baileys';
 import { spawnPod } from './k8s.js';
 
 export const authSessions = new Map();
@@ -51,14 +51,14 @@ export async function qrStart(req, res) {
                     session.status = 'qr_ready';
                     if (!session.responded) {
                         session.responded = true;
-                        res.json({ 
-                            qrUrl: qr, 
-                            qrDataUrl: session.qrDataUrl, 
+                        res.json({
+                            qrUrl: qr,
+                            qrDataUrl: session.qrDataUrl,
                             token: tempId,
                             info: "After scanning the code, WhatsApp will forcibly disconnect you, forcing a reconnect such that we can present the authentication credentials. Don't worry, this is not an error"
                         });
                     }
-                } catch (e) {}
+                } catch (e) { }
             }
             if (connection === 'open') {
                 session.status = 'done';
@@ -71,7 +71,7 @@ export async function qrStart(req, res) {
             if (!session.responded) {
                 session.responded = true;
                 res.status(500).json({ error: 'QR timeout' });
-                try { sock.logout(); } catch (e) {}
+                try { sock.logout(); } catch (e) { }
                 authSessions.delete(tempId);
             }
         }, 15000);
@@ -115,9 +115,9 @@ export async function pairingStart(req, res) {
         session.pairingCode = code;
         session.responded = true;
 
-        res.json({ 
-            pairingCode: code, 
-            token: tempId 
+        res.json({
+            pairingCode: code,
+            token: tempId
         });
 
     } catch (e) {
@@ -136,8 +136,8 @@ export async function qrCheck(req, res) {
         const targetUserId = userId || 'unknown';
         console.log(`[auth] WhatsApp Auth successful for ${targetUserId}`);
 
-        try { s.client.logout(); } catch(e) {}
-        
+        try { s.client.logout(); } catch (e) { }
+
         const packed = packBaileysSession(s.id);
         if (packed) {
             await redis.set(`wa_session_${targetUserId}`, packed, 'EX', 86400 * 30);
@@ -157,13 +157,13 @@ export async function qrCheck(req, res) {
 
         const tempDir = path.join(process.cwd(), 'sessions', `baileys_${s.id}`);
         if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
-        
+
         authSessions.delete(token);
         return res.json({ done: true, userId: targetUserId });
     }
 
     if (Date.now() - s.createdAt > 300000) {
-        try { s.client.logout(); } catch(e) {}
+        try { s.client.logout(); } catch (e) { }
         authSessions.delete(token);
         return res.json({ done: false, expired: true });
     }

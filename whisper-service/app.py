@@ -1,8 +1,9 @@
+import io
 import os
-import tempfile
 import torch
 import uvicorn
 import subprocess
+import numpy as np
 from fastapi import FastAPI, UploadFile, File, Form
 from pydantic import BaseModel
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
@@ -62,24 +63,38 @@ except Exception as e:
     sys.exit(1)
 
 def split_text_into_chunks(text, limit=3900):
-    if not text: return []
-    if len(text) <= limit: return [text]
+    if not text:
+        return []
+    if len(text) <= limit:
+        return [text]
     chunks = []
     while len(text) > limit:
         chunks.append(text[:limit])
         text = text[limit:]
-    if text: chunks.append(text)
+    if text:
+        chunks.append(text)
     return chunks
 
-def extract_audio_from_video(video_path: str, output_path: str = None) -> str:
-    if output_path is None:
-        output_path = video_path.rsplit('.', 1)[0] + '.wav'
-    subprocess.run([
-        'ffmpeg', '-y', '-i', video_path,
-        '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
-        output_path
+
+def decode_audio_file_to_pcm(file_path: str) -> np.ndarray:
+    result = subprocess.run([
+        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+        '-i', file_path,
+        '-vn', '-ar', '16000', '-ac', '1',
+        '-f', 'f32le', 'pipe:1'
     ], check=True, capture_output=True)
-    return output_path
+    return np.frombuffer(result.stdout, dtype=np.float32)
+
+
+def decode_audio_bytes_to_pcm(audio_bytes: bytes) -> np.ndarray:
+    result = subprocess.run([
+        'ffmpeg', '-hide_banner', '-loglevel', 'error',
+        '-i', 'pipe:0',
+        '-vn', '-ar', '16000', '-ac', '1',
+        '-f', 'f32le', 'pipe:1'
+    ], input=audio_bytes, check=True, capture_output=True)
+    return np.frombuffer(result.stdout, dtype=np.float32)
+
 
 def delete_file(file_path: str):
     if os.path.exists(file_path):
@@ -109,19 +124,16 @@ async def transcribe_path(body: TranscribePathRequest):
     loop = asyncio.get_event_loop()
 
     def process():
-        tmp_audio_path = None
         try:
-            process_path = file_path
-            if mime_type.startswith("video/") or any(file_path.lower().endswith(ext) for ext in ['.mp4', '.mkv', '.mov', '.avi']):
-                tmp_audio_path = extract_audio_from_video(file_path)
-                process_path = tmp_audio_path
-
-            generate_kwargs = {"max_new_tokens": 444}  # 448 max_target_positions minus ~4 special prefix tokens
+            generate_kwargs = {"max_new_tokens": 444}
             if language and language != "auto":
                 generate_kwargs["language"] = language
 
-            with sdpa_kernel(SDPBackend.MATH):
-                result = pipe(process_path, generate_kwargs=generate_kwargs)
+            if mime_type.startswith("video/") or any(file_path.lower().endswith(ext) for ext in ['.mp4', '.mkv', '.mov', '.avi']):
+                audio_array = decode_audio_file_to_pcm(file_path)
+                result = pipe(audio_array, sampling_rate=16000, generate_kwargs=generate_kwargs)
+            else:
+                result = pipe(file_path, generate_kwargs=generate_kwargs)
 
             text = result.get("text", "")
             chunks = split_text_into_chunks(text)
@@ -130,9 +142,6 @@ async def transcribe_path(body: TranscribePathRequest):
         except Exception as e:
             print(f"Error transcribing: {e}")
             return {"error": str(e), "text": ""}
-        finally:
-            if tmp_audio_path and os.path.exists(tmp_audio_path):
-                delete_file(tmp_audio_path)
 
     return await loop.run_in_executor(None, process)
 
@@ -163,25 +172,15 @@ async def transcribe_base64(body: TranscribeBase64Request):
             content = base64.b64decode(body.file_data)
         except Exception as e:
             return {"error": f"Invalid base64: {e}", "text": ""}
-            
-        ext = ".ogg" if "ogg" in body.mime_type else (".mp4" if "mp4" in body.mime_type else ".wav")
-        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-            tmp.write(content)
-            tmp_path = tmp.name
 
         try:
-            process_path = tmp_path
-            if body.mime_type.startswith("video/") or any(tmp_path.lower().endswith(ext) for ext in ['.mp4', '.mkv', '.mov', '.avi']):
-                audio_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
-                subprocess.run(['ffmpeg', '-y', '-i', tmp_path, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', audio_tmp], check=True)
-                process_path = audio_tmp
-
-            generate_kwargs = {"max_new_tokens": 444}  # 448 max_target_positions minus ~4 special prefix tokens
+            audio_array = decode_audio_bytes_to_pcm(content)
+            generate_kwargs = {"max_new_tokens": 444}
             if body.language and body.language != "auto":
                 generate_kwargs["language"] = body.language
 
             with sdpa_kernel(SDPBackend.MATH):
-                result = pipe(process_path, generate_kwargs=generate_kwargs)
+                result = pipe(audio_array, sampling_rate=16000, generate_kwargs=generate_kwargs)
 
             text = result.get("text", "")
             chunks = split_text_into_chunks(text)
@@ -190,9 +189,6 @@ async def transcribe_base64(body: TranscribeBase64Request):
         except Exception as e:
             print(f"Error transcribing base64: {e}")
             return {"error": str(e), "text": ""}
-        finally:
-            if os.path.exists(tmp_path): os.remove(tmp_path)
-            if 'audio_tmp' in locals() and os.path.exists(audio_tmp): os.remove(audio_tmp)
 
     return await loop.run_in_executor(None, process_base64)
 
@@ -211,27 +207,17 @@ async def transcribe(
     loop = asyncio.get_event_loop()
 
     def process_audio():
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp:
-            tmp.write(content)
-            tmp_path = tmp.name
-
         try:
-            if any(file.filename.lower().endswith(ext) for ext in ['.mp4', '.mkv', '.mov', '.avi']):
-                audio_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
-                subprocess.run(['ffmpeg', '-y', '-i', tmp_path, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', audio_tmp], check=True)
-                process_path = audio_tmp
-            else:
-                process_path = tmp_path
-
+            audio_array = decode_audio_bytes_to_pcm(content)
             generate_kwargs = {
                 "task": task,
-                "max_new_tokens": 444,  # 448 max_target_positions minus ~4 special prefix tokens
+                "max_new_tokens": 444,
             }
             if language and language != "auto":
                 generate_kwargs["language"] = language
 
             with sdpa_kernel(SDPBackend.MATH):
-                result = pipe(process_path, generate_kwargs=generate_kwargs)
+                result = pipe(audio_array, sampling_rate=16000, generate_kwargs=generate_kwargs)
 
             text = result.get("text", "")
             chunks = split_text_into_chunks(text)
@@ -240,9 +226,6 @@ async def transcribe(
         except Exception as e:
             print(f"Error transcribing: {e}")
             return []
-        finally:
-            if os.path.exists(tmp_path): os.remove(tmp_path)
-            if 'audio_tmp' in locals() and os.path.exists(audio_tmp): os.remove(audio_tmp)
 
     chunks = await loop.run_in_executor(None, process_audio)
     return {"text": "\n".join(chunks), "chunks": chunks}

@@ -39,7 +39,13 @@ describe('Authentication Merging and Conflict Resolution', () => {
       },
     } as any;
 
-    fetchSpy = vi.spyOn(globalThis, 'fetch');
+    fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return {
+        ok: true,
+        json: async () => ({ success: true }),
+        text: async () => "OK"
+      } as any;
+    });
     vi.clearAllMocks();
   });
 
@@ -49,7 +55,12 @@ describe('Authentication Merging and Conflict Resolution', () => {
 
   describe('handleGoogleCallback with an existing email-registered user', () => {
     it('should find user by email and merge Google credentials without changing the userId', async () => {
-      // Mock Google OAuth token exchange & userinfo responses
+      // Mock Google OAuth token exchange & userinfo responses (two fetches)
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: 'test-token' })
+      } as any);
+
       fetchSpy.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ id: '12345', email: 'lexus@debug.org.ua', name: 'Google Name' })
@@ -163,12 +174,6 @@ describe('Authentication Merging and Conflict Resolution', () => {
       vi.spyOn(User, 'findOne').mockResolvedValueOnce(null);
       const findOneAndUpdateSpy = vi.spyOn(User, 'findOneAndUpdate').mockResolvedValueOnce({} as any);
 
-      // Mock email sending
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true })
-      } as any);
-
       const response = await handleRegister(
         mockEnv,
         { email: 'lexus-new@debug.org.ua', password: 'new-password-123', firstName: 'Lexus' },
@@ -179,7 +184,7 @@ describe('Authentication Merging and Conflict Resolution', () => {
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
       expect(findOneAndUpdateSpy).toHaveBeenCalledWith(
-        { userId: 'email_lexus_new_example_com' },
+        { userId: 'email_lexus_new_debug_org_ua' },
         expect.objectContaining({
           emailVerified: false,
           isActive: false

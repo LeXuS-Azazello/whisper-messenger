@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { TestSuiteRunner } from './tests.js';
+import { TestSuiteRunner } from './tests';
 
 const execAsync = promisify(exec);
 const app = new Hono();
@@ -425,7 +425,7 @@ app.get('/', (c) => {
         <div class="test-header">
           <div>
             <div class="test-title">Whisper-Turbo ASR</div>
-            <div class="test-target">http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000</div>
+            <div class="test-target">http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000</div>
           </div>
           <span class="status-indicator" id="ind-whisper-service"></span>
         </div>

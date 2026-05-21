@@ -1,0 +1,239 @@
+---
+# Whisper Service v2: sherpa-onnx + Silero VAD + CT-Transformer
+# CPU-only deployment for debugging-testcrash-pub
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: whisper-service-v2-models-pvc
+  namespace: debugging-testcrash-pub
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 3Gi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: whisper-service-v2-download-scripts
+  namespace: debugging-testcrash-pub
+data:
+  download-models.sh: |
+    #!/bin/sh
+    set -eu
+
+    MODELS_DIR="${MODELS_DIR:-/models}"
+    echo "[download-models] MODELS_DIR=$MODELS_DIR"
+    mkdir -p "$MODELS_DIR/sense_voice" "$MODELS_DIR/vad" "$MODELS_DIR/punctuation"
+
+    BASE="https://github.com/k2-fsa/sherpa-onnx/releases/download"
+
+    download_if_missing() {
+      url="$1"
+      out="$2"
+      if [ -f "$out" ]; then
+        echo "[download-models] exists: $out"
+        return 0
+      fi
+      echo "[download-models] downloading $url → $out"
+      curl -L --fail --retry 5 --retry-delay 3 -o "$out" "$url"
+    }
+
+    download_tar_if_missing() {
+      url="$1"
+      dest_dir="$2"
+      marker="$3"
+      if [ -f "$marker" ]; then
+        echo "[download-models] exists: $marker"
+        return 0
+      fi
+      echo "[download-models] downloading archive $url"
+      tmp="$(mktemp)"
+      curl -L --fail --retry 5 --retry-delay 3 -o "$tmp" "$url"
+      tar -xjf "$tmp" -C "$dest_dir" --strip-components=1
+      rm -f "$tmp"
+    }
+
+    download_tar_if_missing \
+      "${BASE}/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2" \
+      "$MODELS_DIR/sense_voice" \
+      "$MODELS_DIR/sense_voice/model.int8.onnx"
+
+    download_if_missing \
+      "${BASE}/asr-models/silero_vad.onnx" \
+      "$MODELS_DIR/vad/silero_vad.onnx"
+
+    download_tar_if_missing \
+      "${BASE}/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12.tar.bz2" \
+      "$MODELS_DIR/punctuation" \
+      "$MODELS_DIR/punctuation/model.onnx"
+
+    if [ ! -f "$MODELS_DIR/sense_voice/model.int8.onnx" ] || [ ! -f "$MODELS_DIR/sense_voice/tokens.txt" ]; then
+      echo "[download-models] ERROR: SenseVoice model files missing"
+      exit 1
+    fi
+
+    if [ ! -f "$MODELS_DIR/vad/silero_vad.onnx" ]; then
+      echo "[download-models] ERROR: Silero VAD model missing"
+      exit 1
+    fi
+
+    if [ ! -f "$MODELS_DIR/punctuation/model.onnx" ] || [ ! -f "$MODELS_DIR/punctuation/vocab.txt" ]; then
+      echo "[download-models] ERROR: punctuation model files missing"
+      exit 1
+    fi
+
+    echo "[download-models] done. models are ready in $MODELS_DIR"
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: whisper-service-v2-model-downloader
+  namespace: debugging-testcrash-pub
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: downloader
+          image: curlimages/curl:latest
+          command: ["/bin/sh", "/scripts/download-models.sh"]
+          env:
+            - name: MODELS_DIR
+              value: "/models"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: whisper-service-v2-models-pvc
+        - name: scripts
+          configMap:
+            name: whisper-service-v2-download-scripts
+            defaultMode: 0755
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whisper-service-v2
+  namespace: debugging-testcrash-pub
+  labels:
+    app: whisper-service-v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whisper-service-v2
+  template:
+    metadata:
+      labels:
+        app: whisper-service-v2
+    spec:
+      imagePullSecrets:
+        - name: harbor-pull-secret
+      containers:
+        # HTTP API — accepts requests and enqueues jobs to BullMQ/Redis
+        - name: whisper-service-v2
+          image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MODELS_DIR
+              value: "/models"
+            - name: PORT
+              value: "8000"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: CACHE_TTL
+              value: "3600"
+            - name: NUM_THREADS
+              value: "4"
+            - name: NUM_INTER_THREADS
+              value: "2"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+
+        # BullMQ Worker — picks jobs from Redis and runs sherpa-onnx transcription
+        - name: whisper-worker-v2
+          image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
+          command: ["node", "src/worker.js"]
+          env:
+            - name: MODELS_DIR
+              value: "/models"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: CACHE_TTL
+              value: "3600"
+            - name: NUM_THREADS
+              value: "4"
+            - name: WORKER_CONCURRENCY
+              value: "1"
+          resources:
+            requests:
+              cpu: "3"
+              memory: "4Gi"
+            limits:
+              cpu: "6"
+              memory: "8Gi"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: whisper-service-v2-models-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whisper-service-v2
+  namespace: debugging-testcrash-pub
+  labels:
+    app: whisper-service-v2
+spec:
+  selector:
+    app: whisper-service-v2
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
+
+---
+# Использование:
+# 1. kubectl apply -f whisper-service-v2/k8s/whisper-service-v2.yaml -n debugging-testcrash-pub
+# 2. дождаться завершения Job whisper-service-v2-model-downloader
+# 3. подключить клиентов к http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000
+# 4. в клиенте передавать target_language, если нужен перевод

@@ -1,12 +1,16 @@
 document.addEventListener('DOMContentLoaded', function () {
     // Basic elements
     const logoutBtn = document.getElementById('logout-btn');
+    const mobileLogoutBtn = document.getElementById('mobile-logout-btn');
     const tabPanes = document.querySelectorAll('.tab-pane');
-    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabButtons = document.querySelectorAll('.tab-btn, .nav-item, .bottom-nav-item');
     const sectionTitle = document.getElementById('current-section-title');
     const sectionSubtitle = document.getElementById('current-section-subtitle');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', () => { location.href = '/auth/logout'; });
+    }
+    if (mobileLogoutBtn) {
+        mobileLogoutBtn.addEventListener('click', () => { location.href = '/auth/logout'; });
     }
 
     // Modal elements
@@ -580,6 +584,8 @@ document.addEventListener('DOMContentLoaded', function () {
             fbActiveMethod = 'appstate';
         });
 
+
+        
         fbTabCreds.addEventListener('click', () => {
             fbTabCreds.classList.add('active');
             fbTabAppstate.classList.remove('active');

@@ -3,7 +3,7 @@ import { Env } from "../types";
 const MANAGER_PORT = 3005;
 
 function getManagerUrl(env: Env) {
-  return env.INSTA_MANAGER_URL || `http://instagram-fca-manager:${MANAGER_PORT}`;
+  return (env.INSTA_MANAGER_URL || "").replace(/^"|"$/g, "").trim() || `http://instagram-fca-manager:${MANAGER_PORT}`;
 }
 
 export async function handleInstaStatus(env: Env, userId: string): Promise<Response> {

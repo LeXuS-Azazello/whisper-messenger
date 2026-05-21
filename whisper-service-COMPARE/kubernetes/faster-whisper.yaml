@@ -1,0 +1,79 @@
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# Вариант A: faster-whisper Deployment
+# Замена текущего whisper-service без изменений клиентского кода
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whisper-service           # совпадает с текущим именем — бесшовная замена
+  namespace: debugging-testcrash-pub
+  labels:
+    app: whisper-service
+    version: faster-whisper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whisper-service
+  template:
+    metadata:
+      labels:
+        app: whisper-service
+        version: faster-whisper
+    spec:
+      containers:
+        - name: whisper-service
+          image: harbor.dev.takatan.cloud/devcenter/whisper-faster:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MODEL_SIZE
+              value: "large-v3-turbo"
+            - name: DEVICE
+              value: "cpu"
+            - name: COMPUTE_TYPE
+              value: "int8"        # ключ скорости!
+            - name: NUM_WORKERS
+              value: "4"
+            - name: HF_HOME
+              value: "/hf-cache"
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "2"
+            limits:
+              memory: "4Gi"
+              cpu: "4"
+          volumeMounts:
+            - name: model-cache
+              mountPath: /hf-cache
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: whisper-model-cache    # тот же PVC что и сейчас
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whisper-service
+  namespace: debugging-testcrash-pub
+spec:
+  selector:
+    app: whisper-service
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP

@@ -33,28 +33,28 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
                                     </svg>
                                 </div>
-                                <span class="logo-text">WHISPER</span>
+                                <span class="logo-text">VOICEmsg.NET</span>
                             </div>
                         </div>
 
                         <nav class="sidebar-nav">
-                            <button class="nav-item active" data-tab="connections">
+                            <button type="button" class="nav-item tab-btn active" data-tab="connections">
                                 <span class="nav-icon">🔌</span>
                                 <span class="nav-label">Connections</span>
                             </button>
-                            <button class="nav-item" data-tab="stats">
+                            <button type="button" class="nav-item tab-btn" data-tab="stats">
                                 <span class="nav-icon">📊</span>
                                 <span class="nav-label">Statistics</span>
                             </button>
-                            <button class="nav-item" data-tab="profile">
+                            <button type="button" class="nav-item tab-btn" data-tab="profile">
                                 <span class="nav-icon">👤</span>
                                 <span class="nav-label">Profile</span>
                             </button>
-                            <button class="nav-item" data-tab="referrals">
+                            <button type="button" class="nav-item tab-btn" data-tab="referrals">
                                 <span class="nav-icon">🎁</span>
                                 <span class="nav-label">Referrals</span>
                             </button>
-                            <button class="nav-item" data-tab="billing">
+                            <button type="button" class="nav-item tab-btn" data-tab="billing">
                                 <span class="nav-icon">💳</span>
                                 <span class="nav-label">Billing</span>
                             </button>
@@ -68,7 +68,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                     <div class="user-role">{user.email || 'Free Tier Account'}</div>
                                 </div>
                             </div>
-                            <button id="logout-btn" class="sidebar-logout-btn">
+                            <button type="button" id="logout-btn" class="sidebar-logout-btn">
                                 <span>Logout</span> ➔
                             </button>
                         </div>
@@ -84,7 +84,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                             </div>
                             <span class="logo-text">WHISPER</span>
                         </div>
-                        <button id="mobile-logout-btn" class="logout-link">Logout</button>
+                        <button type="button" id="mobile-logout-btn" class="logout-link">Logout</button>
                     </header>
 
                     {/* Main Content Area */}
@@ -126,7 +126,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                                     <div class="avatar-icon tg-gradient">📱</div>
                                                     <div class="bridge-details">
                                                         <div class="bridge-label">Active Bridge</div>
-                                                        <div class="bridge-name">{user.firstName} {user.username ? `@${user.username}` : ''}</div>
+                                                        <div class="bridge-name">{user.username ? `@${user.username}` : user.firstName}</div>
                                                         <div class="bridge-status">
                                                             Status: <span class={user.isActive ? 'text-success' : 'text-danger'}>
                                                                 {user.isActive ? 'ONLINE' : 'OFFLINE'}
@@ -160,7 +160,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                     </div>
 
                                     {/* Meta Integration */}
-                                    <div class="card meta-card" style={{ display: 'none' }}>
+                                    <div class="card meta-card">
                                         <div class="card-header">
                                             <h3 class="card-title">
                                                 <span class="icon-ms">◉</span> Messenger / Insta
@@ -408,8 +408,8 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                                 </div>
                                             </div>
 
-                                            {/* Threads Integration */}
-                                            <div class="card threads-card">
+                                            {/* Threads Integration DISABLED FOR NOW*/}
+                                            <div style={{ display: 'none' }} class="card threads-card">
                                                 <div class="card-header">
                                                     <h3 class="card-title">@ Threads</h3>
                                                     <span class={`status-tag ${user.threadsToken ? 'active' : 'inactive'}`}>
@@ -898,23 +898,23 @@ export const renderDashboard = (user: UserSession, env: Env) => {
 
                             {/* Glassmorphic Bottom Nav Bar for Mobile Screens */}
                             <nav class="bottom-nav">
-                                <button class="bottom-nav-item active" data-tab="connections">
+                                <button type="button" class="bottom-nav-item tab-btn active" data-tab="connections">
                                     <span class="bottom-nav-icon">🔌</span>
                                     <span class="bottom-nav-label">Connect</span>
                                 </button>
-                                <button class="bottom-nav-item" data-tab="stats">
+                                <button type="button" class="bottom-nav-item tab-btn" data-tab="stats">
                                     <span class="bottom-nav-icon">📊</span>
                                     <span class="bottom-nav-label">Stats</span>
                                 </button>
-                                <button class="bottom-nav-item" data-tab="profile">
+                                <button type="button" class="bottom-nav-item tab-btn" data-tab="profile">
                                     <span class="bottom-nav-icon">👤</span>
                                     <span class="bottom-nav-label">Profile</span>
                                 </button>
-                                <button class="bottom-nav-item" data-tab="referrals">
+                                <button type="button" class="bottom-nav-item tab-btn" data-tab="referrals">
                                     <span class="bottom-nav-icon">🎁</span>
                                     <span class="bottom-nav-label">Refs</span>
                                 </button>
-                                <button class="bottom-nav-item" data-tab="billing">
+                                <button type="button" class="bottom-nav-item tab-btn" data-tab="billing">
                                     <span class="bottom-nav-icon">💳</span>
                                     <span class="bottom-nav-label">Billing</span>
                                 </button>

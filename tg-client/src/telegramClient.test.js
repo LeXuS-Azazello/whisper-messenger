@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { splitTextIntoChunks } from './transcriber.js';
-import { handleNewMessage } from './telegramClient.js';
+import { handleNewMessage, startTelegramClient } from './telegramClient.js';
 import * as utils from './utils.js';
 import { redis } from './config.js';
 
@@ -16,7 +16,8 @@ vi.mock('./config.js', () => ({
 vi.mock('./utils.js', () => ({
     createClient: vi.fn(() => ({
         on: vi.fn(),
-        invoke: vi.fn()
+        invoke: vi.fn(),
+        login: vi.fn().mockResolvedValue(true)
     })),
     unpackSession: vi.fn()
 }));

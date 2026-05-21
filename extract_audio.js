@@ -1,6 +1,10 @@
 const fs = require('fs');
+const path = require('path');
 
-const adminUiBuffer = fs.readFileSync('src/admin_ui.tsx', 'utf-8');
+const ROOT = path.resolve(__dirname, '..');
+const ADMIN_UI = path.join(ROOT, 'src', 'admin_ui.tsx');
+
+const adminUiBuffer = fs.readFileSync(ADMIN_UI, 'utf-8');
 
 const regex = /const sampleUrl = '(data:audio\/ogg;base64,[^']+)';/;
 const match = adminUiBuffer.match(regex);
@@ -9,7 +13,8 @@ if (match) {
   const base64String = match[1];
   
   const sampleAudioContent = `export const sampleAudioBase64 = '${base64String}';\n`;
-  fs.writeFileSync('src/sample_audio.ts', sampleAudioContent);
+  const SAMPLE_AUDIO = path.join(ROOT, 'src', 'sample_audio.ts');
+  fs.writeFileSync(SAMPLE_AUDIO, sampleAudioContent);
   
   const newAdminUiBuffer = adminUiBuffer.replace(
     /const sampleUrl = 'data:audio\/ogg;base64,[^']+';/,
@@ -29,7 +34,7 @@ if (match) {
   
   const withImport = `import { sampleAudioBase64 } from './sample_audio';\n` + replacedWithVariable;
   
-  fs.writeFileSync('src/admin_ui.tsx', withImport);
+  fs.writeFileSync(ADMIN_UI, withImport);
   console.log("Audio extracted successfully!");
 } else {
   console.log("Regex didn't match.");

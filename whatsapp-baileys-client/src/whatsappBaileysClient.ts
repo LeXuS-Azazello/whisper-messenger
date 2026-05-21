@@ -1,4 +1,4 @@
-import { makeWASocket, delay, DisconnectReason, proto, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { makeWASocket, delay, DisconnectReason, proto, useMultiFileAuthState } from 'baileys';
 import qrcode from 'qrcode';
 import { Env } from '../../src/types';
 import fs from 'fs/promises';
