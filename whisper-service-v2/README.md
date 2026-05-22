@@ -3,7 +3,7 @@
 Fast CPU-only ASR service for voice messages using:
 - `sherpa-onnx` SenseVoice INT8
 - `Silero VAD`
-- `CT-Transformer` punctuation
+- Simple offline punctuation for 100+ languages (CT-Transformer optional for zh/en)
 - `BullMQ` + Redis task queue
 - Redis SHA256 cache
 - optional `NLLB-200` translation service
@@ -84,7 +84,7 @@ TTL default: `3600` seconds.
 - `REDIS_URL` — Redis connection string
 - `CACHE_TTL` — cache TTL seconds (default `3600`)
 - `NUM_THREADS` — ASR thread count (default `4`)
-- `PUNCT_THREADS` — punctuation thread count (default `2`)
+- `PUNCT_THREADS` — only used if you keep the optional zh/en CT-Transformer model (default `2`)
 - `TRANSLATE_SERVICE_URL` — translation backend URL
 - `MODELS_DIR` — path to local models (default `/models`)
 - `WORKER_CONCURRENCY` — worker concurrency

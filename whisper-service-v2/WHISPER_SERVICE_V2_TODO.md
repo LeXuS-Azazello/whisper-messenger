@@ -4,7 +4,7 @@
 Подготовить `whisper-service-v2` как быстрый CPU-only ASR/translation pipeline на базе:
 - `sherpa-onnx` SenseVoice INT8
 - `Silero VAD`
-- `CT-Transformer` offline punctuation
+- Simple offline punctuation for 100+ languages (CT-Transformer optional bonus for zh/en)
 - `BullMQ` + Redis очередь
 - Redis SHA256 cache
 - `NLLB-200` перевод
@@ -30,7 +30,7 @@
   - проверка Redis кэша
   - применение Silero VAD
   - ASR через sherpa-onnx SenseVoice
-  - offline punctuation через CT-Transformer
+  - offline punctuation для большинства языков (простая + опциональный CT-Transformer)
   - запись результата в Redis TTL 1h
   - опциональный вызов `translation-service`
 - [ ] поддержка повторных попыток и отказоустойчивости

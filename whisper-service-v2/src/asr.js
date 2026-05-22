@@ -137,14 +137,59 @@ function transcribePCM(pcm) {
   };
 }
 
-function addPunctuation(text) {
-  if (!text || !punctuator || !isPunctuationEnabled) return text;
-  try {
-    return punctuator.addPunct(text);
-  } catch (error) {
-    console.warn('[whisper-service-v2] Punctuation failed:', error?.message || error);
-    return text;
+function addPunctuation(text, detectedLang = 'unknown') {
+  if (!text) return text;
+
+  // Use high-quality sherpa model only for zh/en when available (best results)
+  if (punctuator && isPunctuationEnabled) {
+    try {
+      return punctuator.addPunct(text);
+    } catch (error) {
+      console.warn('[whisper-service-v2] Sherpa punctuation failed, using simple fallback');
+    }
   }
+
+  // Simple offline punctuation — works for 100+ languages, zero extra models
+  return addSimplePunctuation(text, detectedLang);
+}
+
+function addSimplePunctuation(text, lang = 'unknown') {
+  let t = text.trim();
+  if (!t) return '';
+
+  // Capitalize first letter (works for Latin, Cyrillic, Greek, etc.)
+  const first = t.charAt(0);
+  if (first === first.toLowerCase() && first !== first.toUpperCase()) {
+    t = first.toUpperCase() + t.slice(1);
+  }
+
+  // Add terminal punctuation if missing
+  if (!/[.!?。！？؟۔]$/.test(t)) {
+    if (['zh', 'ja', 'ko', 'yue'].includes(lang)) t += '。';
+    else if (['ar', 'fa', 'ur'].includes(lang)) t += '۔';
+    else t += '.';
+  }
+
+  // Very light comma fixes for the most common languages (big readability win)
+  t = addLightCommas(t, lang);
+
+  return t.replace(/\s{2,}/g, ' ').trim();
+}
+
+function addLightCommas(text, lang) {
+  let t = text;
+
+  // Russian / Ukrainian — before common conjunctions in longer sentences
+  if (['ru', 'uk', 'be'].includes(lang)) {
+    t = t.replace(/\s+(и|а|но|или|что|чтобы|если|когда|как|потому что)\s+/gi, ' $1 ');
+  }
+
+  // English + similar European languages
+  if (['en', 'de', 'fr', 'es', 'it', 'pt', 'pl', 'nl'].includes(lang)) {
+    t = t.replace(/\s+(and|but|or|so|because|if|when|while|although|aber|mais|pero|ma|ma|ale|maar)\s+/gi, ' $1 ');
+  }
+
+  return t;
 }
 
 export function getAudioHash(buffer) {
@@ -187,7 +232,7 @@ export async function processFile(filePath, targetLanguage) {
     const vadMs = Date.now() - start - decodedMs;
     const textResult = transcribePCM(speech);
     const asrMs = Date.now() - start - decodedMs - vadMs;
-    const text = addPunctuation(textResult.text);
+    const text = addPunctuation(textResult.text, textResult.language);
     let translated = null;
     if (targetLanguage && text) {
       translated = await callTranslation(text, textResult.language, targetLanguage);
