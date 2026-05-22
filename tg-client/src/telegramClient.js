@@ -86,26 +86,48 @@ function telegramLangToNLLB(code) {
   return map[normalized] || 'eng_Latn'; // fallback to English
 }
 
-// Nice labels for display in messages
+// Nice labels with flags (supports short codes + NLLB codes like eng_Latn, rus_Cyrl)
 function getLangLabel(code) {
+  if (!code) return '🌐 auto';
+
+  const normalized = code.toLowerCase().split('_')[0];
+
   const map = {
-    'ru': 'рус',
-    'en': 'англ',
-    'he': 'ивр',
-    'uk': 'укр',
-    'de': 'нем',
-    'fr': 'фр',
-    'es': 'исп',
-    'th': 'тай',           // Thai
-    'zh': 'кит',
-    'ja': 'яп',
-    'ko': 'кор',
-    'ar': 'ар',
-    'vi': 'вьет',
-    'id': 'инд',
-    'tr': 'тур',
+    // Russian
+    'ru': '🇷🇺 рус', 'rus': '🇷🇺 рус',
+    // English
+    'en': '🇺🇸 eng', 'eng': '🇺🇸 eng',
+    // Hebrew
+    'he': '🇮🇱 עבר', 'heb': '🇮🇱 עבר',
+    // Ukrainian
+    'uk': '🇺🇦 укр',
+    // German
+    'de': '🇩🇪 нем', 'deu': '🇩🇪 нем',
+    // French
+    'fr': '🇫🇷 фр', 'fra': '🇫🇷 фр',
+    // Spanish
+    'es': '🇪🇸 исп', 'spa': '🇪🇸 исп',
+    // Thai
+    'th': '🇹🇭 тай',
+    // Chinese
+    'zh': '🇨🇳 кит', 'zho': '🇨🇳 кит',
+    // Japanese
+    'ja': '🇯🇵 яп', 'jpn': '🇯🇵 яп',
+    // Korean
+    'ko': '🇰🇷 кор', 'kor': '🇰🇷 кор',
+    // Arabic
+    'ar': '🇸🇦 ар', 'arb': '🇸🇦 ар',
+    // Vietnamese
+    'vi': '🇻🇳 вьет',
+    // Indonesian
+    'id': '🇮🇩 инд',
+    // Turkish
+    'tr': '🇹🇷 тур',
+    // Auto / unknown
+    'auto': '🌐 auto',
   };
-  return map[code] || code;
+
+  return map[normalized] || `🌐 ${normalized}`;
 }
 
 function logError(err, context = '') {
@@ -194,60 +216,54 @@ async function processSingleMessage(message) {
             filePath = file.local.path;
             if (!filePath) throw new Error('File download failed: no path');
 
-            let language = 'auto';
-            let userLangCode = 'ru'; // default
-
-            // Highest priority: user-set preference from dashboard (injected as env by manager)
-            const preferredFromEnv = process.env.PREFERRED_TRANSLATION_LANGUAGE;
-            let effectiveTarget = null;
+            // === Language detection + translation target logic ===
+            let userLangCode = 'ru';
 
             try {
-                // Determine language if this is a private chat with a specific user
                 const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
                 if (chat.type['_'] === 'chatTypePrivate') {
                     const user = await client.invoke({ '_': 'getUser', user_id: chat.type.user_id });
                     if (user && user.language_code) {
-                        language = user.language_code;
                         userLangCode = user.language_code;
                     }
                 }
             } catch (e) {}
 
-            if (preferredFromEnv) {
-                effectiveTarget = preferredFromEnv;
-            } else {
-                effectiveTarget = telegramLangToNLLB(userLangCode);
-            }
+            // Target language priority:
+            // 1. What user set in Dashboard (PREFERRED_TRANSLATION_LANGUAGE)
+            // 2. Language from user's Telegram profile
+            const preferredFromEnv = process.env.PREFERRED_TRANSLATION_LANGUAGE;
+            const targetLanguage = preferredFromEnv
+                ? preferredFromEnv
+                : telegramLangToNLLB(userLangCode);
 
             const transcribeStart = Date.now();
 
-            // Only request translation if the user's language differs from detected
-            const shouldTranslate = language !== userLangCode;
-
+            // Always use 'auto' for proper language detection by Whisper
             const result = await transcribePath(
-                filePath, 
-                mime_type, 
-                language, 
-                shouldTranslate ? effectiveTarget : null
+                filePath,
+                mime_type,
+                'auto',
+                targetLanguage || null     // pass target only if we have one
             );
 
             const transcribeDuration = ((Date.now() - transcribeStart) / 1000).toFixed(1);
 
-            const originalText = (result.text || '').trim();
+            const originalText   = (result.text || '').trim();
+            const detectedLang   = result.language || 'unknown';
             const translatedText = result.translated ? result.translated.trim() : null;
 
             if (originalText) {
                 console.log(`[tg-client] Transcription for msg ${message_id}: ${originalText}`);
 
-                let finalText = '';
+                // Always show original in the language it was spoken
+                const origLabel = getLangLabel(detectedLang);
+                let finalText = `${origLabel} ${originalText}`;
 
-                if (translatedText && shouldTranslate) {
-                    // Вариант B: [lang] original + [target] translated
-                    const origLabel = getLangLabel(result.language || language);
-                    const targetLabel = getLangLabel(userLangCode);
-                    finalText = `[${origLabel}] ${originalText}\n\n[${targetLabel}] ${translatedText}`;
-                } else {
-                    finalText = `🎤 ${originalText}`;
+                // Show translation on second line only if we got one
+                if (translatedText) {
+                    const targetLabel = getLangLabel(targetLanguage);
+                    finalText += `\n\n${targetLabel} ${translatedText}`;
                 }
 
                 const chunks = splitTextIntoChunks(finalText, 3900);
