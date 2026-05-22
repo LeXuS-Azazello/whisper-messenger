@@ -7,7 +7,7 @@ tg-client-manager:aba4ddba75e2fd812a1e7b9a05fe50f5
 whatsapp-baileys-manager:f5ba4eec2cf77514294e2f8da83f23c3
 whatsapp-baileys-client:774cd9b7111a1a2494b5af339fc3cfc9
 samesame:2326d38e27082ae2928e02c157df0392
-whisper-service-v2:93d3e5d5af3ae17becc9ee2a59f58441
-tg-client:d3866b3b6ced165d7f6c974ad4cad076
-.:7da69439c1b4bb624c37ffbd95b590a7
 voicemsg-tester:0684c36b0a9165d4c2361879ed0ced34
+whisper-service-v2:689ca5365773d915d7781af2d9d3a1d6
+.:cc6bb99287561d64efd0947f4648e9f2
+tg-client:77623d21c7ada0e564f8da5057051e7c

@@ -84,12 +84,7 @@ app.post('/send', async (c) => {
     // 3. Render email HTML & text
     const { html, text } = renderEmail(template, templateData, domain);
 
-    // 4. Send via Cloudflare SEND_EMAIL binding
-    if (!c.env.SEND_EMAIL || typeof c.env.SEND_EMAIL.send !== 'function') {
-      console.error('[Mail Worker] SEND_EMAIL binding is missing or not configured.');
-      return c.json({ error: 'Internal Server Error: Cloudflare SEND_EMAIL binding is not configured' }, 500);
-    }
-
+    // 4. Send via MailChannels API (allows sending to ANY email address)
     const fromEmail = (c.env.EMAIL_FROM || `no-reply@${domain}`).trim();
     let fromName = c.env.EMAIL_FROM_NAME || 'Voice Messenger';
     if (typeof fromName !== 'string') {
@@ -100,27 +95,56 @@ app.post('/send', async (c) => {
       fromName = 'Voice Messenger';
     }
 
-    console.log(`[Mail Worker] Sending email to: ${to}, Template: ${template}, Subject: ${subject}`);
+    console.log(`[Mail Worker] Sending email via MailChannels to: ${to}, Template: ${template}, Subject: ${subject}`);
 
-    const recipient = { 
-      email: to.trim(), 
-      name: to.trim().split('@')[0] || 'Recipient'
-    };
-    
-    const sender = { 
-      email: fromEmail, 
-      name: fromName 
-    };
-
-    await c.env.SEND_EMAIL.send({
-      to: [recipient],
-      from: sender,
+    const mailChannelsPayload = {
+      personalizations: [
+        {
+          to: [
+            {
+              email: to.trim(),
+              name: to.trim().split('@')[0] || 'Recipient'
+            }
+          ]
+        }
+      ],
+      from: {
+        email: fromEmail,
+        name: fromName
+      },
       subject: subject,
-      html: html,
-      text: text
+      content: [
+        {
+          type: 'text/plain',
+          value: text
+        },
+        {
+          type: 'text/html',
+          value: html
+        }
+      ]
+    };
+
+    const mailChannelsResponse = await fetch('https://api.mailchannels.net/tx/v1/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // Optional but recommended for production:
+        // 'X-MailChannels-Authorization': 'Bearer your-token-if-needed'
+      },
+      body: JSON.stringify(mailChannelsPayload)
     });
 
-    console.log(`[Mail Worker] Email sent successfully to: ${to}`);
+    if (!mailChannelsResponse.ok) {
+      const errorText = await mailChannelsResponse.text();
+      console.error('[Mail Worker] MailChannels error:', mailChannelsResponse.status, errorText);
+      return c.json({
+        error: 'Failed to send email via MailChannels',
+        details: `Status ${mailChannelsResponse.status}: ${errorText}`
+      }, 500);
+    }
+
+    console.log(`[Mail Worker] Email sent successfully via MailChannels to: ${to}`);
 
     return c.json({
       success: true,

@@ -112,16 +112,31 @@ async function processSingleMessage(message) {
             } catch (e) {}
 
             const transcribeStart = Date.now();
-            const transcription = await transcribePath(filePath, mime_type, language);
+            // Target language for translation (Russian by default)
+            const targetLang = 'rus_Cyrl';
+            const result = await transcribePath(filePath, mime_type, language, targetLang);
             const transcribeDuration = ((Date.now() - transcribeStart) / 1000).toFixed(1);
-            if (transcription.trim()) {
-                console.log(`[tg-client] Transcription result for msg ${message_id}: ${transcription.trim()}`);
-                const chunks = splitTextIntoChunks(transcription.trim(), 3900);
+
+            const originalText = (result.text || '').trim();
+            const translatedText = result.translated ? result.translated.trim() : null;
+
+            if (originalText) {
+                console.log(`[tg-client] Transcription for msg ${message_id}: ${originalText}`);
+
+                let finalText = '';
+
+                if (translatedText && translatedText !== originalText) {
+                    // Вариант B: [lang] original + [target] translated
+                    const origLang = result.language || language || 'auto';
+                    finalText = `[${origLang}] ${originalText}\n\n[рус] ${translatedText}`;
+                } else {
+                    finalText = `🎤 ${originalText}`;
+                }
+
+                const chunks = splitTextIntoChunks(finalText, 3900);
                 for (let i = 0; i < chunks.length; i++) {
                     let replyText = chunks[i];
-                    if (chunks.length === 1) {
-                        replyText = `🎤 ${replyText}`;
-                    } else {
+                    if (chunks.length > 1) {
                         const idx = i + 1;
                         replyText = `(Part ${idx}/${chunks.length})\n\n${replyText}`;
                     }

@@ -58,9 +58,8 @@ graph TD
 | **Backend** | TypeScript, Node.js, Hono, Express |
 | **Frontend** | Preact, SSR, Vanilla CSS (Premium Aesthetics) |
 | **Database** | Redis (Queue/Stats), MongoDB (Persistence) |
-| **AI/ASR** | Whisper large-v3-turbo |
+
 | **Infrastructure** | Kubernetes (Kustomize), Docker |
-| **Monitoring** | Prometheus, Grafana, Fluentd |
 | **Ingress** | NGINX |
 
 ---

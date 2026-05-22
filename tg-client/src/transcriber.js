@@ -5,7 +5,7 @@ import { WHISPER_PROVIDER, WHISPER_SECRET } from './config.js';
 const MAX_RETRIES = 3;
 const RETRY_DELAYS_MS = [3000, 6000, 12000];
 
-export async function transcribePath(file_path, mime_type, language = 'auto') {
+export async function transcribePath(file_path, mime_type, language = 'auto', target_language = null) {
     const url = WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
 
     const fileBuffer = fs.readFileSync(file_path);
@@ -16,6 +16,10 @@ export async function transcribePath(file_path, mime_type, language = 'auto') {
         mime_type: mime_type,
         language: language
     };
+
+    if (target_language) {
+        payload.target_language = target_language;
+    }
 
     const headers = { 'Content-Type': 'application/json' };
     if (WHISPER_SECRET) {
@@ -34,7 +38,12 @@ export async function transcribePath(file_path, mime_type, language = 'auto') {
 
             if (!response.ok) throw new Error(`Transcriber HTTP error (${response.status})`);
             const data = await response.json();
-            return data.text || '';
+            return {
+                text: data.text || '',
+                language: data.language || language,
+                translated: data.translated || null,
+                target_language: data.target_language || target_language || null
+            };
         } catch (err) {
             lastError = err;
             const isNetworkErr = err.cause?.code === 'ECONNREFUSED'
