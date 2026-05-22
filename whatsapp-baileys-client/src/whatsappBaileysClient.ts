@@ -8,7 +8,8 @@ import {
   reportQR, 
   reportPairingCode, 
   clearConnectionCodes,
-  reportStatus
+  reportStatus,
+  getLangLabel
 } from './config.js';
 
 export interface WhatsAppBaileysClientConfig {
@@ -277,10 +278,10 @@ export class WhatsAppBaileysClient {
       }
 
       // Format with flags (same style as tg-client)
-      let replyText = `${this.getLangLabel(detectedLang)} ${originalText}`;
+      let replyText = `${getLangLabel(detectedLang)} ${originalText}`;
 
       if (translatedText && targetLang) {
-        const targetLabel = this.getLangLabel(targetLang);
+        const targetLabel = getLangLabel(targetLang);
         replyText += `\n\n${targetLabel} ${translatedText}`;
       }
 
@@ -296,27 +297,5 @@ export class WhatsAppBaileysClient {
     }
   }
 
-  private getLangLabel(code: string): string {
-    if (!code) return '🌐 auto';
-    const normalized = code.toLowerCase().split('_')[0];
-    const map: Record<string, string> = {
-      'ru': '🇷🇺 рус', 'rus': '🇷🇺 рус',
-      'en': '🇺🇸 eng', 'eng': '🇺🇸 eng',
-      'he': '🇮🇱 עבר', 'heb': '🇮🇱 עבר',
-      'uk': '🇺🇦 укр',
-      'de': '🇩🇪 нем', 'deu': '🇩🇪 нем',
-      'fr': '🇫🇷 фр', 'fra': '🇫🇷 фр',
-      'es': '🇪🇸 исп', 'spa': '🇪🇸 исп',
-      'th': '🇹🇭 тай',
-      'zh': '🇨🇳 кит', 'zho': '🇨🇳 кит',
-      'ja': '🇯🇵 яп', 'jpn': '🇯🇵 яп',
-      'ko': '🇰🇷 kor',
-      'ar': '🇸🇦 ар', 'arb': '🇸🇦 ар',
-      'vi': '🇻🇳 вьет',
-      'id': '🇮🇩 инд',
-      'tr': '🇹🇷 тур',
-      'auto': '🌐 auto',
-    };
-    return map[normalized] || `🌐 ${normalized}`;
-  }
+
 }

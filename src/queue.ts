@@ -53,7 +53,7 @@ export default async function queue(batch: any, env: Env) {
       }
 
       finalText += `\n\n🤖 ${result.model || 'whisper-v2'} | ⏱ ${sec}s`;
-      const parts = splitLongText(finalText);
+      const parts = splitLongText(finalText, 3900);
 
       // Send results
       if (platform === "telegram") {
@@ -79,7 +79,7 @@ export default async function queue(batch: any, env: Env) {
   }
 }
 
-function splitLongText(text: string, maxLength: number = 2000): string[] {
+function splitLongText(text: string, maxLength: number = 3900): string[] {
   const parts: string[] = [];
   for (let i = 0; i < text.length; i += maxLength) {
     parts.push(text.slice(i, i + maxLength));

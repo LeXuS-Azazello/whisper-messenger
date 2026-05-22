@@ -138,5 +138,30 @@ export async function reportStatus(status) {
   }
 }
 
+// Shared language label with flags (used by sendMessage and voice formatting)
+export function getLangLabel(code) {
+  if (!code) return '🌐 auto';
+  const normalized = code.toLowerCase().split('_')[0];
+  const map = {
+    'ru': '🇷🇺 рус', 'rus': '🇷🇺 рус',
+    'en': '🇺🇸 eng', 'eng': '🇺🇸 eng',
+    'he': '🇮🇱 עבר', 'heb': '🇮🇱 עבר',
+    'uk': '🇺🇦 укр',
+    'de': '🇩🇪 нем', 'deu': '🇩🇪 нем',
+    'fr': '🇫🇷 фр', 'fra': '🇫🇷 фр',
+    'es': '🇪🇸 исп', 'spa': '🇪🇸 исп',
+    'th': '🇹🇭 тай',
+    'zh': '🇨🇳 кит', 'zho': '🇨🇳 кит',
+    'ja': '🇯🇵 яп', 'jpn': '🇯🇵 яп',
+    'ko': '🇰🇷 kor',
+    'ar': '🇸🇦 ар', 'arb': '🇸🇦 ар',
+    'vi': '🇻🇳 вьет',
+    'id': '🇮🇩 инд',
+    'tr': '🇹🇷 тур',
+    'auto': '🌐 auto',
+  };
+  return map[normalized] || `🌐 ${normalized}`;
+}
+
 // Export redis instance for advanced usage if needed
 export const redis = getRedis;
