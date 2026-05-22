@@ -15,6 +15,99 @@ let myUserId = null;
 const clientStartTime = Math.floor(Date.now() / 1000);
 let oldMessagesProcessed = 0;
 
+// Telegram language_code → NLLB code for whisper-service-v2 translation
+function telegramLangToNLLB(code) {
+  if (!code) return 'eng_Latn';
+
+  const normalized = code.toLowerCase();
+
+  const map = {
+    // Major
+    'ru': 'rus_Cyrl',
+    'en': 'eng_Latn',
+    'de': 'deu_Latn',
+    'fr': 'fra_Latn',
+    'es': 'spa_Latn',
+    'it': 'ita_Latn',
+    'pt': 'por_Latn',
+    'nl': 'nld_Latn',
+    'pl': 'pol_Latn',
+    'tr': 'tur_Latn',
+
+    // Asian
+    'th': 'tha_Thai',           // Thai
+    'vi': 'vie_Latn',           // Vietnamese
+    'id': 'ind_Latn',           // Indonesian
+    'ms': 'msa_Latn',           // Malay
+    'ja': 'jpn_Jpan',           // Japanese
+    'ko': 'kor_Hang',           // Korean
+
+    // Chinese
+    'zh': 'zho_Hans',           // Chinese Simplified (default)
+    'zh-hans': 'zho_Hans',
+    'zh-cn': 'zho_Hans',
+    'zh-hant': 'zho_Hant',      // Traditional
+    'zh-tw': 'zho_Hant',
+    'zh-hk': 'zho_Hant',
+
+    // South Asian
+    'hi': 'hin_Deva',           // Hindi
+    'bn': 'ben_Beng',           // Bengali
+    'ta': 'tam_Taml',           // Tamil
+    'te': 'tel_Telu',           // Telugu
+    'mr': 'mar_Deva',           // Marathi
+    'gu': 'guj_Gujr',           // Gujarati
+    'pa': 'pan_Guru',           // Punjabi
+
+    // Southeast Asian
+    'km': 'khm_Khmr',           // Khmer (Cambodian)
+    'lo': 'lao_Laoo',           // Lao
+    'my': 'mya_Mymr',           // Burmese
+    'fil': 'tgl_Latn',          // Filipino/Tagalog
+    'tl': 'tgl_Latn',
+
+    // Middle East
+    'ar': 'arb_Arab',           // Arabic
+    'fa': 'pes_Arab',           // Persian (Farsi)
+    'ur': 'urd_Arab',           // Urdu
+
+    // Other useful
+    'uk': 'ukr_Cyrl',
+    'he': 'heb_Hebr',
+    'el': 'ell_Grek',
+    'cs': 'ces_Latn',
+    'hu': 'hun_Latn',
+    'sv': 'swe_Latn',
+    'da': 'dan_Latn',
+    'fi': 'fin_Latn',
+    'no': 'nob_Latn',
+  };
+
+  return map[normalized] || 'eng_Latn'; // fallback to English
+}
+
+// Nice labels for display in messages
+function getLangLabel(code) {
+  const map = {
+    'ru': 'рус',
+    'en': 'англ',
+    'he': 'ивр',
+    'uk': 'укр',
+    'de': 'нем',
+    'fr': 'фр',
+    'es': 'исп',
+    'th': 'тай',           // Thai
+    'zh': 'кит',
+    'ja': 'яп',
+    'ko': 'кор',
+    'ar': 'ар',
+    'vi': 'вьет',
+    'id': 'инд',
+    'tr': 'тур',
+  };
+  return map[code] || code;
+}
+
 function logError(err, context = '') {
     console.error(`[tg-client] ERROR${context ? ' ' + context : ''}:`, err?.stack || err?.message || err);
 }
@@ -102,19 +195,42 @@ async function processSingleMessage(message) {
             if (!filePath) throw new Error('File download failed: no path');
 
             let language = 'auto';
+            let userLangCode = 'ru'; // default
+
+            // Highest priority: user-set preference from dashboard (injected as env by manager)
+            const preferredFromEnv = process.env.PREFERRED_TRANSLATION_LANGUAGE;
+            let effectiveTarget = null;
+
             try {
                 // Determine language if this is a private chat with a specific user
                 const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
                 if (chat.type['_'] === 'chatTypePrivate') {
                     const user = await client.invoke({ '_': 'getUser', user_id: chat.type.user_id });
-                    if (user && user.language_code) language = user.language_code;
+                    if (user && user.language_code) {
+                        language = user.language_code;
+                        userLangCode = user.language_code;
+                    }
                 }
             } catch (e) {}
 
+            if (preferredFromEnv) {
+                effectiveTarget = preferredFromEnv;
+            } else {
+                effectiveTarget = telegramLangToNLLB(userLangCode);
+            }
+
             const transcribeStart = Date.now();
-            // Target language for translation (Russian by default)
-            const targetLang = 'rus_Cyrl';
-            const result = await transcribePath(filePath, mime_type, language, targetLang);
+
+            // Only request translation if the user's language differs from detected
+            const shouldTranslate = language !== userLangCode;
+
+            const result = await transcribePath(
+                filePath, 
+                mime_type, 
+                language, 
+                shouldTranslate ? effectiveTarget : null
+            );
+
             const transcribeDuration = ((Date.now() - transcribeStart) / 1000).toFixed(1);
 
             const originalText = (result.text || '').trim();
@@ -125,10 +241,11 @@ async function processSingleMessage(message) {
 
                 let finalText = '';
 
-                if (translatedText && translatedText !== originalText) {
+                if (translatedText && shouldTranslate) {
                     // Вариант B: [lang] original + [target] translated
-                    const origLang = result.language || language || 'auto';
-                    finalText = `[${origLang}] ${originalText}\n\n[рус] ${translatedText}`;
+                    const origLabel = getLangLabel(result.language || language);
+                    const targetLabel = getLangLabel(userLangCode);
+                    finalText = `[${origLabel}] ${originalText}\n\n[${targetLabel}] ${translatedText}`;
                 } else {
                     finalText = `🎤 ${originalText}`;
                 }

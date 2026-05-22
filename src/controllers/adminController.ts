@@ -325,6 +325,19 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
             headers: { "Content-Type": "application/json", "x-manager-secret": secret },
             body: JSON.stringify({ userId })
         });
+    } else if (action === "set_translation_language") {
+        const { language } = await req.json() as any;
+        await User.updateOne(
+          { userId },
+          { preferredTranslationLanguage: language || null }
+        );
+        // Restart the user pod so it picks up the new env var on next spawn
+        await fetch(`${managerUrl}/delete?secret=${secret}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-manager-secret": secret },
+            body: JSON.stringify({ userId })
+        }).catch(() => {});
+        return Response.json({ success: true });
     } else if (action === "delete") {
         // Delete user from MongoDB persistence
         await User.deleteOne({ userId });

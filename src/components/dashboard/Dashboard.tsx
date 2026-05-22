@@ -38,26 +38,26 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                         </div>
 
                         <nav class="sidebar-nav">
-                            <button type="button" class="nav-item tab-btn active" data-tab="connections">
+                            <a href="#connections" class="nav-item tab-btn active" data-tab="connections">
                                 <span class="nav-icon">🔌</span>
                                 <span class="nav-label">Connections</span>
-                            </button>
-                            <button type="button" class="nav-item tab-btn" data-tab="stats">
+                            </a>
+                            <a href="#stats" class="nav-item tab-btn" data-tab="stats">
                                 <span class="nav-icon">📊</span>
                                 <span class="nav-label">Statistics</span>
-                            </button>
-                            <button type="button" class="nav-item tab-btn" data-tab="profile">
+                            </a>
+                            <a href="#profile" class="nav-item tab-btn" data-tab="profile">
                                 <span class="nav-icon">👤</span>
                                 <span class="nav-label">Profile</span>
-                            </button>
-                            <button type="button" class="nav-item tab-btn" data-tab="referrals">
+                            </a>
+                            <a href="#referrals" class="nav-item tab-btn" data-tab="referrals">
                                 <span class="nav-icon">🎁</span>
                                 <span class="nav-label">Referrals</span>
-                            </button>
-                            <button type="button" class="nav-item tab-btn" data-tab="billing">
+                            </a>
+                            <a href="#billing" class="nav-item tab-btn" data-tab="billing">
                                 <span class="nav-icon">💳</span>
                                 <span class="nav-label">Billing</span>
-                            </button>
+                            </a>
                         </nav>
 
                         <div class="sidebar-footer">
@@ -562,10 +562,50 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                                                             <span class="detail-lbl">Registered Date</span>
                                                             <span class="detail-val">{new Date(user.createdAt).toLocaleDateString()}</span>
                                                         </div>
-                                                        <div class="profile-detail-item">
-                                                            <span class="detail-lbl">OAuth Authentication</span>
-                                                            <span class="detail-val text-success">{hasPassword ? 'Password Set' : 'Google OAuth'}</span>
-                                                        </div>
+                            <div class="profile-detail-item">
+                                <span class="detail-lbl">OAuth Authentication</span>
+                                <span class="detail-val text-success">{hasPassword ? 'Password Set' : 'Google OAuth'}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Preferred Translation Language */}
+                <div class="card" style={{ marginTop: '1.25rem' }}>
+                    <div class="card-header">
+                        <h3 class="card-title">🌍 Preferred Translation Language</h3>
+                    </div>
+                    <div class="card-content">
+                        <p class="card-description" style={{ marginBottom: '12px' }}>
+                            Choose the language your voice messages will be translated to. This setting applies to all your connected messengers.
+                        </p>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <select id="preferred-translation-lang" class="input-field" style={{ maxWidth: '320px' }} data-user-id={user.userId}>
+                                <option value="">Follow Telegram language</option>
+                                <option value="rus_Cyrl">Русский (Russian)</option>
+                                <option value="eng_Latn">English</option>
+                                <option value="tha_Thai">ไทย (Thai)</option>
+                                <option value="zho_Hans">简体中文 (Chinese Simplified)</option>
+                                <option value="zho_Hant">繁體中文 (Chinese Traditional)</option>
+                                <option value="arb_Arab">العربية (Arabic)</option>
+                                <option value="heb_Hebr">עברית (Hebrew)</option>
+                                <option value="jpn_Jpan">日本語 (Japanese)</option>
+                                <option value="kor_Hang">한국어 (Korean)</option>
+                                <option value="hin_Deva">हिन्दी (Hindi)</option>
+                                <option value="ben_Beng">বাংলা (Bengali)</option>
+                                <option value="tam_Taml">தமிழ் (Tamil)</option>
+                                <option value="vie_Latn">Tiếng Việt (Vietnamese)</option>
+                                <option value="deu_Latn">Deutsch (German)</option>
+                                <option value="fra_Latn">Français (French)</option>
+                                <option value="spa_Latn">Español (Spanish)</option>
+                            </select>
+                            <button id="save-lang-btn" class="btn btn-primary">Save</button>
+                        </div>
+                        <p id="lang-save-status" style={{ fontSize: '12px', marginTop: '8px', color: '#64748b' }}></p>
+                    </div>
+                </div>
+            </div>
+        </div>
                                                     </div>
                                                 </div>
                                             </div>

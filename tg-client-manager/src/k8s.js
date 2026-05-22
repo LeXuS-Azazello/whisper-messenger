@@ -228,6 +228,20 @@ export async function spawnPod(userId, session) {
         console.warn(`[/spawn] Failed to fetch dynamic config from Redis:`, e.message);
     }
 
+    // Inject user's preferred translation language (set in admin dashboard)
+    try {
+      const user = await User.findOne({ userId: safeUserId }).lean();
+      if (user?.preferredTranslationLanguage) {
+        container.env.push({ 
+          name: 'PREFERRED_TRANSLATION_LANGUAGE', 
+          value: user.preferredTranslationLanguage 
+        });
+        console.log(`[/spawn] Injected PREFERRED_TRANSLATION_LANGUAGE=${user.preferredTranslationLanguage}`);
+      }
+    } catch (e) {
+      console.warn(`[/spawn] Failed to load preferredTranslationLanguage for ${safeUserId}:`, e.message);
+    }
+
     // Use image from manager's env if provided, otherwise stick to template
     if (process.env.TG_CLIENT_IMAGE) {
         console.log(`[/spawn] Overriding container image with process.env.TG_CLIENT_IMAGE: "${process.env.TG_CLIENT_IMAGE}"`);
