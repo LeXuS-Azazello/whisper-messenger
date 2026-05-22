@@ -1,5 +1,5 @@
 import express from 'express';
-import { asrQueue, redisCache } from './queue.js';
+import { asrQueue, asrQueueEvents, redisCache } from './queue.js';
 import { getAudioHash, makeCacheKey } from './asr.js';
 import { Job } from 'bullmq';
 
@@ -75,8 +75,7 @@ app.post('/v1/transcribe-base64', async (req, res) => {
     }, {
       attempts: 2,
       backoff: { type: 'fixed', delay: 2000 },
-      removeOnComplete: true,
-      removeOnFail: true,
+      // Do NOT set removeOnComplete/removeOnFail here — it races with waitUntilFinished
     });
   } catch (error) {
     console.error('[whisper-service-v2] Queue add failed:', error?.message || error);
@@ -84,7 +83,8 @@ app.post('/v1/transcribe-base64', async (req, res) => {
   }
 
   try {
-    const result = await job.waitUntilFinished(undefined, { timeout: WAIT_FOR_JOB_MS });
+    // Use the shared QueueEvents instance — passing undefined was crashing BullMQ internally
+    const result = await job.waitUntilFinished(asrQueueEvents, { timeout: WAIT_FOR_JOB_MS });
     return res.json({ ...result, cache_hit: false });
   } catch (error) {
     if (error instanceof Error && error.message.includes('timeout')) {

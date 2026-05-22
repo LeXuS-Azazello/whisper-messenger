@@ -2,8 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { WHISPER_PROVIDER, WHISPER_SECRET } from './config.js';
 
-const MAX_RETRIES = 3;
-const RETRY_DELAYS_MS = [3000, 6000, 12000];
+const MAX_RETRIES = 5;
+const RETRY_DELAYS_MS = [5000, 10000, 20000, 40000]; // up to ~75s total patience
 
 export async function transcribePath(file_path, mime_type, language = 'auto', target_language = null) {
     const url = WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
@@ -36,7 +36,10 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
                 signal: AbortSignal.timeout(300000)
             });
 
-            if (!response.ok) throw new Error(`Transcriber HTTP error (${response.status})`);
+            if (!response.ok) {
+                const body = await response.text().catch(() => '');
+                throw new Error(`Transcriber HTTP ${response.status} ${body}`);
+            }
             const data = await response.json();
             return {
                 text: data.text || '',
@@ -46,18 +49,25 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
             };
         } catch (err) {
             lastError = err;
-            const isNetworkErr = err.cause?.code === 'ECONNREFUSED'
-                || err.cause?.code === 'ENOTFOUND'
-                || err.cause?.code === 'ECONNRESET'
-                || /fetch failed/i.test((err.message || '').toString());
+            const causeCode = err.cause?.code || '';
+            const isTransient = causeCode === 'ECONNREFUSED'
+                || causeCode === 'ENOTFOUND'
+                || causeCode === 'ECONNRESET'
+                || causeCode === 'ETIMEDOUT'
+                || /fetch failed/i.test(String(err.message));
 
-            console.error(`[transcriber] Attempt ${attempt}/${MAX_RETRIES} failed (${url}): ${err.message}${err.cause ? ` [${err.cause.code}]` : ''}`);
+            console.error(`[transcriber] Attempt ${attempt}/${MAX_RETRIES} failed for ${url}: ${err.message} ${causeCode ? `[${causeCode}]` : ''}`);
 
-            if (!isNetworkErr || attempt === MAX_RETRIES) break;
+            if (!isTransient || attempt === MAX_RETRIES) {
+                break;
+            }
 
-            const delay = RETRY_DELAYS_MS[attempt - 1] ?? 6000;
-            console.log(`[transcriber] Retrying in ${delay / 1000}s...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
+            const baseDelay = RETRY_DELAYS_MS[attempt - 1] ?? 30000;
+            const jitter = Math.floor(Math.random() * 4000); // avoid thundering herd
+            const delay = baseDelay + jitter;
+
+            console.log(`[transcriber] Transient network error — retrying in ${(delay/1000).toFixed(1)}s...`);
+            await new Promise(r => setTimeout(r, delay));
         }
     }
 
