@@ -1,11 +1,13 @@
 /** @jsxImportSource preact */
-import React from 'preact/compat';
-import fs from 'fs';
 import { render } from 'preact-render-to-string';
 import type { HealthChecks, UserSession, Env } from '../../types';
 import type { ErrorLog } from '../../logger';
 
-import { ConfigItem, formatUptime, UserRow, ErrorLogItem } from './Admin.utils';
+import { formatUptime, UserRow, ErrorLogItem } from './Admin.utils';
+import { AdminHeader } from './AdminHeader';
+import { TelegramAdminCard } from './TelegramAdminCard';
+import { PlatformConfigCard } from './PlatformConfigCard';
+import { LineAdminCard } from './LineAdminCard';
 
 export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: string, stats: any, errors: ErrorLog[], users: UserSession[] = [], tgAuthenticated: boolean = false) => {
     return "<!DOCTYPE html>" + render(
@@ -23,206 +25,52 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
             <body>
                 <div id="progress-bar"></div>
                 <div class="container">
-                    <header>
-                        <div class="logo">
-                            <div class="logo-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-                                </svg>
-                            </div>
-                            ECHO ADMIN
-                        </div>
-                        <div class="status-badge" title="Click to logout" dangerouslySetInnerHTML={{ __html: `<div class="status-dot"></div>SYSTEM ONLINE (LOGOUT)` }} />
-                    </header>
+                    <AdminHeader tgAuthenticated={tgAuthenticated} />
 
                     <div class="grid">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <span style={{ color: '#24A1DE' }}>✦</span> Telegram
-                                </h3>
-                                <span class={`status-tag ${tgAuthenticated ? 'active' : 'inactive'}`}>
-                                    {tgAuthenticated ? 'CONNECTED' : 'NOT SETUP'}
-                                </span>
-                            </div>
-                            <div class="config-list">
-                                <ConfigItem label="APP_ID" active={checks.TELEGRAM_APP_ID} />
-                                <ConfigItem label="APP_HASH" active={checks.TELEGRAM_APP_HASH} />
-                            </div>
-                            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                                <div id="tg-auth-status-container" style={{ display: tgAuthenticated ? 'block' : 'none', marginBottom: '15px', padding: '12px', background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: '8px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div>
-                                            <div style={{ fontSize: '14px', color: '#22c55e', fontWeight: '600' }}>Authenticated</div>
-                                            <div id="tg-auth-details" style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px' }}></div>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            <button class="btn" id="tg-test-btn" title="Send simple text" style={{ margin: 0, width: 'auto', background: '#3B82F6', fontSize: '12px', padding: '6px 12px' }}>Test</button>
-                                            <button class="btn" id="tg-test-voice-btn" title="Send sample voice msg" style={{ margin: 0, width: 'auto', background: '#F59E0B', fontSize: '12px', padding: '6px 12px' }}>Test Voice</button>
-                                            <button class="btn" id="tg-logout-btn" style={{ margin: 0, width: 'auto', background: '#ef4444', fontSize: '12px', padding: '6px 12px' }}>Disconnect</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div id="tg-auth-form" style={{ display: tgAuthenticated ? 'none' : 'block' }}>
-                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        <div class="input-group" style={{ margin: 0, flex: 1 }}>
-                                            <input type="tel" id="tg-phone-input" class="input-field" placeholder="+1234567890" style={{ padding: '0.6rem', borderRadius: '8px' }} />
-                                        </div>
-                                        <button class="btn" id="tg-send-code-btn" style={{ margin: 0, width: 'auto', background: '#8B5CF6', padding: '0.6rem 1.2rem' }}>Send Code</button>
-                                    </div>
-                                    <div id="tg-code-section" style={{ display: 'none', marginTop: '10px' }}>
-                                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                            <div class="input-group" style={{ margin: 0, flex: 1 }}>
-                                                <input type="text" id="tg-code-input" class="input-field" placeholder="Enter code" style={{ padding: '0.6rem', borderRadius: '8px' }} />
-                                            </div>
-                                            <button class="btn" id="tg-verify-btn" style={{ margin: 0, width: 'auto', background: '#22c55e', padding: '0.6rem 1.2rem' }}>Verify</button>
-                                        </div>
-                                    </div>
-                                    <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
-                                        <button class="btn" id="tg-show-qr-btn" style={{ margin: 0, width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '12px', padding: '8px' }}>QR Code Login</button>
-                                    </div>
-                                    <div id="tg-qr-section" style={{ display: 'none', marginTop: '15px', textAlign: 'center', background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '12px' }}>
-                                        <div id="qr-code-container" style={{ background: 'white', padding: '10px', borderRadius: '8px', display: 'inline-block', marginBottom: '8px', boxShadow: '0 0 20px rgba(139, 92, 246, 0.3)' }}></div>
-                                        <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>Scan from Telegram App</p>
-                                        <p id="qr-status" style={{ fontSize: '11px', color: '#8B5CF6', minHeight: '16px', fontWeight: 'bold' }}>Waiting for scan...</p>
-                                    </div>
-                                    <div id="tg-auth-message" style={{ fontSize: '11px', marginTop: '8px', minHeight: '16px', textAlign: 'center' }}></div>
-                                </div>
-                            </div>
-                        </div>
+                        <TelegramAdminCard checks={checks} tgAuthenticated={tgAuthenticated} />
 
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <span style={{ color: '#0081FB' }}>◉</span> Facebook Messenger
-                                </h3>
-                                <span class={`status-tag ${checks.META_PAGE_TOKEN ? 'active' : 'inactive'}`}>
-                                    {checks.META_PAGE_TOKEN ? 'CONNECTED' : 'NOT SETUP'}
-                                </span>
-                            </div>
-                            <div class="config-list">
-                                <ConfigItem label="VERIFY_TOKEN" active={checks.VERIFY_TOKEN} />
-                                <ConfigItem label="PAGE_TOKEN" active={checks.META_PAGE_TOKEN} />
-                                <ConfigItem label="APP_SECRET" active={checks.META_APP_SECRET} />
-                            </div>
-                        </div>
+                        <PlatformConfigCard
+                            title="Facebook Messenger"
+                            iconColor="#0081FB"
+                            icon="◉"
+                            statusActive={!!checks.META_PAGE_TOKEN}
+                            statusText={checks.META_PAGE_TOKEN ? 'CONNECTED' : 'NOT SETUP'}
+                            items={[
+                                { label: 'VERIFY_TOKEN', active: !!checks.VERIFY_TOKEN },
+                                { label: 'PAGE_TOKEN', active: !!checks.META_PAGE_TOKEN },
+                                { label: 'APP_SECRET', active: !!checks.META_APP_SECRET },
+                            ]}
+                        />
 
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <span style={{ color: '#FF0072' }}>✦</span> Instagram
-                                </h3>
-                                <span class={`status-tag ${checks.META_PAGE_TOKEN ? 'active' : 'inactive'}`}>
-                                    {checks.META_PAGE_TOKEN ? 'CONNECTED' : 'NOT SETUP'}
-                                </span>
-                            </div>
-                            <div class="config-list">
-                                <ConfigItem label="VERIFY_TOKEN" active={checks.VERIFY_TOKEN} />
-                                <ConfigItem label="PAGE_TOKEN" active={checks.META_PAGE_TOKEN} />
-                                <ConfigItem label="APP_SECRET" active={checks.META_APP_SECRET} />
-                            </div>
-                        </div>
+                        <PlatformConfigCard
+                            title="Instagram"
+                            iconColor="#FF0072"
+                            icon="✦"
+                            statusActive={!!checks.META_PAGE_TOKEN}
+                            statusText={checks.META_PAGE_TOKEN ? 'CONNECTED' : 'NOT SETUP'}
+                            items={[
+                                { label: 'VERIFY_TOKEN', active: !!checks.VERIFY_TOKEN },
+                                { label: 'PAGE_TOKEN', active: !!checks.META_PAGE_TOKEN },
+                                { label: 'APP_SECRET', active: !!checks.META_APP_SECRET },
+                            ]}
+                        />
 
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <span style={{ color: '#25D366' }}>◉</span> WhatsApp
-                                </h3>
-                                <span class={`status-tag ${checks.WHATSAPP_TOKEN && checks.WHATSAPP_PHONE_NUMBER_ID ? 'active' : 'inactive'}`}>
-                                    {checks.WHATSAPP_TOKEN && checks.WHATSAPP_PHONE_NUMBER_ID ? 'CONNECTED' : 'NOT SETUP'}
-                                </span>
-                            </div>
-                            <div class="config-list">
-                                <ConfigItem label="PHONE_ID" active={checks.WHATSAPP_PHONE_NUMBER_ID} />
-                                <ConfigItem label="API_TOKEN" active={checks.WHATSAPP_TOKEN} />
-                            </div>
-                        </div>
+                        <PlatformConfigCard
+                            title="WhatsApp"
+                            iconColor="#25D366"
+                            icon="◉"
+                            statusActive={!!(checks.WHATSAPP_TOKEN && checks.WHATSAPP_PHONE_NUMBER_ID)}
+                            statusText={(checks.WHATSAPP_TOKEN && checks.WHATSAPP_PHONE_NUMBER_ID) ? 'CONNECTED' : 'NOT SETUP'}
+                            items={[
+                                { label: 'PHONE_ID', active: !!checks.WHATSAPP_PHONE_NUMBER_ID },
+                                { label: 'API_TOKEN', active: !!checks.WHATSAPP_TOKEN },
+                            ]}
+                        />
 
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <span style={{ color: '#00C300' }}>◉</span> LINE
-                                </h3>
-                            </div>
-                            <div style={{ marginTop: '15px' }}>
-                                <p style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
-                                    LINE is configured directly by users in their Dashboard by entering Channel Access Token and Secret. Admin doesn't need global LINE tokens.
-                                </p>
-                            </div>
-                        </div>
+                        <LineAdminCard />
 
-                        <div class="card" style={{ display: 'none' }}>
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <span style={{ color: '#8B5CF6' }}>✦</span> Echo AI Provider
-                                </h3>
-                                <span id="whisper-status-tag" class="status-tag active" style={{ 
-                                    background: 'rgba(139, 92, 246, 0.2)', 
-                                    color: '#A78BFA', 
-                                    border: '1px solid rgba(139, 92, 246, 0.4)',
-                                    padding: '4px 12px',
-                                    borderRadius: '10px',
-                                    fontSize: '11px',
-                                    fontWeight: '800',
-                                    textTransform: 'uppercase'
-                                }}>
-                                    {(checks as any).WHISPER_PROVIDER_NAME || 'LOADING...'}
-                                </span>
-                            </div>
-                            <div style={{ marginTop: '10px' }}>
-                                <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                        <input type="radio" name="whisper_provider" value="whisper-turbo" id="provider-whisper-turbo" checked={(checks as any).WHISPER_PROVIDER === 'whisper-turbo'} />
-                                        <span style={{ fontSize: '14px', fontWeight: '600' }}>Whisper Turbo</span>
-                                    </label>
-                                </div>
-
-                                <div id="local-config-section" style={{ display: 'none', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '12px', marginBottom: '15px' }}>
-                                    <div class="input-group">
-                                        <label class="input-label">Whisper URL</label>
-                                        <input type="text" id="local-whisper-url" class="input-field" placeholder="http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000" />
-                                    </div>
-                                    <div class="input-group" style={{ marginTop: '10px' }}>
-                                        <label class="input-label">Auth Secret (Optional)</label>
-                                        <input type="password" id="local-whisper-secret" class="input-field" placeholder="Bearer secret" />
-                                    </div>
-                                </div>
-
-                                <button class="btn" id="save-whisper-btn" style={{ marginTop: '15px', background: '#8B5CF6', width: '100%', borderRadius: '12px', padding: '10px', fontWeight: '600' }}>Save AI Config</button>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
-                                    <button class="btn" id="test-s2t-btn" style={{ margin: 0, background: 'rgba(139, 92, 246, 0.1)', color: '#8B5CF6', border: '1px solid #8B5CF6', borderRadius: '12px', padding: '10px', fontWeight: '600', fontSize: '12px' }}>Test Sample</button>
-                                    <button class="btn" id="record-test-btn" style={{ margin: 0, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '12px', padding: '10px', fontWeight: '600', fontSize: '12px' }}>Record 5s & Test</button>
-                                </div>
-                            </div>
-                        
-                            <div style={{ marginTop: '10px' }}>
-                                <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                        <input type="radio" name="whisper_provider" value="whisper-turbo" id="provider-whisper-turbo" checked={(checks as any).WHISPER_PROVIDER === 'whisper-turbo'} />
-                                        <span style={{ fontSize: '14px', fontWeight: '600' }}>Whisper Turbo</span>
-                                    </label>
-                                </div>
-
-                                <div id="local-config-section" style={{ display: 'none', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '12px', marginBottom: '15px' }}>
-                                    <div class="input-group">
-                                        <label class="input-label">Whisper URL</label>
-                                        <input type="text" id="local-whisper-url" class="input-field" placeholder="http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000" />
-                                    </div>
-                                    <div class="input-group" style={{ marginTop: '10px' }}>
-                                        <label class="input-label">Auth Secret (Optional)</label>
-                                        <input type="password" id="local-whisper-secret" class="input-field" placeholder="Bearer secret" />
-                                    </div>
-                                </div>
-
-
-
-                                <button class="btn" id="save-whisper-btn" style={{ marginTop: '15px', background: '#8B5CF6', width: '100%', borderRadius: '12px', padding: '10px', fontWeight: '600' }}>Save AI Config</button>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
-                                    <button class="btn" id="test-s2t-btn" style={{ margin: 0, background: 'rgba(139, 92, 246, 0.1)', color: '#8B5CF6', border: '1px solid #8B5CF6', borderRadius: '12px', padding: '10px', fontWeight: '600', fontSize: '12px' }}>Test Sample</button>
-                                    <button class="btn" id="record-test-btn" style={{ margin: 0, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '12px', padding: '10px', fontWeight: '600', fontSize: '12px' }}>Record 5s & Test</button>
-                                </div>
-                            </div>
-                        </div>
+                        {/* AI Provider UI temporarily disabled (was duplicated and broken) */}
 
                         <div class="card">
                             <div class="card-header">
