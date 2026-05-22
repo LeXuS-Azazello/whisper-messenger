@@ -1,13 +1,11 @@
-import { WhatsAppBaileysClient } from '../../whatsapp-baileys-client/src/whatsappBaileysClient';
 import { Env } from '../../src/types';
-import fs from 'fs/promises';
-import path from 'path';
-import { downloadMediaMessage } from 'baileys';
+import * as k8s from './k8s.js';
+import { redis } from './config.js'; // for session fallback if needed
+
+// Note: We no longer import the in-memory client here.
+// The manager now acts purely as a control plane that spawns K8s pods.
 
 export class WhatsAppBaileysManager {
-  private clients: Map<string, WhatsAppBaileysClient> = new Map();
-  private qrCodes: Map<string, { qr: string, info: string }> = new Map();
-  private pairingCodes: Map<string, string> = new Map();
   private env: Env;
 
   constructor(env: Env) {
@@ -15,107 +13,98 @@ export class WhatsAppBaileysManager {
   }
 
   async bootstrap() {
-    console.log('[WhatsAppBaileysManager] Bootstrapping connected clients...');
+    console.log('[WhatsAppBaileysManager] Bootstrapping — running reconciliation for WhatsApp Baileys pods...');
+    try {
+      await k8s.runReconciliation?.();
+    } catch (e) {
+      console.error('[WhatsAppBaileysManager] Reconciliation failed:', e);
+    }
   }
 
   async initUserClient(userId: string, phoneNumber?: string) {
-    if (this.clients.has(userId)) {
-      return { status: 'already_running' };
-    }
+    // With pod-per-user model we always call spawn (k8s.js will handle dedup inside)
+    try {
+      // Try to get fresh session from Redis first (new sessions are usually here)
+      let session = await redis?.get?.(`wa_session_${userId}`);
 
-    const client = new WhatsAppBaileysClient({
-      userId,
-      env: this.env,
-      onQR: (qr, info) => {
-        this.qrCodes.set(userId, { qr, info });
-        console.log(`[WhatsAppBaileysManager] QR generated for user ${userId}`);
-      },
-      onPairingCode: (code) => {
-        this.pairingCodes.set(userId, code);
-        console.log(`[WhatsAppBaileysManager] Pairing code generated for user ${userId}: ${code}`);
-      },
-      onReady: () => {
-        this.qrCodes.delete(userId);
-        this.pairingCodes.delete(userId);
-        console.log(`[WhatsAppBaileysManager] User ${userId} is now connected`);
-      },
-      onMessage: async (msg, uid) => {
-        await this.handleIncomingMessage(msg, uid);
+      // Fallback to Mongo if Redis miss (for old users)
+      if (!session) {
+        const { default: MessengerSession } = await import('./models/MessengerSession.js');
+        const doc = await MessengerSession.findOne({ userId, platform: 'whatsapp' }).lean();
+        if (doc?.sessionData) session = doc.sessionData;
       }
-    });
 
-    this.clients.set(userId, client);
-    await client.start(phoneNumber);
+      const podName = await k8s.spawnPod(userId, session || '');
+      console.log(`[WhatsAppBaileysManager] Spawned/ensured pod for user ${userId}: ${podName}`);
 
-    return { status: 'starting' };
+      return { status: 'starting', pod: podName };
+    } catch (err) {
+      console.error(`[WhatsAppBaileysManager] Failed to spawn pod for ${userId}:`, err);
+      throw err;
+    }
   }
 
+  /**
+   * For the pod model, incoming messages are handled inside the user pod.
+   * The manager no longer needs to process audio locally.
+   * We keep the method for compatibility but it can be emptied or removed later.
+   */
   async handleIncomingMessage(msg: any, userId: string) {
-    if (msg?.message?.audioMessage || msg?.message?.voiceMessage) {
-      try {
-        const client = this.clients.get(userId);
-        if (!client) throw new Error('Client not found');
-        const sock = await client.getClient();
-        if (!sock) throw new Error('Socket not initialized');
+    // In the new architecture the per-user pod handles voice transcription directly.
+    // If you still want central queue fallback, you can re-enable the old code here.
+    console.log(`[WhatsAppBaileysManager] Message received for ${userId} (handled by pod)`);
+  }
 
-        const media = await downloadMediaMessage(
-          msg,
-          'buffer',
-          {},
-          {
-            logger: console as any,
-            reacquireMediaKey: async () => { return undefined; }
-          } as any
-        );
-        if (media) {
-          const fileName = `wa_${userId}_${Date.now()}.ogg`;
-          const filePath = path.join(process.cwd(), 'public/audio', fileName);
+  /**
+   * Send a text message to a user's WhatsApp.
+   * In pod model this should eventually call the user's pod HTTP endpoint
+   * or go through a service that routes to the correct pod.
+   */
+  async sendMessage(userId: string, to: string, text: string) {
+    // TODO: Implement proper routing to the user's pod (e.g. call pod's /send endpoint)
+    // For now we can fall back to the old in-process path if still running,
+    // or implement Redis command / HTTP call to the pod.
+    throw new Error('sendMessage via manager is not yet implemented for pod-per-user model. ' +
+      'Implement pod HTTP endpoint or Redis command routing.');
+  }
 
-          await fs.mkdir(path.join(process.cwd(), 'public/audio'), { recursive: true });
-          await fs.writeFile(filePath, media);
-
-          const audioUrl = `${this.env.DOMAIN}/audio/${fileName}`;
-
-          console.log(`[WhatsAppBaileysManager] Audio received from ${msg.key?.remoteJid}, forwarding to queue...`);
-
-          await this.env.AUDIO_QUEUE.send({
-            userId: userId,
-            senderId: msg.key?.remoteJid || '',
-            audioUrl: audioUrl,
-            platform: 'whatsapp_baileys',
-            replyToMsgId: msg.key?.id || ''
-          });
-        }
-      } catch (err) {
-        console.error(`[WhatsAppBaileysManager] Error processing audio message:`, err);
-      }
+  /**
+   * QR and Pairing codes are now reported by the pods into Redis.
+   * The client writes to keys like:
+   *   wa_qr_${userId}          → JSON { qr, info }
+   *   wa_pairing_${userId}     → string code
+   *   wa_status_${userId}      → 'ready' | 'connecting' ...
+   */
+  async getQR(userId: string): Promise<{ qr: string, info: string } | null> {
+    if (!redis) return null;
+    try {
+      const raw = await redis.get(`wa_qr_${userId}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
     }
   }
 
-  async sendMessage(userId: string, to: string, text: string) {
-    const client = this.clients.get(userId);
-    if (!client) throw new Error('Client not initialized for this user');
-    await client.sendMessage(to, text);
-  }
-
-  getQR(userId: string): { qr: string, info: string } | null {
-    return this.qrCodes.get(userId) || null;
-  }
-
-  getPairingCode(userId: string): string | null {
-    return this.pairingCodes.get(userId) || null;
+  async getPairingCode(userId: string): Promise<string | null> {
+    if (!redis) return null;
+    try {
+      return await redis.get(`wa_pairing_${userId}`);
+    } catch {
+      return null;
+    }
   }
 
   async stopClient(userId: string) {
-    const client = this.clients.get(userId);
-    if (client) {
-      await client.stop();
-      this.clients.delete(userId);
-    }
+    await k8s.deletePods(userId);
   }
 
-  isConnected(userId: string): boolean {
-    return this.clients.has(userId) && !this.qrCodes.has(userId) && !this.pairingCodes.has(userId);
+  async isConnected(userId: string): Promise<boolean> {
+    try {
+      const pods = await k8s.listPods();
+      return pods.some((p: any) => p.userId === String(userId) && p.status === 'Running');
+    } catch {
+      return false;
+    }
   }
 }
 

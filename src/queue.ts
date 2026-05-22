@@ -1,6 +1,6 @@
 import { Env, UserSession } from "./types";
 import { sendTelegramMessage, sendTelegramTypingOn } from "./telegram";
-import { transcribeWithFallback } from "./whisper";
+import { transcribeAudio } from "./whisper";
 import { incrementUserStats } from "./routes/dashboard";
 import { logError } from "./logger";
 
@@ -33,14 +33,26 @@ export default async function queue(batch: any, env: Env) {
       if (!audioRes.ok) throw new Error(`Audio download failed: ${audioRes.status}`);
       const audioBuffer = await audioRes.arrayBuffer();
 
-      // Transcribe
-      const result = await transcribeWithFallback(audioBuffer, env);
-      let finalText = result.text;
+      // Get user's preferred translation language (Dashboard setting)
+      const targetLang = u?.preferredTranslationLanguage || u?.preferred_translation_lang || null;
+
+      // Transcribe with auto-detect + optional translation
+      const result = await transcribeAudio(audioBuffer, env, targetLang);
 
       await incrementUserStats(userId!, env, platform);
 
       const sec = ((Date.now() - start) / 1000).toFixed(1);
-      finalText = `${finalText}\n\n🤖 ${result.model || 'Unknown'} | ⏱ ${sec}s`;
+
+      // Build nice output with language labels (similar to personal tg-client)
+      const origLabel = getLangLabel(result.detectedLanguage);
+      let finalText = `${origLabel} ${result.text}`;
+
+      if (result.translated && result.targetLanguage) {
+        const targetLabel = getLangLabel(result.targetLanguage);
+        finalText += `\n\n${targetLabel} ${result.translated}`;
+      }
+
+      finalText += `\n\n🤖 ${result.model || 'whisper-v2'} | ⏱ ${sec}s`;
       const parts = splitLongText(finalText);
 
       // Send results
@@ -73,4 +85,29 @@ function splitLongText(text: string, maxLength: number = 2000): string[] {
     parts.push(text.slice(i, i + maxLength));
   }
   return parts;
+}
+
+// Local version of language label with flags (matches tg-client style)
+function getLangLabel(code: string | null | undefined): string {
+  if (!code) return '🌐 auto';
+  const normalized = code.toLowerCase().split('_')[0];
+  const map: Record<string, string> = {
+    'ru': '🇷🇺 рус', 'rus': '🇷🇺 рус',
+    'en': '🇺🇸 eng', 'eng': '🇺🇸 eng',
+    'he': '🇮🇱 עבר', 'heb': '🇮🇱 עבר',
+    'uk': '🇺🇦 укр',
+    'de': '🇩🇪 нем', 'deu': '🇩🇪 нем',
+    'fr': '🇫🇷 фр', 'fra': '🇫🇷 фр',
+    'es': '🇪🇸 исп', 'spa': '🇪🇸 исп',
+    'th': '🇹🇭 тай',
+    'zh': '🇨🇳 кит', 'zho': '🇨🇳 кит',
+    'ja': '🇯🇵 яп', 'jpn': '🇯🇵 яп',
+    'ko': '🇰🇷 kor',
+    'ar': '🇸🇦 ар', 'arb': '🇸🇦 ар',
+    'vi': '🇻🇳 вьет',
+    'id': '🇮🇩 инд',
+    'tr': '🇹🇷 тур',
+    'auto': '🌐 auto',
+  };
+  return map[normalized] || `🌐 ${normalized}`;
 }

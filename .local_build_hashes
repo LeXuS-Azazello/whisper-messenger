@@ -3,11 +3,11 @@ facebook-fca-client:8f2bc2302099f88332712d9979072ddd
 instagram-fca-manager:c6861d15ed5fb2afde2543cbbb01cf68
 instagram-fca-client:dc258f76ef48bae9375f736dfa00a008
 facebook-fca-manager:f51d7f6a201303a4b0b060e17577a4e2
-whatsapp-baileys-manager:f5ba4eec2cf77514294e2f8da83f23c3
-whatsapp-baileys-client:774cd9b7111a1a2494b5af339fc3cfc9
 samesame:2326d38e27082ae2928e02c157df0392
 voicemsg-tester:0684c36b0a9165d4c2361879ed0ced34
 whisper-service-v2:689ca5365773d915d7781af2d9d3a1d6
-.:468ac1ad56a43d6f3ca02768c369ed3b
 tg-client-manager:6142f1776a70a52c438c1054e8e9939d
-tg-client:80d76f0f0eaf65fbe7485a4c0904b6dd
+.:30ba3c795f8bb57f7d3079fa13e6393c
+tg-client:df9a01070e42486b0d0347ed00b9b025
+whatsapp-baileys-manager:5d86e910c1fda2ffde72612071ce38a9
+whatsapp-baileys-client:b9d31e708aedbc0cecd909e068961c9c
