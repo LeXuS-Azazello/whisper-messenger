@@ -8,21 +8,23 @@ resources:
    - mongodb.yaml
    - mongo-express.yaml
    - network-policy.yaml
-   - tg-client-manager.yaml
-   - tg-client.yaml
-   - tg-bot-test.yaml
-   - whisper-service.yaml
-   - whisper-service-v2.yaml
-   - whisper-service-network-policy.yaml
-   - samesame.yaml
-   - samesame-secret.yaml
-   - huggingface-secret.yaml
-   - rbac.yaml
-   - cert-manager.yaml
-   - voicemsg-tester.yaml
-   - voicemsg-cf.yaml
-   - whatsapp-baileys-manager.yaml
-   - facebook-fca-manager.yaml
+    - tg-client-manager.yaml
+    - tg-client.yaml
+    - whisper-service.yaml
+    - whisper-service-v2.yaml
+    - whisper-service-network-policy.yaml
+    - samesame.yaml
+    - samesame-secret.yaml
+    - huggingface-secret.yaml
+    - rbac.yaml
+     - cert-manager.yaml
+     - voicemsg-cf.yaml
+     - voicemsg-tester.yaml
+     - whatsapp-client-manager.yaml
+     - whatsapp-client.yaml
+     - whatsapp-client-manager-rbac.yaml
+    - whatsapp-baileys-manager.yaml
+    - facebook-fca-manager.yaml
 
 
 

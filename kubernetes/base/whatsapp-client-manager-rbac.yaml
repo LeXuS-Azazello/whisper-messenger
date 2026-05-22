@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: whatsapp-client-manager-sa
+  namespace: debugging-testcrash-pub
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: whatsapp-client-manager-role
+  namespace: debugging-testcrash-pub
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: whatsapp-client-manager-binding
+  namespace: debugging-testcrash-pub
+subjects:
+  - kind: ServiceAccount
+    name: whatsapp-client-manager-sa
+    namespace: debugging-testcrash-pub
+roleRef:
+  kind: Role
+  name: whatsapp-client-manager-role
+  apiGroup: rbac.authorization.k8s.io

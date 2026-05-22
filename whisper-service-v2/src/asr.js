@@ -57,19 +57,24 @@ function initialize() {
     },
   });
 
-  vad = new sherpa.VoiceActivityDetector({
-    sileroVad: {
-      model: VAD_MODEL,
-      threshold: 0.5,
-      minSilenceDuration: 0.5,
-      minSpeechDuration: 0.25,
-      windowSize: 512,
-    },
-    sampleRate: 16000,
-    numThreads: 2,
-    debug: 0,
-    provider: 'cpu',
-  });
+  try {
+    vad = new sherpa.VoiceActivityDetector({
+      sileroVad: {
+        model: VAD_MODEL,
+        threshold: 0.5,
+        minSilenceDuration: 0.5,
+        minSpeechDuration: 0.25,
+        windowSize: 512,
+      },
+      sampleRate: 16000,
+      numThreads: 2,
+      debug: 0,
+      provider: 'cpu',
+    });
+  } catch (e) {
+    console.warn('[whisper-service-v2] VoiceActivityDetector constructor failed (sherpa-onnx-node version mismatch in image?), falling back to full-audio transcription without VAD:', e?.message || e);
+    vad = null;
+  }
 
   if (existsSync(PUNCT_MODEL) && existsSync(PUNCT_VOCAB)) {
     punctuator = new sherpa.OfflinePunctuation({
@@ -94,6 +99,9 @@ function decodeAudioToPCM(filePath) {
 }
 
 function applyVAD(pcm) {
+  if (!vad || !pcm || pcm.length === 0) {
+    return pcm || new Float32Array(0); // fallback: no VAD available → transcribe full audio
+  }
   vad.acceptWaveform(pcm);
   const segments = [];
   let total = 0;
@@ -172,31 +180,41 @@ export async function callTranslation(text, detectedLang, targetLanguage) {
 export async function processFile(filePath, targetLanguage) {
   initialize();
   const start = Date.now();
-  const pcmFull = decodeAudioToPCM(filePath);
-  const decodedMs = Date.now() - start;
-  const speech = applyVAD(pcmFull);
-  const vadMs = Date.now() - start - decodedMs;
-  const textResult = transcribePCM(speech);
-  const asrMs = Date.now() - start - decodedMs - vadMs;
-  const text = addPunctuation(textResult.text);
-  let translated = null;
-  if (targetLanguage && text) {
-    translated = await callTranslation(text, textResult.language, targetLanguage);
+  try {
+    const pcmFull = decodeAudioToPCM(filePath);
+    const decodedMs = Date.now() - start;
+    const speech = applyVAD(pcmFull);
+    const vadMs = Date.now() - start - decodedMs;
+    const textResult = transcribePCM(speech);
+    const asrMs = Date.now() - start - decodedMs - vadMs;
+    const text = addPunctuation(textResult.text);
+    let translated = null;
+    if (targetLanguage && text) {
+      translated = await callTranslation(text, textResult.language, targetLanguage);
+    }
+    return {
+      text,
+      language: textResult.language,
+      translated,
+      target_language: targetLanguage || null,
+      metrics: {
+        decodedMs,
+        vadMs,
+        asrMs,
+        durationMs: Date.now() - start,
+        speechSamples: speech.length,
+        rawSamples: pcmFull.length,
+      },
+    };
+  } catch (error) {
+    return {
+      text: '',
+      language: 'unknown',
+      translated: null,
+      target_language: null,
+      metrics: { durationMs: Date.now() - start, error: error?.message || String(error) },
+    };
   }
-  return {
-    text,
-    language: textResult.language,
-    translated,
-    target_language: targetLanguage || null,
-    metrics: {
-      decodedMs,
-      vadMs,
-      asrMs,
-      durationMs: Date.now() - start,
-      speechSamples: speech.length,
-      rawSamples: pcmFull.length,
-    },
-  };
 }
 
 export async function processBuffer(buffer, targetLanguage) {
@@ -216,6 +234,7 @@ export function isServiceReady() {
     initialize();
     return true;
   } catch (error) {
+    console.error('[whisper-service-v2] isServiceReady: initialization failed:', error?.message || error);
     return false;
   }
 }

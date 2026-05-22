@@ -56,10 +56,8 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
             console.log(`[Admin Proxy] Forwarding admin diagnostics request to: ${targetUrl}`);
             
             try {
-                // Determine headers to forward.
                 const forwardHeaders = new Headers();
                 req.headers.forEach((value, key) => {
-                    // Do not forward connection headers to avoid downstream issues
                     if (key.toLowerCase() !== 'connection' && key.toLowerCase() !== 'keep-alive') {
                         forwardHeaders.set(key, value);
                     }
@@ -79,13 +77,11 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
                 
                 const res = await fetch(proxyReq);
                 
-                // Copy headers from downstream response
                 const responseHeaders = new Headers();
                 res.headers.forEach((value, key) => {
                     responseHeaders.set(key, value);
                 });
                 
-                // Return proxy response
                 return new Response(res.body, {
                     status: res.status,
                     statusText: res.statusText,

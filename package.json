@@ -15,7 +15,6 @@
     "@hono/node-server": "^1.8.0",
     "@preact/signals": "^1.2.3",
     "@vangbanlanhat/fca-unofficial": "^1.4.5",
-    "baileys": "^7.0.0-rc11",
     "adm-zip": "^0.5.10",
     "baileys": "^7.0.0-rc11",
     "dotenv": "^16.4.5",

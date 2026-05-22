@@ -40,7 +40,7 @@ export async function transcribePath(file_path, mime_type, language = 'auto') {
             const isNetworkErr = err.cause?.code === 'ECONNREFUSED'
                 || err.cause?.code === 'ENOTFOUND'
                 || err.cause?.code === 'ECONNRESET'
-                || err.message === 'fetch failed';
+                || /fetch failed/i.test((err.message || '').toString());
 
             console.error(`[transcriber] Attempt ${attempt}/${MAX_RETRIES} failed (${url}): ${err.message}${err.cause ? ` [${err.cause.code}]` : ''}`);
 

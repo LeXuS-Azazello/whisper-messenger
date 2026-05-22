@@ -1,0 +1,61 @@
+# ConfigMap: User Pod Template for whatsapp-client
+# Used by whatsapp-client-manager to spawn per-user WhatsApp client pods (Baileys)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: whatsapp-client-pod-template
+  namespace: debugging-testcrash-pub
+data:
+  pod-template.json: |
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "labels": {
+          "app": "whatsapp-client-user"
+        }
+      },
+      "spec": {
+        "imagePullSecrets": [
+          { "name": "harbor-pull-secret" }
+        ],
+        "containers": [{
+          "name": "whatsapp-client",
+          "image": "harbor.dev.takatan.cloud/devcenter/whatsapp-client:latest",
+          "env": [
+            { "name": "MODE", "value": "USER" },
+            { "name": "MANAGER_URL", "value": "http://whatsapp-client-manager:3000" },
+            { "name": "REDIS_URL", "value": "redis://redis:6379" },
+            { "name": "MONGODB_URI", "value": "mongodb://mongodb:27017/voicemsg" },
+            { "name": "WHISPER_PROVIDER", "value": "http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000" },
+            { "name": "WHISPER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "WHISPER_SECRET", "optional": true}} },
+            { "name": "DEVICE_MODEL", "value": "Desktop Linux" },
+            { "name": "APP_VERSION", "value": "2.2412.7" },
+            { "name": "SYSTEM_VERSION", "value": "Ubuntu 24.04" }
+          ],
+          "resources": {
+            "requests": { "cpu": "100m", "memory": "256Mi" },
+            "limits": { "cpu": "500m", "memory": "512Mi" }
+          }
+        }],
+        "restartPolicy": "Always"
+      }
+    }
+---
+# Headless service for whatsapp client pods (for discovery if needed)
+apiVersion: v1
+kind: Service
+metadata:
+  name: whatsapp-client
+  namespace: debugging-testcrash-pub
+  labels:
+    app: whatsapp-client
+spec:
+  clusterIP: None
+  selector:
+    app: whatsapp-client-user
+  ports:
+    - name: http
+      port: 3001
+      targetPort: 3001
+      protocol: TCP

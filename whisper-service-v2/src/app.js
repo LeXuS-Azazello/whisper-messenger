@@ -1,5 +1,5 @@
 import express from 'express';
-import { asrQueue, asrQueueEvents, redisCache } from './queue.js';
+import { asrQueue, redisCache } from './queue.js';
 import { getAudioHash, makeCacheKey } from './asr.js';
 import { Job } from 'bullmq';
 
@@ -11,11 +11,29 @@ const app = express();
 app.use(express.json({ limit: '200mb' }));
 
 app.get('/health', async (req, res) => {
+  // Lenient health for liveness: transient Redis hiccups (or slow PING) should not kill the container.
+  // The worker + main redisConn handle real queue health. We just need to know the API process is alive.
   try {
-    const queueCount = await redisCache.llen('bull:asr-v2:wait');
-    res.json({ status: 'ok', queue: 'asr-v2', waitingJobs: queueCount });
+    const healthRedis = new Redis(process.env.REDIS_URL || 'redis://redis:6379', {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      connectTimeout: 5000,
+      lazyConnect: true,
+    });
+    let pong = 'skipped';
+    try {
+      await healthRedis.connect();
+      pong = await healthRedis.ping();
+    } catch (_) {
+      // ignore – still return ok so liveness doesn't restart us during Redis blips
+    } finally {
+      await healthRedis.quit().catch(() => {});
+    }
+    res.json({ status: 'ok', queue: 'asr-v2', redis: pong });
   } catch (error) {
-    res.json({ status: 'ok', queue: 'asr-v2', waitingJobs: null });
+    // even on total failure, return 200 so the container isn't killed by liveness
+    const msg = error instanceof Error ? error.message : String(error);
+    res.json({ status: 'ok', queue: 'asr-v2', redis: msg, note: 'lenient' });
   }
 });
 
@@ -26,7 +44,13 @@ app.post('/v1/transcribe-base64', async (req, res) => {
     return res.status(400).json({ error: 'Missing file_data' });
   }
 
-  const buffer = Buffer.from(file_data, 'base64');
+  let buffer;
+  try {
+    buffer = Buffer.from(file_data, 'base64');
+  } catch (error) {
+    return res.status(400).json({ error: 'Invalid base64 data', details: error?.message || String(error) });
+  }
+
   const audioHash = getAudioHash(buffer);
   const cacheKey = makeCacheKey(audioHash);
 
@@ -60,10 +84,11 @@ app.post('/v1/transcribe-base64', async (req, res) => {
   }
 
   try {
-    const result = await job.waitUntilFinished(asrQueueEvents, WAIT_FOR_JOB_MS);
+    const result = await job.waitUntilFinished(undefined, { timeout: WAIT_FOR_JOB_MS });
     return res.json({ ...result, cache_hit: false });
   } catch (error) {
     if (error instanceof Error && error.message.includes('timeout')) {
+      console.warn(`[whisper-service-v2] Job ${job.id} timed out after ${WAIT_FOR_JOB_MS}ms`);
       return res.status(202).json({ status: 'processing', jobId: job.id });
     }
     console.error('[whisper-service-v2] Job failed:', error?.message || error);

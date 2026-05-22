@@ -128,6 +128,12 @@ export class TestSuiteRunner {
   }
 
   // 2. Whisper-Turbo ASR Inference Test
+  // Uses the full async pipeline: POST /v1/transcribe-base64 enqueues a BullMQ job,
+  // the express handler waits up to 30 s via waitUntilFinished, and the result
+  // is returned as soon as the worker finishes. If the worker is slow or Redis
+  // stalls, we fall back to the synchronous /v1/audio/transcriptions endpoint
+  // so the test does not simply mark "failed" when the service simply hasn't
+  // started yet.
   async testWhisperTurbo(): Promise<TestResult> {
     const logs: TestLog[] = [];
     const log = this.createLogger(logs);
@@ -149,23 +155,96 @@ export class TestSuiteRunner {
       const formData = new FormData();
       const blob = new Blob([audioBuffer], { type: 'audio/ogg' });
       formData.append('file', blob, 'audio.ogg');
-      formData.append('model', 'openai/whisper-large-v3-turbo');
       formData.append('language', 'auto');
 
       const whisperSecret = this.env.WHISPER_SECRET || '';
-      log.info(`Dispatching request to ${target}/v1/audio/transcriptions...`);
+      const baseUrl = target.replace(/\/$/, '');
 
-      const response = await fetch(`${target.replace(/\/$/, '')}/v1/audio/transcriptions`, {
+      // ─── Step 1: try the async pipeline ───────────────────────────────────
+      // POST /v1/transcribe-base64 enqueues a job then calls
+      // job.waitUntilFinished(undefined, { timeout: WAIT_FOR_JOB_MS }).
+      // whisper-service-v2 treats a timeout as HTTP 202 { status: 'processing' },
+      // which we then poll with GET /v1/job/:id until completion.
+      log.info(`Dispatching async job to ${baseUrl}/v1/transcribe-base64...`);
+      const asyncRes = await fetch(baseUrl + '/v1/transcribe-base64', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${whisperSecret}`
+          ...(whisperSecret ? { 'Authorization': `Bearer ${whisperSecret}` } : {}),
+          'Content-Type': 'application/json',
         },
-        body: formData,
-        signal: AbortSignal.timeout(30000) // 30s timeout
+        body: JSON.stringify({ file_data: audioBuffer.toString('base64'), language: 'auto' }),
+        signal: AbortSignal.timeout(25000),
+      });
+
+      const statusLabel = `${asyncRes.status} ${asyncRes.statusText}`;
+      log.info(`Async transcribe responded: ${statusLabel}`);
+
+      if (asyncRes.ok) {
+        // Job completed inline via waitUntilFinished
+        const result = await asyncRes.json();
+        const latency = Date.now() - startTime;
+        log.success(`Async transcription completed in ${latency}ms`);
+        log.success(`Transcribed Text: "${result.text || ''}"`);
+        return { id, name, target, status: 'success', latency, logs };
+      }
+
+      if (asyncRes.status === 202) {
+        // Job queued but timed out inside whisper-service-v2; poll it.
+        const pending = await asyncRes.json() as any;
+        const jobId = pending.jobId;
+        if (!jobId) {
+          throw new Error('202 response missing jobId');
+        }
+        log.info(`Job accepted, awaiting completion. jobId=${jobId}`);
+        const pollStart = Date.now();
+        while (Date.now() - pollStart < 20000) {
+          await new Promise(r => setTimeout(r, 1000));
+          const pollRes = await fetch(`${baseUrl}/v1/job/${encodeURIComponent(jobId)}`, {
+            signal: AbortSignal.timeout(5000),
+          });
+          if (!pollRes.ok) {
+            log.warn(`Job poll returned ${pollRes.status}, retrying...`);
+            continue;
+          }
+          const pollData = await pollRes.json() as any;
+          if (pollData.state === 'completed' || pollData.state === 'fulfilled') {
+            const latency = Date.now() - startTime;
+            log.success(`Job completed after polling. state=${pollData.state}`);
+            const text = pollData.result?.text || '';
+            log.success(`Transcribed Text: "${text}"`);
+            return { id, name, target, status: 'success', latency, logs };
+          }
+          if (pollData.state === 'failed') {
+            throw new Error(`Job failed: ${pollData.result?.message || 'unknown error'}`);
+          }
+          log.info(`Job state: ${pollData.state}, waiting...`);
+        }
+        throw new Error('Job polling timed out after 20 s');
+      }
+
+      // Non-ok, non-202 → read the body for context and try sync fallback
+      const asyncErr = await asyncRes.text();
+      log.warn(`Async path returned ${statusLabel}: ${asyncErr.slice(0, 200)} — trying sync fallback`);
+
+      // ─── Step 2: sync fallback ────────────────────────────────────────────
+      log.info(`Trying synchronous /v1/audio/transcriptions as fallback...`);
+      formData.append('model', 'openai/whisper-large-v3-turbo');
+      const syncForm = new FormData();
+      syncForm.append('file', blob, 'audio.ogg');
+      syncForm.append('model', 'openai/whisper-large-v3-turbo');
+      syncForm.append('language', 'auto');
+
+      const response = await fetch(`${baseUrl}/v1/audio/transcriptions`, {
+        method: 'POST',
+        headers: {
+          ...(whisperSecret ? { 'Authorization': `Bearer ${whisperSecret}` } : {}),
+        },
+        body: syncForm,
+        signal: AbortSignal.timeout(30000),
       });
 
       const latency = Date.now() - startTime;
-      log.info(`Whisper Turbo responded with status ${response.status} in ${latency}ms`);
+      log.info(`Sync transcribe responded with status ${response.status} in ${latency}ms`);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -175,26 +254,11 @@ export class TestSuiteRunner {
       const result = await response.json() as any;
       log.success(`ASR response parsed successfully! Result payload: ${JSON.stringify(result)}`);
       log.success(`Transcribed Text: "${result.text || ''}"`);
-
-      return {
-        id,
-        name,
-        target,
-        status: 'success',
-        latency,
-        logs
-      };
+      return { id, name, target, status: 'success', latency, logs };
 
     } catch (err: any) {
       log.error(`ASR test failed: ${err.message || String(err)}`);
-      return {
-        id,
-        name,
-        target,
-        status: 'failed',
-        latency: Date.now() - startTime,
-        logs
-      };
+      return { id, name, target, status: 'failed', latency: Date.now() - startTime, logs };
     }
   }
 

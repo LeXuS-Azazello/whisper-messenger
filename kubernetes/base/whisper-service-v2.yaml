@@ -1,6 +1,14 @@
 ---
 # Whisper Service v2: sherpa-onnx + Silero VAD + CT-Transformer
 # CPU-only deployment for debugging-testcrash-pub
+#
+# Model downloader Job has been moved to a separate file:
+#   kubernetes/base/whisper-service-v2-downloader-job.yaml
+#
+# Reason: Jobs should not be part of regular declarative deploys.
+# To download/re-download models run:
+#   kubectl apply -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n debugging-testcrash-pub
+
 
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -23,102 +31,113 @@ metadata:
 data:
   download-models.sh: |
     #!/bin/sh
-    set -eu
+    # =============================================================================
+    # whisper-service-v2 model downloader (embedded copy — must match scripts/download-models.sh)
+    # =============================================================================
+    # CRITICAL RULES (per AGENTS.md):
+    # - Runs ONLY inside Kubernetes Job + PVC. NEVER on laptop.
+    # - Downloads happen at most ONCE (marker files).
+    # - Every failure (especially punctuation) is logged loudly.
+    # =============================================================================
+    set -euo pipefail
+
+    echo "=============================================================="
+    echo "[download-models] START at $(date -Iseconds)"
+    echo "[download-models] MODELS_DIR=${MODELS_DIR:-/models}"
+    echo "=============================================================="
 
     MODELS_DIR="${MODELS_DIR:-/models}"
-    echo "[download-models] MODELS_DIR=$MODELS_DIR"
+
     mkdir -p "$MODELS_DIR/sense_voice" "$MODELS_DIR/vad" "$MODELS_DIR/punctuation"
 
     BASE="https://github.com/k2-fsa/sherpa-onnx/releases/download"
 
     download_if_missing() {
-      url="$1"
-      out="$2"
+      local url="$1"
+      local out="$2"
       if [ -f "$out" ]; then
-        echo "[download-models] exists: $out"
+        echo "[download-models] SKIP (exists): $out"
         return 0
       fi
-      echo "[download-models] downloading $url → $out"
-      curl -L --fail --retry 5 --retry-delay 3 -o "$out" "$url"
+      echo "[download-models] DOWNLOADING (single): $url → $out"
+      if ! curl -L --fail --retry 8 --retry-delay 5 --max-time 300 -o "$out" "$url"; then
+        echo "[download-models] FATAL: failed to download $url" >&2
+        exit 1
+      fi
+      echo "[download-models] SUCCESS: $out"
     }
 
     download_tar_if_missing() {
-      url="$1"
-      dest_dir="$2"
-      marker="$3"
+      local url="$1"
+      local dest_dir="$2"
+      local marker="$3"
+      local name="$4"
       if [ -f "$marker" ]; then
-        echo "[download-models] exists: $marker"
+        echo "[download-models] SKIP (exists): $marker  [$name]"
         return 0
       fi
-      echo "[download-models] downloading archive $url"
+      echo "[download-models] DOWNLOADING ARCHIVE ($name): $url"
       tmp="$(mktemp)"
-      curl -L --fail --retry 5 --retry-delay 3 -o "$tmp" "$url"
+      if ! curl -L --fail --retry 8 --retry-delay 5 --max-time 600 -o "$tmp" "$url"; then
+        echo "[download-models] FATAL: failed to download archive $url" >&2
+        rm -f "$tmp"
+        exit 1
+      fi
+      echo "[download-models] EXTRACTING $name ..."
       tar -xjf "$tmp" -C "$dest_dir" --strip-components=1
       rm -f "$tmp"
+      echo "[download-models] SUCCESS: $name extracted"
     }
 
     download_tar_if_missing \
       "${BASE}/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2" \
       "$MODELS_DIR/sense_voice" \
-      "$MODELS_DIR/sense_voice/model.int8.onnx"
+      "$MODELS_DIR/sense_voice/model.int8.onnx" \
+      "SenseVoice"
 
     download_if_missing \
       "${BASE}/asr-models/silero_vad.onnx" \
       "$MODELS_DIR/vad/silero_vad.onnx"
 
+    echo "[download-models] >>> PUNCTUATION (most fragile) ..."
     download_tar_if_missing \
       "${BASE}/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12.tar.bz2" \
       "$MODELS_DIR/punctuation" \
-      "$MODELS_DIR/punctuation/model.onnx"
+      "$MODELS_DIR/punctuation/model.onnx" \
+      "Punctuation"
+
+    echo "[download-models] Verifying ..."
+    missing=0
 
     if [ ! -f "$MODELS_DIR/sense_voice/model.int8.onnx" ] || [ ! -f "$MODELS_DIR/sense_voice/tokens.txt" ]; then
-      echo "[download-models] ERROR: SenseVoice model files missing"
-      exit 1
+      echo "[download-models] ERROR: SenseVoice missing!" >&2
+      missing=1
+    else
+      echo "[download-models] OK: SenseVoice"
     fi
 
     if [ ! -f "$MODELS_DIR/vad/silero_vad.onnx" ]; then
-      echo "[download-models] ERROR: Silero VAD model missing"
-      exit 1
+      echo "[download-models] ERROR: VAD missing!" >&2
+      missing=1
+    else
+      echo "[download-models] OK: VAD"
     fi
 
     if [ ! -f "$MODELS_DIR/punctuation/model.onnx" ] || [ ! -f "$MODELS_DIR/punctuation/vocab.txt" ]; then
-      echo "[download-models] ERROR: punctuation model files missing"
+      echo "[download-models] ERROR: PUNCTUATION MISSING! (see curl errors above)" >&2
+      missing=1
+    else
+      echo "[download-models] OK: Punctuation"
+    fi
+
+    if [ "$missing" -eq 1 ]; then
+      echo "[download-models] FATAL — see detailed errors above" >&2
       exit 1
     fi
 
-    echo "[download-models] done. models are ready in $MODELS_DIR"
-
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: whisper-service-v2-model-downloader
-  namespace: debugging-testcrash-pub
-spec:
-  ttlSecondsAfterFinished: 600
-  template:
-    spec:
-      restartPolicy: OnFailure
-      containers:
-        - name: downloader
-          image: curlimages/curl:latest
-          command: ["/bin/sh", "/scripts/download-models.sh"]
-          env:
-            - name: MODELS_DIR
-              value: "/models"
-          volumeMounts:
-            - name: models
-              mountPath: /models
-            - name: scripts
-              mountPath: /scripts
-      volumes:
-        - name: models
-          persistentVolumeClaim:
-            claimName: whisper-service-v2-models-pvc
-        - name: scripts
-          configMap:
-            name: whisper-service-v2-download-scripts
-            defaultMode: 0755
+    echo "=============================================================="
+    echo "[download-models] SUCCESS at $(date -Iseconds)"
+    echo "=============================================================="
 
 ---
 apiVersion: apps/v1
@@ -174,14 +193,16 @@ spec:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 10
-            periodSeconds: 5
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
           livenessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 20
-            periodSeconds: 20
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 5
 
         # BullMQ Worker — picks jobs from Redis and runs sherpa-onnx transcription
         - name: whisper-worker-v2
@@ -200,11 +221,11 @@ spec:
               value: "1"
           resources:
             requests:
-              cpu: "3"
-              memory: "4Gi"
+              cpu: "1500m"
+              memory: "3Gi"
             limits:
-              cpu: "6"
-              memory: "8Gi"
+              cpu: "4"
+              memory: "6Gi"
           volumeMounts:
             - name: models
               mountPath: /models
@@ -233,7 +254,8 @@ spec:
 
 ---
 # Использование:
-# 1. kubectl apply -f whisper-service-v2/k8s/whisper-service-v2.yaml -n debugging-testcrash-pub
-# 2. дождаться завершения Job whisper-service-v2-model-downloader
-# 3. подключить клиентов к http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000
-# 4. в клиенте передавать target_language, если нужен перевод
+# 1. kubectl apply -f kubernetes/base/whisper-service-v2.yaml -n debugging-testcrash-pub
+# 2. При необходимости скачать модели:
+#    kubectl apply -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n debugging-testcrash-pub
+# 3. Подключить клиентов к http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000
+# 4. При необходимости передать target_language для перевода

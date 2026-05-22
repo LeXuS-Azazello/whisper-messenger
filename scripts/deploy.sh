@@ -249,11 +249,13 @@ fi
 echo ""
 
 # Single kustomize apply covers: frontend, redis, mongodb, tg-client-manager,
-# tg-client, whisper-turbo, voicemsg-cf, monitoring
+# tg-client, whisper-v2, voicemsg-cf, real managers (test deployments removed)
 
-echo ">>> Deleting failed downloader Jobs to force recreate..."
+echo ">>> Cleaning up old model downloader Jobs (they are now separate)..."
 kubectl delete job samesame-model-downloader -n "$NAMESPACE" --ignore-not-found
-kubectl delete job whisper-service-v2-model-downloader -n "$NAMESPACE" --ignore-not-found
+kubectl delete job -n "$NAMESPACE" -l component=model-downloader --ignore-not-found
+# Note: whisper-service-v2 downloader is now in whisper-service-v2-downloader-job.yaml
+# and should be run manually when models need to be (re)downloaded.
 
 echo ">>> Applying base resources via kustomize..."
 kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || echo "Warning: Some resources failed to apply (likely RBAC restrictions). Proceeding to update images..."
@@ -264,7 +266,6 @@ echo ">>> Updating image tags in Deployments..."
 kubectl set image deployment/echo-frontend frontend="$FRONTEND_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/tg-client-manager manager="$MANAGER_IMAGE" -n "$NAMESPACE"
 kubectl set env deployment/tg-client-manager TG_CLIENT_IMAGE="$TG_CLIENT_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/voicemsg-tester tester="$TESTER_IMAGE" -n "$NAMESPACE"
 if [ "$BUILD_WHISPER" = "true" ]; then
     kubectl set image deployment/whisper-service whisper-service="$WHISPER_IMAGE" -n "$NAMESPACE"
 fi
@@ -273,7 +274,15 @@ kubectl set env deployment/facebook-fca-manager FCA_CLIENT_IMAGE="$FCA_CLIENT_IM
 kubectl set image deployment/whatsapp-baileys-manager manager="$WA_MANAGER_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/samesame samesame="$SAMESAME_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/whisper-service-v2 whisper-service-v2="$WHISPER_V2_IMAGE" -n "$NAMESPACE"
+kubectl set image deployment/voicemsg-tester tester="$TESTER_IMAGE" -n "$NAMESPACE"
+
+echo ">>> Whisper Service v2 deployed."
+echo ">>> NOTE: Model downloader Job was moved out of regular manifests."
+echo ">>> To download or re-download models (SenseVoice + VAD + Punctuation) run:"
+echo "    kubectl apply -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n $NAMESPACE"
+echo "    (uses generateName → fresh Job every time with 24h log retention)"
 echo ""
+
 
 echo ">>> Deleting existing user tg-client pods to force recreation with new image..."
 kubectl delete pods -l app=tg-client-user -n "$NAMESPACE" --ignore-not-found

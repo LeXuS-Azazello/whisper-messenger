@@ -11,7 +11,7 @@
 ***
 Для распознавания я сейчас использую (./whisper-service) openai/whisper-large-v3-turbo. Но мне не нравится. Медленно и качество не очень.
 ***
-Я подготовил набор, (whisper-service-COMPARE) нужно выбрать и собрать лучше! почитай/ознакомься с whisper-service-COMPARE/README.md
+# (удалено) whisper-service-COMPARE — legacy сравнение ASR решений (faster-whisper / sherpa-onnx)
 ***
 *** Что мне нужно: Мое приложения для распознавания и перевода голосовых и видео сообщений в текст из всех популярных мессенджеров. (пока-что telegram, fb messenger, instagram, whatsapp, line ...)
 
