@@ -10,8 +10,12 @@ const NUM_THREADS = parseInt(process.env.NUM_THREADS || '4', 10);
 const PUNCT_THREADS = parseInt(process.env.PUNCT_THREADS || '2', 10);
 const TRANSLATE_URL = process.env.TRANSLATE_SERVICE_URL || 'http://translation-service.debugging-testcrash-pub.svc.cluster.local:8001/v1/translate';
 
-const SENSE_VOICE_MODEL = join(MODELS_DIR, 'sense_voice', 'model.int8.onnx');
-const SENSE_VOICE_TOKENS = join(MODELS_DIR, 'sense_voice', 'tokens.txt');
+// Whisper distil-large-v2 (best balance: good multilingual support + reasonable speed/CPU usage)
+// Supports Hebrew, Russian, Arabic, 50+ languages with solid auto-detection
+const WHISPER_ENCODER = join(MODELS_DIR, 'whisper', 'distil-large-v2-encoder.int8.onnx');
+const WHISPER_DECODER = join(MODELS_DIR, 'whisper', 'distil-large-v2-decoder.int8.onnx');
+const WHISPER_TOKENS  = join(MODELS_DIR, 'whisper', 'distil-large-v2-tokens.txt');
+
 const VAD_MODEL = join(MODELS_DIR, 'vad', 'silero_vad.onnx');
 const PUNCT_MODEL = join(MODELS_DIR, 'punctuation', 'model.onnx');
 const PUNCT_VOCAB = join(MODELS_DIR, 'punctuation', 'vocab.txt');
@@ -21,6 +25,7 @@ const LANG_TO_NLLB = {
   es: 'spa_Latn', uk: 'ukr_Cyrl', ar: 'arb_Arab', ja: 'jpn_Jpan', ko: 'kor_Hang',
   it: 'ita_Latn', pt: 'por_Latn', pl: 'pol_Latn', nl: 'nld_Latn',
   vi: 'vie_Latn', id: 'ind_Latn', th: 'tha_Thai', ms: 'msa_Latn', tr: 'tur_Tglg',
+  he: 'heb_Hebr', iw: 'heb_Hebr',  // Hebrew support
 };
 
 let recognizer = null;
@@ -30,8 +35,8 @@ let isReady = false;
 let isPunctuationEnabled = false;
 
 function ensureModelFiles() {
-  if (!existsSync(SENSE_VOICE_MODEL) || !existsSync(SENSE_VOICE_TOKENS)) {
-    throw new Error(`Missing sherpa-onnx SenseVoice model or tokens in ${join(MODELS_DIR, 'sense_voice')}`);
+  if (!existsSync(WHISPER_ENCODER) || !existsSync(WHISPER_DECODER) || !existsSync(WHISPER_TOKENS)) {
+    throw new Error(`Missing Whisper distil-large-v2 model in ${join(MODELS_DIR, 'whisper')}`);
   }
   if (!existsSync(VAD_MODEL)) {
     throw new Error(`Missing Silero VAD model in ${join(MODELS_DIR, 'vad')}`);
@@ -42,15 +47,17 @@ function initialize() {
   if (isReady) return;
   ensureModelFiles();
 
-  // senseVoice must be inside modelConfig — verified against sherpa-onnx-node v1.13.2
+  // Whisper large-v3-turbo — best multilingual coverage (Hebrew, Russian, Arabic, 90+ languages)
+  // language: 'auto' lets the model detect the spoken language first
   recognizer = new sherpa.OfflineRecognizer({
     modelConfig: {
-      senseVoice: {
-        model: SENSE_VOICE_MODEL,
+      whisper: {
+        encoder: WHISPER_ENCODER,
+        decoder: WHISPER_DECODER,
         language: 'auto',
-        useInverseTextNormalization: 1,
+        task: 'transcribe',
       },
-      tokens: SENSE_VOICE_TOKENS,
+      tokens: WHISPER_TOKENS,
       numThreads: NUM_THREADS,
       debug: 0,
       provider: 'cpu',

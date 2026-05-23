@@ -484,11 +484,28 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (initData.qrDataUrl) {
                         waWebQrImg.src = initData.qrDataUrl;
                         waWebQrContainer.style.display = 'block';
+
+                        // Show important info message from backend (e.g. forced reconnect warning)
+                        const infoBox = document.getElementById('wa-web-info-box');
+                        const infoText = document.getElementById('wa-web-info-text');
+                        if (infoBox && infoText && initData.info) {
+                            infoText.textContent = initData.info;
+                            infoBox.style.display = 'block';
+                        }
+
                         startWaQrPolling(initData.token);
                         connectWaWebBtn.innerText = 'Waiting for scan...';
                     } else if (initData.qrUrl) {
                         waWebQrImg.src = initData.qrUrl;
                         waWebQrContainer.style.display = 'block';
+
+                        const infoBox = document.getElementById('wa-web-info-box');
+                        const infoText = document.getElementById('wa-web-info-text');
+                        if (infoBox && infoText && initData.info) {
+                            infoText.textContent = initData.info;
+                            infoBox.style.display = 'block';
+                        }
+
                         startWaQrPolling(initData.token);
                         connectWaWebBtn.innerText = 'Waiting for scan...';
                     } else {

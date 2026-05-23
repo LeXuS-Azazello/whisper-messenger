@@ -20,11 +20,9 @@ resources:
      - cert-manager.yaml
      - voicemsg-cf.yaml
      - voicemsg-tester.yaml
-     - whatsapp-client-manager.yaml
-     - whatsapp-client.yaml
-     - whatsapp-client-manager-rbac.yaml
-    - whatsapp-baileys-manager.yaml
-    - facebook-fca-manager.yaml
+     - whatsapp-baileys-manager.yaml
+     - facebook-fca-manager.yaml
+     - instagram-fca-manager.yaml
 
 
 

@@ -98,10 +98,18 @@ function getNamespace() {
 //     }
 // }
 
-export async function spawnPod(userId, session) {
+export async function spawnPod(userId, session, username = '') {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
-    const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+    // Prefer human username for nice pod names: lexus-telegram-8f3k2p
+    const base = (username && username.length >= 2)
+        ? username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
+        : safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
+
+    const short = Date.now().toString().slice(-6);
+    const podName = `${base}-telegram-${short}`;
+
     const ns = getNamespace();
 
     console.log(`[/spawn] Spawning tg-client pod for user ${safeUserId} in namespace ${ns}`);
@@ -173,7 +181,6 @@ export async function spawnPod(userId, session) {
         throw new Error(`Pod template missing or invalid: ${err.message}`);
     }
 
-    const podName = `tg-user-${sanitizedId}-${Date.now().toString().slice(-6)}`;
     console.log(`[/spawn] Step 5: Preparing pod manifest customization. Target Pod Name: "${podName}"`);
 
     // Customize the manifest
@@ -371,7 +378,8 @@ export async function runReconciliation() {
                     }
 
                     if (session) {
-                        await spawnPod(uid, session);
+                        const uname = userObj?.username || userObj?.email || '';
+                        await spawnPod(uid, session, uname);
                     } else {
                         console.warn(`[manager] No session found for user ${uid} in Redis or Mongo, skipping spawn`);
                     }

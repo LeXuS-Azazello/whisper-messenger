@@ -221,7 +221,10 @@ export async function handleRestartTg(env: Env, userId: string, user: UserSessio
     const res = await fetch(`${managerUrl}/spawn?secret=${secret}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-manager-secret": secret },
-      body: JSON.stringify({ userId })
+      body: JSON.stringify({
+        userId,
+        username: user.username || user.firstName || user.email || userId
+      })
     });
 
     const data = await res.json().catch(() => ({ error: "Bridge error" }));

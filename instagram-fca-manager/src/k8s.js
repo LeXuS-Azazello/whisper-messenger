@@ -44,10 +44,17 @@ function getNamespace() {
     return resolveNamespace();
 }
 
-export async function spawnPod(userId, igSession) {
+export async function spawnPod(userId, igSession, username = '') {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
-    const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+    const base = (username && username.length >= 2)
+        ? username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
+        : safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
+
+    const short = Date.now().toString().slice(-6);
+    const podName = `${base}-instagram-${short}`;
+
     const ns = getNamespace();
 
     try {
@@ -83,7 +90,6 @@ export async function spawnPod(userId, igSession) {
         throw new Error(`Pod template missing or invalid: ${err.message}`);
     }
 
-    const podName = `insta-user-${sanitizedId}-${Date.now().toString().slice(-6)}`;
     podManifest.metadata.name = podName;
     podManifest.metadata.labels = { ...podManifest.metadata.labels, app: 'instagram-fca-client', userId: safeUserId };
 

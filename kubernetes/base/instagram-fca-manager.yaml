@@ -11,7 +11,8 @@ data:
       "metadata": {
         "name": "insta-user",
         "labels": {
-          "app": "instagram-fca-client"
+          "app": "instagram-fca-client",
+          "userId": "PLACEHOLDER"
         }
       },
       "spec": {
@@ -20,22 +21,44 @@ data:
             "name": "instagram-fca-client",
             "image": "harbor.dev.takatan.cloud/devcenter/instagram-fca-client:latest",
             "imagePullPolicy": "Always",
-            "env": [
-              {
-                "name": "WHISPER_PROVIDER",
-                "value": "http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local/v1/transcribe-base64"
+              "env": [
+                {
+                  "name": "WHISPER_PROVIDER",
+                  "value": "http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000/v1/transcribe-base64"
+                },
+                {
+                  "name": "WHISPER_SECRET",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "name": "voicemsg-secrets",
+                      "key": "MANAGER_SECRET"
+                    }
+                  }
+                },
+                {
+                  "name": "MANAGER_URL",
+                  "value": "http://instagram-fca-manager:3005"
+                },
+                {
+                  "name": "SECRET",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "name": "voicemsg-secrets",
+                      "key": "MANAGER_SECRET"
+                    }
+                  }
+                }
+              ],
+              "resources": {
+                "requests": {
+                  "cpu": "200m",
+                  "memory": "256Mi"
+                },
+                "limits": {
+                  "cpu": "1",
+                  "memory": "1Gi"
+                }
               }
-            ],
-            "resources": {
-              "requests": {
-                "cpu": "100m",
-                "memory": "128Mi"
-              },
-              "limits": {
-                "cpu": "500m",
-                "memory": "512Mi"
-              }
-            }
           }
         ],
         "imagePullSecrets": [
@@ -71,6 +94,13 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 3005
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2"
+            memory: "2Gi"
         env:
         - name: MODE
           value: "MANAGER"

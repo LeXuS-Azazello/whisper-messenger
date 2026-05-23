@@ -109,11 +109,11 @@ data:
     echo "[download-models] Verifying ..."
     missing=0
 
-    if [ ! -f "$MODELS_DIR/sense_voice/model.int8.onnx" ] || [ ! -f "$MODELS_DIR/sense_voice/tokens.txt" ]; then
-      echo "[download-models] ERROR: SenseVoice missing!" >&2
+    if [ ! -f "$MODELS_DIR/whisper/distil-large-v2-encoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/distil-large-v2-decoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/distil-large-v2-tokens.txt" ]; then
+      echo "[download-models] ERROR: Whisper distil-large-v2 files missing!" >&2
       missing=1
     else
-      echo "[download-models] OK: SenseVoice"
+      echo "[download-models] OK: Whisper distil-large-v2 (multilingual)"
     fi
 
     if [ ! -f "$MODELS_DIR/vad/silero_vad.onnx" ]; then
@@ -147,7 +147,9 @@ metadata:
   labels:
     app: whisper-service-v2
 spec:
-  replicas: 1
+  replicas: 4   # 4 replicas of Whisper distil-large-v2 for high concurrency
+                # WARNING: Each pod loads the full model (~5-6 GiB RAM + CPU)
+                # Total estimated: ~20-24 GiB RAM + 12-24 CPU cores
   selector:
     matchLabels:
       app: whisper-service-v2
@@ -176,14 +178,15 @@ spec:
             - name: NUM_THREADS
               value: "4"
             - name: NUM_INTER_THREADS
-              value: "2"
+              value: "2"   # API container is lighter
+          # API is relatively light (just enqueues to Redis)
           resources:
             requests:
-              cpu: "500m"
-              memory: "256Mi"
-            limits:
               cpu: "1"
-              memory: "512Mi"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
           volumeMounts:
             - name: models
               mountPath: /models
@@ -215,16 +218,18 @@ spec:
             - name: CACHE_TTL
               value: "3600"
             - name: NUM_THREADS
-              value: "4"
+              value: "6"   # tuned for distil-large-v2
             - name: WORKER_CONCURRENCY
               value: "1"
+          # Worker runs Whisper distil-large-v2 — needs decent CPU + RAM
+          # With replicas: 4 this will consume a lot of cluster resources (~24Gi RAM total)
           resources:
             requests:
-              cpu: "1500m"
-              memory: "3Gi"
+              cpu: "3"
+              memory: "5Gi"
             limits:
-              cpu: "4"
-              memory: "6Gi"
+              cpu: "6"
+              memory: "8Gi"
           volumeMounts:
             - name: models
               mountPath: /models
@@ -250,6 +255,32 @@ spec:
       port: 8000
       targetPort: 8000
   type: ClusterIP
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: whisper-service-v2
+  namespace: debugging-testcrash-pub
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: whisper-service-v2
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 65
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300   # don't scale down too aggressively
+    scaleUp:
+      stabilizationWindowSeconds: 60
 
 ---
 # Использование:

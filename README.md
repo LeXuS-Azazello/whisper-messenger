@@ -1,66 +1,59 @@
 # 🎙️ Voice Messenger
 
-> **The ultimate multi-platform voice-to-text connecting Meta (FB/Insta), WhatsApp-web, LINE, and Telegram to state-of-the-art ASR (Whisper large-v3-turbo).**
+> **Multi-tenant voice-to-text platform connecting Telegram, WhatsApp (Baileys), Facebook Messenger (FCA), and Instagram (FCA) to high-quality offline ASR via whisper-service-v2 (distil-large-v2).**
 
 
 ---
 
 ## 🚀 Overview
 
-Voice Messenger is a robust, multi-tenant system designed to transcribe voice messages across all major messaging platforms. It features a unique **per-user client architecture** for Telegram, ensuring persistent, low-latency monitoring of personal chats while providing a centralized dashboard for management.
+Voice Messenger is a multi-tenant system that automatically transcribes voice messages from personal chats on major messaging platforms. 
 
-### 🌟 Supported Platforms
-- **Meta**: 🟦 Facebook Messenger & 🟪 Instagram
-- **WhatsApp**: 🟩 WhatsApp Cloud API
-- **Telegram**: 🛩️ Personal client Accounts (tdlib)  and telegram manager 
-- **LINE**: 🟢 Messaging API
-- **Threads**: 🪡 Meta Threads
+It uses a **per-user Kubernetes pod architecture**: for every connected account (Telegram, WhatsApp, Facebook, Instagram) the system spawns a dedicated lightweight client pod that runs 24/7 and forwards voice messages to the central ASR service.
+
+### 🌟 Currently Supported Platforms
+- **Telegram** — personal accounts via tdlib (per-user pods)
+- **WhatsApp** — personal accounts via Baileys (per-user pods, 3 connection methods: QR, Phone Pairing, wa.me)
+- **Facebook Messenger** — personal accounts via FCA (per-user pods)
+- **Instagram** — Direct messages via FCA (per-user pods)
+
+**ASR backend**: whisper-service-v2 (distil-large-v2 model + BullMQ worker) — strong multilingual support (including Hebrew, Arabic, Russian, etc.).
 
 ---
 
 ## 🏗️ Architecture
 
-```mermaid
-graph TD
-    User((User)) -->|HTTPS| Ingress[NGINX Ingress]
-    Ingress -->|/| Frontend[Frontend Server / Hono]
-    Frontend -->|Session| Redis[(Redis / Stats & Session)]
-    
-    Frontend -->|Internal API|  [Manager]
-    
-    K8s -->|Spawn| TGClient[tg-client Pods / Per-User]
-    
-    TGClient -->|Voice Data| ASR[]
-    Frontend -->|Webhook Data| ASR
-    
-    TGClient -->|Transcription| Telegram((Telegram tdlib))
-    Frontend -->|Reply| PlatformAPIs((Messenger / WhatsApp / etc.))
-```
+The system follows a **per-user pod** model:
+
+- Every connected messenger account (Telegram, WhatsApp, FB, IG) gets its own dedicated Kubernetes pod running the client library (tdlib or Baileys/FCA).
+- These pods are created and supervised by the corresponding **manager** (tg-client-manager, whatsapp-baileys-manager, facebook-fca-manager, instagram-fca-manager).
+- Voice messages are sent to **whisper-service-v2** (API + BullMQ worker) for transcription.
+- Results are delivered back to the user via the original platform or the web dashboard.
+
+All heavy ASR work happens in the isolated worker container inside whisper-service-v2, while the API layer stays lightweight.
 
 ### 🧱 Core Components
 
-1.  **Frontend Server** (`src/`):
-    *   Hono-based Node.js server serving as the primary entry point.
-    *   Handles **Webhooks**, **User Authentication** (Google/Email), and the **Dashboard**.
-    **Client Manager** (`tg-client-manager/`):
-    *   A specialized Kubernetes controller that manages the lifecycle of `tg-client` pods.
-    *   Handles Telegram authentication flows (Phone/QR) and pod orchestration.
-3.  **tg-client** (`tg-client/`):
-    *   Persistent tdlib clients spawned **on-demand** for each Telegram user.
-    *   Listen for voice messages in real-time and process them via the AI pipeline.
+| Component                    | Purpose                                      | Per-user pods? |
+|-----------------------------|----------------------------------------------|----------------|
+| `src/` (Frontend + Hono)    | Web dashboard, auth, webhooks, UI            | No             |
+| `*-manager/` (4 managers)   | Kubernetes controllers that spawn & manage per-user client pods | No (shared) |
+| `*-client/` folders         | Actual messenger clients (tdlib, Baileys, FCA) running inside user pods | Yes |
+| `whisper-service-v2`        | ASR service (API + BullMQ worker + distil-large-v2) | Shared (API + worker containers) |
+| `kubernetes/`               | Kustomize manifests for all services         | —              |
 
 ---
 
 ## 🛠️ Technology Stack
 
-| Layer | Technologies |
-| :--- | :--- |
-| **Backend** | TypeScript, Node.js, Hono, Express |
-| **Frontend** | Preact, SSR, Vanilla CSS (Premium Aesthetics) |
-| **Database** | Redis (Queue/Stats), MongoDB (Persistence) |
-
-| **Infrastructure** | Kubernetes (Kustomize), Docker |
-| **Ingress** | NGINX |
+| Layer          | Technologies                                      |
+|----------------|---------------------------------------------------|
+| **Backend**    | TypeScript, Node.js, Hono                         |
+| **Frontend**   | Preact + TSX (modern dashboard with per-messenger cards) |
+| **Database**   | Redis (BullMQ queues, sessions, user settings), MongoDB |
+| **ASR**        | whisper-service-v2 (distil-large-v2 ONNX + worker) |
+| **Infrastructure** | Kubernetes + Kustomize, Docker, Harbor registry |
+| **Deployment** | `npm run deploy:k8s` (builds + pushes + updates images) |
 
 ---
 
@@ -81,24 +74,23 @@ npm run deploy:k8s
 
 ## 🔌 System Endpoints
 
-| Service | Endpoint | Role |
-| :--- | :--- | :--- |
-| **Frontend** | `https://voicemsg.net` | Main Dashboard & Landing |
-| **Client Manager** | `http://tg-client-manager:3000` *(Internal)* | Manager Logic |
-| **AI API** | `http://whisper-turbo.debugging-testcrash-pub.svc.cluster.local:8000` *(Internal)* | Whisper Turbo Access |
+| Service                  | Endpoint (internal)                                      | Role |
+|--------------------------|----------------------------------------------------------|------|
+| **Frontend**             | `https://voicemsg.net`                                   | Main dashboard & landing |
+| **whisper-service-v2**   | `http://whisper-service-v2:8000`                         | ASR API (transcribe-base64) + BullMQ entrypoint |
+| **Managers**             | tg-client-manager:3000, whatsapp-baileys-manager:3002, facebook-fca-manager:3003, instagram-fca-manager:3005 | Per-user pod orchestration |
 
 ---
 
-## 📦 WhatsApp Module Naming Convention
+## 📦 WhatsApp Integration
 
-Two separate WhatsApp integration strategies — **do not mix up**:
+**Production stack**: `whatsapp-baileys-manager` + `whatsapp-baileys-client` (Baileys library).
 
-| Module | Directories | Library | Status |
-| :--- | :--- | :--- | :--- |
-| **Baileys** (current) | `whatsapp-baileys-client/` · `whatsapp-baileys-manager/` | `baileys` | ✅ In development |
-| **whatsapp-web** (next) | `whatsapp-client/` · `whatsapp-client-manager/` | `whatsapp-web.js` | 🔜 Planned |
+- Runs as per-user pods
+- Supports three connection methods in the dashboard: QR code, Phone Pairing Code, Direct wa.me link
+- Legacy `whatsapp-client*` (whatsapp-web.js) folders are deprecated and are being removed
 
-> **Rule**: `whatsapp-baileys-*` = Baileys library. `whatsapp-client*` = whatsapp-web.js library.
+> Rule: Only `whatsapp-baileys-*` is actively maintained.
 
 ---
 
@@ -106,39 +98,30 @@ Two separate WhatsApp integration strategies — **do not mix up**:
 
 ```text
 .
-├── src/                         # Frontend & Webhook logic
-│   ├── components/              # Preact UI components
-│   ├── controllers/             # Business logic
-│   ├── routes/                  # API & Webhook routing
-│   └── index.ts                 # Entry point
-├── tg-client-manager/           # Telegram Client Manager (K8s Orchestrator)
-├── tg-client/                   # Per-user Telegram engine (tdlib)
-├── whatsapp-baileys-client/     # WhatsApp client — Baileys library
-├── whatsapp-baileys-manager/    # WhatsApp manager — Baileys library
-├── whatsapp-client/             # WhatsApp client — whatsapp-web.js (planned)
-├── whatsapp-client-manager/     # WhatsApp manager — whatsapp-web.js (planned)
-├── whisper-service/             # ASR Python service (Whisper large-v3-turbo)
-├── kubernetes/                  # Infrastructure definitions
-│   ├── base/                    # Kustomize base resources
-│   └── overlays/                # Environment-specific configs
-└── scripts/                     # Deployment & utility scripts
+├── src/                              # Preact dashboard + Hono backend
+│   └── components/dashboard/         # ConnectionsPane + per-messenger cards
+├── tg-client-manager/                # Spawns & manages per-user Telegram pods
+├── tg-client/                        # tdlib client (runs inside user pods)
+├── whatsapp-baileys-manager/         # WhatsApp (Baileys) manager
+├── whatsapp-baileys-client/          # Baileys client (per-user pods)
+├── facebook-fca-manager/             # Facebook Messenger (FCA)
+├── facebook-fca-client/
+├── instagram-fca-manager/            # Instagram Direct (FCA)
+├── instagram-fca-client/
+├── whisper-service-v2/               # ASR (API + BullMQ worker + distil-large-v2)
+├── kubernetes/                       # Kustomize manifests (base + overlays)
+└── scripts/deploy.sh                 # Full build + push + rollout
 ```
 
 ---
 
-## 🛡️ Security & Privacy
-*   **Dual-Factor Verification**: 
-*   
-*   **Internal Network Isolation**: `whisper-turbo` (AI engine) and `tg-client-manager` are strictly exposed **only via internal Kubernetes ClusterIP**. They are not accessible from the public internet.
-*   **Per-User Pod Isolation**: User-specific `tg-client` pods are strictly isolated within the cluster.
-*   **Self-Destruct Logic**: If a user revokes Telegram access, the `tg-client` pod intercepts the authorization failure, gracefully clears the user session in the MongoDB/Redis backend, and automatically triggers its own deletion to preserve cluster resources.
-*   **Zero-Storage Policy**: Audio files and transcribed text are processed purely in RAM buffers and never saved to persistence storage.
+## 🛡️ Key Design Decisions
+
+- **Per-user isolation** — every account runs in its own Kubernetes pod (no shared sessions).
+- **Zero persistent audio** — voice messages are processed in memory only.
+- **whisper-service-v2 split** — lightweight HTTP API + separate heavy worker for stable ASR under load.
+- **Modern dashboard** — clean Preact UI with dedicated connection cards for each messenger.
 
 ---
 
-*Built with ❤️ for advanced agentic coding by the Voice Messenger Team.*
-
-
-
-213.111.155.16 Proxied
-voicemsg.net 213.111.154.233
+*Updated 2026 — per-user Baileys + FCA architecture + whisper-service-v2 (distil-large-v2)*

@@ -71,10 +71,17 @@ async function ensureUserPVC(sanitizedId, ns) {
     }
 }
 
-export async function spawnPod(userId, session) {
+export async function spawnPod(userId, session, username = '') {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
-    const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+    const base = (username && username.length >= 2)
+        ? username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
+        : safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
+
+    const short = Date.now().toString().slice(-6);
+    const podName = `${base}-whatsapp-${short}`;
+
     const ns = getNamespace();
 
     await ensureUserPVC(sanitizedId, ns);
@@ -108,7 +115,6 @@ export async function spawnPod(userId, session) {
         throw new Error(`Pod template missing or invalid: ${err.message}`);
     }
 
-    const podName = `wa-baileys-user-${sanitizedId}-${Date.now().toString().slice(-6)}`;
     podManifest.metadata.name = podName;
     podManifest.metadata.labels = { ...podManifest.metadata.labels, app: 'wa-baileys-client', userId: safeUserId };
 

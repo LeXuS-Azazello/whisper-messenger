@@ -67,12 +67,22 @@ download_tar_if_missing() {
   echo "[download-models] SUCCESS: $name extracted (marker: $marker)"
 }
 
-# 1. SenseVoice (multilingual ASR INT8)
-download_tar_if_missing \
-  "${BASE}/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2" \
-  "$MODELS_DIR/sense_voice" \
-  "$MODELS_DIR/sense_voice/model.int8.onnx" \
-  "SenseVoice"
+# 1. Whisper distil-large-v2 (best speed/quality/size trade-off for many languages)
+#    Excellent support for Hebrew, Russian, Arabic, 50+ languages + good auto detection
+echo "[download-models] >>> Downloading Whisper distil-large-v2 (multilingual) ..."
+mkdir -p "$MODELS_DIR/whisper"
+
+download_if_missing \
+  "${BASE}/asr-models/distil-large-v2-encoder.int8.onnx" \
+  "$MODELS_DIR/whisper/distil-large-v2-encoder.int8.onnx"
+
+download_if_missing \
+  "${BASE}/asr-models/distil-large-v2-decoder.int8.onnx" \
+  "$MODELS_DIR/whisper/distil-large-v2-decoder.int8.onnx"
+
+download_if_missing \
+  "${BASE}/asr-models/distil-large-v2-tokens.txt" \
+  "$MODELS_DIR/whisper/distil-large-v2-tokens.txt"
 
 # 2. Silero VAD
 download_if_missing \
@@ -93,13 +103,12 @@ echo "[download-models] All downloads attempted. Running final verification ..."
 # --- strict verification with EXPLICIT error messages -----------------------
 missing=0
 
-if [ ! -f "$MODELS_DIR/sense_voice/model.int8.onnx" ] || [ ! -f "$MODELS_DIR/sense_voice/tokens.txt" ]; then
-  echo "[download-models] ERROR: SenseVoice files missing!" >&2
-  echo "  Expected: $MODELS_DIR/sense_voice/model.int8.onnx" >&2
-  echo "            $MODELS_DIR/sense_voice/tokens.txt" >&2
+if [ ! -f "$MODELS_DIR/whisper/distil-large-v2-encoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/distil-large-v2-decoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/distil-large-v2-tokens.txt" ]; then
+  echo "[download-models] ERROR: Whisper distil-large-v2 files missing!" >&2
+  echo "  Expected in $MODELS_DIR/whisper/ : distil-large-v2-encoder.int8.onnx, decoder, tokens" >&2
   missing=1
 else
-  echo "[download-models] OK: SenseVoice"
+  echo "[download-models] OK: Whisper distil-large-v2 (multilingual)"
 fi
 
 if [ ! -f "$MODELS_DIR/vad/silero_vad.onnx" ]; then
