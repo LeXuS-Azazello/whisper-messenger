@@ -38,7 +38,9 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
 
             if (!response.ok) {
                 const body = await response.text().catch(() => '');
-                throw new Error(`Transcriber HTTP ${response.status} ${body}`);
+                const err = new Error(`Transcriber HTTP ${response.status} ${body}`);
+                err.status = response.status;
+                throw err;
             }
             const data = await response.json();
             return {
@@ -50,11 +52,13 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
         } catch (err) {
             lastError = err;
             const causeCode = err.cause?.code || '';
-            const isTransient = causeCode === 'ECONNREFUSED'
-                || causeCode === 'ENOTFOUND'
-                || causeCode === 'ECONNRESET'
-                || causeCode === 'ETIMEDOUT'
-                || /fetch failed/i.test(String(err.message));
+            const isTransient =
+                causeCode === 'ECONNREFUSED' ||
+                causeCode === 'ENOTFOUND' ||
+                causeCode === 'ECONNRESET' ||
+                causeCode === 'ETIMEDOUT' ||
+                /fetch failed/i.test(String(err.message)) ||
+                (err.status && err.status >= 500);
 
             console.error(`[transcriber] Attempt ${attempt}/${MAX_RETRIES} failed for ${url}: ${err.message} ${causeCode ? `[${causeCode}]` : ''}`);
 
@@ -66,7 +70,7 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
             const jitter = Math.floor(Math.random() * 4000); // avoid thundering herd
             const delay = baseDelay + jitter;
 
-            console.log(`[transcriber] Transient network error — retrying in ${(delay/1000).toFixed(1)}s...`);
+            console.log(`[transcriber] Transient network error — retrying in ${(delay / 1000).toFixed(1)}s...`);
             await new Promise(r => setTimeout(r, delay));
         }
     }

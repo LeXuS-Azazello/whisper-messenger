@@ -97,20 +97,7 @@ data:
       "${BASE}/asr-models/silero_vad.onnx" \
       "$MODELS_DIR/vad/silero_vad.onnx"
 
-    echo "[download-models] >>> Whisper large-v3-turbo.int8 (strong multilingual + LID) ..."
-    mkdir -p "$MODELS_DIR/whisper"
-    
-    export HF_HUB_ENABLE_HF_TRANSFER=1
-    curl -LsSf https://hf.co/cli/install.sh | bash
-    /root/.local/bin/hf download kostasang/whisper-large-v3-turbo-onnx-int8 --local-dir "$MODELS_DIR/whisper"
-
-    # Sherpa-ONNX specifically requires a tokens.txt file, which is not in the HF repo.
-    # We download it from the official k2-fsa release.
-    WHISPER_VERSION="v1.11.1"
-    WHISPER_BASE="https://github.com/k2-fsa/sherpa-onnx/releases/download/${WHISPER_VERSION}"
-    download_if_missing \
-      "${WHISPER_BASE}/large-v3-turbo-tokens.txt" \
-      "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt"
+    # Whisper large-v3-turbo download moved to git clone (see earlier section) – old GitHub URLs removed to prevent 404 errors
 
     echo "[download-models] >>> PUNCTUATION (most fragile) ..."
     download_tar_if_missing \
@@ -122,7 +109,7 @@ data:
     echo "[download-models] Verifying ..."
     missing=0
 
-    if [ ! -f "$MODELS_DIR/whisper/encoder_model_quantized.onnx" ] || [ ! -f "$MODELS_DIR/whisper/decoder_model_quantized.onnx" ] || [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt" ]; then
+    if [ ! -f "${MODELS_DIR}/whisper/large-v3-turbo-encoder.int8.onnx" ] || [ ! -f "${MODELS_DIR}/whisper/large-v3-turbo-decoder.int8.onnx" ] || [ ! -f "${MODELS_DIR}/whisper/large-v3-turbo-tokens.txt" ]; then
       echo "[download-models] ERROR: Whisper large-v3-turbo.int8 files missing!" >&2
       missing=1
     else

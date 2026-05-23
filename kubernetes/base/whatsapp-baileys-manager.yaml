@@ -22,7 +22,7 @@ data:
             "env": [
               {
                 "name": "REDIS_URL",
-                "value": "redis://redis-master.debugging-testcrash-pub.svc.cluster.local:6379"
+                "value": "redis://redis:6379"
               },
               {
                 "name": "WHISPER_URL",
@@ -90,14 +90,14 @@ spec:
         - name: SECRET
           valueFrom:
             secretKeyRef:
-              name: voicemsg-secrets
+              name: whisper-messenger-env
               key: MANAGER_SECRET
         - name: REDIS_URL
-          value: "redis://redis-master.debugging-testcrash-pub.svc.cluster.local:6379"
+          value: "redis://redis:6379"
         - name: MONGODB_URI
           valueFrom:
             secretKeyRef:
-              name: voicemsg-secrets
+              name: whisper-messenger-env
               key: MONGODB_URI
 ---
 apiVersion: v1

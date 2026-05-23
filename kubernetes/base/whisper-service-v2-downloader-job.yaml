@@ -55,6 +55,9 @@ spec:
         - name: downloader
           image: debian:bookworm-slim
           command: ["/bin/bash", "-c", "apt-get update && apt-get install -y curl bzip2 ca-certificates && bash /scripts/download-models.sh"]
+          envFrom:
+          - secretRef:
+              name: hf-token
           env:
             - name: MODELS_DIR
               value: "/models"

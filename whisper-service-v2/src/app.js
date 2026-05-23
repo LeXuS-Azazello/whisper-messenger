@@ -5,7 +5,7 @@ import { Job } from 'bullmq';
 
 const PORT = parseInt(process.env.PORT || '8000', 10);
 const CACHE_TTL = parseInt(process.env.CACHE_TTL || '3600', 10);
-const WAIT_FOR_JOB_MS = parseInt(process.env.WAIT_FOR_JOB_MS || '300000', 10); // 5 minutes - needed for cold-start of large distil-large-v2 model on first job
+const WAIT_FOR_JOB_MS = (() => { const v = parseInt(process.env.WAIT_FOR_JOB_MS, 10); return Number.isNaN(v) ? 300000 : v; })(); // 5 minutes default
 
 const app = express();
 app.use(express.json({ limit: '200mb' }));

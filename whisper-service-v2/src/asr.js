@@ -11,8 +11,8 @@ const PUNCT_THREADS = parseInt(process.env.PUNCT_THREADS || '2', 10);
 
 // Whisper large-v3-turbo int8 (best multilingual + strongest language detection)
 // Excellent Russian, Hebrew, Arabic, 99+ languages. Far superior LID vs distil variants.
-const WHISPER_ENCODER = join(MODELS_DIR, 'whisper', 'encoder_model_quantized.onnx');
-const WHISPER_DECODER = join(MODELS_DIR, 'whisper', 'decoder_model_quantized.onnx');
+const WHISPER_ENCODER = join(MODELS_DIR, 'whisper', 'large-v3-turbo-encoder.int8.onnx');
+const WHISPER_DECODER = join(MODELS_DIR, 'whisper', 'large-v3-turbo-decoder.int8.onnx');
 const WHISPER_TOKENS  = join(MODELS_DIR, 'whisper', 'large-v3-turbo-tokens.txt');
 
 const VAD_MODEL = join(MODELS_DIR, 'vad', 'silero_vad.onnx');

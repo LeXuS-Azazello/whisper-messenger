@@ -19,7 +19,6 @@
  *   }
  */
 
-import fetch from 'node-fetch'; // or use global fetch if available in newer Node
 
 const DEFAULT_SAMESAME_URL = 'http://samesame:8002';
 const DEFAULT_OUTPUT_FORMAT = 'ogg';

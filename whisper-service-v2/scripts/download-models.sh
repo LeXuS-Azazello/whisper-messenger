@@ -34,7 +34,7 @@ download_if_missing() {
   fi
 
   echo "[download-models] DOWNLOADING (single file): $url → $out"
-  if ! curl -L --fail --retry 8 --retry-delay 5 --max-time 300 -o "$out" "$url"; then
+  if ! curl -L --fail --retry 12 --retry-delay 5 --max-time 1800 -o "$out" "$url"; then
     echo "[download-models] FATAL: failed to download $url after retries" >&2
     exit 1
   fi
@@ -69,34 +69,61 @@ download_tar_if_missing() {
 
 # 1. Whisper large-v3-turbo int8 (best multilingual support + strongest language ID)
 #    Excellent Russian, Hebrew, Arabic, 99+ languages. Much better LID than any distil model.
-echo "[download-models] >>> Downloading Whisper large-v3-turbo.int8 (multilingual + strong LID) ..."
+
+echo "[download-models] >>> Whisper large-v3-turbo.int8 (strong multilingual + LID) ..."
 mkdir -p "$MODELS_DIR/whisper"
 
-WHISPER_VERSION="v1.11.1"
-WHISPER_BASE="https://github.com/k2-fsa/sherpa-onnx/releases/download/${WHISPER_VERSION}"
+# ---- Ensure git is installed (required for cloning from HuggingFace) ----
+if ! command -v git >/dev/null 2>&1; then
+  echo "[download-models] Installing git..."
+  apt-get update && apt-get install -y git
+fi
+# ---- Install git‑xet (optional but recommended for large files) ----
+curl -sSfL https://hf.co/git-xet/install.sh | sh || echo "[download-models] git‑xet install failed – continuing without it"
 
-download_if_missing \
-  "${WHISPER_BASE}/large-v3-turbo-encoder.int8.onnx" \
-  "$MODELS_DIR/whisper/large-v3-turbo-encoder.int8.onnx"
+# ---- Install git‑lfs (required for large model files) ----
+if ! command -v git-lfs >/dev/null 2>&1; then
+  echo "[download-models] Installing git-lfs..."
+  apt-get update && apt-get install -y git-lfs
+fi
+# Initialize and pull LFS objects
+git lfs install --skip-repo
+git lfs pull
 
-download_if_missing \
-  "${WHISPER_BASE}/large-v3-turbo-decoder.int8.onnx" \
-  "$MODELS_DIR/whisper/large-v3-turbo-decoder.int8.onnx"
-
-download_if_missing \
-  "${WHISPER_BASE}/large-v3-turbo-tokens.txt" \
-  "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt"
+# ---- Robust renaming of model files ----
+# Encoder: prefer encoder_model_quantized.onnx, fallback to encoder.onnx
+if [ -f "$MODELS_DIR/whisper/encoder_model_quantized.onnx" ]; then
+  mv "$MODELS_DIR/whisper/encoder_model_quantized.onnx" "$MODELS_DIR/whisper/large-v3-turbo-encoder.int8.onnx"
+elif [ -f "$MODELS_DIR/whisper/encoder.onnx" ]; then
+  mv "$MODELS_DIR/whisper/encoder.onnx" "$MODELS_DIR/whisper/large-v3-turbo-encoder.int8.onnx"
+fi
+# Decoder: prefer decoder_model_quantized.onnx, fallback to decoder.onnx
+if [ -f "$MODELS_DIR/whisper/decoder_model_quantized.onnx" ]; then
+  mv "$MODELS_DIR/whisper/decoder_model_quantized.onnx" "$MODELS_DIR/whisper/large-v3-turbo-decoder.int8.onnx"
+elif [ -f "$MODELS_DIR/whisper/decoder.onnx" ]; then
+  mv "$MODELS_DIR/whisper/decoder.onnx" "$MODELS_DIR/whisper/large-v3-turbo-decoder.int8.onnx"
+fi
+# Tokens / vocab: prefer large‑v3‑turbo‑tokens.txt, fallback to vocab.txt
+if [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt" ]; then
+  if [ -f "$MODELS_DIR/whisper/vocab.txt" ]; then
+    mv "$MODELS_DIR/whisper/vocab.txt" "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt"
+  else
+    for f in "$MODELS_DIR/whisper"/*.txt; do
+      [ -f "$f" ] && mv "$f" "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt" && break
+    done
+  fi
+fi
 
 # 2. Silero VAD
-download_if_missing \
-  "${BASE}/asr-models/silero_vad.onnx" \
-  "$MODELS_DIR/vad/silero_vad.onnx"
+  download_if_missing \
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx" \
+    "$MODELS_DIR/vad/silero_vad.onnx"
 
 # 3. Punctuation (CT-Transformer) — OPTIONAL for best zh/en quality.
 #    We now have excellent simple offline punctuation for 100+ languages without this model.
 echo "[download-models] >>> Punctuation model is optional (simple fallback covers most languages)"
 download_tar_if_missing \
-  "${BASE}/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12.tar.bz2" \
+  "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8.tar.bz2" \
   "$MODELS_DIR/punctuation" \
   "$MODELS_DIR/punctuation/model.onnx" \
   "Punctuation CT-Transformer (optional)" || true

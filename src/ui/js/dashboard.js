@@ -659,10 +659,11 @@ document.addEventListener('DOMContentLoaded', function () {
             connectFbBtn.innerText = 'Connecting...';
 
             try {
+                const payload = fbActiveMethod === 'appstate' ? { appState } : { email, password };
                 const res = await fetch('/dashboard/facebook/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password, appState })
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json();
                 if (data.success) {
