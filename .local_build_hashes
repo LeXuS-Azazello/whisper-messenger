@@ -2,7 +2,6 @@ whisper-service:98c103cb55f06c69c26dee2ebdaade41
 voicemsg-tester:0684c36b0a9165d4c2361879ed0ced34
 tg-client-manager:078300798135c7dbd7112bfa6952a667
 facebook-fca-manager:cd7eb8d342a9556b245cad5248684ec8
-whatsapp-baileys-manager:bb9818670ea09090e4cdead3f775a75e
 .:d1912737436758ade916d389e405bf87
 whatsapp-baileys-client:cd4c733cc92e75d28b6821ebc259f623
 whisper-service-v2:f59164c7e34ff9b5096f97413cbbcdea
@@ -11,3 +10,4 @@ tg-client:caa907559f39168c742d81473a004294
 facebook-fca-client:26cafbff2c8a6f8826d7cee36cf80ee3
 instagram-fca-manager:61ed0b32fda34317984e54624017e180
 instagram-fca-client:567c08e4d0edc1a46986baeb61f43d30
+whatsapp-baileys-manager:eb0f609564dbfaebac0dfc5c360557ec
