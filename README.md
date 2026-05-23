@@ -17,7 +17,7 @@ It uses a **per-user Kubernetes pod architecture**: for every connected account 
 - **Facebook Messenger** — personal accounts via FCA (per-user pods)
 - **Instagram** — Direct messages via FCA (per-user pods)
 
-**ASR backend**: whisper-service-v2 (distil-large-v2 model + BullMQ worker) — strong multilingual support (including Hebrew, Arabic, Russian, etc.).
+**ASR backend**: whisper-service-v2 (large-v3-turbo.int8 + BullMQ worker) — best-in-class multilingual + language detection (Russian, Hebrew, Arabic, 99+ langs).
 
 ---
 
@@ -127,4 +127,4 @@ npm run deploy:k8s
 
 ---
 
-*Updated 2026-05 — whisper-service-v2 + translation-service + samesame (voice cloning, not yet wired to clients)*
+*Updated 2026-05 — whisper-service-v2 + samesame (voice cloning via 

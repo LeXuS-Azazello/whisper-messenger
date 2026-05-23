@@ -32,7 +32,6 @@
   - ASR через sherpa-onnx SenseVoice
   - offline punctuation для большинства языков (простая + опциональный CT-Transformer)
   - запись результата в Redis TTL 1h
-  - опциональный вызов `translation-service`
 - [ ] поддержка повторных попыток и отказоустойчивости
 
 ### 3. Добавить Redis SHA256 кэш
@@ -51,7 +50,6 @@
 - [ ] `TARGET_LANGUAGE` / `AUTO_TRANSLATE`
 
 ### 5. Интеграция с переводом
-- [ ] реализовать вызов `translation-service` только при `target_language`
 - [ ] использовать `language` из ASR/Language ID
 - [ ] возвращать структуру ответа:
   - `text`

@@ -43,7 +43,7 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
             const data = await response.json();
             return {
                 text: data.text || '',
-                language: data.language || language,
+                language: '',
                 translated: data.translated || null,
                 target_language: data.target_language || target_language || null
             };

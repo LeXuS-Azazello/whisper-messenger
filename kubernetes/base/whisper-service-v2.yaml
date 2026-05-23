@@ -97,6 +97,24 @@ data:
       "${BASE}/asr-models/silero_vad.onnx" \
       "$MODELS_DIR/vad/silero_vad.onnx"
 
+    # Whisper large-v3-turbo.int8 (primary ASR model - best LID for Russian and 99+ languages)
+    echo "[download-models] >>> Whisper large-v3-turbo.int8 (strong multilingual + LID) ..."
+    mkdir -p "$MODELS_DIR/whisper"
+    WHISPER_VERSION="v1.11.1"
+    WHISPER_BASE="https://github.com/k2-fsa/sherpa-onnx/releases/download/${WHISPER_VERSION}"
+
+    download_if_missing \
+      "${WHISPER_BASE}/large-v3-turbo-encoder.int8.onnx" \
+      "$MODELS_DIR/whisper/large-v3-turbo-encoder.int8.onnx"
+
+    download_if_missing \
+      "${WHISPER_BASE}/large-v3-turbo-decoder.int8.onnx" \
+      "$MODELS_DIR/whisper/large-v3-turbo-decoder.int8.onnx"
+
+    download_if_missing \
+      "${WHISPER_BASE}/large-v3-turbo-tokens.txt" \
+      "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt"
+
     echo "[download-models] >>> PUNCTUATION (most fragile) ..."
     download_tar_if_missing \
       "${BASE}/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12.tar.bz2" \
@@ -107,11 +125,11 @@ data:
     echo "[download-models] Verifying ..."
     missing=0
 
-    if [ ! -f "$MODELS_DIR/whisper/distil-large-v2-encoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/distil-large-v2-decoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/distil-large-v2-tokens.txt" ]; then
-      echo "[download-models] ERROR: Whisper distil-large-v2 files missing!" >&2
+    if [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-encoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-decoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt" ]; then
+      echo "[download-models] ERROR: Whisper large-v3-turbo.int8 files missing!" >&2
       missing=1
     else
-      echo "[download-models] OK: Whisper distil-large-v2 (multilingual)"
+      echo "[download-models] OK: Whisper large-v3-turbo.int8 (best multilingual + LID)"
     fi
 
     if [ ! -f "$MODELS_DIR/vad/silero_vad.onnx" ]; then
@@ -128,7 +146,7 @@ data:
     fi
 
     if [ "$missing" -eq 1 ]; then
-      echo "[download-models] FATAL — SenseVoice or VAD missing" >&2
+      echo "[download-models] FATAL — large-v3-turbo or VAD missing" >&2
       exit 1
     fi
 
@@ -171,7 +189,7 @@ spec:
             - name: CACHE_TTL
               value: "3600"
             - name: WAIT_FOR_JOB_MS
-              value: "300000"   # 5 minutes - first cold-start transcription with distil-large-v2 can take 2-4 min
+               value: "300000"   # 5 minutes - large-v3-turbo.int8 first load can take 3-6 min on CPU
             - name: NUM_THREADS
               value: "4"
             - name: NUM_INTER_THREADS
@@ -215,11 +233,10 @@ spec:
             - name: CACHE_TTL
               value: "3600"
             - name: NUM_THREADS
-              value: "6"   # tuned for distil-large-v2
+               value: "6"   # tuned for large-v3-turbo.int8 (good balance quality/speed)
             - name: WORKER_CONCURRENCY
               value: "1"
-            - name: TRANSLATE_SERVICE_URL
-              value: "http://translation-service.debugging-testcrash-pub.svc.cluster.local:8001/v1/translate"
+            # Translation is now done via Whisper built-in (task: translate) instead of separate NLLB service
           resources:
             requests:
               cpu: "2"
@@ -263,7 +280,7 @@ spec:
     kind: Deployment
     name: whisper-service-v2
   minReplicas: 1
-  maxReplicas: 4   # keep low to stay under 12 CPU HRQ in debugging-testcrash-pub
+  maxReplicas: 3   # keep low to stay under 12 CPU HRQ in debugging-testcrash-pub
   metrics:
   - type: Resource
     resource:
@@ -280,17 +297,13 @@ spec:
 ---
 # Использование (рекомендуется через kustomize):
 # 1. kubectl apply -k kubernetes/overlays/testcrash-pub -n debugging-testcrash-pub
-#    (включает и whisper-service-v2, и translation-service)
 #
 # 2. Скачать ASR модели (если ещё не скачано):
 #    kubectl create -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n debugging-testcrash-pub
 #
-# 3. Скачать модель перевода NLLB (один раз):
-#    kubectl create -f kubernetes/base/translation-service-downloader-job.yaml -n debugging-testcrash-pub
-#
-# 4. После скачивания моделей поды поднимутся и перевод станет доступен
+# 3. После скачивания моделей поды поднимутся и перевод станет доступен
 #    для пользователей, у которых в Dashboard → Profile выбрана Preferred Translation Language.
 #
 # Сервисы:
 #   - ASR:          http://whisper-service-v2.../v1/transcribe-base64
-#   - Translation:  http://translation-service.../v1/translate   (вызывается автоматически worker'ом)
+

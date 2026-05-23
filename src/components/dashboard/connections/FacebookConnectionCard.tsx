@@ -15,14 +15,9 @@ export function FacebookConnectionCard() {
                     Connect your Facebook Messenger. AppState is strongly recommended.
                 </p>
 
+                {/* Method selectors - vanilla JS wiring in dashboard.js */}
                 <div class="wa-methods-grid">
-                    <div class="wa-method-card" id="fb-method-appstate" onClick={() => {
-                        document.getElementById('fb-appstate-area')!.style.display = 'block';
-                        const creds = document.getElementById('fb-creds-area') as HTMLElement | null;
-                        if (creds) creds.style.display = 'none';
-                        document.querySelectorAll('#fb-method-appstate, #fb-method-creds').forEach(el => el.classList.remove('active'));
-                        document.getElementById('fb-method-appstate')!.classList.add('active');
-                    }}>
+                    <div class="wa-method-card" id="fb-method-appstate" data-method="appstate">
                         <div class="wa-method-icon">🔑</div>
                         <div class="wa-method-content">
                             <div class="wa-method-title">AppState JSON <span class="badge recommended">Recommended</span></div>
@@ -30,13 +25,7 @@ export function FacebookConnectionCard() {
                         </div>
                     </div>
 
-                    <div class="wa-method-card" id="fb-method-creds" onClick={() => {
-                        document.getElementById('fb-appstate-area')!.style.display = 'none';
-                        const creds = document.getElementById('fb-creds-area') as HTMLElement | null;
-                        if (creds) creds.style.display = 'block';
-                        document.querySelectorAll('#fb-method-appstate, #fb-method-creds').forEach(el => el.classList.remove('active'));
-                        document.getElementById('fb-method-creds')!.classList.add('active');
-                    }}>
+                    <div class="wa-method-card" id="fb-method-creds" data-method="creds">
                         <div class="wa-method-icon">✉️</div>
                         <div class="wa-method-content">
                             <div class="wa-method-title">Email + Password</div>

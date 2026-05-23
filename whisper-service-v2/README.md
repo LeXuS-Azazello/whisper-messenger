@@ -95,7 +95,7 @@ The `whisper-service-v2` deployment uses a PVC-backed model cache and a one-time
 The downloader script is run on the server and saves models into the persistent volume at `/models`.
 On a redeploy, the existing model files are reused and are not downloaded again unless they are missing.
 
-See `k8s/whisper-service-v2.yaml` and `k8s/translation-service.yaml` for deployment manifests.
+See `kubernetes/base/whisper-service-v2.yaml` for deployment manifests.
 
 ## Server-side model downloader
 
@@ -112,28 +112,3 @@ MODELS_DIR=/models ./scripts/download-models.sh
 
 If you are using Kubernetes, the built-in job in `k8s/whisper-service-v2.yaml` already performs the same download flow.
 
-## Translation service
-
-The optional translation backend is located in `translation-service/`.
-It provides a CPU-only NLLB-200 HTTP service on port `8001`.
-
-To build the translation image:
-
-```bash
-cd whisper-service-v2/translation-service
-docker build -t your-registry/translation-service:latest .
-```
-
-The service runs with:
-
-```bash
-docker run --rm -p 8001:8001 \
-  -e HF_HOME=/hf-cache \
-  your-registry/translation-service:latest
-```
-
-Then point `TRANSLATE_SERVICE_URL` in `whisper-service-v2/src/asr.js` or env to:
-
-```
-http://translation-service:8001/v1/translate
-```

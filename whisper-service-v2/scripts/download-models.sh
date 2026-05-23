@@ -67,27 +67,25 @@ download_tar_if_missing() {
   echo "[download-models] SUCCESS: $name extracted (marker: $marker)"
 }
 
-# 1. Whisper distil-large-v2 (best speed/quality/size trade-off for many languages)
-#    Excellent support for Hebrew, Russian, Arabic, 50+ languages + good auto detection
-echo "[download-models] >>> Downloading Whisper distil-large-v2 (multilingual) ..."
+# 1. Whisper large-v3-turbo int8 (best multilingual support + strongest language ID)
+#    Excellent Russian, Hebrew, Arabic, 99+ languages. Much better LID than any distil model.
+echo "[download-models] >>> Downloading Whisper large-v3-turbo.int8 (multilingual + strong LID) ..."
 mkdir -p "$MODELS_DIR/whisper"
 
-# Using Hugging Face mirrors (more reliable than sherpa-onnx GitHub releases for these specific int8 models)
-# Whisper distil-large-v2 — using a stable versioned GitHub release (more reliable from K8s pods)
 WHISPER_VERSION="v1.11.1"
 WHISPER_BASE="https://github.com/k2-fsa/sherpa-onnx/releases/download/${WHISPER_VERSION}"
 
 download_if_missing \
-  "${WHISPER_BASE}/distil-large-v2-encoder.int8.onnx" \
-  "$MODELS_DIR/whisper/distil-large-v2-encoder.int8.onnx"
+  "${WHISPER_BASE}/large-v3-turbo-encoder.int8.onnx" \
+  "$MODELS_DIR/whisper/large-v3-turbo-encoder.int8.onnx"
 
 download_if_missing \
-  "${WHISPER_BASE}/distil-large-v2-decoder.int8.onnx" \
-  "$MODELS_DIR/whisper/distil-large-v2-decoder.int8.onnx"
+  "${WHISPER_BASE}/large-v3-turbo-decoder.int8.onnx" \
+  "$MODELS_DIR/whisper/large-v3-turbo-decoder.int8.onnx"
 
 download_if_missing \
-  "${WHISPER_BASE}/distil-large-v2-tokens.txt" \
-  "$MODELS_DIR/whisper/distil-large-v2-tokens.txt"
+  "${WHISPER_BASE}/large-v3-turbo-tokens.txt" \
+  "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt"
 
 # 2. Silero VAD
 download_if_missing \
@@ -108,12 +106,12 @@ echo "[download-models] All downloads attempted. Running final verification ..."
 # --- strict verification with EXPLICIT error messages -----------------------
 missing=0
 
-if [ ! -f "$MODELS_DIR/whisper/distil-large-v2-encoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/distil-large-v2-decoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/distil-large-v2-tokens.txt" ]; then
-  echo "[download-models] ERROR: Whisper distil-large-v2 files missing!" >&2
-  echo "  Expected in $MODELS_DIR/whisper/ : distil-large-v2-encoder.int8.onnx, decoder, tokens" >&2
+if [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-encoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-decoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt" ]; then
+  echo "[download-models] ERROR: Whisper large-v3-turbo.int8 files missing!" >&2
+  echo "  Expected in $MODELS_DIR/whisper/ : large-v3-turbo-encoder.int8.onnx, decoder, tokens" >&2
   missing=1
 else
-  echo "[download-models] OK: Whisper distil-large-v2 (multilingual)"
+  echo "[download-models] OK: Whisper large-v3-turbo.int8 (best multilingual + LID)"
 fi
 
 if [ ! -f "$MODELS_DIR/vad/silero_vad.onnx" ]; then
@@ -131,7 +129,7 @@ else
 fi
 
 if [ "$missing" -eq 1 ]; then
-  echo "[download-models] FATAL: required models (SenseVoice or VAD) are missing." >&2
+  echo "[download-models] FATAL: required models (large-v3-turbo or VAD) are missing." >&2
   exit 1
 fi
 

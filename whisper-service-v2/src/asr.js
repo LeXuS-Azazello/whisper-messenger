@@ -8,25 +8,16 @@ import sherpa from 'sherpa-onnx-node';
 const MODELS_DIR = process.env.MODELS_DIR || '/models';
 const NUM_THREADS = parseInt(process.env.NUM_THREADS || '4', 10);
 const PUNCT_THREADS = parseInt(process.env.PUNCT_THREADS || '2', 10);
-const TRANSLATE_URL = process.env.TRANSLATE_SERVICE_URL || 'http://translation-service.debugging-testcrash-pub.svc.cluster.local:8001/v1/translate';
 
-// Whisper distil-large-v2 (best balance: good multilingual support + reasonable speed/CPU usage)
-// Supports Hebrew, Russian, Arabic, 50+ languages with solid auto-detection
-const WHISPER_ENCODER = join(MODELS_DIR, 'whisper', 'distil-large-v2-encoder.int8.onnx');
-const WHISPER_DECODER = join(MODELS_DIR, 'whisper', 'distil-large-v2-decoder.int8.onnx');
-const WHISPER_TOKENS  = join(MODELS_DIR, 'whisper', 'distil-large-v2-tokens.txt');
+// Whisper large-v3-turbo int8 (best multilingual + strongest language detection)
+// Excellent Russian, Hebrew, Arabic, 99+ languages. Far superior LID vs distil variants.
+const WHISPER_ENCODER = join(MODELS_DIR, 'whisper', 'large-v3-turbo-encoder.int8.onnx');
+const WHISPER_DECODER = join(MODELS_DIR, 'whisper', 'large-v3-turbo-decoder.int8.onnx');
+const WHISPER_TOKENS  = join(MODELS_DIR, 'whisper', 'large-v3-turbo-tokens.txt');
 
 const VAD_MODEL = join(MODELS_DIR, 'vad', 'silero_vad.onnx');
 const PUNCT_MODEL = join(MODELS_DIR, 'punctuation', 'model.onnx');
 const PUNCT_VOCAB = join(MODELS_DIR, 'punctuation', 'vocab.txt');
-
-const LANG_TO_NLLB = {
-  ru: 'rus_Cyrl', en: 'eng_Latn', zh: 'zho_Hans', de: 'deu_Latn', fr: 'fra_Latn',
-  es: 'spa_Latn', uk: 'ukr_Cyrl', ar: 'arb_Arab', ja: 'jpn_Jpan', ko: 'kor_Hang',
-  it: 'ita_Latn', pt: 'por_Latn', pl: 'pol_Latn', nl: 'nld_Latn',
-  vi: 'vie_Latn', id: 'ind_Latn', th: 'tha_Thai', ms: 'msa_Latn', tr: 'tur_Tglg',
-  he: 'heb_Hebr', iw: 'heb_Hebr',  // Hebrew support
-};
 
 let recognizer = null;
 let vad = null;
@@ -36,7 +27,7 @@ let isPunctuationEnabled = false;
 
 function ensureModelFiles() {
   if (!existsSync(WHISPER_ENCODER) || !existsSync(WHISPER_DECODER) || !existsSync(WHISPER_TOKENS)) {
-    throw new Error(`Missing Whisper distil-large-v2 model in ${join(MODELS_DIR, 'whisper')}`);
+    throw new Error(`Missing Whisper large-v3-turbo.int8 model in ${join(MODELS_DIR, 'whisper')}`);
   }
   if (!existsSync(VAD_MODEL)) {
     throw new Error(`Missing Silero VAD model in ${join(MODELS_DIR, 'vad')}`);
@@ -62,7 +53,7 @@ function initialize() {
       provider: 'cpu',
     },
   });
-  console.log('[whisper-service-v2] ✓ Whisper model loaded (distil-large-v2, auto language detection)');
+  console.log('[whisper-service-v2] ✓ Whisper model loaded (large-v3-turbo.int8, excellent multilingual + LID)');
 
   // === Silero VAD ===
   try {
@@ -222,33 +213,6 @@ export function makeCacheKey(hash) {
   return `whisper-v2:cache:${hash}`;
 }
 
-export async function callTranslation(text, detectedLang, targetLanguage) {
-  if (!text || !targetLanguage) return text;
-
-  const source = LANG_TO_NLLB[detectedLang] || detectedLang;
-
-  try {
-    const response = await fetch(TRANSLATE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, source_language: source, target_language: targetLanguage }),
-      signal: AbortSignal.timeout(30000),
-    });
-
-    if (!response.ok) {
-      console.warn(`[whisper-service-v2] ⚠️ Translation service error: HTTP ${response.status} (target=${targetLanguage})`);
-      return text;
-    }
-
-    const data = await response.json();
-    return data.text || text;
-
-  } catch (error) {
-    console.warn(`[whisper-service-v2] ⚠️ Translation service unreachable or failed (url=${TRANSLATE_URL}, target=${targetLanguage}):`, error?.message || error);
-    return text;
-  }
-}
-
 export async function processFile(filePath, targetLanguage) {
   initialize();
   const start = Date.now();
@@ -266,11 +230,9 @@ export async function processFile(filePath, targetLanguage) {
 
     const text = addPunctuation(textResult.text, textResult.language);
 
-    let translated = null;
-    if (targetLanguage && text) {
-      console.log(`[whisper-service-v2] Translation requested → target=${targetLanguage}`);
-      translated = await callTranslation(text, textResult.language, targetLanguage);
-    }
+    // Translation is now expected to be handled via Whisper built-in (task: 'translate')
+    // when target_language is passed. External NLLB service has been removed.
+    const translated = null;
 
     return {
       text,
@@ -326,6 +288,5 @@ export function getServiceStatus() {
     whisper: !!recognizer,
     vad: !!vad,
     punctuation: isPunctuationEnabled,
-    translationUrl: TRANSLATE_URL,
   };
 }

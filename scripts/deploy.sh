@@ -188,7 +188,6 @@ WA_MANAGER_IMAGE="${REPO}/whatsapp-baileys-manager:${TAG}"
 WA_CLIENT_IMAGE="${REPO}/whatsapp-baileys-client:${TAG}"
 SAMESAME_IMAGE="${REPO}/samesame:${TAG}"
 WHISPER_V2_IMAGE="${REPO}/whisper-service-v2:${TAG}"
-TRANSLATION_IMAGE="${REPO}/translation-service:${TAG}"
 
 
 echo ">>> Building and pushing Docker images..."
@@ -249,9 +248,6 @@ build_and_push_image "samesame" "samesame" "samesame/Dockerfile" "$SAMESAME_IMAG
 echo "12. Whisper Service v2: $WHISPER_V2_IMAGE"
 build_and_push_image "whisper-service-v2" "whisper-service-v2" "whisper-service-v2/Dockerfile" "$WHISPER_V2_IMAGE"
 
-echo "13. Translation Service: $TRANSLATION_IMAGE"
-build_and_push_image "translation-service" "whisper-service-v2/translation-service" "whisper-service-v2/translation-service/Dockerfile" "$TRANSLATION_IMAGE"
-
 # Clean up temporary injections (tdlib + shared code)
 if [ "$HAS_CUSTOM_TDLIB" = true ]; then
     echo ">>> Cleaning up injected tdlib directories..."
@@ -294,17 +290,16 @@ kubectl set env deployment/facebook-fca-manager FCA_CLIENT_IMAGE="$FCA_CLIENT_IM
 kubectl set image deployment/whatsapp-baileys-manager manager="$WA_MANAGER_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/samesame samesame="$SAMESAME_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/whisper-service-v2 whisper-service-v2="$WHISPER_V2_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/translation-service translation-service="$TRANSLATION_IMAGE" -n "$NAMESPACE"
 kubectl set image deployment/voicemsg-tester tester="$TESTER_IMAGE" -n "$NAMESPACE"
 
-echo ">>> Whisper Service v2 + Translation Service + Samesame deployed."
+echo ">>> Whisper Service v2 + Samesame deployed."
 echo ">>> Waiting for model deployments to become Ready (polling every 5 seconds)..."
 
 while true; do
     echo ""
     echo "=== Model Deployments ==="
     kubectl get deploy -n "$NAMESPACE" \
-        whisper-service-v2 translation-service samesame \
+        whisper-service-v2 samesame \
         --no-headers 2>/dev/null || true
 
     echo ""
@@ -312,10 +307,9 @@ while true; do
     kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers 2>/dev/null || echo "  (no downloader jobs yet)"
 
     WHISPER_READY=$(kubectl get deploy whisper-service-v2 -n "$NAMESPACE" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
-    TRANSLATION_READY=$(kubectl get deploy translation-service -n "$NAMESPACE" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
     SAMESAME_READY=$(kubectl get deploy samesame -n "$NAMESPACE" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
 
-    if [ "${WHISPER_READY:-0}" -ge 1 ] && [ "${TRANSLATION_READY:-0}" -ge 1 ] && [ "${SAMESAME_READY:-0}" -ge 1 ]; then
+    if [ "${WHISPER_READY:-0}" -ge 1 ] && [ "${SAMESAME_READY:-0}" -ge 1 ]; then
         echo ""
         echo ">>> All model deployments are Ready. Launching downloader Jobs now..."
         break
@@ -327,7 +321,6 @@ done
 
 echo ">>> Launching model downloader Jobs (one-time, safe to re-run)..."
 kubectl create -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n "$NAMESPACE" || true
-kubectl create -f kubernetes/base/translation-service-downloader-job.yaml -n "$NAMESPACE" || true
 kubectl create -f kubernetes/base/samesame-downloader-job.yaml -n "$NAMESPACE" || true
 
 echo ">>> Deleting existing user tg-client pods to force recreation with new image..."

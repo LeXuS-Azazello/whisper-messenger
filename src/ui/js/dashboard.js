@@ -387,11 +387,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const waWebQrImg = document.getElementById('wa-web-qr-img');
     const waWebStatus = document.getElementById('wa-web-status');
 
-    // WhatsApp sub-tabs
-    const waTabQr = document.getElementById('wa-tab-qr');
-    const waTabCode = document.getElementById('wa-tab-code');
-    const waQrContainerTab = document.getElementById('wa-qr-container-tab');
-    const waCodeContainerTab = document.getElementById('wa-code-container-tab');
+    // WhatsApp method cards (new data-method UI) - replaces old sub-tabs
+    const waMethodCards = document.querySelectorAll('.wa-web-card .wa-method-card');
+    const waQrPanel = document.getElementById('wa-qr-panel');
+    const waPhonePanel = document.getElementById('wa-phone-panel');
+    const waWamePanel = document.getElementById('wa-wame-panel');
 
     const waGetCodeBtn = document.getElementById('wa-get-code-btn');
     const waPhoneNumberInput = document.getElementById('wa-phone-number');
@@ -399,20 +399,26 @@ document.addEventListener('DOMContentLoaded', function () {
     const waPairingCodeText = document.getElementById('wa-pairing-code-text');
     const disconnectWaCodeBtn = document.getElementById('disconnect-wa-web-code-btn');
 
-    if (waTabQr && waTabCode) {
-        waTabQr.addEventListener('click', () => {
-            waTabQr.classList.add('active');
-            waTabCode.classList.remove('active');
-            if (waQrContainerTab) waQrContainerTab.style.display = 'block';
-            if (waCodeContainerTab) waCodeContainerTab.style.display = 'none';
-        });
+    function setWaMethod(method) {
+        waMethodCards.forEach(c => c.classList.remove('active'));
+        const targetCard = document.querySelector(`.wa-web-card .wa-method-card[data-method="${method}"]`);
+        if (targetCard) targetCard.classList.add('active');
 
-        waTabCode.addEventListener('click', () => {
-            waTabCode.classList.add('active');
-            waTabQr.classList.remove('active');
-            if (waCodeContainerTab) waCodeContainerTab.style.display = 'block';
-            if (waQrContainerTab) waQrContainerTab.style.display = 'none';
+        if (waQrPanel) waQrPanel.style.display = (method === 'qr') ? 'block' : 'none';
+        if (waPhonePanel) waPhonePanel.style.display = (method === 'phone') ? 'block' : 'none';
+        if (waWamePanel) waWamePanel.style.display = (method === 'wame') ? 'block' : 'none';
+    }
+
+    waMethodCards.forEach(card => {
+        card.addEventListener('click', () => {
+            const method = card.dataset.method;
+            if (method) setWaMethod(method);
         });
+    });
+
+    // default: show QR method panel (most common)
+    if (waMethodCards.length) {
+        setWaMethod('qr');
     }
 
     if (disconnectWaCodeBtn) {
@@ -585,32 +591,38 @@ document.addEventListener('DOMContentLoaded', function () {
     const fbPasswordInput = document.getElementById('fb-password');
     const fbStatus = document.getElementById('fb-fca-status');
 
-    // Sub-tab toggling elements
-    const fbTabAppstate = document.getElementById('fb-tab-appstate');
-    const fbTabCreds = document.getElementById('fb-tab-creds');
-    const fbAppstateContainer = document.getElementById('fb-appstate-container');
-    const fbCredsContainer = document.getElementById('fb-creds-container');
+    // Facebook method cards (new wa-method-card UI) - controls fbActiveMethod used by connect handler
+    const fbAppstateCard = document.getElementById('fb-method-appstate');
+    const fbCredsCard = document.getElementById('fb-method-creds');
+    const fbAppstateArea = document.getElementById('fb-appstate-area');
+    const fbCredsArea = document.getElementById('fb-creds-area');
     let fbActiveMethod = 'appstate'; // default
 
-    if (fbTabAppstate && fbTabCreds) {
-        fbTabAppstate.addEventListener('click', () => {
-            fbTabAppstate.classList.add('active');
-            fbTabCreds.classList.remove('active');
-            fbAppstateContainer.style.display = 'block';
-            fbCredsContainer.style.display = 'none';
+    function setFbMethod(method) {
+        if (method === 'appstate') {
+            if (fbAppstateCard) fbAppstateCard.classList.add('active');
+            if (fbCredsCard) fbCredsCard.classList.remove('active');
+            if (fbAppstateArea) fbAppstateArea.style.display = 'block';
+            if (fbCredsArea) fbCredsArea.style.display = 'none';
             fbActiveMethod = 'appstate';
-        });
-
-
-        
-        fbTabCreds.addEventListener('click', () => {
-            fbTabCreds.classList.add('active');
-            fbTabAppstate.classList.remove('active');
-            fbCredsContainer.style.display = 'block';
-            fbAppstateContainer.style.display = 'none';
+        } else {
+            if (fbCredsCard) fbCredsCard.classList.add('active');
+            if (fbAppstateCard) fbAppstateCard.classList.remove('active');
+            if (fbAppstateArea) fbAppstateArea.style.display = 'none';
+            if (fbCredsArea) fbCredsArea.style.display = 'block';
             fbActiveMethod = 'creds';
-        });
+        }
     }
+
+    if (fbAppstateCard) {
+        fbAppstateCard.addEventListener('click', () => setFbMethod('appstate'));
+    }
+    if (fbCredsCard) {
+        fbCredsCard.addEventListener('click', () => setFbMethod('creds'));
+    }
+    // default selection
+    setFbMethod('appstate');
+
 
     if (connectFbBtn) {
         connectFbBtn.addEventListener('click', async () => {
@@ -763,6 +775,14 @@ document.addEventListener('DOMContentLoaded', function () {
             if (connectWaWebBtn) connectWaWebBtn.style.display = 'none';
             if (disconnectWaCodeBtn) disconnectWaCodeBtn.style.display = 'block';
             if (waGetCodeBtn) waGetCodeBtn.style.display = 'none';
+
+            // hide the method selector cards when already connected
+            const waGrid = document.querySelector('.wa-web-card .wa-methods-grid');
+            if (waGrid) waGrid.style.display = 'none';
+            // also collapse any open panel
+            if (waQrPanel) waQrPanel.style.display = 'none';
+            if (waPhonePanel) waPhonePanel.style.display = 'none';
+            if (waWamePanel) waWamePanel.style.display = 'none';
         }
     
         // Check FB status
@@ -775,6 +795,10 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             if (disconnectFbBtn) disconnectFbBtn.style.display = 'block';
             if (connectFbBtn) connectFbBtn.style.display = 'none';
+
+            // hide method selector cards when already connected
+            const fbGrid = document.querySelector('.fb-fca-card .wa-methods-grid');
+            if (fbGrid) fbGrid.style.display = 'none';
         }
     
         // Check Instagram status
