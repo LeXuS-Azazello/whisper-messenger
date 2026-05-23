@@ -158,7 +158,16 @@ build_and_push_image() {
         has_latest=true
     fi
     
-    if [ "$has_latest" = "true" ] && ! check_dir_changed "$image_path"; then
+    # Always fully rebuild the frontend (whisper-frontend) so that all TypeScript / Preact changes
+    # (new components, ConnectionsPane, extracted cards etc.) are recompiled via esbuild.
+    if [ "$name" = "whisper-frontend" ]; then
+        echo ">>> [FORCE REBUILD] whisper-frontend — always recompiling all TypeScript/Preact to pick up UI changes"
+        echo ">>> [BUILD] Building and pushing $name..."
+        docker build -t "$image_tag" -f "$dockerfile" "$image_path"
+        docker tag "$image_tag" "$latest_image"
+        docker push "$image_tag"
+        docker push "$latest_image"
+    elif [ "$has_latest" = "true" ] && ! check_dir_changed "$image_path"; then
         echo ">>> [SKIP BUILD] $name has not changed. Re-tagging existing latest image..."
         docker tag "$latest_image" "$image_tag"
         docker push "$image_tag"

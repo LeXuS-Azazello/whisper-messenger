@@ -11,8 +11,9 @@ resources:
     - tg-client-manager.yaml
     - tg-client.yaml
     - whisper-service.yaml
-    - whisper-service-v2.yaml
-    - whisper-service-network-policy.yaml
+     - whisper-service-v2.yaml
+     - whisper-service-network-policy.yaml
+     - translation-service.yaml
     - samesame.yaml
     - samesame-secret.yaml
     - huggingface-secret.yaml

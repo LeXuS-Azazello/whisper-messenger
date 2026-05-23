@@ -5,7 +5,7 @@ import { Job } from 'bullmq';
 
 const PORT = parseInt(process.env.PORT || '8000', 10);
 const CACHE_TTL = parseInt(process.env.CACHE_TTL || '3600', 10);
-const WAIT_FOR_JOB_MS = parseInt(process.env.WAIT_FOR_JOB_MS || '60000', 10);
+const WAIT_FOR_JOB_MS = parseInt(process.env.WAIT_FOR_JOB_MS || '300000', 10); // 5 minutes - needed for cold-start of large distil-large-v2 model on first job
 
 const app = express();
 app.use(express.json({ limit: '200mb' }));
@@ -87,10 +87,14 @@ app.post('/v1/transcribe-base64', async (req, res) => {
     const result = await job.waitUntilFinished(asrQueueEvents, { timeout: WAIT_FOR_JOB_MS });
     return res.json({ ...result, cache_hit: false });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('timeout')) {
-      console.warn(`[whisper-service-v2] Job ${job.id} timed out after ${WAIT_FOR_JOB_MS}ms`);
-      return res.status(202).json({ status: 'processing', jobId: job.id });
+    const isTimeout = error instanceof Error && error.message.includes('timeout');
+
+    if (isTimeout) {
+      console.warn(`[whisper-service-v2] Job ${job.id} timed out after ${WAIT_FOR_JOB_MS}ms — first heavy job (cold model load) often needs 2-4 minutes on CPU`);
+      // Return 202 so the caller knows it's still processing (tg-client will see it as error for now, but at least we don't lie with 500)
+      return res.status(202).json({ status: 'processing', jobId: job.id, note: 'still working, try again in a few seconds' });
     }
+
     console.error('[whisper-service-v2] Job failed:', error?.message || error);
     return res.status(500).json({ error: 'Job processing failed', details: error?.message });
   }

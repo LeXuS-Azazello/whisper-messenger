@@ -9,13 +9,21 @@
 #   - If models are corrupted or you want to re-download
 #   - After changing the download script
 #
-# USAGE:
-#   kubectl apply -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n debugging-testcrash-pub
+# USAGE (IMPORTANT):
+#   This file uses `generateName`, therefore you MUST use `create`, not `apply`.
 #
-#   The Job uses generateName, so every run creates a new unique Job (good for logs).
+#   Correct command:
+#   kubectl create -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n debugging-testcrash-pub
 #
-#   To watch logs:
-#   kubectl logs -f job/<the-generated-name> -n debugging-testcrash-pub
+#   Why not `apply`?
+#   `kubectl apply` does not support `generateName`. Every time you want to re-download
+#   the models, run `create` again — it will create a fresh Job with a unique name.
+#
+#   To watch logs of the latest run:
+#   kubectl logs -f job/<job-name-generated-by-k8s> -n debugging-testcrash-pub
+#
+#   Example of a real job name after creation:
+#   whisper-service-v2-model-downloader-9k2m7
 #
 #   The improved download script (with clear PUNCTUATION errors, retries, etc.)
 #   lives in the ConfigMap created by whisper-service-v2.yaml

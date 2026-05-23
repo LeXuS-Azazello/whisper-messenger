@@ -54,7 +54,7 @@ function initialize() {
       whisper: {
         encoder: WHISPER_ENCODER,
         decoder: WHISPER_DECODER,
-        language: 'auto',
+        language: '',
         task: 'transcribe',
       },
       tokens: WHISPER_TOKENS,

@@ -130,16 +130,16 @@ async def list_languages():
 
 class TranslateRequest(BaseModel):
     text: str
-    source_lang: str = "rus_Cyrl"
-    target_lang: str = "eng_Latn"
+    source_language: str = "rus_Cyrl"
+    target_language: str = "eng_Latn"
 
 
 @app.post("/v1/translate")
 async def translate(body: TranslateRequest):
     return {
-        "text": translate_text(body.text, body.source_lang, body.target_lang),
-        "source_lang": body.source_lang,
-        "target_lang": body.target_lang,
+        "text": translate_text(body.text, body.source_language, body.target_language),
+        "source_language": body.source_language,
+        "target_language": body.target_language,
     }
 
 

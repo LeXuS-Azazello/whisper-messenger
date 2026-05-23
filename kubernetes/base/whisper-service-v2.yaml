@@ -6,8 +6,8 @@
 #   kubernetes/base/whisper-service-v2-downloader-job.yaml
 #
 # Reason: Jobs should not be part of regular declarative deploys.
-# To download/re-download models run:
-#   kubectl apply -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n debugging-testcrash-pub
+# To download or re-download models run:
+#   kubectl create -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n debugging-testcrash-pub
 
 
 apiVersion: v1
@@ -175,6 +175,8 @@ spec:
               value: "redis://redis:6379"
             - name: CACHE_TTL
               value: "3600"
+            - name: WAIT_FOR_JOB_MS
+              value: "300000"   # 5 minutes - first cold-start transcription with distil-large-v2 can take 2-4 min
             - name: NUM_THREADS
               value: "4"
             - name: NUM_INTER_THREADS
@@ -221,6 +223,8 @@ spec:
               value: "6"   # tuned for distil-large-v2
             - name: WORKER_CONCURRENCY
               value: "1"
+            - name: TRANSLATE_SERVICE_URL
+              value: "http://translation-service.debugging-testcrash-pub.svc.cluster.local:8001/v1/translate"
           # Worker runs Whisper distil-large-v2 — needs decent CPU + RAM
           # With replicas: 4 this will consume a lot of cluster resources (~24Gi RAM total)
           resources:
@@ -283,9 +287,19 @@ spec:
       stabilizationWindowSeconds: 60
 
 ---
-# Использование:
-# 1. kubectl apply -f kubernetes/base/whisper-service-v2.yaml -n debugging-testcrash-pub
-# 2. При необходимости скачать модели:
-#    kubectl apply -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n debugging-testcrash-pub
-# 3. Подключить клиентов к http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000
-# 4. При необходимости передать target_language для перевода
+# Использование (рекомендуется через kustomize):
+# 1. kubectl apply -k kubernetes/overlays/testcrash-pub -n debugging-testcrash-pub
+#    (включает и whisper-service-v2, и translation-service)
+#
+# 2. Скачать ASR модели (если ещё не скачано):
+#    kubectl create -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n debugging-testcrash-pub
+#
+# 3. Скачать модель перевода NLLB (один раз):
+#    kubectl create -f kubernetes/base/translation-service-downloader-job.yaml -n debugging-testcrash-pub
+#
+# 4. После скачивания моделей поды поднимутся и перевод станет доступен
+#    для пользователей, у которых в Dashboard → Profile выбрана Preferred Translation Language.
+#
+# Сервисы:
+#   - ASR:          http://whisper-service-v2.../v1/transcribe-base64
+#   - Translation:  http://translation-service.../v1/translate   (вызывается автоматически worker'ом)

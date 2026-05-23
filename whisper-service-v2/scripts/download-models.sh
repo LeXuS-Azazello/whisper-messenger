@@ -72,16 +72,21 @@ download_tar_if_missing() {
 echo "[download-models] >>> Downloading Whisper distil-large-v2 (multilingual) ..."
 mkdir -p "$MODELS_DIR/whisper"
 
+# Using Hugging Face mirrors (more reliable than sherpa-onnx GitHub releases for these specific int8 models)
+# Whisper distil-large-v2 — using a stable versioned GitHub release (more reliable from K8s pods)
+WHISPER_VERSION="v1.11.1"
+WHISPER_BASE="https://github.com/k2-fsa/sherpa-onnx/releases/download/${WHISPER_VERSION}"
+
 download_if_missing \
-  "${BASE}/asr-models/distil-large-v2-encoder.int8.onnx" \
+  "${WHISPER_BASE}/distil-large-v2-encoder.int8.onnx" \
   "$MODELS_DIR/whisper/distil-large-v2-encoder.int8.onnx"
 
 download_if_missing \
-  "${BASE}/asr-models/distil-large-v2-decoder.int8.onnx" \
+  "${WHISPER_BASE}/distil-large-v2-decoder.int8.onnx" \
   "$MODELS_DIR/whisper/distil-large-v2-decoder.int8.onnx"
 
 download_if_missing \
-  "${BASE}/asr-models/distil-large-v2-tokens.txt" \
+  "${WHISPER_BASE}/distil-large-v2-tokens.txt" \
   "$MODELS_DIR/whisper/distil-large-v2-tokens.txt"
 
 # 2. Silero VAD
