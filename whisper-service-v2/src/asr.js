@@ -47,8 +47,7 @@ function initialize() {
   if (isReady) return;
   ensureModelFiles();
 
-  // Whisper large-v3-turbo — best multilingual coverage (Hebrew, Russian, Arabic, 90+ languages)
-  // language: 'auto' lets the model detect the spoken language first
+  // === Whisper (distil-large-v2) ===
   recognizer = new sherpa.OfflineRecognizer({
     modelConfig: {
       whisper: {
@@ -63,7 +62,9 @@ function initialize() {
       provider: 'cpu',
     },
   });
+  console.log('[whisper-service-v2] ✓ Whisper model loaded (distil-large-v2, auto language detection)');
 
+  // === Silero VAD ===
   try {
     vad = new sherpa.VoiceActivityDetector({
       sileroVad: {
@@ -78,23 +79,36 @@ function initialize() {
       debug: 0,
       provider: 'cpu',
     });
+    console.log('[whisper-service-v2] ✓ Silero VAD enabled');
   } catch (e) {
-    console.warn('[whisper-service-v2] VoiceActivityDetector constructor failed (sherpa-onnx-node version mismatch in image?), falling back to full-audio transcription without VAD:', e?.message || e);
+    console.warn('[whisper-service-v2] ⚠️ Silero VAD failed to initialize → falling back to full-audio transcription');
+    console.warn('[whisper-service-v2] VAD error:', e?.message || e);
     vad = null;
   }
 
+  // === CT-Transformer Punctuation ===
   if (existsSync(PUNCT_MODEL) && existsSync(PUNCT_VOCAB)) {
-    punctuator = new sherpa.OfflinePunctuation({
-      model: PUNCT_MODEL,
-      vocab: PUNCT_VOCAB,
-      numThreads: PUNCT_THREADS,
-      debug: 0,
-      provider: 'cpu',
-    });
-    isPunctuationEnabled = true;
+    try {
+      punctuator = new sherpa.OfflinePunctuation({
+        model: PUNCT_MODEL,
+        vocab: PUNCT_VOCAB,
+        numThreads: PUNCT_THREADS,
+        debug: 0,
+        provider: 'cpu',
+      });
+      isPunctuationEnabled = true;
+      console.log('[whisper-service-v2] ✓ Offline Punctuation (CT-Transformer) enabled');
+    } catch (e) {
+      console.warn('[whisper-service-v2] ⚠️ Punctuation model failed to load, using simple fallback');
+      isPunctuationEnabled = false;
+    }
+  } else {
+    console.log('[whisper-service-v2] ℹ️ Punctuation model not found → using simple multilingual fallback');
+    isPunctuationEnabled = false;
   }
 
   isReady = true;
+  console.log('[whisper-service-v2] Initialization complete');
 }
 
 function decodeAudioToPCM(filePath) {
@@ -210,7 +224,9 @@ export function makeCacheKey(hash) {
 
 export async function callTranslation(text, detectedLang, targetLanguage) {
   if (!text || !targetLanguage) return text;
+
   const source = LANG_TO_NLLB[detectedLang] || detectedLang;
+
   try {
     const response = await fetch(TRANSLATE_URL, {
       method: 'POST',
@@ -218,13 +234,17 @@ export async function callTranslation(text, detectedLang, targetLanguage) {
       body: JSON.stringify({ text, source_language: source, target_language: targetLanguage }),
       signal: AbortSignal.timeout(30000),
     });
+
     if (!response.ok) {
-      throw new Error(`Translation failed ${response.status}`);
+      console.warn(`[whisper-service-v2] ⚠️ Translation service error: HTTP ${response.status} (target=${targetLanguage})`);
+      return text;
     }
+
     const data = await response.json();
     return data.text || text;
+
   } catch (error) {
-    console.warn('[whisper-service-v2] Translation error:', error?.message || error);
+    console.warn(`[whisper-service-v2] ⚠️ Translation service unreachable or failed (url=${TRANSLATE_URL}, target=${targetLanguage}):`, error?.message || error);
     return text;
   }
 }
@@ -232,18 +252,26 @@ export async function callTranslation(text, detectedLang, targetLanguage) {
 export async function processFile(filePath, targetLanguage) {
   initialize();
   const start = Date.now();
+
   try {
     const pcmFull = decodeAudioToPCM(filePath);
     const decodedMs = Date.now() - start;
+
     const speech = applyVAD(pcmFull);
+    const usedVAD = !!vad && speech.length < pcmFull.length;
     const vadMs = Date.now() - start - decodedMs;
+
     const textResult = transcribePCM(speech);
     const asrMs = Date.now() - start - decodedMs - vadMs;
+
     const text = addPunctuation(textResult.text, textResult.language);
+
     let translated = null;
     if (targetLanguage && text) {
+      console.log(`[whisper-service-v2] Translation requested → target=${targetLanguage}`);
       translated = await callTranslation(text, textResult.language, targetLanguage);
     }
+
     return {
       text,
       language: textResult.language,
@@ -256,9 +284,11 @@ export async function processFile(filePath, targetLanguage) {
         durationMs: Date.now() - start,
         speechSamples: speech.length,
         rawSamples: pcmFull.length,
+        usedVAD,
       },
     };
   } catch (error) {
+    console.error('[whisper-service-v2] processFile failed:', error?.message || error);
     return {
       text: '',
       language: 'unknown',
@@ -289,4 +319,13 @@ export function isServiceReady() {
     console.error('[whisper-service-v2] isServiceReady: initialization failed:', error?.message || error);
     return false;
   }
+}
+
+export function getServiceStatus() {
+  return {
+    whisper: !!recognizer,
+    vad: !!vad,
+    punctuation: isPunctuationEnabled,
+    translationUrl: TRANSLATE_URL,
+  };
 }

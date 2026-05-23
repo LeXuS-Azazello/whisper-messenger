@@ -2,7 +2,6 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: fca-pod-template
-  namespace: debugging-testcrash-pub
 data:
   pod-template.json: |
     {
@@ -51,7 +50,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: facebook-fca-manager
-  namespace: debugging-testcrash-pub
 spec:
   replicas: 1
   selector:
@@ -93,7 +91,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: facebook-fca-manager
-  namespace: debugging-testcrash-pub
 spec:
   selector:
     app: facebook-fca-manager

@@ -63,6 +63,14 @@ spec:
               mountPath: /models
             - name: scripts
               mountPath: /scripts
+          resources:
+            # Reduced for debugging-testcrash-pub 12 CPU HRQ
+            requests:
+              cpu: "500m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
       volumes:
         - name: models
           persistentVolumeClaim:

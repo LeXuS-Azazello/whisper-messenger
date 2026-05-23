@@ -40,6 +40,7 @@ All heavy ASR work happens in the isolated worker container inside whisper-servi
 | `*-manager/` (4 managers)   | Kubernetes controllers that spawn & manage per-user client pods | No (shared) |
 | `*-client/` folders         | Actual messenger clients (tdlib, Baileys, FCA) running inside user pods | Yes |
 | `whisper-service-v2`        | ASR service (API + BullMQ worker + distil-large-v2) | Shared (API + worker containers) |
+| `samesame`                  | Premium voice cloning (YourTTS + reference audio)   | Shared |
 | `kubernetes/`               | Kustomize manifests for all services         | —              |
 
 ---
@@ -78,6 +79,7 @@ npm run deploy:k8s
 |--------------------------|----------------------------------------------------------|------|
 | **Frontend**             | `https://voicemsg.net`                                   | Main dashboard & landing |
 | **whisper-service-v2**   | `http://whisper-service-v2:8000`                         | ASR API (transcribe-base64) + BullMQ entrypoint |
+| **samesame**             | `http://samesame:8002`                                   | Premium voice cloning (`/v1/clone`) |
 | **Managers**             | tg-client-manager:3000, whatsapp-baileys-manager:3002, facebook-fca-manager:3003, instagram-fca-manager:3005 | Per-user pod orchestration |
 
 ---
@@ -109,8 +111,9 @@ npm run deploy:k8s
 ├── instagram-fca-manager/            # Instagram Direct (FCA)
 ├── instagram-fca-client/
 ├── whisper-service-v2/               # ASR (API + BullMQ worker + distil-large-v2)
+├── samesame/                         # Premium voice cloning (YourTTS + reference audio)
 ├── kubernetes/                       # Kustomize manifests (base + overlays)
-└── scripts/deploy.sh                 # Full build + push + rollout
+└── scripts/deploy.sh                 # Full build + push + rollout + auto model downloaders
 ```
 
 ---
@@ -124,4 +127,4 @@ npm run deploy:k8s
 
 ---
 
-*Updated 2026 — per-user Baileys + FCA architecture + whisper-service-v2 (distil-large-v2)*
+*Updated 2026-05 — whisper-service-v2 + translation-service + samesame (voice cloning, not yet wired to clients)*

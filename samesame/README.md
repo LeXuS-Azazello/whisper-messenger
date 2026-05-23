@@ -51,30 +51,40 @@ Body:
 ## Развертывание
 
 1. Убедитесь, что в `.env` задан `HUGGINGFACE_API_KEY`.
-2. Добавьте `SAMESAME_SECRET` в корень `.env`.
-3. Соберите образ:
+2. Добавьте `SAMESAME_SECRET` в корень `.env` (он будет лежать в секрете `samesame-secret`).
+3. Просто запусти основной деплой — всё соберётся и задеплоится автоматически:
 
 ```bash
-cd samesame
-docker build -t your-registry/samesame:latest .
+./scripts/deploy.sh
 ```
 
-4. На Kubernetes запустите модель-загрузчик и сервис:
+Скрипт:
+- Соберёт и запушит образ `samesame`
+- Применит все манифесты (включая `samesame.yaml`)
+- Дождётся готовности пода
+- Автоматически запустит `samesame-downloader-job.yaml` (модели скачаются один раз в PVC)
 
-```bash
-kubectl apply -f kubernetes/base/samesame.yaml -n debugging-testcrash-pub
+4. После деплоя сервис доступен внутри кластера по адресу:
+
+```
+http://samesame:8002
 ```
 
-5. Дождитесь завершения Job `samesame-model-downloader`.
-6. Подключите клиентов к `http://samesame.debugging-testcrash-pub.svc.cluster.local:8002`.
+(Полный DNS: `http://samesame.debugging-testcrash-pub.svc.cluster.local:8002`)
 
 ## Секреты
 
-- `HUGGINGFACE_API_KEY` берется из `.env` на сборке / из секрета `huggingface-token` в кластере.
-- `SAMESAME_SECRET` должен храниться в `kubernetes/base/samesame-secret.yaml` и не попадать в логи.
+- `HUGGINGFACE_API_KEY` — из `.env` (попадает в секрет `huggingface-token`).
+- `SAMESAME_SECRET` — хранится в `kubernetes/base/samesame-secret.yaml` (генерится при деплое из `.env`).
 
 ## Особенности
 
-- Модель скачивается один раз в PVC `/models`.
-- Сервис работает с `SAMESAME_LOCAL_ONLY=true`, чтобы не перекачивать модель на каждый рестарт.
-- Это отдельный сервис, не смешиваем с `whisper-service-v2`.
+- Модели скачиваются **только** через отдельный Job (`samesame-downloader-job.yaml`).
+- Основной сервис всегда стартует с `SAMESAME_LOCAL_ONLY=true` → `HF_LOCAL_FILES_ONLY=true` (никаких скачиваний во время работы).
+- Это **отдельный премиум-сервис**. Пока что он не подключён ни к одному мессенджеру (см. ниже).
+
+## Статус интеграции (важно!)
+
+На момент 2026-05-23 голосовое клонирование через `!SAMESAME!` **ещё не реализовано** ни в одном клиенте (tg-client, whatsapp-baileys-client, facebook-fca-client, instagram-fca-client).
+
+Сервис готов, но логика «если в ответе на голосовое есть `!SAMESAME! текст` — вызвать `/v1/clone` и отправить результат» — **пока отсутствует**.

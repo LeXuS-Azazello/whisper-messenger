@@ -2,7 +2,6 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: samesame-model-cache
-  namespace: debugging-testcrash-pub
 spec:
   accessModes:
     - ReadWriteOnce
@@ -15,7 +14,6 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: samesame-download-scripts
-  namespace: debugging-testcrash-pub
 data:
   download-models.sh: |
     #!/bin/sh
@@ -27,54 +25,10 @@ data:
 
     python /app/download_model.py "$MODELS_DIR"
 ---
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: samesame-model-downloader
-  namespace: debugging-testcrash-pub
-spec:
-  ttlSecondsAfterFinished: 600
-  template:
-    spec:
-      restartPolicy: OnFailure
-      imagePullSecrets:
-        - name: harbor-pull-secret
-      containers:
-        - name: downloader
-          image: harbor.dev.takatan.cloud/devcenter/samesame:latest
-          command: ["/bin/sh", "-c", "/scripts/download-models.sh"]
-          env:
-            - name: MODELS_DIR
-              value: "/models"
-            - name: HUGGINGFACE_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: huggingface-token
-                  key: HUGGING_FACE_HUB_TOKEN
-            - name: HUGGING_FACE_HUB_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: huggingface-token
-                  key: HUGGING_FACE_HUB_TOKEN
-          volumeMounts:
-            - name: models
-              mountPath: /models
-            - name: scripts
-              mountPath: /scripts
-      volumes:
-        - name: models
-          persistentVolumeClaim:
-            claimName: samesame-model-cache
-        - name: scripts
-          configMap:
-            name: samesame-download-scripts
-            defaultMode: 0755
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: samesame
-  namespace: debugging-testcrash-pub
 spec:
   replicas: 1
   selector:
@@ -121,12 +75,13 @@ spec:
             - name: SAMESAME_VOCODER_NAME
               value: "vocoder_models/universal/libritts/fullband-melgan"
           resources:
+            # Reduced to 1 CPU for debugging-testcrash-pub 12 CPU HRQ
             requests:
-              cpu: "2000m"
-              memory: "4Gi"
+              cpu: "800m"
+              memory: "2Gi"
             limits:
-              cpu: "4000m"
-              memory: "8Gi"
+              cpu: "1"
+              memory: "4Gi"
           volumeMounts:
             - name: models
               mountPath: /models
@@ -154,7 +109,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: samesame
-  namespace: debugging-testcrash-pub
 spec:
   selector:
     app: samesame

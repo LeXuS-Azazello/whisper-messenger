@@ -1,18 +1,25 @@
 import { Worker } from 'bullmq';
 import Redis from 'ioredis';
 import { asrQueue, redisCache, ASR_QUEUE } from './queue.js';
-import { processBuffer, getAudioHash, makeCacheKey, isServiceReady } from './asr.js';
+import { processBuffer, getAudioHash, makeCacheKey, isServiceReady, getServiceStatus } from './asr.js';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
 const CACHE_TTL = parseInt(process.env.CACHE_TTL || '3600', 10);
 const PORT = parseInt(process.env.WORKER_PORT || '3001', 10);
 
 // Best-effort warm-up: initialize models at startup so the worker is ready
-// before the first job lands. A false return means a job will throw immediately
-// and be retried, rather than the worker silently dying on the first payload.
+// before the first job lands.
 try {
-  isServiceReady();
+  const ready = isServiceReady();
+  const status = getServiceStatus();
+
   console.log('[whisper-service-v2 worker] Models initialized at startup');
+  console.log('[whisper-service-v2 worker] Status:', {
+    whisper: status.whisper ? 'loaded' : 'FAILED',
+    vad: status.vad ? 'enabled' : 'disabled (full audio)',
+    punctuation: status.punctuation ? 'CT-Transformer' : 'simple fallback',
+    translation: status.translationUrl,
+  });
 } catch (error) {
   console.error('[whisper-worker-v2] FATAL: startup initialization failed:', error?.message || error);
   // Do NOT exit — let K8s restart if needed, but don't crash silently
@@ -34,6 +41,9 @@ const worker = new Worker(ASR_QUEUE, async (job) => {
   }
 
   const result = await processBuffer(buffer, target_language);
+
+  console.log(`[whisper-service-v2] Job ${job.id} done | lang=${result.language} | translated=${!!result.translated} | vad=${result.metrics?.usedVAD ?? 'n/a'}`);
+
   const payload = {
     text: result.text,
     language: result.language,

@@ -82,7 +82,7 @@ export function ProfilePane({ user }: PaneProps) {
                     </div>
                     <div class="card-content">
                         {hasPassword ? (
-                            <div id="change-pwd-form" class="form-container">
+                            <form id="change-pwd-form" class="form-container" onSubmit={(e) => e.preventDefault()}>
                                 <div class="input-group">
                                     <label class="input-label">Old Password</label>
                                     <input type="password" id="profile-old-pwd" class="input-field" placeholder="••••••••" required />
@@ -96,7 +96,7 @@ export function ProfilePane({ user }: PaneProps) {
                                     <input type="password" id="profile-confirm-pwd" class="input-field" placeholder="••••••••" required />
                                 </div>
                                 <button class="btn btn-primary" id="save-pwd-btn">Update Password</button>
-                            </div>
+                            </form>
                         ) : (
                             <div class="oauth-info-box">
                                 <div class="oauth-icon">🛡️</div>

@@ -75,8 +75,11 @@ app.post('/v1/transcribe-base64', async (req, res) => {
     }, {
       attempts: 2,
       backoff: { type: 'fixed', delay: 2000 },
-      // Do NOT set removeOnComplete/removeOnFail here — it races with waitUntilFinished
     });
+
+    if (target_language) {
+      console.log(`[whisper-service-v2] New job ${job.id} enqueued with target_language=${target_language}`);
+    }
   } catch (error) {
     console.error('[whisper-service-v2] Queue add failed:', error?.message || error);
     return res.status(500).json({ error: 'Queue enqueue failed' });

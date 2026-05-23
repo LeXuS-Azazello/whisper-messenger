@@ -29,7 +29,6 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: translation-service-models-pvc
-  namespace: debugging-testcrash-pub
 spec:
   accessModes:
     - ReadWriteOnce
@@ -42,7 +41,6 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: translation-service-download-scripts
-  namespace: debugging-testcrash-pub
 data:
   download-translation-model.sh: |
     #!/bin/bash
@@ -81,22 +79,22 @@ data:
         sentencepiece
 
     echo "[translation-downloader] >>> Downloading $MODEL_NAME to $HF_CACHE ..."
-    python3 - <<'PYEOF'
-import os
-from huggingface_hub import snapshot_download
+    python3 - <<-'PYEOF'
+    import os
+    from huggingface_hub import snapshot_download
 
-model = os.environ.get("NLLB_MODEL", "facebook/nllb-200-distilled-600M")
-hf = os.environ.get("HF_HOME", "/models/translation/hf-cache")
-print(f"Downloading {model} ...")
-snapshot_download(
-    repo_id=model,
-    cache_dir=hf,
-    local_dir=os.path.join(hf, model),
-    local_dir_use_symlinks=False,
-    resume_download=True,
-)
-print("HF download complete.")
-PYEOF
+    model = os.environ.get("NLLB_MODEL", "facebook/nllb-200-distilled-600M")
+    hf = os.environ.get("HF_HOME", "/models/translation/hf-cache")
+    print(f"Downloading {model} ...")
+    snapshot_download(
+        repo_id=model,
+        cache_dir=hf,
+        local_dir=os.path.join(hf, model),
+        local_dir_use_symlinks=False,
+        resume_download=True,
+    )
+    print("HF download complete.")
+    PYEOF
 
     echo "[translation-downloader] >>> Converting to CTranslate2 INT8 → $CT2_OUT"
     ct2-transformers-converter \
@@ -116,7 +114,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: translation-service
-  namespace: debugging-testcrash-pub
   labels:
     app: translation-service
 spec:
@@ -150,12 +147,13 @@ spec:
               mountPath: /models
               readOnly: true
           resources:
+            # Tuned for debugging-testcrash-pub (tight 12 CPU HRQ)
             requests:
+              cpu: "300m"
+              memory: "1Gi"
+            limits:
               cpu: "1"
               memory: "2Gi"
-            limits:
-              cpu: "2"
-              memory: "4Gi"
           readinessProbe:
             httpGet:
               path: /health
@@ -178,7 +176,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: translation-service
-  namespace: debugging-testcrash-pub
   labels:
     app: translation-service
 spec:

@@ -66,12 +66,13 @@ spec:
             - name: scripts
               mountPath: /scripts
           resources:
+            # Reduced for debugging-testcrash-pub 12 CPU HRQ
             requests:
-              cpu: "2"
-              memory: "4Gi"
+              cpu: "800m"
+              memory: "2Gi"
             limits:
-              cpu: "4"
-              memory: "8Gi"
+              cpu: "1"
+              memory: "4Gi"
       volumes:
         - name: models
           persistentVolumeClaim:

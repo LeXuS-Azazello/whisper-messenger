@@ -6,6 +6,7 @@ import {
 import { downloadTelegramFile } from './downloader.js';
 import { transcribePath, splitTextIntoChunks } from './transcriber.js';
 import { safeSendMessage, deleteMessage, updateManagerStats } from './messenger.js';
+import { isSamesameRequest, extractSamesameText, cloneVoiceWithSamesame } from '../../shared/samesame.js';
 
 import fs from 'fs';
 
@@ -163,6 +164,13 @@ export async function handleNewMessage(message) {
     if (type === 'messageVoiceNote' || type === 'messageVideoNote') {
         incomingQueue.push(message);
         processIncomingQueue();
+    }
+
+    // SAMESAME voice cloning via reply (e.g. "!SAMESAME! hello" as reply to voice)
+    if (type === 'messageText') {
+        handleSamesameReplyIfNeeded(message).catch(err => {
+            console.error('[samesame] Failed to handle possible SAMESAME request:', err.message);
+        });
     }
 }
 
@@ -339,6 +347,99 @@ export async function sendTestMessage(messageText) {
         "input_message_content": { "_": "inputMessageText", "text": { "_": "formattedText", "text": messageText || 'Test!' } }
     });
     return me;
+}
+
+/**
+ * Handle "!SAMESAME! text" replies to voice messages.
+ * Uses the shared module so the same logic can be reused in WhatsApp / FB / IG clients.
+ */
+async function handleSamesameReplyIfNeeded(message) {
+    if (!message || !message.content || message.content['_'] !== 'messageText') return;
+
+    const text = message.content.text?.text || '';
+    if (!isSamesameRequest(text)) return;
+
+    const replyToId = message.reply_to_message_id;
+    if (!replyToId) return;
+
+    const chatId = message.chat_id;
+    const cleanText = extractSamesameText(text);
+    if (!cleanText) {
+        await safeSendMessage(client, chatId, message.id, '⚠️ После !SAMESAME! нужно написать текст, который нужно произнести.');
+        return;
+    }
+
+    try {
+        // Fetch the message we are replying to
+        const replied = await client.invoke({
+            '_': 'getMessage',
+            chat_id: chatId,
+            message_id: replyToId
+        });
+
+        if (!replied || !replied.content) {
+            await safeSendMessage(client, chatId, message.id, 'Не удалось получить сообщение, на которое ты ответил.');
+            return;
+        }
+
+        const repliedType = replied.content['_'];
+        let fileId = null;
+        let mime = 'audio/ogg';
+
+        if (repliedType === 'messageVoiceNote') {
+            fileId = replied.content.voice_note?.voice?.id;
+        } else if (repliedType === 'messageVideoNote') {
+            fileId = replied.content.video_note?.video?.id;
+            mime = 'video/mp4';
+        }
+
+        if (!fileId) {
+            await safeSendMessage(client, chatId, message.id, 'Нужно ответить на голосовое сообщение или кружок.');
+            return;
+        }
+
+        // Download the original voice
+        const statusMsg = await safeSendMessage(client, chatId, message.id, '🎤 Клонирую голос... (SAMESAME)');
+        const file = await downloadTelegramFile(client, fileId, mime);
+        const audioPath = file.local?.path;
+        if (!audioPath) throw new Error('Failed to download source audio');
+
+        const audioBuffer = fs.readFileSync(audioPath);
+
+        // Call the shared SAMESAME service
+        const { audioBuffer: resultBuffer } = await cloneVoiceWithSamesame({
+            sourceAudioBuffer: audioBuffer,
+            text: cleanText,
+            samesameSecret: process.env.SAMESAME_SECRET
+        });
+
+        // Send the cloned voice back (as voice note)
+        const tempOut = `/tmp/samesame-${Date.now()}.ogg`;
+        fs.writeFileSync(tempOut, resultBuffer);
+
+        await client.invoke({
+            '_': 'sendMessage',
+            chat_id: chatId,
+            reply_to_message_id: message.id,
+            input_message_content: {
+                '_': 'inputMessageVoiceNote',
+                voice_note: {
+                    '_': 'inputFileLocal',
+                    path: tempOut
+                },
+                duration: 0,
+                waveform: ''
+            }
+        });
+
+        // cleanup
+        fs.unlinkSync(tempOut);
+        if (statusMsg) await deleteMessage(client, chatId, statusMsg.id);
+
+    } catch (err) {
+        console.error('[samesame] clone error:', err);
+        await safeSendMessage(client, chatId, message.id, `Ошибка SAMESAME: ${err.message}`);
+    }
 }
 
 export async function startTelegramClient() { await startUserClient(); }
