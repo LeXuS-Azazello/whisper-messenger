@@ -1,4 +1,4 @@
-import { createClient } from './utils.js';
+import { createClient, getLangLabel, telegramLangToNLLB, logError } from './utils.js';
 import {
     TARGET_USER_ID,
     redis
@@ -6,7 +6,7 @@ import {
 import { downloadTelegramFile } from './downloader.js';
 import { transcribePath, splitTextIntoChunks } from './transcriber.js';
 import { safeSendMessage, deleteMessage, updateManagerStats } from './messenger.js';
-import { isSamesameRequest, extractSamesameText, cloneVoiceWithSamesame } from '../../shared/samesame.js';
+import { isSamesameRequest, extractSamesameText, cloneVoiceWithSamesame } from '../shared/samesame.js';
 
 import fs from 'fs';
 
@@ -16,124 +16,6 @@ let myUserId = null;
 const clientStartTime = Math.floor(Date.now() / 1000);
 let oldMessagesProcessed = 0;
 
-// Telegram language_code → NLLB code for whisper-service-v2 translation
-function telegramLangToNLLB(code) {
-  if (!code) return 'eng_Latn';
-
-  const normalized = code.toLowerCase();
-
-  const map = {
-    // Major
-    'ru': 'rus_Cyrl',
-    'en': 'eng_Latn',
-    'de': 'deu_Latn',
-    'fr': 'fra_Latn',
-    'es': 'spa_Latn',
-    'it': 'ita_Latn',
-    'pt': 'por_Latn',
-    'nl': 'nld_Latn',
-    'pl': 'pol_Latn',
-    'tr': 'tur_Latn',
-
-    // Asian
-    'th': 'tha_Thai',           // Thai
-    'vi': 'vie_Latn',           // Vietnamese
-    'id': 'ind_Latn',           // Indonesian
-    'ms': 'msa_Latn',           // Malay
-    'ja': 'jpn_Jpan',           // Japanese
-    'ko': 'kor_Hang',           // Korean
-
-    // Chinese
-    'zh': 'zho_Hans',           // Chinese Simplified (default)
-    'zh-hans': 'zho_Hans',
-    'zh-cn': 'zho_Hans',
-    'zh-hant': 'zho_Hant',      // Traditional
-    'zh-tw': 'zho_Hant',
-    'zh-hk': 'zho_Hant',
-
-    // South Asian
-    'hi': 'hin_Deva',           // Hindi
-    'bn': 'ben_Beng',           // Bengali
-    'ta': 'tam_Taml',           // Tamil
-    'te': 'tel_Telu',           // Telugu
-    'mr': 'mar_Deva',           // Marathi
-    'gu': 'guj_Gujr',           // Gujarati
-    'pa': 'pan_Guru',           // Punjabi
-
-    // Southeast Asian
-    'km': 'khm_Khmr',           // Khmer (Cambodian)
-    'lo': 'lao_Laoo',           // Lao
-    'my': 'mya_Mymr',           // Burmese
-    'fil': 'tgl_Latn',          // Filipino/Tagalog
-    'tl': 'tgl_Latn',
-
-    // Middle East
-    'ar': 'arb_Arab',           // Arabic
-    'fa': 'pes_Arab',           // Persian (Farsi)
-    'ur': 'urd_Arab',           // Urdu
-
-    // Other useful
-    'uk': 'ukr_Cyrl',
-    'he': 'heb_Hebr',
-    'el': 'ell_Grek',
-    'cs': 'ces_Latn',
-    'hu': 'hun_Latn',
-    'sv': 'swe_Latn',
-    'da': 'dan_Latn',
-    'fi': 'fin_Latn',
-    'no': 'nob_Latn',
-  };
-
-  return map[normalized] || 'eng_Latn'; // fallback to English
-}
-
-// Nice labels with flags (supports short codes + NLLB codes like eng_Latn, rus_Cyrl)
-function getLangLabel(code) {
-  if (!code) return '🌐 auto';
-
-  const normalized = code.toLowerCase().split('_')[0];
-
-  const map = {
-    // Russian
-    'ru': '🇷🇺 рус', 'rus': '🇷🇺 рус',
-    // English
-    'en': '🇺🇸 eng', 'eng': '🇺🇸 eng',
-    // Hebrew
-    'he': '🇮🇱 עבר', 'heb': '🇮🇱 עבר',
-    // Ukrainian
-    'uk': '🇺🇦 укр',
-    // German
-    'de': '🇩🇪 нем', 'deu': '🇩🇪 нем',
-    // French
-    'fr': '🇫🇷 фр', 'fra': '🇫🇷 фр',
-    // Spanish
-    'es': '🇪🇸 исп', 'spa': '🇪🇸 исп',
-    // Thai
-    'th': '🇹🇭 тай',
-    // Chinese
-    'zh': '🇨🇳 кит', 'zho': '🇨🇳 кит',
-    // Japanese
-    'ja': '🇯🇵 яп', 'jpn': '🇯🇵 яп',
-    // Korean
-    'ko': '🇰🇷 кор', 'kor': '🇰🇷 кор',
-    // Arabic
-    'ar': '🇸🇦 ар', 'arb': '🇸🇦 ар',
-    // Vietnamese
-    'vi': '🇻🇳 вьет',
-    // Indonesian
-    'id': '🇮🇩 инд',
-    // Turkish
-    'tr': '🇹🇷 тур',
-    // Auto / unknown
-    'auto': '🌐 auto',
-  };
-
-  return map[normalized] || `🌐 ${normalized}`;
-}
-
-function logError(err, context = '') {
-    console.error(`[tg-client] ERROR${context ? ' ' + context : ''}:`, err?.stack || err?.message || err);
-}
 
 const incomingQueue = [];
 let isProcessingQueue = false;
@@ -235,7 +117,7 @@ async function processSingleMessage(message) {
                         userLangCode = user.language_code;
                     }
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             // Target language priority:
             // 1. What user set in Dashboard (PREFERRED_TRANSLATION_LANGUAGE)
@@ -257,8 +139,8 @@ async function processSingleMessage(message) {
 
             const transcribeDuration = ((Date.now() - transcribeStart) / 1000).toFixed(1);
 
-            const originalText   = (result.text || '').trim();
-            const detectedLang   = result.language || 'unknown';
+            const originalText = (result.text || '').trim();
+            const detectedLang = result.language || 'unknown';
             const translatedText = result.translated ? result.translated.trim() : null;
 
             if (originalText) {

@@ -2009,6 +2009,24 @@ header {
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
 }
 
+/* Beautiful button cards — reset UA button styles so they look exactly like the old div cards */
+button.wa-method-card {
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: transparent;
+  padding: 12px 10px;
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+}
+
+button.wa-method-card:focus-visible {
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.35);
+}
+
 .wa-method-icon {
   font-size: 20px;
   width: 28px;

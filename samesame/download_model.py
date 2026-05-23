@@ -3,7 +3,6 @@ import sys
 from TTS.api import TTS
 
 MODEL_NAME = os.environ.get("SAMESAME_MODEL_NAME", "tts_models/multilingual/multi-dataset/your_tts")
-VOCODER_NAME = os.environ.get("SAMESAME_VOCODER_NAME", "vocoder_models/universal/libritts/fullband-melgan")
 TTS_MODEL_DIR = os.environ.get("TTS_MODEL_DIR", "/models")
 
 os.environ.setdefault("TTS_MODEL_DIR", TTS_MODEL_DIR)
@@ -24,13 +23,8 @@ if __name__ == "__main__":
     os.environ["HF_HOME"] = model_dir
 
     print(f"Downloading SAMESAME model {MODEL_NAME} into {model_dir}")
-    download_kwargs = {"model_name": MODEL_NAME, "progress_bar": True, "gpu": False}
-    if VOCODER_NAME:
-        download_kwargs["vocoder_name"] = VOCODER_NAME
-
-    try:
-        TTS(**download_kwargs)
-    except TypeError:
-        TTS(model_name=MODEL_NAME, progress_bar=True, gpu=False)
+    # NOTE: Do NOT pass vocoder_name — modern Coqui TTS (your_tts) does not accept it.
+    # The downloader Job is the ONLY place that should ever trigger downloads.
+    TTS(model_name=MODEL_NAME, progress_bar=True, gpu=False)
 
     print("Download complete")

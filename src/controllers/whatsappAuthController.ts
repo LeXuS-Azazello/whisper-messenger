@@ -109,7 +109,7 @@ export async function handleTestWa(env: Env, req: Request, userId: string): Prom
 
 export async function handleWaSendCode(env: Env, userId: string, body: any): Promise<Response> {
   try {
-    const res = await fetch(`${getManagerUrl(env)}/auth/send-code`, {
+    const res = await fetch(`${getManagerUrl(env)}/auth/pairing-start`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json", 

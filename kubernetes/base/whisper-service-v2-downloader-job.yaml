@@ -53,8 +53,8 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: downloader
-          image: curlimages/curl:latest
-          command: ["/bin/sh", "/scripts/download-models.sh"]
+          image: debian:bookworm-slim
+          command: ["/bin/bash", "-c", "apt-get update && apt-get install -y curl bzip2 ca-certificates && bash /scripts/download-models.sh"]
           env:
             - name: MODELS_DIR
               value: "/models"

@@ -110,7 +110,7 @@ spec:
               name: voicemsg-secrets
               key: MANAGER_SECRET
         - name: REDIS_URL
-          value: "redis://redis-master.debugging-testcrash-pub.svc.cluster.local:6379"
+          value: "redis://redis:6379"
         - name: MONGODB_URI
           valueFrom:
             secretKeyRef:

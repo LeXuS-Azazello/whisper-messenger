@@ -1,5 +1,6 @@
 /** @jsxImportSource preact */
-export function InstagramConnectionCard() {
+import type { UserSession } from '../../../types';
+export function InstagramConnectionCard({ user, env }: { user: UserSession; env: any }) {
     return (
         <div class="card insta-fca-card">
             <div class="card-header">
@@ -15,13 +16,15 @@ export function InstagramConnectionCard() {
                     Connect your Instagram account to transcribe voice messages from Direct Messages automatically.
                 </p>
 
-                <div class="input-group">
-                    <label class="input-label">Instagram Username</label>
-                    <input type="text" id="insta-username" class="input-field" placeholder="username" />
-                </div>
-                <div class="input-group">
-                    <label class="input-label">Password</label>
-                    <input type="password" id="insta-password" class="input-field" placeholder="••••••••" />
+                <div id="insta-creds-area">
+                    <div class="input-group">
+                        <label class="input-label">Instagram Username</label>
+                        <input type="text" id="insta-username" class="input-field" placeholder="username" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Password</label>
+                        <input type="password" id="insta-password" class="input-field" placeholder="••••••••" />
+                    </div>
                 </div>
 
                 <div class="button-group-2" style={{ marginTop: '1rem' }}>

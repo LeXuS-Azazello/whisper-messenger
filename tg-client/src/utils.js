@@ -62,3 +62,177 @@ export function unpackSession(userId, base64) {
         return null;
     }
 }
+
+
+// Telegram language_code → NLLB code for whisper-service-v2 translation
+export function telegramLangToNLLB(code) {
+    if (!code) return 'eng_Latn';
+
+    const normalized = code.toLowerCase();
+
+    const map = {
+        // Major
+        'ru': 'rus_Cyrl',
+        'en': 'eng_Latn',
+        'de': 'deu_Latn',
+        'fr': 'fra_Latn',
+        'es': 'spa_Latn',
+        'it': 'ita_Latn',
+        'pt': 'por_Latn',
+        'nl': 'nld_Latn',
+        'pl': 'pol_Latn',
+        'tr': 'tur_Latn',
+
+        // Asian
+        'th': 'tha_Thai',           // Thai
+        'vi': 'vie_Latn',           // Vietnamese
+        'id': 'ind_Latn',           // Indonesian
+        'ms': 'msa_Latn',           // Malay
+        'ja': 'jpn_Jpan',           // Japanese
+        'ko': 'kor_Hang',           // Korean
+
+        // Chinese
+        'zh': 'zho_Hans',           // Chinese Simplified (default)
+        'zh-hans': 'zho_Hans',
+        'zh-cn': 'zho_Hans',
+        'zh-hant': 'zho_Hant',      // Traditional
+        'zh-tw': 'zho_Hant',
+        'zh-hk': 'zho_Hant',
+
+        // South Asian
+        'hi': 'hin_Deva',           // Hindi
+        'bn': 'ben_Beng',           // Bengali
+        'ta': 'tam_Taml',           // Tamil
+        'te': 'tel_Telu',           // Telugu
+        'mr': 'mar_Deva',           // Marathi
+        'gu': 'guj_Gujr',           // Gujarati
+        'pa': 'pan_Guru',           // Punjabi
+
+        // Southeast Asian
+        'km': 'khm_Khmr',           // Khmer (Cambodian)
+        'lo': 'lao_Laoo',           // Lao
+        'my': 'mya_Mymr',           // Burmese
+        'fil': 'tgl_Latn',          // Filipino/Tagalog
+        'tl': 'tgl_Latn',
+
+        // Middle East
+        'ar': 'arb_Arab',           // Arabic
+        'fa': 'pes_Arab',           // Persian (Farsi)
+        'ur': 'urd_Arab',           // Urdu
+
+        // Other useful
+        'uk': 'ukr_Cyrl',
+        'he': 'heb_Hebr',
+        'el': 'ell_Grek',
+        'cs': 'ces_Latn',
+        'hu': 'hun_Latn',
+        'sv': 'swe_Latn',
+        'da': 'dan_Latn',
+        'fi': 'fin_Latn',
+        'no': 'nob_Latn',
+    };
+
+    return map[normalized] || 'eng_Latn'; // fallback to English
+}
+
+// Nice labels with flags (supports short codes + NLLB codes like eng_Latn, rus_Cyrl)
+export function getLangLabel(code) {
+    if (!code) return '🌐 auto';
+
+    const normalized = code.toLowerCase().split('_')[0];
+
+    const map = {
+        // English
+        en: "🇺🇸 English",
+        eng: "🇺🇸 English",
+
+        // Russian
+        ru: "🇷🇺 Russian",
+        rus: "🇷🇺 Russian",
+
+        // Ukrainian
+        uk: "🇺🇦 Ukrainian",
+        ukr: "🇺🇦 Ukrainian",
+
+        // Hebrew
+        he: "🇮🇱 Hebrew",
+        heb: "🇮🇱 Hebrew",
+
+        // German
+        de: "🇩🇪 German",
+        deu: "🇩🇪 German",
+        ger: "🇩🇪 German",
+
+        // French
+        fr: "🇫🇷 French",
+        fra: "🇫🇷 French",
+        fre: "🇫🇷 French",
+
+        // Spanish
+        es: "🇪🇸 Spanish",
+        spa: "🇪🇸 Spanish",
+
+        // Thai
+        th: "🇹🇭 Thai",
+        tha: "🇹🇭 Thai",
+
+        // Chinese
+        zh: "🇨🇳 Chinese",
+        zho: "🇨🇳 Chinese",
+        chi: "🇨🇳 Chinese",
+
+        // Japanese
+        ja: "🇯🇵 Japanese",
+        jpn: "🇯🇵 Japanese",
+
+        // Korean
+        ko: "🇰🇷 Korean",
+        kor: "🇰🇷 Korean",
+
+        // Arabic
+        ar: "🇸🇦 Arabic",
+        ara: "🇸🇦 Arabic",
+
+        // Vietnamese
+        vi: "🇻🇳 Vietnamese",
+        vie: "🇻🇳 Vietnamese",
+
+        // Indonesian
+        id: "🇮🇩 Indonesian",
+        ind: "🇮🇩 Indonesian",
+
+        // Turkish
+        tr: "🇹🇷 Turkish",
+        tur: "🇹🇷 Turkish",
+
+        // Portuguese
+        pt: "🇵🇹 Portuguese",
+        por: "🇵🇹 Portuguese",
+
+        // Italian
+        it: "🇮🇹 Italian",
+        ita: "🇮🇹 Italian",
+
+        // Polish
+        pl: "🇵🇱 Polish",
+        pol: "🇵🇱 Polish",
+
+        // Dutch
+        nl: "🇳🇱 Dutch",
+        nld: "🇳🇱 Dutch",
+        dut: "🇳🇱 Dutch",
+
+        // Hindi
+        hi: "🇮🇳 Hindi",
+        hin: "🇮🇳 Hindi",
+
+        // Auto / unknown
+        auto: "🌐 Auto Detect",
+    };
+
+    return map[normalized] || `🌐 ${normalized}`;
+}
+
+export function logError(err, context = '') {
+    console.error(`[tg-client] ERROR${context ? ' ' + context : ''}:`, err?.stack || err?.message || err);
+}

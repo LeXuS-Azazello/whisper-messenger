@@ -52,6 +52,7 @@ export async function qrStart(req, res) {
                     if (!session.responded) {
                         session.responded = true;
                         res.json({
+                            status: 'starting',
                             qrUrl: qr,
                             qrDataUrl: session.qrDataUrl,
                             token: tempId,
@@ -116,6 +117,8 @@ export async function pairingStart(req, res) {
         session.responded = true;
 
         res.json({
+            success: true,
+            code: code,
             pairingCode: code,
             token: tempId
         });

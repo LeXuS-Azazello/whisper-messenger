@@ -421,6 +421,9 @@ document.addEventListener('DOMContentLoaded', function () {
         setWaMethod('qr');
     }
 
+    // expose for inline onclick handlers in SSR Preact components
+    window.setWaMethod = setWaMethod;
+
     if (disconnectWaCodeBtn) {
         disconnectWaCodeBtn.addEventListener('click', () => {
             if (disconnectWaWebBtn) disconnectWaWebBtn.click();
@@ -623,6 +626,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // default selection
     setFbMethod('appstate');
 
+    // expose for inline onclick handlers in SSR Preact components
+    window.setFbMethod = setFbMethod;
+
 
     if (connectFbBtn) {
         connectFbBtn.addEventListener('click', async () => {
@@ -667,6 +673,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (fbAppstateInput) fbAppstateInput.value = '';
                     if (fbEmailInput) fbEmailInput.value = '';
                     if (fbPasswordInput) fbPasswordInput.value = '';
+                    // hide method selectors and input areas immediately (no reload needed)
+                    const fbGrid = document.querySelector('.fb-fca-card .wa-methods-grid');
+                    if (fbGrid) fbGrid.style.display = 'none';
+                    if (fbAppstateArea) fbAppstateArea.style.display = 'none';
+                    if (fbCredsArea) fbCredsArea.style.display = 'none';
                     alert('Facebook Messenger connected successfully!');
                 } else {
                     alert('Connection failed: ' + (data.error || 'Unknown error'));
@@ -704,6 +715,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const instaUsernameInput = document.getElementById('insta-username');
     const instaPasswordInput = document.getElementById('insta-password');
     const instaStatus = document.getElementById('insta-fca-status');
+    const instaCredsArea = document.getElementById('insta-creds-area');
 
     if (connectInstaBtn) {
         connectInstaBtn.addEventListener('click', async () => {
@@ -729,6 +741,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     instaStatus.className = 'status-tag active';
                     disconnectInstaBtn.style.display = 'block';
                     connectInstaBtn.style.display = 'none';
+                    if (instaCredsArea) instaCredsArea.style.display = 'none';
                     if (instaUsernameInput) instaUsernameInput.value = '';
                     if (instaPasswordInput) instaPasswordInput.value = '';
                     alert('Instagram connected successfully!');
@@ -811,6 +824,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             if (disconnectInstaBtn) disconnectInstaBtn.style.display = 'block';
             if (connectInstaBtn) connectInstaBtn.style.display = 'none';
+            const instaCredsArea = document.getElementById('insta-creds-area');
+            if (instaCredsArea) instaCredsArea.style.display = 'none';
         }
     });
     

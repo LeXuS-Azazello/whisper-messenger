@@ -3,7 +3,7 @@ import 'dotenv/config';
 
 const TARGET_USER_ID = process.env.TARGET_USER_ID || 'unknown';
 const WHISPER_PROVIDER = process.env.WHISPER_PROVIDER 
-    || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000/v1/transcribe-base64';
+    || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000/v1/transcribe-base64';
 const MANAGER_URL = process.env.MANAGER_URL 
     || 'http://facebook-fca-manager:3003';
 const SECRET = process.env.SECRET || process.env.MANAGER_SECRET || 'changeme';

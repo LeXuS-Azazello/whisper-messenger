@@ -68,7 +68,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                     </button>
                 </nav>
 
-                {/* Telegram Connection Modal (kept in shell for now) */}
+                {/* Telegram Connection Modal (global overlay — must live outside tab-panes) */}
                 <div class="modal-overlay" id="tg-modal-overlay">
                     <div class="modal-content">
                         <button class="modal-close" id="tg-modal-close">

@@ -1,5 +1,3 @@
-import 'dotenv/config';
-
 export const MODE = process.env.MODE || 'MANAGER';
 
 export const SECRET = (process.env.SECRET || process.env.MANAGER_SECRET || 'changeme').trim();

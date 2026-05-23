@@ -1,5 +1,6 @@
 /** @jsxImportSource preact */
-export function FacebookConnectionCard() {
+import type { UserSession } from '../../../types';
+export function FacebookConnectionCard({ user, env }: { user: UserSession; env: any }) {
     return (
         <div class="card fb-fca-card">
             <div class="card-header">
@@ -15,23 +16,25 @@ export function FacebookConnectionCard() {
                     Connect your Facebook Messenger. AppState is strongly recommended.
                 </p>
 
-                {/* Method selectors - vanilla JS wiring in dashboard.js */}
+                {/* Method selectors — now real <button> for semantics + keyboard + beauty */}
                 <div class="wa-methods-grid">
-                    <div class="wa-method-card" id="fb-method-appstate" data-method="appstate">
+                    <button type="button" class="wa-method-card" id="fb-method-appstate" data-method="appstate"
+                        {...{ onclick: "window.setFbMethod && window.setFbMethod('appstate')" } as any}>
                         <div class="wa-method-icon">🔑</div>
                         <div class="wa-method-content">
                             <div class="wa-method-title">AppState JSON <span class="badge recommended">Recommended</span></div>
                             <div class="wa-method-subtitle">Export from browser (most stable)</div>
                         </div>
-                    </div>
+                    </button>
 
-                    <div class="wa-method-card" id="fb-method-creds" data-method="creds">
+                    <button type="button" class="wa-method-card" id="fb-method-creds" data-method="creds"
+                        {...{ onclick: "window.setFbMethod && window.setFbMethod('creds')" } as any}>
                         <div class="wa-method-icon">✉️</div>
                         <div class="wa-method-content">
                             <div class="wa-method-title">Email + Password</div>
                             <div class="wa-method-subtitle">Direct login (often blocked by Facebook)</div>
                         </div>
-                    </div>
+                    </button>
                 </div>
 
                 <div id="fb-appstate-area">

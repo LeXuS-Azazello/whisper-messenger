@@ -1,115 +1,26 @@
 /** @jsxImportSource preact */
 import type { PaneProps } from './Dashboard.types';
-import { WhatsAppConnectionCard, FacebookConnectionCard, InstagramConnectionCard } from './connections';
+import { WhatsAppConnectionCard, FacebookConnectionCard, InstagramConnectionCard, TelegramAppConnectionCard } from './connections';
+import { LineConnectionCard } from './connections/LineConnectionCard';
 
 export function ConnectionsPane({ user, env }: PaneProps) {
-    const isTgConnected = !!user.session;
-
     return (
         <div class="tab-pane active" id="pane-connections">
             <div class="grid">
-                {/* Telegram Control */}
-                <div class="card tg-card">
-                    <div class="card-header">
-                        <h3 class="card-title">
-                            <span class="icon-tg">📱</span> Telegram Account
-                        </h3>
-                        <span class={`status-tag ${isTgConnected ? 'active' : 'inactive'}`}>
-                            {isTgConnected ? 'CONNECTED' : 'DISCONNECTED'}
-                        </span>
-                    </div>
-
-                    <div id="tg-status-container" class="card-content" style={{ display: isTgConnected ? 'block' : 'none' }}>
-                        <div class="status-box">
-                            <div class="bridge-info">
-                                <div class="avatar-icon tg-gradient">📱</div>
-                                <div class="bridge-details">
-                                    <div class="bridge-label">Active Bridge</div>
-                                    <div class="bridge-name">{user.username ? `@${user.username}` : user.firstName}</div>
-                                    <div class="bridge-status">
-                                        Status: <span class={user.isActive ? 'text-success' : 'text-danger'}>
-                                            {user.isActive ? 'ONLINE' : 'OFFLINE'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                            <p class="card-description">
-                                Your Telegram account is currently linked. Any voice or video message you receive will be automatically transcribed.
-                            </p>
-                            <div class="button-group-2">
-                                <button class="btn btn-secondary" id="test-tg-btn">Test</button>
-                                <button class="btn btn-secondary" id="restart-tg-btn">Restart</button>
-                                <button class="btn btn-danger btn-full" id="disconnect-tg-btn">Disconnect Account</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="tg-connect-prompt" class="card-content" style={{ display: isTgConnected ? 'none' : 'block' }}>
-                        <div class="prompt-box">
-                            <div class="prompt-icon">🛰️</div>
-                            <h4>No Account Linked</h4>
-                            <p class="card-description">
-                                Connect your personal Telegram account to start transcribing voice messages in real-time.
-                            </p>
-                            <div class="button-grid">
-                                <button class="btn btn-primary btn-full" id="open-tg-modal-btn">Link Account</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-
-                
+                {/* Telegram Account */}
+                <TelegramAppConnectionCard user={user} env={env} />
 
                 {/* WhatsApp (Baileys) */}
-                <WhatsAppConnectionCard />
+                <WhatsAppConnectionCard user={user} env={env} />
 
                 {/* Facebook Messenger (FCA) */}
-                <FacebookConnectionCard />
+                <FacebookConnectionCard user={user} env={env} />
 
                 {/* Instagram (FCA) */}
-                <InstagramConnectionCard />
+                <InstagramConnectionCard user={user} env={env} />
 
                     {/* LINE Integration */}
-                <div class="card line-card">
-                    <div class="card-header">
-                        <h3 class="card-title">
-                            <span class="icon-line">◉</span> LINE
-                        </h3>
-                        <span class={`status-tag ${user.lineToken ? 'active' : 'inactive'}`}>
-                            {user.lineToken ? 'SETUP' : 'NOT SETUP'}
-                        </span>
-                    </div>
-                    <div class="card-content">
-                        <p class="card-description">
-                            Connect to LINE Developer Console to capture and transcribe user voice files in personal messages.
-                        </p>
-                        <div class="button-group">
-                            <a href="https://developers.line.biz/console/" target="_blank" class="btn btn-secondary btn-xs">📱 Developers Console</a>
-                        </div>
-                        <div class="guide-toggle" onClick={(e) => { e.currentTarget.nextElementSibling?.classList.toggle('active'); e.currentTarget.classList.toggle('active'); }}>
-                            <span>⚙️ Webhook Setup</span>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                        </div>
-                        <div class="setup-guide line">
-                            <h4 class="guide-title">⚙️ Webhook Setup:</h4>
-                            <div class="guide-content">
-                                <div class="guide-item">
-                                    <strong>Webhook URL:</strong>
-                                    <div class="copy-box">
-                                        <code onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN}/webhooks/line/${user.userId}`)}>.../webhooks/line/{user.userId.substring(0, 8)}...</code>
-                                        <button class="copy-btn" onClick={() => navigator.clipboard.writeText(`https://${env.DOMAIN}/webhooks/line/${user.userId}`)}>📋</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="input-group">
-                            <label class="input-label">Channel Access Token</label>
-                            <input type="password" id="line-token" class="input-field" value={user.lineToken || ''} placeholder="ey..." />
-                        </div>
-                        <button class="btn btn-primary" id="save-line-btn">Save Settings</button>
-                    </div>
-                </div>
+                <LineConnectionCard user={user} env={env} />
 
                 {/* Threads Integration DISABLED FOR NOW*/}
                 <div style={{ display: 'none' }} class="card threads-card">
@@ -129,6 +40,112 @@ export function ConnectionsPane({ user, env }: PaneProps) {
                         {user.threadsToken && (
                             <div class="verified-footer">User ID: {user.threadsUserId}</div>
                         )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Telegram Connection Modal — now lives inside Connections like WA/FB/IG cards */}
+            <div class="modal-overlay" id="tg-modal-overlay">
+                <div class="modal-content">
+                    <button class="modal-close" id="tg-modal-close">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                    <div class="modal-title">Connect Telegram</div>
+
+                    <div class="auth-step active" id="tg-step-1">
+                        <p class="modal-description">Choose your preferred method to link your account</p>
+                        <div class="auth-choice">
+                            <div class="choice-card" id="choose-qr-btn">
+                                <div class="choice-icon">📱</div>
+                                <div class="choice-text">
+                                    <h4>QR Code</h4>
+                                    <p>Fastest way using Telegram App</p>
+                                </div>
+                            </div>
+                            <div class="choice-card" id="choose-phone-btn">
+                                <div class="choice-icon">📞</div>
+                                <div class="choice-text">
+                                    <h4>Phone Number</h4>
+                                    <p>Receive a code on your device</p>
+                                </div>
+                            </div>
+                            <div class="choice-card" id="choose-email-btn">
+                                <div class="choice-icon">📧</div>
+                                <div class="choice-text">
+                                    <h4>Email Login</h4>
+                                    <p>Use email for authentication</p>
+                                </div>
+                            </div>
+                            <div class="choice-card" id="choose-restore-btn">
+                                <div class="choice-icon">🔄</div>
+                                <div class="choice-text">
+                                    <h4>Restore Session</h4>
+                                    <p>Resume existing session</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="auth-step" id="tg-step-qr">
+                        <div class="modal-body-center">
+                            <div class="qr-frame">
+                                <div id="modal-qr-container"></div>
+                                <div class="qr-scan-line"></div>
+                            </div>
+                            <p class="qr-instruction">Scan with Telegram</p>
+                            <p class="qr-sub-instruction">Settings → Devices → Link Desktop Device</p>
+                            <button class="btn btn-secondary btn-auto" id="back-to-choice-1">Back</button>
+                        </div>
+                    </div>
+
+                    <div class="auth-step" id="tg-step-phone">
+                        <div class="input-group">
+                            <label class="input-label">Phone Number</label>
+                            <input type="tel" id="modal-tg-phone" class="input-field" placeholder="+1234567890" />
+                        </div>
+                        <button class="btn btn-primary" id="modal-send-code-btn">Send Verification Code</button>
+                        <button class="btn btn-secondary" id="back-to-choice-2">Back</button>
+                    </div>
+
+                    <div class="auth-step" id="tg-step-email">
+                        <div class="input-group">
+                            <label class="input-label">Email Address</label>
+                            <input type="email" id="modal-tg-email" class="input-field" placeholder="your@email.com" />
+                        </div>
+                        <button class="btn btn-primary" id="modal-send-email-btn">Continue</button>
+                        <button class="btn btn-secondary" id="back-to-choice-3">Back</button>
+                    </div>
+
+                    <div class="auth-step" id="tg-step-code">
+                        <p class="modal-description">Enter the 5-digit code sent to your Telegram app</p>
+                        <div class="code-input-wrap">
+                            <input type="text" id="modal-tg-code" class="input-field code-field" placeholder="00000" maxLength={6} />
+                        </div>
+                        <button class="btn btn-primary" id="modal-verify-code-btn">Verify & Link</button>
+                    </div>
+
+                    <div class="auth-step" id="tg-step-password">
+                        <p class="modal-description">Two-Step Verification enabled. Enter your cloud password.</p>
+                        <div class="input-group">
+                            <input type="password" id="modal-tg-password" class="input-field" placeholder="Your Password" />
+                        </div>
+                        <button class="btn btn-primary" id="modal-verify-password-btn">Submit Password</button>
+                    </div>
+
+                    <div class="auth-step" id="tg-step-success">
+                        <div class="modal-body-center">
+                            <div class="success-icon">✓</div>
+                            <h3 class="success-title">Connected!</h3>
+                            <p class="modal-description">Your account has been successfully linked.</p>
+                            <button class="btn btn-primary" onClick={() => location.reload()}>Great!</button>
+                        </div>
+                    </div>
+
+                    <div class="auth-step" id="tg-step-loading">
+                        <div class="modal-body-center loading-pad">
+                            <div class="shimmer-loader"></div>
+                            <p id="loading-text">Connecting to Telegram...</p>
+                        </div>
                     </div>
                 </div>
             </div>

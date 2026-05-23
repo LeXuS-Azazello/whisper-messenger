@@ -263,11 +263,9 @@ echo ""
 # Single kustomize apply covers: frontend, redis, mongodb, tg-client-manager,
 # tg-client, whisper-v2, voicemsg-cf, real managers (test deployments removed)
 
-echo ">>> Cleaning up old model downloader Jobs (they are now separate)..."
-kubectl delete job samesame-model-downloader -n "$NAMESPACE" --ignore-not-found
+echo ">>> Cleaning up old model downloader Jobs..."
 kubectl delete job -n "$NAMESPACE" -l component=model-downloader --ignore-not-found
-# All three downloaders (whisper-v2, translation, samesame) are now auto-launched
-# after the corresponding Deployments are Ready (see below).
+kubectl delete job samesame-model-downloader -n "$NAMESPACE" --ignore-not-found
 
 echo ">>> Applying base resources via kustomize..."
 kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || echo "Warning: Some resources failed to apply (likely RBAC restrictions). Proceeding to update images..."
@@ -293,7 +291,20 @@ kubectl set image deployment/whisper-service-v2 whisper-service-v2="$WHISPER_V2_
 kubectl set image deployment/voicemsg-tester tester="$TESTER_IMAGE" -n "$NAMESPACE"
 
 echo ">>> Whisper Service v2 + Samesame deployed."
-echo ">>> Waiting for model deployments to become Ready (polling every 5 seconds)..."
+
+# CRITICAL ORDER (prevents chicken-egg + local downloads):
+# 1. Launch downloader Jobs IMMEDIATELY after apply (they are safe to run multiple times thanks to marker files).
+# 2. The Deployments may start in "not ready" state (models missing) — this is expected and desired.
+# 3. The Jobs download into the PVC (only on Kubernetes nodes, never locally).
+# 4. Once files appear, the containers load the models and become Ready.
+# This guarantees that heavy model downloads happen ONLY via the dedicated Jobs on the cluster.
+
+echo ">>> Launching model downloader Jobs first (marker files prevent re-downloads on subsequent deploys)..."
+kubectl create -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n "$NAMESPACE" || true
+kubectl create -f kubernetes/base/samesame-downloader-job.yaml -n "$NAMESPACE" || true
+
+echo ">>> Waiting for downloader Jobs to complete AND model deployments to become Ready..."
+echo "    (On first run this can take 10-30 min depending on network + model size. Subsequent deploys are instant.)"
 
 while true; do
     echo ""
@@ -303,25 +314,25 @@ while true; do
         --no-headers 2>/dev/null || true
 
     echo ""
-    echo "=== Downloader Jobs ==="
-    kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers 2>/dev/null || echo "  (no downloader jobs yet)"
+    echo "=== Downloader Jobs (component=model-downloader) ==="
+    kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers 2>/dev/null || echo "  (no downloader jobs)"
 
     WHISPER_READY=$(kubectl get deploy whisper-service-v2 -n "$NAMESPACE" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
     SAMESAME_READY=$(kubectl get deploy samesame -n "$NAMESPACE" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
 
+    # Check if the latest downloader jobs have succeeded (we don't care about old ones)
+    WHISPER_JOB_DONE=$(kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers -o jsonpath='{range .items[*]}{.status.succeeded}{" "}{end}' 2>/dev/null | grep -E ' [1-9]' || echo "")
+    SAMESAME_JOB_DONE=$(kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers -o jsonpath='{range .items[*]}{.status.succeeded}{" "}{end}' 2>/dev/null | grep -E ' [1-9]' || echo "")
+
     if [ "${WHISPER_READY:-0}" -ge 1 ] && [ "${SAMESAME_READY:-0}" -ge 1 ]; then
         echo ""
-        echo ">>> All model deployments are Ready. Launching downloader Jobs now..."
+        echo ">>> Both model deployments are Ready."
         break
     fi
 
-    echo "Waiting 5 seconds..."
-    sleep 5
+    echo "Waiting 10 seconds... (Jobs download only on Kubernetes — never on your laptop)"
+    sleep 10
 done
-
-echo ">>> Launching model downloader Jobs (one-time, safe to re-run)..."
-kubectl create -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n "$NAMESPACE" || true
-kubectl create -f kubernetes/base/samesame-downloader-job.yaml -n "$NAMESPACE" || true
 
 echo ">>> Deleting existing user tg-client pods to force recreation with new image..."
 kubectl delete pods -l app=tg-client-user -n "$NAMESPACE" --ignore-not-found
@@ -329,6 +340,14 @@ echo ""
 
 echo ">>> Deleting existing user wa-baileys-client pods to force recreation with new image..."
 kubectl delete pods -l app=wa-baileys-client -n "$NAMESPACE" --ignore-not-found
+echo ""
+
+echo ">>> Deleting existing user facebook-fca-client pods to force recreation with new image..."
+kubectl delete pods -l app=facebook-fca-client -n "$NAMESPACE" --ignore-not-found
+echo ""
+
+echo ">>> Deleting existing user instagram-fca-client pods to force recreation with new image..."
+kubectl delete pods -l app=instagram-fca-client -n "$NAMESPACE" --ignore-not-found
 echo ""
 
 

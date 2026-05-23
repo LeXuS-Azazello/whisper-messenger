@@ -1,5 +1,4 @@
 import { IgApiClient } from 'instagram-private-api';
-import 'dotenv/config';
 
 const TARGET_USER_ID = process.env.TARGET_USER_ID || 'unknown';
 const WHISPER_PROVIDER = process.env.WHISPER_PROVIDER 
@@ -77,32 +76,41 @@ ig.account.login(sessionData.username, sessionData.password)
         process.exit(1);
     });
 
-function setupDirectMessageHandler() {
-    console.log('[IG-FCA-Client] Setting up direct message listener...');
-    
-    // Use realtime client for direct messages
-    const direct = ig.direct;
-    
-    // Start receiving messages
-    ig.realtime.connect({ fireAndForgetVisit: true }).then(() => {
-        console.log('[IG-FCA-Client] Realtime connected, listening for messages...');
-    });
-    
-    ig.realtime.on('message', async (message) => {
-        try {
-            // Handle incoming messages
-            if (message?.messages?.length > 0) {
-                for (const msg of message.messages) {
-                    await handleIncomingMessage(msg, direct);
+let lastCheckedTimestamp = Date.now() * 1000;
+const processedMessageIds = new Set();
+
+async function pollDirectMessages() {
+    try {
+        const inboxFeed = ig.feed.directInbox();
+        const threads = await inboxFeed.items();
+        
+        for (const thread of threads) {
+            const threadId = thread.thread_v2_id || thread.thread_id;
+            for (const item of thread.items) {
+                if (item.timestamp < lastCheckedTimestamp || processedMessageIds.has(item.item_id)) {
+                    continue;
                 }
+                
+                processedMessageIds.add(item.item_id);
+                
+                if (String(item.user_id) === String(ig.state.cookieUserId)) continue;
+                
+                await handleIncomingMessage(item, ig.direct, threadId);
             }
-        } catch (e) {
-            console.error('[IG-FCA-Client] Error handling message:', e);
         }
-    });
+    } catch (e) {
+        console.error('[IG-FCA-Client] Polling error:', e.message);
+    }
 }
 
-async function handleIncomingMessage(msg, direct) {
+function setupDirectMessageHandler() {
+    console.log('[IG-FCA-Client] Setting up direct message listener (polling)...');
+    
+    setInterval(pollDirectMessages, 10000);
+    pollDirectMessages();
+}
+
+async function handleIncomingMessage(msg, direct, threadIdParam) {
     if (!msg) return;
     
     // Check if it's a voice message (item_type can be 'media_share' or 'voice_media')
@@ -112,7 +120,7 @@ async function handleIncomingMessage(msg, direct) {
     if (isVoiceMessage) {
         console.log(`[IG-FCA-Client] Received voice message from ${msg.user_id}`);
         
-        const threadId = msg.thread_id || msg.thread_v2_id;
+        const threadId = threadIdParam || msg.thread_id || msg.thread_v2_id;
         let statusMsgId = null;
         
         try {

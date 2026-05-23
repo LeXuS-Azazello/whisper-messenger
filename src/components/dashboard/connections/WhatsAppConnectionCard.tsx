@@ -1,6 +1,6 @@
 /** @jsxImportSource preact */
-
-export function WhatsAppConnectionCard() {
+import type { UserSession } from '../../../types';
+export function WhatsAppConnectionCard({ user, env }: { user: UserSession; env: any }) {
     return (
         <div class="card wa-web-card">
             <div class="card-header">
@@ -16,9 +16,10 @@ export function WhatsAppConnectionCard() {
                     Connect your personal WhatsApp account. Choose the method that suits you best.
                 </p>
 
-                {/* Three connection method selectors (vanilla JS controlled) */}
+                {/* Method selectors — now real <button> for semantics + keyboard + beauty */}
                 <div class="wa-methods-grid">
-                    <div class="wa-method-card" data-method="qr" id="wa-method-qr">
+                    <button type="button" class="wa-method-card" data-method="qr" id="wa-method-qr"
+                        {...{ onclick: "window.setWaMethod && window.setWaMethod('qr')" } as any}>
                         <div class="wa-method-icon">📱</div>
                         <div class="wa-method-content">
                             <div class="wa-method-title">
@@ -26,23 +27,25 @@ export function WhatsAppConnectionCard() {
                             </div>
                             <div class="wa-method-subtitle">Scan with phone camera — fastest for new connections</div>
                         </div>
-                    </div>
+                    </button>
 
-                    <div class="wa-method-card" data-method="phone" id="wa-method-phone">
+                    <button type="button" class="wa-method-card" data-method="phone" id="wa-method-phone"
+                        {...{ onclick: "window.setWaMethod && window.setWaMethod('phone')" } as any}>
                         <div class="wa-method-icon">📞</div>
                         <div class="wa-method-content">
                             <div class="wa-method-title">Phone Pairing Code</div>
                             <div class="wa-method-subtitle">Link as additional device using your phone number</div>
                         </div>
-                    </div>
+                    </button>
 
-                    <div class="wa-method-card" data-method="wame" id="wa-method-wame">
+                    <button type="button" class="wa-method-card" data-method="wame" id="wa-method-wame"
+                        {...{ onclick: "window.setWaMethod && window.setWaMethod('wame')" } as any}>
                         <div class="wa-method-icon">🔗</div>
                         <div class="wa-method-content">
                             <div class="wa-method-title">Direct wa.me Link</div>
                             <div class="wa-method-subtitle">Generate a ready link to open directly in WhatsApp</div>
                         </div>
-                    </div>
+                    </button>
                 </div>
 
                 {/* Panels - always in DOM, visibility toggled by dashboard.js */}

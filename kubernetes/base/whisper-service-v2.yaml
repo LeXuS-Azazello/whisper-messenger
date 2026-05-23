@@ -97,20 +97,17 @@ data:
       "${BASE}/asr-models/silero_vad.onnx" \
       "$MODELS_DIR/vad/silero_vad.onnx"
 
-    # Whisper large-v3-turbo.int8 (primary ASR model - best LID for Russian and 99+ languages)
     echo "[download-models] >>> Whisper large-v3-turbo.int8 (strong multilingual + LID) ..."
     mkdir -p "$MODELS_DIR/whisper"
+    
+    export HF_HUB_ENABLE_HF_TRANSFER=1
+    curl -LsSf https://hf.co/cli/install.sh | bash
+    /root/.local/bin/hf download kostasang/whisper-large-v3-turbo-onnx-int8 --local-dir "$MODELS_DIR/whisper"
+
+    # Sherpa-ONNX specifically requires a tokens.txt file, which is not in the HF repo.
+    # We download it from the official k2-fsa release.
     WHISPER_VERSION="v1.11.1"
     WHISPER_BASE="https://github.com/k2-fsa/sherpa-onnx/releases/download/${WHISPER_VERSION}"
-
-    download_if_missing \
-      "${WHISPER_BASE}/large-v3-turbo-encoder.int8.onnx" \
-      "$MODELS_DIR/whisper/large-v3-turbo-encoder.int8.onnx"
-
-    download_if_missing \
-      "${WHISPER_BASE}/large-v3-turbo-decoder.int8.onnx" \
-      "$MODELS_DIR/whisper/large-v3-turbo-decoder.int8.onnx"
-
     download_if_missing \
       "${WHISPER_BASE}/large-v3-turbo-tokens.txt" \
       "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt"
@@ -125,7 +122,7 @@ data:
     echo "[download-models] Verifying ..."
     missing=0
 
-    if [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-encoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-decoder.int8.onnx" ] || [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt" ]; then
+    if [ ! -f "$MODELS_DIR/whisper/encoder_model_quantized.onnx" ] || [ ! -f "$MODELS_DIR/whisper/decoder_model_quantized.onnx" ] || [ ! -f "$MODELS_DIR/whisper/large-v3-turbo-tokens.txt" ]; then
       echo "[download-models] ERROR: Whisper large-v3-turbo.int8 files missing!" >&2
       missing=1
     else
@@ -189,7 +186,7 @@ spec:
             - name: CACHE_TTL
               value: "3600"
             - name: WAIT_FOR_JOB_MS
-               value: "300000"   # 5 minutes - large-v3-turbo.int8 first load can take 3-6 min on CPU
+              value: "300000"   # 5 minutes - large-v3-turbo.int8 first load can take 3-6 min on CPU
             - name: NUM_THREADS
               value: "4"
             - name: NUM_INTER_THREADS
@@ -233,7 +230,7 @@ spec:
             - name: CACHE_TTL
               value: "3600"
             - name: NUM_THREADS
-               value: "6"   # tuned for large-v3-turbo.int8 (good balance quality/speed)
+              value: "6"   # tuned for large-v3-turbo.int8 (good balance quality/speed)
             - name: WORKER_CONCURRENCY
               value: "1"
             # Translation is now done via Whisper built-in (task: translate) instead of separate NLLB service
@@ -280,7 +277,7 @@ spec:
     kind: Deployment
     name: whisper-service-v2
   minReplicas: 1
-  maxReplicas: 3   # keep low to stay under 12 CPU HRQ in debugging-testcrash-pub
+  maxReplicas: 2   # keep low to stay under 12 CPU HRQ in debugging-testcrash-pub
   metrics:
   - type: Resource
     resource:

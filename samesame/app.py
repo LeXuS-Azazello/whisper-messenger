@@ -27,7 +27,6 @@ if os.environ.get("SAMESAME_LOCAL_ONLY", "true").lower() in ("1", "true", "yes")
 
 SAMESAME_SECRET = os.environ.get("SAMESAME_SECRET", "changeme")
 MODEL_NAME = os.environ.get("SAMESAME_MODEL_NAME", "tts_models/multilingual/multi-dataset/your_tts")
-VOCODER_NAME = os.environ.get("SAMESAME_VOCODER_NAME", "vocoder_models/universal/libritts/fullband-melgan")
 TTS_MODEL_DIR = os.environ.get("TTS_MODEL_DIR", "/models")
 OUTPUT_SAMPLE_RATE = int(os.environ.get("SAMESAME_SAMPLE_RATE", "22050"))
 
@@ -100,27 +99,54 @@ def decode_source_audio_bytes(audio_bytes: bytes) -> str:
 
 
 tts: Optional[TTS] = None
+model_ready: bool = False
+
+def try_load_model() -> bool:
+    """Try to load the TTS model. Returns True on success.
+    This is the ONLY place model loading happens at runtime.
+    The downloader Job is responsible for populating /models.
+    """
+    global tts, model_ready
+    if model_ready and tts is not None:
+        return True
+    try:
+        print(f"[samesame] Loading model {MODEL_NAME} from {TTS_MODEL_DIR} ...")
+        tts = TTS(model_name=MODEL_NAME, progress_bar=False, gpu=False)
+        model_ready = True
+        print("[samesame] Model loaded successfully")
+        return True
+    except Exception as exc:
+        print(f"[samesame] Model not ready yet (expected on first deploy): {exc}")
+        model_ready = False
+        tts = None
+        return False
 
 @app.on_event("startup")
 async def startup_event():
-    global tts
-    load_kwargs = {
-        "model_name": MODEL_NAME,
-        "progress_bar": False,
-        "gpu": False,
-    }
-    if VOCODER_NAME:
-        load_kwargs["vocoder_name"] = VOCODER_NAME
-
-    try:
-        tts = TTS(**load_kwargs)
-    except TypeError:
-        tts = TTS(model_name=MODEL_NAME, progress_bar=False, gpu=False)
+    # Do NOT block startup / crash the pod if models are missing.
+    # The dedicated downloader Job (samesame-downloader-job.yaml) is the
+    # ONLY thing allowed to download models (per AGENTS.md).
+    # We just attempt a non-fatal load here so that subsequent requests
+    # or readiness checks can succeed once the Job has finished.
+    try_load_model()
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "samesame", "model": MODEL_NAME, "vocoder": VOCODER_NAME}
+    """Readiness probe target. Returns 503 until the TTS model is loaded by the downloader Job."""
+    if model_ready and tts is not None:
+        return {"status": "ok", "service": "samesame", "model": MODEL_NAME, "model_ready": True}
+    else:
+        from starlette.responses import JSONResponse
+        return JSONResponse(
+            {"status": "downloading", "service": "samesame", "model": MODEL_NAME, "model_ready": False, "note": "waiting for downloader Job"},
+            status_code=503
+        )
+
+@app.get("/live")
+async def live():
+    """Liveness probe target. Always 200 as long as the process is running (even while downloading)."""
+    return {"status": "alive", "service": "samesame"}
 
 
 @app.post("/v1/clone")
@@ -143,8 +169,10 @@ async def clone_voice(request: CloneRequest, authorization: Optional[str] = Head
     try:
         source_wav_path = decode_source_audio_bytes(source_audio)
 
-        if tts is None:
-            raise RuntimeError("SAMESAME model not loaded")
+        if tts is None or not model_ready:
+            # Trigger a lazy load attempt (in case the Job just finished)
+            if not try_load_model():
+                raise HTTPException(status_code=503, detail="SAMESAME model is still downloading (downloader Job not finished). Try again in a minute.")
 
         tts_kwargs = {"speaker_wav": source_wav_path}
         if request.language:
