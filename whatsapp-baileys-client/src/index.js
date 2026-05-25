@@ -8,7 +8,7 @@
  * HTTP server on :3001 exposes /health and /test-wa for the manager.
  */
 
-import { makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } from 'baileys';
+import { makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, Browsers } from 'baileys';
 import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
@@ -242,7 +242,7 @@ async function connectToWhatsApp() {
         auth:                 state,
         printQRInTerminal:    false,
         logger:               silentLogger,
-        browser:              ['VoicemsgNet', 'Chrome', '1.0.0'],
+        browser:              Browsers.ubuntu('Chrome'),
         syncFullHistory:      false,
         markOnlineOnConnect:  false,
     });

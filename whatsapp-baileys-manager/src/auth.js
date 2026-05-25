@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 import { redis } from './config.js';
 import User from './models/User.js';
 import MessengerSession from './models/MessengerSession.js';
-import { makeWASocket, useMultiFileAuthState } from 'baileys';
+import { makeWASocket, useMultiFileAuthState, Browsers } from 'baileys';
 import { spawnPod } from './k8s.js';
 
 export const authSessions = new Map();
@@ -37,7 +37,7 @@ export async function qrStart(req, res) {
         const sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
-            browser: ['VoicemsgNet', 'Chrome', '1.0.0']
+            browser: Browsers.ubuntu('Chrome')
         });
 
         sock.ev.on('creds.update', saveCreds);
@@ -98,7 +98,7 @@ export async function pairingStart(req, res) {
         const sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
-            browser: ['VoicemsgNet', 'Chrome', '1.0.0']
+            browser: Browsers.ubuntu('Chrome')
         });
 
         sock.ev.on('creds.update', saveCreds);
