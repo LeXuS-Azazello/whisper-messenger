@@ -60,7 +60,17 @@ async function pollJobUntilDone(jobId, baseUrl, headers) {
 }
 
 export async function transcribePath(file_path, mime_type, language = 'auto', target_language = null) {
-  const url = WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+  let url = WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+  
+  // Auto-correct common mistakes in WHISPER_PROVIDER
+  if (url === 'whisper-turbo' || url === 'whisper-service-v2') {
+    url = 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+  } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'http://' + url;
+  }
+  
+  // Strip trailing slash just in case
+  url = url.replace(/\/$/, '');
 
   const tRead = Date.now();
   const fileBuffer = fs.readFileSync(file_path);
