@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funasr
+  namespace: debugging-testcrash-pub
+  labels:
+    app: funasr
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: funasr
+  template:
+    metadata:
+      labels:
+        app: funasr
+    spec:
+      containers:
+      - name: funasr-api
+        image: python:3.10-slim
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          echo "Installing dependencies..."
+          apt-get update && apt-get install -y --no-install-recommends ffmpeg git wget libsndfile1
+          pip install --no-cache-dir --upgrade pip
+          pip install --no-cache-dir funasr fastapi "uvicorn[standard]" python-multipart modelscope
+          echo "Downloading server.py..."
+          wget -qO server.py https://raw.githubusercontent.com/modelscope/FunASR/main/examples/openai_api/server.py
+          echo "Starting FunASR OpenAI API Server with Paraformer..."
+          python server.py --model paraformer --device cpu --port 50001
+        ports:
+        - containerPort: 50001
+        env:
+        - name: FUNASR_MODEL
+          value: "paraformer"
+        - name: FUNASR_DEVICE
+          value: "cpu"
+        volumeMounts:
+        - name: cache-vol
+          mountPath: /root/.cache
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+      volumes:
+      - name: cache-vol
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: funasr
+  namespace: debugging-testcrash-pub
+spec:
+  type: ClusterIP
+  selector:
+    app: funasr
+  ports:
+  - port: 50001
+    targetPort: 50001
+    protocol: TCP
+    name: http

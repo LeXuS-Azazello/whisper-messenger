@@ -202,6 +202,39 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    const switchWhisperBtn = document.getElementById('btn-switch-whisper');
+    const switchSensevoiceBtn = document.getElementById('btn-switch-sensevoice');
+    const switchFunasrBtn = document.getElementById('btn-switch-funasr');
+
+    function switchAsr(model, btn) {
+        if (!confirm(`Switch ASR model to ${model}? This will restart transcription pods.`)) return;
+        const originalText = btn.innerText;
+        btn.innerText = 'Switching...';
+        btn.disabled = true;
+
+        fetch('/admin/asr-switch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model })
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                alert(`✅ Switched to ${model} successfully.`);
+                loadAiConfig();
+            } else {
+                alert('❌ Error: ' + data.error);
+            }
+        }).catch(e => {
+            alert('❌ Network error: ' + e.message);
+        }).finally(() => {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        });
+    }
+
+    if (switchWhisperBtn) switchWhisperBtn.addEventListener('click', () => switchAsr('whisper', switchWhisperBtn));
+    if (switchSensevoiceBtn) switchSensevoiceBtn.addEventListener('click', () => switchAsr('sensevoice', switchSensevoiceBtn));
+    if (switchFunasrBtn) switchFunasrBtn.addEventListener('click', () => switchAsr('funasr', switchFunasrBtn));
+
     // Test Speech2Text button handler
     const testS2tBtn = document.getElementById('test-s2t-btn');
     if (testS2tBtn) {

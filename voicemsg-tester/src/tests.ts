@@ -265,6 +265,98 @@ export class TestSuiteRunner {
     }
   }
 
+  // 2b. SenseVoice ASR Inference Test
+  async testSenseVoice(): Promise<TestResult> {
+    const logs: TestLog[] = [];
+    const log = this.createLogger(logs);
+    const id = 'sensevoice-service';
+    const name = 'SenseVoice ASR Transcription';
+    const target = 'http://sensevoice.debugging-testcrash-pub.svc.cluster.local:50000';
+
+    log.info(`Initializing internal transcription test...`);
+    log.info(`Target SenseVoice URL: ${target}`);
+
+    const startTime = Date.now();
+    try {
+      log.info(`Decoding sample silent audio file from base64 string...`);
+      const base64Data = sampleAudioBase64.replace(/^data:audio\/\w+;base64,/, '');
+      const audioBuffer = Buffer.from(base64Data, 'base64');
+      
+      const formData = new FormData();
+      const blob = new Blob([audioBuffer], { type: 'audio/wav' });
+      formData.append('files', blob, 'audio.wav');
+      formData.append('keys', 'audio');
+      formData.append('lang', 'auto');
+      formData.append('use_itn', 'false');
+
+      log.info(`Dispatching job to ${target}/api/v1/asr...`);
+      const res = await fetch(`${target}/api/v1/asr`, {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(20000),
+      });
+
+      const latency = Date.now() - startTime;
+      if (!res.ok) {
+        throw new Error(`SenseVoice returned ${res.status}: ${await res.text()}`);
+      }
+      
+      const result = await res.json() as any;
+      log.success(`ASR response parsed successfully!`);
+      const text = result.result && result.result[0] ? result.result[0].text : '';
+      log.success(`Transcribed Text: "${text}"`);
+      return { id, name, target, status: 'success', latency, logs };
+    } catch (err: any) {
+      log.error(`SenseVoice test failed: ${err.message || String(err)}`);
+      return { id, name, target, status: 'failed', latency: Date.now() - startTime, logs };
+    }
+  }
+
+  // 2c. FunASR ASR Inference Test
+  async testFunASR(): Promise<TestResult> {
+    const logs: TestLog[] = [];
+    const log = this.createLogger(logs);
+    const id = 'funasr-service';
+    const name = 'FunASR ASR Transcription';
+    const target = 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+
+    log.info(`Initializing internal transcription test...`);
+    log.info(`Target FunASR URL: ${target}`);
+
+    const startTime = Date.now();
+    try {
+      log.info(`Decoding sample silent audio file from base64 string...`);
+      const base64Data = sampleAudioBase64.replace(/^data:audio\/\w+;base64,/, '');
+      const audioBuffer = Buffer.from(base64Data, 'base64');
+      
+      const formData = new FormData();
+      const blob = new Blob([audioBuffer], { type: 'audio/wav' });
+      formData.append('file', blob, 'audio.wav');
+      formData.append('model', 'paraformer');
+      formData.append('response_format', 'json');
+
+      log.info(`Dispatching job to ${target}/v1/audio/transcriptions...`);
+      const res = await fetch(`${target}/v1/audio/transcriptions`, {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(20000),
+      });
+
+      const latency = Date.now() - startTime;
+      if (!res.ok) {
+        throw new Error(`FunASR returned ${res.status}: ${await res.text()}`);
+      }
+      
+      const result = await res.json() as any;
+      log.success(`ASR response parsed successfully!`);
+      log.success(`Transcribed Text: "${result.text || ''}"`);
+      return { id, name, target, status: 'success', latency, logs };
+    } catch (err: any) {
+      log.error(`FunASR test failed: ${err.message || String(err)}`);
+      return { id, name, target, status: 'failed', latency: Date.now() - startTime, logs };
+    }
+  }
+
   // 3. Redis Connectivity Test
   async testRedis(): Promise<TestResult> {
     const logs: TestLog[] = [];
@@ -524,6 +616,10 @@ export class TestSuiteRunner {
         return await this.testMailWorker();
       case 'whisper-service':
         return await this.testWhisperTurbo();
+      case 'sensevoice-service':
+        return await this.testSenseVoice();
+      case 'funasr-service':
+        return await this.testFunASR();
       case 'redis':
         return await this.testRedis();
       case 'mongodb':
@@ -540,6 +636,8 @@ export class TestSuiteRunner {
     return await Promise.all([
       this.testMailWorker(),
       this.testWhisperTurbo(),
+      this.testSenseVoice(),
+      this.testFunASR(),
       this.testRedis(),
       this.testMongoDB(),
       this.testSamesameVoiceClone()

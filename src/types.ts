@@ -45,7 +45,9 @@ export interface Env {
   // Whisper Config
   WHISPER_PROVIDER?: string;
   WHISPER_SECRET?: string;
-  
+  SAMESAME_URL?: string;
+  SAMESAME_SECRET?: string;
+
   // SMTP Config
   EMAIL_FROM?: string;
   SMTP_HOST?: string;
@@ -57,7 +59,7 @@ export interface Env {
   MAIL_API_TOKEN?: string;
 
   // Cloudflare Config
-  
+
   CLOUDFLARE_ZONE_ID?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
   CF_ACCESS_CLIENT_ID?: string;

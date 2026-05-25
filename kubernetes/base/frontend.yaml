@@ -12,6 +12,7 @@ spec:
       labels:
         app: echo-frontend
     spec:
+      serviceAccountName: tg-client-manager-sa
       imagePullSecrets:
       - name: harbor-pull-secret
       containers:

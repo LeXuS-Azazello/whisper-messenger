@@ -23,6 +23,8 @@ resources:
   - facebook-fca-manager.yaml
   - instagram-fca-manager.yaml
   - rbac-whisper-exec.yaml
+  - sensevoice.yaml
+  - funasr.yaml
 
 
 

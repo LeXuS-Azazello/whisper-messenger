@@ -16,6 +16,21 @@ export const AIConfigCard = (props: { checks: any, env: any }) => {
                 <label>Transcription Secret</label>
                 <input type="password" id="ai-whisper-secret" placeholder="Optional internal secret" />
             </div>
+            
+            <div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 13px; color: var(--text-dim);">Active ASR Engine</label>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-sm" id="btn-switch-whisper" style="flex: 1; background: rgba(59, 130, 246, 0.1); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.3);">
+                        Whisper (CPU)
+                    </button>
+                    <button class="btn btn-sm" id="btn-switch-sensevoice" style="flex: 1; background: rgba(16, 185, 129, 0.1); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3);">
+                        SenseVoice (Fast)
+                    </button>
+                    <button class="btn btn-sm" id="btn-switch-funasr" style="flex: 1; background: rgba(245, 158, 11, 0.1); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.3);">
+                        FunASR (Chinese)
+                    </button>
+                </div>
+            </div>
 
             <div class="input-group" style="margin-top: 25px">
                 <label>SAMESAME (XTTS v2) URL</label>

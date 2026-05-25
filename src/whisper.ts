@@ -23,42 +23,78 @@ export async function transcribeAudio(
 
   if (!url) throw new Error("Whisper Turbo URL not configured");
 
-  const base64Data = Buffer.from(audio).toString('base64');
-
-  const payload: any = {
-    file_data: base64Data,
-    language: "auto"
-  };
-
-  if (targetLanguage) {
-    payload.target_language = targetLanguage;
-  }
-
+  const isSenseVoice = url.includes('sensevoice') || url.includes('50000');
+  const isFunASR = url.includes('funasr') || url.includes('50001');
   const secret = env.WHISPER_SECRET || "";
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300000);
 
   try {
-    const response = await fetch(`${url}/v1/transcribe-base64`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${secret}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal
-    });
+    let response;
+    
+    if (isFunASR) {
+      const formData = new FormData();
+      formData.append("file", new Blob([audio], { type: 'audio/wav' }), "audio.wav");
+      formData.append("model", "paraformer");
+      formData.append("response_format", "json");
+
+      response = await fetch(`${url}/v1/audio/transcriptions`, {
+        method: "POST",
+        headers: secret ? { "Authorization": `Bearer ${secret}` } : {},
+        body: formData,
+        signal: controller.signal
+      });
+    } else if (isSenseVoice) {
+      const formData = new FormData();
+      formData.append("files", new Blob([audio], { type: 'audio/wav' }), "audio.wav");
+      formData.append("keys", "audio");
+      formData.append("lang", "auto");
+      formData.append("use_itn", "false");
+      
+      response = await fetch(`${url}/api/v1/asr`, {
+        method: "POST",
+        body: formData,
+        signal: controller.signal
+      });
+    } else {
+      const base64Data = Buffer.from(audio).toString('base64');
+      const payload: any = {
+        file_data: base64Data,
+        language: "auto"
+      };
+      if (targetLanguage) {
+        payload.target_language = targetLanguage;
+      }
+      response = await fetch(`${url}/v1/transcribe-base64`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${secret}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+    }
+
     clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`whisper-service error ${response.status}: ${errorText}`);
+      throw new Error(`ASR service error ${response.status}: ${errorText}`);
     }
 
     const result = await response.json() as any;
 
-    let text = result.text || result.transcription || "";
+    let text = "";
+    if (isSenseVoice) {
+      // SenseVoice response: {"result": [{"text": "...", "language": "en"}]}
+      const resData = result.result && result.result[0];
+      text = resData ? resData.text : "";
+      result.language = resData ? resData.language : "unknown";
+    } else {
+      text = result.text || result.transcription || "";
+    }
 
     // Hallucination cleanup
     text = text.replace(/(.+?\.)\s*\1\s*\1(\s*\1)*/g, '$1 $1');
@@ -88,7 +124,7 @@ export async function transcribeAudio(
       detectedLanguage,
       translated: translatedText,
       targetLanguage: targetLanguage || null,
-      model: "whisper-service-v2"
+      model: isFunASR ? "funasr" : (isSenseVoice ? "sensevoice" : "whisper-service-v2")
     };
   } catch (e) {
     clearTimeout(timeoutId);

@@ -13,7 +13,8 @@ import {
     updateAiConfig,
     userAction,
     runDiagnostics,
-    renderDashboardPage
+    renderDashboardPage,
+    switchAsrModel
 } from "../controllers/adminController";
 
 export async function handleAdmin(env: Env, req: Request): Promise<Response> {
@@ -200,6 +201,10 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
 
         if (method === "GET" && pathname === "/admin") {
             return await renderDashboardPage(env, url.origin);
+        }
+
+        if (method === "POST" && pathname === "/admin/asr-switch") {
+            return await switchAsrModel(env, req);
         }
 
         return new Response("Not found", { status: 404 });
