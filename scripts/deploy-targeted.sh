@@ -47,6 +47,7 @@ for svc in "${SERVICES[@]}"; do
       docker build -t "$IMAGE" -f whisper-service-v2/Dockerfile whisper-service-v2
       docker tag "$IMAGE" "${REPO}/whisper-service-v2:latest"
       docker push "${REPO}/whisper-service-v2:latest"
+      docker rmi "$IMAGE" "${REPO}/whisper-service-v2:latest" || true
 
       kubectl set image deployment/whisper-service-v2 \
         whisper-service-v2="${REPO}/whisper-service-v2:latest" \
@@ -71,6 +72,7 @@ for svc in "${SERVICES[@]}"; do
       docker build -t "$IMAGE" -f tg-client/Dockerfile tg-client
       docker tag "$IMAGE" "${REPO}/whisper-tg-client:latest"
       docker push "${REPO}/whisper-tg-client:latest"
+      docker rmi "$IMAGE" "${REPO}/whisper-tg-client:latest" || true
 
       kubectl set env deployment/tg-client-manager \
         TG_CLIENT_IMAGE="${REPO}/whisper-tg-client:latest" \
@@ -94,6 +96,7 @@ for svc in "${SERVICES[@]}"; do
       docker build -t "$IMAGE" -f whatsapp-baileys-client/Dockerfile whatsapp-baileys-client
       docker tag "$IMAGE" "${REPO}/whatsapp-baileys-client:latest"
       docker push "${REPO}/whatsapp-baileys-client:latest"
+      docker rmi "$IMAGE" "${REPO}/whatsapp-baileys-client:latest" || true
 
       kubectl set env deployment/whatsapp-baileys-manager \
         WA_BAILEYS_IMAGE="${REPO}/whatsapp-baileys-client:latest" \
@@ -111,6 +114,7 @@ for svc in "${SERVICES[@]}"; do
       docker build -t "$IMAGE" -f whatsapp-baileys-manager/Dockerfile whatsapp-baileys-manager
       docker tag "$IMAGE" "${REPO}/whatsapp-baileys-manager:latest"
       docker push "${REPO}/whatsapp-baileys-manager:latest"
+      docker rmi "$IMAGE" "${REPO}/whatsapp-baileys-manager:latest" || true
 
       kubectl rollout restart deployment/whatsapp-baileys-manager -n "$NAMESPACE"
       ;;
@@ -124,6 +128,7 @@ for svc in "${SERVICES[@]}"; do
       docker build -t "$IMAGE" -f samesame/Dockerfile samesame
       docker tag "$IMAGE" "${REPO}/samesame:latest"
       docker push "${REPO}/samesame:latest"
+      docker rmi "$IMAGE" "${REPO}/samesame:latest" || true
 
       kubectl set image deployment/samesame \
         samesame="${REPO}/samesame:latest" \
@@ -147,6 +152,7 @@ for svc in "${SERVICES[@]}"; do
       docker build -t "$IMAGE" -f voicemsg-tester/Dockerfile voicemsg-tester
       docker tag "$IMAGE" "${REPO}/whisper-tester:latest"
       docker push "${REPO}/whisper-tester:latest"
+      docker rmi "$IMAGE" "${REPO}/whisper-tester:latest" || true
 
       kubectl set image deployment/voicemsg-tester tester="${REPO}/whisper-tester:latest" -n "$NAMESPACE"
 
@@ -167,6 +173,7 @@ for svc in "${SERVICES[@]}"; do
       docker build -t "$IMAGE" -f Dockerfile .
       docker tag "$IMAGE" "${REPO}/whisper-frontend:latest"
       docker push "${REPO}/whisper-frontend:latest"
+      docker rmi "$IMAGE" "${REPO}/whisper-frontend:latest" || true
 
       kubectl set image deployment/echo-frontend frontend="${REPO}/whisper-frontend:latest" -n "$NAMESPACE"
       kubectl rollout restart deployment/echo-frontend -n "$NAMESPACE" || true
@@ -185,3 +192,7 @@ done
 echo ""
 echo ">>> Done. Check pods:"
 kubectl get pods -n "$NAMESPACE" --sort-by=.metadata.creationTimestamp | tail -10
+
+echo ""
+echo ">>> Running docker image prune to clean up dangling layers..."
+docker image prune -f || true

@@ -18,6 +18,7 @@ import { existsSync, writeFileSync, unlinkSync } from 'fs';
  */
 
 const MODELS_DIR = process.env.MODELS_DIR || '/models';
+const ASR_MODEL_TYPE = process.env.ASR_MODEL_TYPE || 'whisper'; // 'whisper' or 'sensevoice'
 const NUM_THREADS = parseInt(process.env.NUM_THREADS || '2', 10);
 const PUNCT_THREADS = parseInt(process.env.PUNCT_THREADS || '1', 10);
 
@@ -30,6 +31,9 @@ const WHISPER_TOKENS_CANDIDATES = [
 ];
 
 let WHISPER_TOKENS = WHISPER_TOKENS_CANDIDATES[0];
+
+const SENSEVOICE_MODEL = join(MODELS_DIR, 'sensevoice', 'model.int8.onnx');
+const SENSEVOICE_TOKENS = join(MODELS_DIR, 'sensevoice', 'tokens.txt');
 
 const VAD_MODEL = join(MODELS_DIR, 'vad', 'silero_vad.onnx');
 
@@ -55,6 +59,15 @@ function ensureModelFiles() {
 
   if (!WHISPER_TOKENS) {
     throw new Error('Missing tokens.txt');
+  }
+
+  if (ASR_MODEL_TYPE === 'sensevoice') {
+    if (!existsSync(SENSEVOICE_MODEL)) {
+      throw new Error('Missing SenseVoice model');
+    }
+    if (!existsSync(SENSEVOICE_TOKENS)) {
+      throw new Error('Missing SenseVoice tokens');
+    }
   }
 
   if (!existsSync(VAD_MODEL)) {
@@ -89,18 +102,34 @@ function initialize() {
 
   ensureModelFiles();
 
-  recognizer = new sherpa.OfflineRecognizer({
-    modelConfig: {
-      whisper: {
-        encoder: WHISPER_ENCODER,
-        decoder: WHISPER_DECODER,
-        language: '',
-        task: 'transcribe',
-      },
-      tokens: WHISPER_TOKENS,
-      numThreads: NUM_THREADS,
-    }
-  });
+  if (ASR_MODEL_TYPE === 'sensevoice') {
+    recognizer = new sherpa.OfflineRecognizer({
+      modelConfig: {
+        senseVoice: {
+          model: SENSEVOICE_MODEL,
+          language: '',
+          useItn: 1,
+        },
+        tokens: SENSEVOICE_TOKENS,
+        numThreads: NUM_THREADS,
+      }
+    });
+    console.log('[whisper-service-v2] Initialized SenseVoice model');
+  } else {
+    recognizer = new sherpa.OfflineRecognizer({
+      modelConfig: {
+        whisper: {
+          encoder: WHISPER_ENCODER,
+          decoder: WHISPER_DECODER,
+          language: '',
+          task: 'transcribe',
+        },
+        tokens: WHISPER_TOKENS,
+        numThreads: NUM_THREADS,
+      }
+    });
+    console.log('[whisper-service-v2] Initialized Whisper model');
+  }
 
   if (existsSync(PUNCT_MODEL_NEW) && existsSync(PUNCT_BPE_VOCAB)) {
     try {
@@ -275,7 +304,7 @@ export async function processFile(filePath, targetLanguage) {
 
       const totalMs = Date.now() - jobStart;
       const avgDecode = decodeCount > 0 ? Math.round(totalDecodeMs / decodeCount) : 0;
-      const modelName = 'large-v3-turbo (Sherpa-ONNX)';
+      const modelName = ASR_MODEL_TYPE === 'sensevoice' ? 'SenseVoice (Sherpa-ONNX)' : 'large-v3-turbo (Sherpa-ONNX)';
 
       console.log(`[whisper] TRANSCRIPTION DONE | model=${modelName} | init=${initMs}ms | vadCreate=${vadCreateMs}ms | ffmpegFirstData=${ffmpegFirstDataMs}ms | ffmpegTotal=${totalFfmpegMs}ms | punct=${punctMs}ms | segments=${decodeCount} | totalProcess=${totalMs}ms | textLen=${punctuated.length}`);
 
@@ -284,7 +313,7 @@ export async function processFile(filePath, targetLanguage) {
         language: detectedLanguage || 'en',
         translated: false,
         target_language: targetLanguage || null,
-        model: 'large-v3-turbo (Sherpa-ONNX)',
+        model: modelName,
         metrics: { usedVAD: true, totalMs, decodeCount, avgDecodeMs: avgDecode, initMs, ffmpegFirstDataMs, ffmpegTotalMs: totalFfmpegMs, punctMs },
       });
     });

@@ -1,6 +1,15 @@
 # 🎙️ Voice Messenger
 
-> **Multi-tenant voice-to-text platform connecting Telegram, WhatsApp (Baileys), Facebook Messenger (FCA), and Instagram (FCA) to high-quality offline ASR via whisper-service-v2 (distil-large-v2).**
+> **Multi-tenant voice-to-text platform connecting Telegram, WhatsApp (Baileys), Facebook Messenger (FCA), and Instagram (FCA) to high-quality offline ASR via whisper-service-v2 (large-v3-turbo) and TTS via Samesame (CosyVoice2-0.5B).**
+
+## 📢 Recent Changes (May 2026)
+- Increased `whisper-service-v2-models-pvc` to **6 GiB** to accommodate Whisper, SenseVoice, VAD and punctuation models.
+- Refactored `whisper-download-models.sh` to download each model into its own sub‑directory, preventing accidental overwrites.
+- Switched `samesame` Docker base image to `python:3.10‑slim` and removed Miniconda, fixing build errors.
+- Updated `samesame` to use **FunAudioLLM/CosyVoice2‑0.5B** (CPU‑optimized) instead of XTTS.
+- Adjusted resource requests for `samesame` (CPU 1 → 1.5, RAM 4 Gi → 8 Gi) to fit namespace quotas.
+- All services now start cleanly; `samesame` reports **Model ready** and health checks return `200 OK`.
+
 
 
 ---
@@ -39,8 +48,8 @@ All heavy ASR work happens in the isolated worker container inside whisper-servi
 | `src/` (Frontend + Hono)    | Web dashboard, auth, webhooks, UI            | No             |
 | `*-manager/` (4 managers)   | Kubernetes controllers that spawn & manage per-user client pods | No (shared) |
 | `*-client/` folders         | Actual messenger clients (tdlib, Baileys, FCA) running inside user pods | Yes |
-| `whisper-service-v2`        | ASR service (API + BullMQ worker + distil-large-v2) | Shared (API + worker containers) |
-| `samesame`                  | Premium voice cloning (XTTS v2 + CPU optimized)     | Shared |
+| `whisper-service-v2`        | ASR service (API + BullMQ worker + Whisper large-v3-turbo) | Shared (API + worker containers) |
+| `samesame`                  | Premium voice cloning (FunAudioLLM/CosyVoice2-0.5B + CPU optimized)     | Shared |
 | `kubernetes/`               | Kustomize manifests for all services         | —              |
 
 ---
@@ -52,7 +61,7 @@ All heavy ASR work happens in the isolated worker container inside whisper-servi
 | **Backend**    | TypeScript, Node.js, Hono                         |
 | **Frontend**   | Preact + TSX (modern dashboard with per-messenger cards) |
 | **Database**   | Redis (BullMQ queues, sessions, user settings), MongoDB |
-| **ASR**        | whisper-service-v2 (distil-large-v2 ONNX + worker) |
+| **ASR & TTS**  | whisper-service-v2 (large-v3-turbo ONNX) & samesame (CosyVoice2-0.5B) |
 | **Infrastructure** | Kubernetes + Kustomize, Docker, Harbor registry |
 | **Deployment** | `npm run deploy:k8s` (builds + pushes + updates images) |
 
@@ -79,7 +88,7 @@ npm run deploy:k8s
 |--------------------------|----------------------------------------------------------|------|
 | **Frontend**             | `https://voicemsg.net`                                   | Main dashboard & landing |
 | **whisper-service-v2**   | `http://whisper-service-v2:8000`                         | ASR API (transcribe-base64) + BullMQ entrypoint |
-| **samesame**             | `http://samesame:8002`                                   | Premium voice cloning (`/v1/clone`) |
+| **samesame**             | `http://samesame:8002`                                   | Premium voice cloning (CosyVoice2) (`/v1/clone`) |
 | **Managers**             | tg-client-manager:3000, whatsapp-baileys-manager:3002, facebook-fca-manager:3003, instagram-fca-manager:3005 | Per-user pod orchestration |
 
 ---
@@ -110,8 +119,8 @@ npm run deploy:k8s
 ├── facebook-fca-client/
 ├── instagram-fca-manager/            # Instagram Direct (FCA)
 ├── instagram-fca-client/
-├── whisper-service-v2/               # ASR (API + BullMQ worker + distil-large-v2)
-├── samesame/                         # Premium voice cloning (XTTS v2 + CPU optimized) (see README)
+├── whisper-service-v2/               # ASR (API + BullMQ worker + Whisper large-v3-turbo)
+├── samesame/                         # Premium voice cloning (CosyVoice2-0.5B + CPU optimized) (see README)
 ├── kubernetes/                       # Kustomize manifests (base + overlays) (see README)
 └── scripts/deploy.sh                 # Full build + push + rollout + auto model downloaders
 ```
@@ -133,4 +142,4 @@ npm run deploy:k8s
 
 ---
 
-*Updated 2026-05 — whisper-service-v2 + samesame (voice cloning via XTTS v2 with CPU multi-threading).*
+*Updated 2026-05 — whisper-service-v2 (large-v3-turbo) + samesame (voice cloning via CosyVoice2-0.5B with CPU multi-threading).*

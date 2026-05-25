@@ -10,10 +10,10 @@ NAMESPACE=$(grep '^NAMESPACE=' .env 2>/dev/null | cut -d= -f2 || echo 'debugging
 echo "Namespace: $NAMESPACE"
 echo ""
 
-# Login
-echo ">>> Logging into Kubernetes cluster..."
-kube-dc login --domain kube-dc.cloud --org debugging 2>&1 || echo "Already logged in"
-kube-dc use kube-dc.cloud/debugging/testcrash-pub 2>&1 || true
+# Login (skipped - already authenticated)
+# echo ">>> Logging into Kubernetes cluster..."
+# kube-dc login --domain kube-dc.cloud --org debugging 2>&1 || echo "Already logged in"
+# kube-dc use kube-dc.cloud/debugging/testcrash-pub 2>&1 || true
 echo ""
 
 # Load environment variables
@@ -174,6 +174,9 @@ build_and_push_image() {
         docker tag "$image_tag" "$latest_image"
         docker push "$image_tag"
         docker push "$latest_image"
+        
+        echo ">>> [CLEANUP] Removing local images to save space..."
+        docker rmi "$image_tag" "$latest_image" || true
     elif [ "$has_latest" = "true" ] && ! check_dir_changed "$image_path"; then
         echo ">>> [SKIP BUILD] $name has not changed. Re-tagging existing latest image..."
         docker tag "$latest_image" "$image_tag"
@@ -184,6 +187,9 @@ build_and_push_image() {
         docker tag "$image_tag" "$latest_image"
         docker push "$image_tag"
         docker push "$latest_image"
+        
+        echo ">>> [CLEANUP] Removing local images to save space..."
+        docker rmi "$image_tag" "$latest_image" || true
     fi
 }
 
@@ -399,3 +405,7 @@ echo "========================================"
 echo ""
 echo "Endpoints:"
 echo "  https://${DOMAIN}         -> Frontend"
+
+echo ""
+echo ">>> Running docker image prune to clean up dangling layers..."
+docker image prune -f || true

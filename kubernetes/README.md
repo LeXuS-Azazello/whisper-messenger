@@ -58,6 +58,12 @@
 ## 🚀 Развертывание
 Все YAML-файлы собираются в один пайплайн через `kustomization.yaml`. 
 Запуск полного цикла деплоя осуществляется скриптом из корня проекта:
+
+> **Recent Changes (May 2026)**
+> - PVC `whisper-service-v2-models-pvc` enlarged to **6 GiB**.
+> - Model‑downloader script refactored to use per‑model sub‑folders.
+> - `samesame` now based on `python:3.10‑slim` and CosyVoice2‑0.5B.
+
 ```bash
 # Собирает образы, пушит в registry и применяет kustomization
 ./scripts/deploy.sh

@@ -54,7 +54,7 @@ export async function handleNewMessage(message) {
     // SAMESAME voice cloning via reply (e.g. "!SAMESAME! hello" as reply to voice)
     if (type === 'messageText') {
         const text = message.content.text?.text || '';
-        
+
         // Handle /lang command from the target user
         const isSelfChat = myUserId && Number(chat_id) === Number(myUserId);
         const myId = myUserId || (TARGET_USER_ID ? Number(TARGET_USER_ID) : null);
@@ -62,13 +62,13 @@ export async function handleNewMessage(message) {
             if (text.startsWith('/lang')) {
                 const parts = text.split(/\s+/);
                 const langOpt = parts[1] ? parts[1].toLowerCase() : 'auto';
-                
+
                 await redis.set(`translate_lang_${TARGET_USER_ID}`, langOpt);
-                
+
                 let reply = `✅ Translation target set to: ${langOpt}`;
                 if (langOpt === 'off') reply = `✅ Translation disabled.`;
                 else if (langOpt === 'auto') reply = `✅ Translation set to auto (Telegram system language).`;
-                
+
                 await safeSendMessage(client, chat_id, message.id, reply);
                 return;
             }
@@ -182,18 +182,18 @@ async function processSingleMessage(message) {
                             const me = await client.invoke({ '_': 'getUser', 'user_id': myUserId || TARGET_USER_ID });
                             targetLang = me?.language_code || 'en';
                         }
-                        
+
                         // Only translate if the detected language is not the target language
                         // and detectedLang is not 'auto'
-                        const isSameLanguage = detectedLang && targetLang 
-                            && (detectedLang.toLowerCase().startsWith(targetLang.toLowerCase()) 
+                        const isSameLanguage = detectedLang && targetLang
+                            && (detectedLang.toLowerCase().startsWith(targetLang.toLowerCase())
                                 || targetLang.toLowerCase().startsWith(detectedLang.toLowerCase()));
-                                
+
                         if (!isSameLanguage) {
                             console.time(`[tg-client] Translate msg ${message_id} to ${targetLang}`);
                             const transResult = await translate(originalText, { to: targetLang });
                             console.timeEnd(`[tg-client] Translate msg ${message_id} to ${targetLang}`);
-                            
+
                             if (transResult && transResult.text) {
                                 finalText = transResult.text + `\n\n_(${label} → ${getLangLabel(targetLang)})_\n_Orig: ${originalText}_`;
                                 finalLabel = ''; // Label included in footer
@@ -203,7 +203,7 @@ async function processSingleMessage(message) {
                 } catch (transErr) {
                     console.error(`[tg-client] Translation error for msg ${message_id}:`, transErr.message);
                 }
-                
+
                 if (finalLabel) finalText = `${finalLabel} ${finalText}`;
 
                 const chunks = splitTextIntoChunks(finalText, 3900);
@@ -213,8 +213,10 @@ async function processSingleMessage(message) {
                         const idx = i + 1;
                         replyText = `(Part ${idx}/${chunks.length})\n\n${replyText}`;
                     }
+                    // Append metrics and model name on the last part
                     if (i === chunks.length - 1) {
                         replyText += `\n\n⏳${transcribeDuration}s ⬇️${downloadDuration}s`;
+                        replyText += `\n🧠Model: ${usedModel}`;
                     }
                     await safeSendMessage(client, chat_id, message_id, replyText);
                     if (i < chunks.length - 1) await new Promise(resolve => setTimeout(resolve, 1500));
@@ -253,7 +255,7 @@ export async function startUserClient() {
 
         if (type === 'updateMessageSendSucceeded' || type === 'updateMessageSendFailed') {
             const oldId = update.old_message_id;
-            
+
             if (oldId && botGeneratedMsgIds.has(oldId)) {
                 if (type === 'updateMessageSendSucceeded' && update.message?.id) {
                     botGeneratedMsgIds.add(update.message.id);
@@ -303,12 +305,12 @@ export async function sendTestMessage(messageText) {
  * Uses the shared module so the same logic can be reused in WhatsApp / FB / IG clients.
  */
 async function handleSamesameReplyIfNeeded(message) {
-    console.log('[samesame] handleSamesameReplyIfNeeded called for text message', {
-        hasReplyTo: !!(message?.reply_to_message_id || message?.reply_to?.message_id || message?.replyTo?.message_id),
-        textPreview: (message?.content?.text?.text || '').substring(0, 60),
-        isOutgoing: message?.is_outgoing,
-        chatId: message?.chat_id
-    });
+    // console.log('[samesame] handleSamesameReplyIfNeeded called for text message', {
+    //     hasReplyTo: !!(message?.reply_to_message_id || message?.reply_to?.message_id || message?.replyTo?.message_id),
+    //     textPreview: (message?.content?.text?.text || '').substring(0, 60),
+    //     isOutgoing: message?.is_outgoing,
+    //     chatId: message?.chat_id
+    // });
 
     if (!message || !message.content || message.content['_'] !== 'messageText') return;
 

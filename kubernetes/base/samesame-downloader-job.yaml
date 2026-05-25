@@ -70,8 +70,10 @@ spec:
                 secretKeyRef:
                   name: huggingface-token
                   key: HUGGING_FACE_HUB_TOKEN
+            - name: DOWNLOAD_TIMEOUT
+              value: "1800"
             - name: SAMESAME_MODEL_NAME
-              value: "tts_models/multilingual/multi-dataset/xtts_v2"
+              value: "FunAudioLLM/CosyVoice-300M"
             - name: COQUI_TOS_AGREED
               value: "1"
           volumeMounts:
@@ -80,12 +82,12 @@ spec:
             - name: scripts
               mountPath: /scripts
           resources:
-            # Light resources for model download (short lived)
+            # Increased resources for reliable download
             requests:
-              cpu: "300m"
-              memory: "512Mi"
-            limits:
               cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
               memory: "4Gi"
       volumes:
         - name: models

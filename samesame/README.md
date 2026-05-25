@@ -9,16 +9,15 @@
 3. Синтезирует текст ответа в его голосе.
 4. Возвращает `audio/wav` или `audio/ogg`.
 
-## Стек моделей
-
-Используется:
-
-- `tts_models/multilingual/multi-dataset/xtts_v2` — XTTS v2 (мультиязычный voice cloning высшего качества). Заменяет старую YourTTS.
+## 📢 Recent Changes (May 2026)
+- Switched to **FunAudioLLM/CosyVoice2‑0.5B** (CPU‑optimized) instead of XTTS.
+- Added Docker base image `python:3.10‑slim` and removed Miniconda.
+- Models download via dedicated Job; PVC size increased to 6 GiB.
+- `samesame` now reports **Model ready** on startup.
 
 Особенности текущей реализации:
 1. **CPU Оптимизация**: Работает на процессорах без GPU. Для ускорения инференса используется принудительное выделение потоков (`OMP_NUM_THREADS="4"` и `torch.set_num_threads(4)`).
-2. **torchcodec**: Интегрирован для правильного декодирования аудио перед синтезом.
-3. Модели скачиваются **только** через dedicated Kubernetes Job (`samesame-downloader-job.yaml`) в PVC. Никогда не на локальной машине. Маркер-файлы предотвращают повторные скачивания при последующих деплоях.
+2. Модели скачиваются **только** через dedicated Kubernetes Job (`samesame-downloader-job.yaml`) в PVC. Никогда не на локальной машине. Маркер-файлы предотвращают повторные скачивания при последующих деплоях.
 
 ## API
 
@@ -76,9 +75,8 @@ http://samesame:8002
 
 ## Секреты
 
-- `HUGGINGFACE_API_KEY` — из `.env` (попадает в секрет `huggingface-token`).
+- `HUGGINGFACE_API_KEY` — из `.env` (попадает в секрет `huggingface-token`). Обязателен для скачивания моделей с HF.
 - `SAMESAME_SECRET` — хранится в `kubernetes/base/samesame-secret.yaml` (генерится при деплое из `.env`).
-- `SAMESAME_DEFAULT_LANGUAGE` — опционально, по умолчанию `ru` (нужен для многоязычной модели YourTTS).
 
 ## Особенности
 

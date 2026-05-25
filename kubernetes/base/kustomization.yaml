@@ -40,3 +40,13 @@ images:
     newTag: latest
 
 namespace: debugging-testcrash-pub
+
+configMapGenerator:
+  - name: whisper-service-v2-download-scripts
+    files:
+      - download-models.sh=scripts/whisper-download-models.sh
+  - name: samesame-download-scripts
+    files:
+      - download-models.sh=scripts/samesame-download-models.sh
+generatorOptions:
+  disableNameSuffixHash: true

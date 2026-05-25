@@ -10,24 +10,6 @@ spec:
       storage: 20Gi
   storageClassName: local-path
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: samesame-download-scripts
-data:
-  download-models.sh: |
-    #!/bin/sh
-    set -eu
-
-    MODELS_DIR="${MODELS_DIR:-/models}"
-    echo "[samesame-downloader] MODELS_DIR=$MODELS_DIR"
-    mkdir -p "$MODELS_DIR"
-
-    export XDG_DATA_HOME="$MODELS_DIR"
-    export TRANSFORMERS_CACHE="$MODELS_DIR"
-
-    python /app/download_model.py "$MODELS_DIR"
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -74,21 +56,21 @@ spec:
             - name: SAMESAME_LOCAL_ONLY
               value: "true"
             - name: SAMESAME_MODEL_NAME
-              value: "tts_models/multilingual/multi-dataset/xtts_v2"
+              value: "FunAudioLLM/CosyVoice-300M"
             - name: COQUI_TOS_AGREED
               value: "1"
           resources:
-            # OPTIMIZED: Increased for faster voice cloning (TTS)
+            # Optimized: reduced CPU to fit cluster quota while retaining speed
             requests:
-              cpu: "2"
+              cpu: "0.8"
               memory: "4Gi"
             limits:
-              cpu: "3"
+              cpu: "1.0"
               memory: "8Gi"
           volumeMounts:
             - name: models
               mountPath: /models
-              readOnly: true
+              
           # Readiness: fails (503) until the downloader Job has populated the models.
           # This keeps the pod out of load-balancing until it can actually serve requests.
           readinessProbe:
