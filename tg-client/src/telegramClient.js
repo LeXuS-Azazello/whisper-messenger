@@ -17,6 +17,7 @@ const clientStartTime = Math.floor(Date.now() / 1000);
 let oldMessagesProcessed = 0;
 
 export const pendingUploads = new Map();
+export const botGeneratedMsgIds = new Set();
 
 const incomingQueue = [];
 let isProcessingQueue = false;
@@ -59,6 +60,10 @@ export async function handleNewMessage(message) {
 
 async function processSingleMessage(message) {
     if (!message || !message.content) return;
+    if (botGeneratedMsgIds.has(message.id)) {
+        console.log(`[tg-client] Ignoring bot-generated message ${message.id} to prevent loop/duplicate`);
+        return;
+    }
     const chat_id = message.chat_id;
     const message_id = message.id;
     const type = message.content['_'];
@@ -175,12 +180,20 @@ export async function startUserClient() {
             console.log(`[tg-client] 🎉 Authorized!`);
         }
         if (type === 'updateNewMessage') handleNewMessage(update.message);
-        
+
         if (type === 'updateMessageSendSucceeded' || type === 'updateMessageSendFailed') {
             const oldId = update.old_message_id;
+            
+            if (oldId && botGeneratedMsgIds.has(oldId)) {
+                if (type === 'updateMessageSendSucceeded' && update.message?.id) {
+                    botGeneratedMsgIds.add(update.message.id);
+                }
+                // We keep the oldId in the set just in case, it doesn't hurt and prevents race conditions
+            }
+
             if (oldId && pendingUploads.has(oldId)) {
                 const filePath = pendingUploads.get(oldId);
-                try { fs.unlinkSync(filePath); } catch (_) {}
+                try { fs.unlinkSync(filePath); } catch (_) { }
                 pendingUploads.delete(oldId);
             }
         }
@@ -221,10 +234,10 @@ export async function sendTestMessage(messageText) {
  */
 async function handleSamesameReplyIfNeeded(message) {
     console.log('[samesame] handleSamesameReplyIfNeeded called for text message', {
-      hasReplyTo: !!(message?.reply_to_message_id || message?.reply_to?.message_id || message?.replyTo?.message_id),
-      textPreview: (message?.content?.text?.text || '').substring(0, 60),
-      isOutgoing: message?.is_outgoing,
-      chatId: message?.chat_id
+        hasReplyTo: !!(message?.reply_to_message_id || message?.reply_to?.message_id || message?.replyTo?.message_id),
+        textPreview: (message?.content?.text?.text || '').substring(0, 60),
+        isOutgoing: message?.is_outgoing,
+        chatId: message?.chat_id
     });
 
     if (!message || !message.content || message.content['_'] !== 'messageText') return;
@@ -234,8 +247,8 @@ async function handleSamesameReplyIfNeeded(message) {
 
     let replyToId = message.reply_to_message_id || message.reply_to?.message_id || message.replyTo?.message_id;
     if (!replyToId) {
-      console.log('[samesame] no reply_to_message_id in any known location, skipping');
-      return;
+        console.log('[samesame] no reply_to_message_id in any known location, skipping');
+        return;
     }
 
     const chatId = message.chat_id;
@@ -337,13 +350,14 @@ async function handleSamesameReplyIfNeeded(message) {
                 }
             });
             console.timeEnd(`[tg-client] Send SAMESAME Voice Reply msg ${message.id}`);
-            
+
             if (sentMsg && sentMsg.id) {
+                botGeneratedMsgIds.add(sentMsg.id);
                 pendingUploads.set(sentMsg.id, tempOut);
                 tempOut = null; // Do not delete in finally block
             }
         } finally {
-            if (tempOut) { try { fs.unlinkSync(tempOut); } catch (_) {} }
+            if (tempOut) { try { fs.unlinkSync(tempOut); } catch (_) { } }
             if (statusMsg) await deleteMessage(client, chatId, statusMsg.id);
         }
 

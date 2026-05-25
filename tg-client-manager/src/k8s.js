@@ -226,11 +226,15 @@ export async function spawnPod(userId, session, username = '') {
     // Add dynamic config from Redis as Environment Variables
     console.log(`[/spawn] Step 9: Loading dynamic configurations from Redis...`);
     try {
-        const provider = env.WHISPER_PROVIDER || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local:8000';
+        const provider = await redis.get('config_whisper_provider') || process.env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+        const samesameUrl = await redis.get('config_samesame_url') || process.env.SAMESAME_URL || 'http://samesame.debugging-testcrash-pub.svc.cluster.local:8002';
+        const samesameSecret = await redis.get('config_samesame_secret') || process.env.SAMESAME_SECRET || '';
         
         container.env.push({ name: 'WHISPER_PROVIDER', value: provider });
+        container.env.push({ name: 'SAMESAME_URL', value: samesameUrl });
+        container.env.push({ name: 'SAMESAME_SECRET', value: samesameSecret });
         
-        console.log(`[/spawn] Redis dynamic config: provider="${provider}"`);
+        console.log(`[/spawn] Redis dynamic config: provider="${provider}", samesameUrl="${samesameUrl}"`);
     } catch (e) {
         console.warn(`[/spawn] Failed to fetch dynamic config from Redis:`, e.message);
     }

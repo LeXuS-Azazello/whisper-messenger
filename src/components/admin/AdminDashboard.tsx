@@ -10,6 +10,7 @@ import { PlatformConfigCard } from './PlatformConfigCard';
 import { LineAdminCard } from './LineAdminCard';
 import { TranscriptionStatsCard } from './TranscriptionStatsCard';
 import { UserManagementCard } from './UserManagementCard';
+import { AIConfigCard } from './AIConfigCard';
 
 export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: string, stats: any, errors: ErrorLog[], users: UserSession[] = [], tgAuthenticated: boolean = false) => {
     return "<!DOCTYPE html>" + render(
@@ -72,7 +73,7 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
 
                         <LineAdminCard />
 
-                        {/* AI Provider UI temporarily disabled (was duplicated and broken) */}
+                        <AIConfigCard checks={checks} env={env} />
 
                         <TranscriptionStatsCard stats={stats} users={users} />
 

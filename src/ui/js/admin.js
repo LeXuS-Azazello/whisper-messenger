@@ -162,58 +162,42 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
 
-    // Whisper Config Logic
-    function loadWhisperConfig() {
-        fetch('/admin/whisper-config').then(r => r.json()).then(data => {
-            const providerWhisperTurbo = document.getElementById('provider-whisper-service');
-            const localSection = document.getElementById('local-config-section');
+    // AI Config Logic
+    function loadAiConfig() {
+        fetch('/admin/ai-config').then(r => r.json()).then(data => {
+            const whisperUrlInput = document.getElementById('ai-whisper-url');
+            const whisperSecretInput = document.getElementById('ai-whisper-secret');
+            const samesameUrlInput = document.getElementById('ai-samesame-url');
+            const samesameSecretInput = document.getElementById('ai-samesame-secret');
             
-            const localUrlInput = document.getElementById('local-whisper-url');
-            const localSecretInput = document.getElementById('local-whisper-secret');
-            
-            if (data.provider === 'whisper-service') {
-                if (providerWhisperTurbo) providerWhisperTurbo.checked = true;
-                if (localSection) localSection.style.display = 'block';
-            }
-
-            if (localUrlInput && data.localUrl) localUrlInput.value = data.localUrl;
-            if (localSecretInput && data.localSecret) localSecretInput.value = data.localSecret;
-
-            const statusTag = document.getElementById('whisper-status-tag');
-            if (statusTag) statusTag.innerText = data.provider.replace('-', ' ').toUpperCase();
+            if (whisperUrlInput && data.provider) whisperUrlInput.value = data.provider;
+            if (whisperSecretInput && data.localSecret) whisperSecretInput.value = data.localSecret;
+            if (samesameUrlInput && data.samesameUrl) samesameUrlInput.value = data.samesameUrl;
+            if (samesameSecretInput && data.samesameSecret) samesameSecretInput.value = data.samesameSecret;
         });
     }
-    loadWhisperConfig();
+    loadAiConfig();
 
-    document.querySelectorAll('input[name="whisper_provider"]').forEach(input => {
-        input.addEventListener('change', (e) => {
-            const localSection = document.getElementById('local-config-section');
-            if (localSection) localSection.style.display = (e.target.value === 'whisper-service' || e.target.value === 'local') ? 'block' : 'none';
-        });
-    });
-
-    const saveWhisperBtn = document.getElementById('save-whisper-btn');
-    if (saveWhisperBtn) {
-        saveWhisperBtn.addEventListener('click', () => {
-            const checked = document.querySelector('input[name="whisper_provider"]:checked');
-            if (!checked) return;
-            const provider = checked.value;
+    const saveAiBtn = document.getElementById('save-ai-btn');
+    if (saveAiBtn) {
+        saveAiBtn.addEventListener('click', () => {
+            const provider = document.getElementById('ai-whisper-url')?.value || '';
+            const localSecret = document.getElementById('ai-whisper-secret')?.value || '';
+            const samesameUrl = document.getElementById('ai-samesame-url')?.value || '';
+            const samesameSecret = document.getElementById('ai-samesame-secret')?.value || '';
             
-            const localUrl = document.getElementById('local-whisper-url')?.value || '';
-            const localSecret = document.getElementById('local-whisper-secret')?.value || '';
-            
-            saveWhisperBtn.innerText = 'Saving...';
-            fetch('/admin/whisper-config', {
+            saveAiBtn.innerText = 'Saving...';
+            fetch('/admin/ai-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ provider, localUrl, localSecret })
+                body: JSON.stringify({ provider, localSecret, samesameUrl, samesameSecret })
             }).then(r => r.json()).then(d => {
                 alert(d.success ? 'AI config saved' : 'Error: ' + d.error);
-                saveWhisperBtn.innerText = 'Save AI Config';
-                loadWhisperConfig();
+                saveAiBtn.innerText = 'Save AI Config';
+                loadAiConfig();
             }).catch(e => {
                 alert('Save failed: ' + e.message);
-                saveWhisperBtn.innerText = 'Save AI Config';
+                saveAiBtn.innerText = 'Save AI Config';
             });
         });
     }
@@ -222,10 +206,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const testS2tBtn = document.getElementById('test-s2t-btn');
     if (testS2tBtn) {
         testS2tBtn.addEventListener('click', () => {
-            const checked = document.querySelector('input[name="whisper_provider"]:checked');
-            if (!checked) return;
-            const provider = checked.value;
-            
             fetch('/admin/sample-audio')
                 .then(r => r.json())
                 .then(data => {
@@ -235,14 +215,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(blob => {
                     const form = new FormData();
                     form.append('file', blob, 'sample.wav');
-                    return fetch('/test-whisper?provider=' + provider, {
+                    return fetch('/test-whisper', {
                         method: 'POST',
                         body: form
                     });
                 })
                 .then(r => r.json())
                 .then(data => {
-                    alert(data.success ? '✅ ' + provider + ' transcription: ' + data.text : '❌ Error: ' + data.error);
+                    alert(data.success ? '✅ Transcription: ' + data.text : '❌ Error: ' + data.error);
                 })
                 .catch(e => alert('Fetch error: ' + e));
         });
@@ -252,9 +232,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const recordTestBtn = document.getElementById('record-test-btn');
     if (recordTestBtn) {
         recordTestBtn.addEventListener('click', async () => {
-            const checked = document.querySelector('input[name="whisper_provider"]:checked');
-            const provider = checked ? checked.value : 'whisper-service';
-            
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const mediaRecorder = new MediaRecorder(stream);
@@ -267,7 +244,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     form.append('file', blob, 'record.webm');
                     
                     recordTestBtn.innerText = 'Transcribing...';
-                    const res = await fetch('/test-whisper?provider=' + provider, {
+                    const res = await fetch('/test-whisper', {
                         method: 'POST',
                         body: form
                     });

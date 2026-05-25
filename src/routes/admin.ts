@@ -9,8 +9,8 @@ import {
     getTgStatus,
     tgTestMsg,
     getUsersJson,
-    getWhisperConfig,
-    updateWhisperConfig,
+    getAiConfig,
+    updateAiConfig,
     userAction,
     runDiagnostics,
     renderDashboardPage
@@ -184,9 +184,9 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
             return await getUsersJson(env);
         }
 
-        if (pathname === "/admin/whisper-config") {
-            if (method === "GET") return await getWhisperConfig(env);
-            if (method === "POST") return await updateWhisperConfig(env, req);
+        if (pathname === "/admin/ai-config") {
+            if (method === "GET") return await getAiConfig(env);
+            if (method === "POST") return await updateAiConfig(env, req);
         }
 
 

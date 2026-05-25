@@ -101,6 +101,19 @@ export async function spawnPod(userId, igSession, username = '') {
     envMap.set('MANAGER_URL', { name: 'MANAGER_URL', value: `http://instagram-fca-manager:3005` });
     
     container.env = Array.from(envMap.values());
+    
+    try {
+        const provider = await redis.get('config_whisper_provider') || process.env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+        const samesameUrl = await redis.get('config_samesame_url') || process.env.SAMESAME_URL || 'http://samesame.debugging-testcrash-pub.svc.cluster.local:8002';
+        const samesameSecret = await redis.get('config_samesame_secret') || process.env.SAMESAME_SECRET || '';
+        
+        container.env.push({ name: 'WHISPER_PROVIDER', value: provider });
+        container.env.push({ name: 'SAMESAME_URL', value: samesameUrl });
+        container.env.push({ name: 'SAMESAME_SECRET', value: samesameSecret });
+    } catch (e) {
+        console.warn(`[/spawn] Failed to fetch dynamic config from Redis:`, e.message);
+    }
+
     if (process.env.FCA_CLIENT_IMAGE) container.image = process.env.FCA_CLIENT_IMAGE;
 
     await withTimeout(k8sApi.createNamespacedPod({ namespace: ns, body: podManifest }), 30000);
