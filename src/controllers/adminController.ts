@@ -335,6 +335,21 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
           { userId },
           { preferredTranslationLanguage: language || null }
         );
+
+        // Sync to Redis
+        await env.STATS.put(`translate_lang_${userId}`, language || "off");
+
+        // Sync to user_meta cache in Redis
+        const metaRaw = await env.STATS.get(`user_meta_${userId}`);
+        if (metaRaw) {
+            try {
+                const meta = JSON.parse(metaRaw);
+                meta.preferredTranslationLanguage = language || null;
+                meta.preferred_translation_lang = language || null;
+                await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+            } catch (e) {}
+        }
+
         // Restart the user pod so it picks up the new env var on next spawn
         await fetch(`${managerUrl}/delete?secret=${secret}`, {
             method: "POST",

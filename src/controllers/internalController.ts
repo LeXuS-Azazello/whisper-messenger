@@ -106,8 +106,12 @@ export async function handleUserMeta(env: Env, req: Request, url: URL): Promise<
         createdAt: dbUser.createdAt ? dbUser.createdAt.getTime() : Date.now(),
         lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : Date.now(),
         session: tgSession?.sessionData || "",
-        platform: "telegram"
+        platform: "telegram",
+        preferredTranslationLanguage: dbUser.preferredTranslationLanguage || null,
+        preferred_translation_lang: dbUser.preferredTranslationLanguage || null
       };
+      // Cache in Redis
+      await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
       return Response.json(meta);
     }
     

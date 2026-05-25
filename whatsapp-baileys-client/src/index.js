@@ -14,10 +14,13 @@ import path from 'path';
 import AdmZip from 'adm-zip';
 import http from 'http';
 import pino from 'pino';
+import Redis from 'ioredis';
+import translate from 'google-translate-api-x';
+import { isSamesameRequest, parseSamesameRequest, cloneVoiceWithSamesame } from '../shared/samesame.js';
 
 const TARGET_USER_ID  = process.env.TARGET_USER_ID || 'unknown';
 const WHISPER_PROVIDER = process.env.WHISPER_PROVIDER
-    || 'http://whisper-service.debugging-testcrash-pub.svc.cluster.local/v1/transcribe-base64';
+    || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000/v1/transcribe-base64';
 const MANAGER_URL = process.env.MANAGER_URL
     || 'http://whatsapp-baileys-manager.debugging-testcrash-pub.svc.cluster.local:3002';
 const SECRET      = process.env.SECRET || process.env.MANAGER_SECRET || 'changeme';
@@ -33,6 +36,16 @@ let sock        = null;
 let isLoggedOut = false;
 let isReconnecting = false;
 
+// Initialize Redis Client
+const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
+const redis = new Redis(REDIS_URL, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+});
+redis.on('error', (err) => {
+    console.error('[WA-Client] Redis error:', err.message);
+});
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -46,6 +59,30 @@ function splitChunks(text, limit = 3900) {
         remaining = remaining.slice(limit);
     }
     return chunks;
+}
+
+function getLangLabel(code) {
+    if (!code) return '🌐 auto';
+    const normalized = code.toLowerCase().split('_')[0];
+    const map = {
+        'ru': '🇷🇺 рус', 'rus': '🇷🇺 рус',
+        'en': '🇺🇸 eng', 'eng': '🇺🇸 eng',
+        'he': '🇮🇱 עבר', 'heb': '🇮🇱 עבר',
+        'uk': '🇺🇦 укр',
+        'de': '🇩🇪 нем', 'deu': '🇩🇪 нем',
+        'fr': '🇫🇷 фр', 'fra': '🇫🇷 фр',
+        'es': '🇪🇸 исп', 'spa': '🇪🇸 исп',
+        'th': '🇹🇭 тай',
+        'zh': '🇨🇳 кит', 'zho': '🇨🇳 кит',
+        'ja': '🇯🇵 яп', 'jpn': '🇯🇵 яп',
+        'ko': '🇰🇷 kor',
+        'ar': '🇸🇦 ар', 'arb': '🇸🇦 ар',
+        'vi': '🇻🇳 вьет',
+        'id': '🇮🇩 инд',
+        'tr': '🇹🇷 тур',
+        'auto': '🌐 auto',
+    };
+    return map[normalized] || `🌐 ${normalized}`;
 }
 
 // ─── Session Restore ─────────────────────────────────────────────────────────
@@ -181,6 +218,7 @@ async function processAudio(msg) {
     // Transcribe with retries
     const base64Audio = buffer.toString('base64');
     let transcription = '';
+    let detectedLang = '';
     let lastErr;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
@@ -197,6 +235,7 @@ async function processAudio(msg) {
             if (!response.ok) throw new Error(`Whisper HTTP ${response.status}`);
             const data = await response.json();
             transcription = data.text || '';
+            detectedLang = data.language || '';
             break;
         } catch (e) {
             lastErr = e;
@@ -214,19 +253,145 @@ async function processAudio(msg) {
         return;
     }
 
-    console.log(`[WA-Client ${TARGET_USER_ID}] Transcribed: ${transcription.trim()}`);
+    let finalText = transcription.trim();
+    const labelPrefix = getLangLabel(detectedLang);
+    let finalLabel = labelPrefix;
+
+    // Handle Translation
+    try {
+        let targetLang = await redis.get(`translate_lang_${TARGET_USER_ID}`);
+        if (!targetLang) {
+            try {
+                const rawMeta = await redis.get(`user_meta_${TARGET_USER_ID}`);
+                if (rawMeta) {
+                    const meta = JSON.parse(rawMeta);
+                    targetLang = meta.preferredTranslationLanguage || meta.preferred_translation_lang || null;
+                }
+            } catch (err) {
+                console.error(`[WA-Client] Failed to read user_meta for translation:`, err.message);
+            }
+        }
+        if (!targetLang) targetLang = 'auto';
+
+        if (targetLang !== 'off') {
+            if (targetLang === 'auto') {
+                targetLang = 'en'; // Default to english for auto target
+            }
+
+            const isSameLanguage = detectedLang && targetLang 
+                && (detectedLang.toLowerCase().startsWith(targetLang.toLowerCase()) 
+                    || targetLang.toLowerCase().startsWith(detectedLang.toLowerCase()));
+                    
+            if (!isSameLanguage) {
+                console.time(`[WA-Client] Translate to ${targetLang}`);
+                const transResult = await translate(finalText, { to: targetLang });
+                console.timeEnd(`[WA-Client] Translate to ${targetLang}`);
+                
+                if (transResult && transResult.text) {
+                    finalText = transResult.text + `\n\n_(${labelPrefix} → ${getLangLabel(targetLang)})_\n_Orig: ${finalText}_`;
+                    finalLabel = ''; // Label included in footer
+                }
+            }
+        }
+    } catch (transErr) {
+        console.error(`[WA-Client] Translation error:`, transErr.message);
+    }
+
+    if (finalLabel) finalText = `${finalLabel} ${finalText}`;
+
+    console.log(`[WA-Client ${TARGET_USER_ID}] Transcribed: ${finalText}`);
 
     // Reply (split if long)
-    const chunks = splitChunks(transcription.trim(), 3900);
+    const chunks = splitChunks(finalText, 3900);
     for (let i = 0; i < chunks.length; i++) {
         let text = chunks[i];
-        if (chunks.length === 1) text = `🎤 ${text}`;
-        else                     text = `(Part ${i + 1}/${chunks.length})\n\n${text}`;
+        if (chunks.length > 1) {
+            text = `(Part ${i + 1}/${chunks.length})\n\n${text}`;
+        }
         await sock.sendMessage(jid, { text }, { quoted: msg });
         if (i < chunks.length - 1) await sleep(1500);
     }
 
     await reportStats();
+}
+
+// ─── Voice Cloning (SAMESAME) ──────────────────────────────────────────────────
+
+async function handleSamesameReplyIfNeeded(msg) {
+    if (!msg || !msg.message) return;
+
+    const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+    if (!isSamesameRequest(text)) return;
+
+    const quotedContext = msg.message?.extendedTextMessage?.contextInfo;
+    const quotedMsg = quotedContext?.quotedMessage;
+    const quotedMsgId = quotedContext?.stanzaId;
+
+    if (!quotedMsg) return;
+
+    const mediaMsg = getMediaMessage(quotedMsg);
+    if (!mediaMsg) {
+        await sock.sendMessage(msg.key.remoteJid, { text: '⚠️ Нужно ответить на голосовое сообщение или видео.' }, { quoted: msg });
+        return;
+    }
+
+    const jid = msg.key.remoteJid;
+    const { text: cleanText, language } = parseSamesameRequest(text);
+    if (!cleanText) {
+        await sock.sendMessage(jid, { text: '⚠️ После !SAMESAME! нужно написать текст, который нужно произнести.' }, { quoted: msg });
+        return;
+    }
+
+    let statusMsgId = null;
+    try {
+        const statusMsg = await sock.sendMessage(jid, { text: '🎤 Клонирую голос... (SAMESAME)' }, { quoted: msg });
+        statusMsgId = statusMsg?.key?.id;
+
+        const mockMsg = {
+            key: {
+                remoteJid: jid,
+                id: quotedMsgId,
+                fromMe: quotedContext.participant === sock.user?.id
+            },
+            message: mediaMsg
+        };
+
+        const buffer = await downloadMediaMessage(
+            mockMsg,
+            'buffer',
+            {},
+            { reuploadRequest: sock.updateMediaMessage }
+        );
+
+        if (!buffer) throw new Error('Failed to download source audio');
+
+        const mime = mediaMsg.audioMessage ? (mediaMsg.audioMessage.mimetype || 'audio/ogg') : (mediaMsg.videoMessage?.mimetype || 'video/mp4');
+
+        const samesameUrl = process.env.SAMESAME_URL || 'http://samesame:8002';
+        const samesameSecret = process.env.SAMESAME_SECRET;
+
+        const { audioBuffer: resultBuffer } = await cloneVoiceWithSamesame({
+            sourceAudioBuffer: buffer,
+            text: cleanText,
+            language,
+            sourceMimeType: mime,
+            samesameSecret,
+            samesameUrl
+        });
+
+        // Send the cloned voice back as audio (voice note)
+        await sock.sendMessage(jid, {
+            audio: resultBuffer,
+            mimetype: 'audio/ogg; codecs=opus',
+            ptt: true
+        }, { quoted: msg });
+
+    } catch (err) {
+        console.error('[WA-Client] SAMESAME error:', err);
+        await sock.sendMessage(jid, { text: `Ошибка SAMESAME: ${err.message}` }, { quoted: msg });
+    } finally {
+        if (statusMsgId) await deleteMsg(jid, statusMsgId);
+    }
 }
 
 // ─── WhatsApp Connection ─────────────────────────────────────────────────────
@@ -302,7 +467,35 @@ async function connectToWhatsApp() {
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
         for (const msg of messages) {
-            if (!msg.message || msg.key.fromMe) continue;
+            if (!msg.message) continue;
+
+            const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+
+            // Handle /lang settings command
+            if (msg.key.fromMe && text.startsWith('/lang')) {
+                try {
+                    const parts = text.split(/\s+/);
+                    const langOpt = parts[1] ? parts[1].toLowerCase() : 'auto';
+                    await redis.set(`translate_lang_${TARGET_USER_ID}`, langOpt);
+                    let reply = `✅ Translation target set to: ${langOpt}`;
+                    if (langOpt === 'off') reply = `✅ Translation disabled.`;
+                    else if (langOpt === 'auto') reply = `✅ Translation set to auto.`;
+                    await sock.sendMessage(msg.key.remoteJid, { text: reply }, { quoted: msg });
+                } catch (err) {
+                    console.error('[WA-Client] failed to set lang:', err.message);
+                }
+                continue;
+            }
+
+            // Handle SAMESAME request
+            if (isSamesameRequest(text)) {
+                handleSamesameReplyIfNeeded(msg).catch(err => {
+                    console.error('[WA-Client] SAMESAME handler error:', err.message);
+                });
+                continue;
+            }
+
+            if (msg.key.fromMe) continue;
             
             // Strictly process only private, direct messages (JIDs ending with @s.whatsapp.net)
             if (!msg.key.remoteJid || !msg.key.remoteJid.endsWith('@s.whatsapp.net')) continue;

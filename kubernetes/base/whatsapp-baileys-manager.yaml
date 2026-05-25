@@ -65,6 +65,11 @@ metadata:
   name: whatsapp-baileys-manager
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: whatsapp-baileys-manager
@@ -82,6 +87,13 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 3002
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
         env:
         - name: MODE
           value: "MANAGER"

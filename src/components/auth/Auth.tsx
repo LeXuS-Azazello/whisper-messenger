@@ -92,10 +92,12 @@ export const renderAuthPage = (
                         /* Authentication Flow (Forms) */
                         <div id="auth-view">
                             <div class="logo-section">
-                                <div class="logo-icon">
-                                    <SparklesIcon size={32} color="white" strokeWidth={2.5} />
-                                </div>
-                                <h1 class="title">Echo Messenger</h1>
+                                <a href="/" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <div class="logo-icon">
+                                        <SparklesIcon size={32} color="white" strokeWidth={2.5} />
+                                    </div>
+                                    <h1 class="title">Echo Messenger</h1>
+                                </a>
                                 <p class="subtitle" id="auth-subtitle">
                                     {view === 'login' && "Personalized voice message transcription for Telegram, WhatsApp & Meta."}
                                     {view === 'register' && "Create an account to start transcribing your voice messages."}

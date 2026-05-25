@@ -164,6 +164,17 @@ async function processSingleMessage(message) {
                 // Handle Translation
                 try {
                     let targetLang = await redis.get(`translate_lang_${TARGET_USER_ID}`);
+                    if (!targetLang) {
+                        try {
+                            const rawMeta = await redis.get(`user_meta_${TARGET_USER_ID}`);
+                            if (rawMeta) {
+                                const meta = JSON.parse(rawMeta);
+                                targetLang = meta.preferredTranslationLanguage || meta.preferred_translation_lang || null;
+                            }
+                        } catch (err) {
+                            console.error(`[tg-client] Failed to read user_meta for translation:`, err.message);
+                        }
+                    }
                     if (!targetLang) targetLang = 'auto'; // Default
 
                     if (targetLang !== 'off') {

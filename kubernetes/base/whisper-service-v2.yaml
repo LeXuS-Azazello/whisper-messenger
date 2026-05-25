@@ -181,7 +181,7 @@ spec:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
-      maxUnavailable: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: whisper-service-v2
@@ -225,11 +225,11 @@ spec:
            # OPTIMIZED: Slightly increased for better request handling
            resources:
              requests:
-               cpu: "750m"
-               memory: "640Mi"
+               cpu: "2m"
+               memory: "1024Mi"
              limits:
-               cpu: "1.5"
-               memory: "1200Mi"
+               cpu: "100m"
+               memory: "2Gi"
            volumeMounts:
              - name: models
                mountPath: /models
@@ -283,10 +283,10 @@ spec:
            # OPTIMIZED: Using ~4 cores per pod for ideal scaling
            resources:
              requests:
-               cpu: "2000m"
-               memory: "3Gi"
+               cpu: "2500m"
+               memory: "4Gi"
              limits:
-               cpu: "4"
+               cpu: "2800m"
                memory: "5Gi"
            volumeMounts:
              - name: models

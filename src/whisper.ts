@@ -63,11 +63,31 @@ export async function transcribeAudio(
     // Hallucination cleanup
     text = text.replace(/(.+?\.)\s*\1\s*\1(\s*\1)*/g, '$1 $1');
 
+    const detectedLanguage = result.language || result.detected_language || "unknown";
+    let translatedText = result.translated || null;
+
+    if (targetLanguage && targetLanguage !== "off" && !translatedText) {
+      const isSameLanguage = detectedLanguage && targetLanguage 
+          && (detectedLanguage.toLowerCase().startsWith(targetLanguage.toLowerCase()) 
+              || targetLanguage.toLowerCase().startsWith(detectedLanguage.toLowerCase()));
+      if (!isSameLanguage) {
+        try {
+          const { default: translate } = await import("google-translate-api-x");
+          const transResult = (await translate(text, { to: targetLanguage })) as any;
+          if (transResult && transResult.text) {
+            translatedText = transResult.text;
+          }
+        } catch (transErr: any) {
+          console.error(`[transcribeAudio] Translation error:`, transErr.message);
+        }
+      }
+    }
+
     return {
       text,
-      detectedLanguage: result.language || result.detected_language || "unknown",
-      translated: result.translated || null,
-      targetLanguage: result.target_language || targetLanguage || null,
+      detectedLanguage,
+      translated: translatedText,
+      targetLanguage: targetLanguage || null,
       model: "whisper-service-v2"
     };
   } catch (e) {

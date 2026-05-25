@@ -9,6 +9,7 @@
     "pino": "^9.0.0",
     "adm-zip": "^0.5.10",
     "dotenv": "^16.4.5",
-    "ioredis": "^5.4.1"
+    "ioredis": "^5.4.1",
+    "google-translate-api-x": "^10.7.2"
   }
 }

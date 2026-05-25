@@ -248,7 +248,7 @@ export async function processFile(filePath, targetLanguage) {
         if (typeof vad.flush === 'function') {
           vad.flush();
         }
-      } catch (_) {}
+      } catch (_) { }
 
       const tPunct = Date.now();
       try {
@@ -267,7 +267,7 @@ export async function processFile(filePath, targetLanguage) {
             finalText += ' ' + result.text;
           }
         }
-      } catch (_) {}
+      } catch (_) { }
 
       finalText = finalText.trim();
       const punctuated = addPunctuation(finalText, detectedLanguage);
@@ -281,7 +281,7 @@ export async function processFile(filePath, targetLanguage) {
 
       resolve({
         text: punctuated,
-        language: detectedLanguage || 'unknown',
+        language: detectedLanguage || 'en',
         translated: false,
         target_language: targetLanguage || null,
         model: 'large-v3-turbo (Sherpa-ONNX)',
@@ -311,7 +311,7 @@ export async function processBuffer(buffer, targetLanguage) {
     if (existsSync(tmpFile)) {
       try {
         unlinkSync(tmpFile);
-      } catch (_) {}
+      } catch (_) { }
     }
   }
 }

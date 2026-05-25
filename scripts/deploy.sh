@@ -360,6 +360,13 @@ echo ">>> Whisper Service v2 + Samesame deployed."
     done
 fi
 
+echo ">>> Restarting manager deployments to apply new images..."
+kubectl rollout restart deployment/whatsapp-baileys-manager -n "$NAMESPACE" || true
+kubectl rollout restart deployment/facebook-fca-manager -n "$NAMESPACE" || true
+kubectl rollout restart deployment/instagram-fca-manager -n "$NAMESPACE" || true
+kubectl rollout restart deployment/tg-client-manager -n "$NAMESPACE" || true
+echo ""
+
 echo ">>> Deleting existing user tg-client pods to force recreation with new image..."
 kubectl delete pods -l app=tg-client-user -n "$NAMESPACE" --ignore-not-found
 echo ""

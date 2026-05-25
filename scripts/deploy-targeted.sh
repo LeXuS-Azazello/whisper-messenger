@@ -13,7 +13,7 @@ SERVICES=("$@")
 
 if [ ${#SERVICES[@]} -eq 0 ]; then
   echo "Usage: $0 <service1> [service2 ...]"
-  echo "Supported: whisper-service-v2, tg-client, samesame, tester"
+  echo "Supported: whisper-service-v2, tg-client, wa-client, wa-manager, samesame, tester, frontend"
   exit 1
 fi
 
@@ -79,6 +79,42 @@ for svc in "${SERVICES[@]}"; do
       kubectl delete pods -n "$NAMESPACE" -l app=tg-client-user --ignore-not-found || true
       ;;
 
+    whatsapp-baileys-client|wa-client)
+      echo ""
+      echo "=== Building & deploying whatsapp-baileys-client ==="
+
+      # Inject shared code
+      rm -rf whatsapp-baileys-client/shared 2>/dev/null || true
+      mkdir -p whatsapp-baileys-client/shared
+      cp -r shared/* whatsapp-baileys-client/shared/ 2>/dev/null || true
+
+      TAG=$(date +%Y%m%d-%H%M%S)
+      IMAGE="${REPO}/whatsapp-baileys-client:${TAG}"
+
+      docker build -t "$IMAGE" -f whatsapp-baileys-client/Dockerfile whatsapp-baileys-client
+      docker tag "$IMAGE" "${REPO}/whatsapp-baileys-client:latest"
+      docker push "${REPO}/whatsapp-baileys-client:latest"
+
+      kubectl set env deployment/whatsapp-baileys-manager \
+        WA_BAILEYS_IMAGE="${REPO}/whatsapp-baileys-client:latest" \
+        -n "$NAMESPACE"
+
+      kubectl delete pods -n "$NAMESPACE" -l app=wa-baileys-client --ignore-not-found || true
+      ;;
+
+    whatsapp-baileys-manager|wa-manager)
+      echo ""
+      echo "=== Building & deploying whatsapp-baileys-manager ==="
+      TAG=$(date +%Y%m%d-%H%M%S)
+      IMAGE="${REPO}/whatsapp-baileys-manager:${TAG}"
+
+      docker build -t "$IMAGE" -f whatsapp-baileys-manager/Dockerfile whatsapp-baileys-manager
+      docker tag "$IMAGE" "${REPO}/whatsapp-baileys-manager:latest"
+      docker push "${REPO}/whatsapp-baileys-manager:latest"
+
+      kubectl rollout restart deployment/whatsapp-baileys-manager -n "$NAMESPACE"
+      ;;
+
     samesame)
       echo ""
       echo "=== Building & deploying samesame ==="
@@ -116,6 +152,28 @@ for svc in "${SERVICES[@]}"; do
 
       kubectl rollout restart deployment/voicemsg-tester -n "$NAMESPACE" || true
       kubectl rollout status deployment/voicemsg-tester -n "$NAMESPACE" --timeout=120s || true
+      ;;
+
+    frontend|echo-frontend)
+      echo ""
+      echo "=== Building & deploying echo-frontend (main web app) ==="
+      
+      # Build the typescript server code
+      npm run build
+
+      TAG=$(date +%Y%m%d-%H%M%S)
+      IMAGE="${REPO}/whisper-frontend:${TAG}"
+
+      docker build -t "$IMAGE" -f Dockerfile .
+      docker tag "$IMAGE" "${REPO}/whisper-frontend:latest"
+      docker push "${REPO}/whisper-frontend:latest"
+
+      kubectl set image deployment/echo-frontend frontend="${REPO}/whisper-frontend:latest" -n "$NAMESPACE"
+      kubectl rollout restart deployment/echo-frontend -n "$NAMESPACE" || true
+
+      # Update static assets initContainer
+      kubectl set image deployment/echo-static build-assets="${REPO}/whisper-frontend:latest" -n "$NAMESPACE" || true
+      kubectl rollout restart deployment/echo-static -n "$NAMESPACE" || true
       ;;
 
     *)

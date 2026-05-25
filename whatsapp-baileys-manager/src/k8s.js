@@ -74,6 +74,7 @@ async function ensureUserPVC(sanitizedId, ns) {
 export async function spawnPod(userId, session, username = '') {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
+    const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
 
     const base = (username && username.length >= 2)
         ? username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
