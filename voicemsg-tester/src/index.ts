@@ -436,6 +436,38 @@ app.get('/', (c) => {
         </div>
       </div>
 
+      <!-- Card 2b: SenseVoice ASR -->
+      <div class="test-card" id="card-sensevoice-service">
+        <div class="test-header">
+          <div>
+            <div class="test-title">SenseVoice ASR</div>
+            <div class="test-target">http://sensevoice...:50000</div>
+          </div>
+          <span class="status-indicator" id="ind-sensevoice-service"></span>
+        </div>
+        <div class="test-desc">Tests internal SenseVoice API (/api/v1/asr) with sample audio.</div>
+        <div class="test-footer">
+          <span class="latency-badge" id="lat-sensevoice-service">-- ms</span>
+          <button class="btn btn-secondary btn-card" onclick="runSingleTest('sensevoice-service')">Run Test</button>
+        </div>
+      </div>
+
+      <!-- Card 2c: FunASR ASR -->
+      <div class="test-card" id="card-funasr-service">
+        <div class="test-header">
+          <div>
+            <div class="test-title">FunASR (Paraformer)</div>
+            <div class="test-target">http://funasr...:50001</div>
+          </div>
+          <span class="status-indicator" id="ind-funasr-service"></span>
+        </div>
+        <div class="test-desc">Tests internal FunASR OpenAI API (/v1/audio/transcriptions).</div>
+        <div class="test-footer">
+          <span class="latency-badge" id="lat-funasr-service">-- ms</span>
+          <button class="btn btn-secondary btn-card" onclick="runSingleTest('funasr-service')">Run Test</button>
+        </div>
+      </div>
+
       <!-- Card 3 -->
       <div class="test-card" id="card-redis">
         <div class="test-header">
@@ -570,7 +602,7 @@ app.get('/', (c) => {
       appendToConsole('===========================================');
       appendToConsole('Running full integration test suite...');
       
-      const ids = ['mail-worker', 'whisper-service', 'redis', 'mongodb', 'samesame-clone'];
+      const ids = ['mail-worker', 'whisper-service', 'sensevoice-service', 'funasr-service', 'redis', 'mongodb', 'samesame-clone'];
       ids.forEach(id => updateCardUI(id, 'running'));
       
       try {
