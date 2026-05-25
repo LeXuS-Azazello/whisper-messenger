@@ -1,4 +1,5 @@
 import { createClient, getLangLabel, logError } from './utils.js';
+import translate from 'google-translate-api-x';
 import {
     TARGET_USER_ID,
     redis
@@ -52,6 +53,27 @@ export async function handleNewMessage(message) {
 
     // SAMESAME voice cloning via reply (e.g. "!SAMESAME! hello" as reply to voice)
     if (type === 'messageText') {
+        const text = message.content.text?.text || '';
+        
+        // Handle /lang command from the target user
+        const isSelfChat = myUserId && Number(chat_id) === Number(myUserId);
+        const myId = myUserId || (TARGET_USER_ID ? Number(TARGET_USER_ID) : null);
+        if (message.is_outgoing || isSelfChat || Number(message.sender_id?.user_id) === myId) {
+            if (text.startsWith('/lang')) {
+                const parts = text.split(/\s+/);
+                const langOpt = parts[1] ? parts[1].toLowerCase() : 'auto';
+                
+                await redis.set(`translate_lang_${TARGET_USER_ID}`, langOpt);
+                
+                let reply = `✅ Translation target set to: ${langOpt}`;
+                if (langOpt === 'off') reply = `✅ Translation disabled.`;
+                else if (langOpt === 'auto') reply = `✅ Translation set to auto (Telegram system language).`;
+                
+                await safeSendMessage(client, chat_id, message.id, reply);
+                return;
+            }
+        }
+
         handleSamesameReplyIfNeeded(message).catch(err => {
             console.error('[samesame] Failed to handle possible SAMESAME request:', err.message);
         });
@@ -133,8 +155,43 @@ async function processSingleMessage(message) {
             if (originalText) {
                 console.log(`[tg-client] Transcription for msg ${message_id}: ${originalText}`);
 
+                let finalText = originalText;
                 const label = getLangLabel(detectedLang);
-                let finalText = `${label} ${originalText}`;
+                let finalLabel = label;
+
+                // Handle Translation
+                try {
+                    let targetLang = await redis.get(`translate_lang_${TARGET_USER_ID}`);
+                    if (!targetLang) targetLang = 'auto'; // Default
+
+                    if (targetLang !== 'off') {
+                        if (targetLang === 'auto') {
+                            const me = await client.invoke({ '_': 'getUser', 'user_id': myUserId || TARGET_USER_ID });
+                            targetLang = me?.language_code || 'en';
+                        }
+                        
+                        // Only translate if the detected language is not the target language
+                        // and detectedLang is not 'auto'
+                        const isSameLanguage = detectedLang && targetLang 
+                            && (detectedLang.toLowerCase().startsWith(targetLang.toLowerCase()) 
+                                || targetLang.toLowerCase().startsWith(detectedLang.toLowerCase()));
+                                
+                        if (!isSameLanguage) {
+                            console.time(`[tg-client] Translate msg ${message_id} to ${targetLang}`);
+                            const transResult = await translate(originalText, { to: targetLang });
+                            console.timeEnd(`[tg-client] Translate msg ${message_id} to ${targetLang}`);
+                            
+                            if (transResult && transResult.text) {
+                                finalText = transResult.text + `\n\n_(${label} → ${getLangLabel(targetLang)})_\n_Orig: ${originalText}_`;
+                                finalLabel = ''; // Label included in footer
+                            }
+                        }
+                    }
+                } catch (transErr) {
+                    console.error(`[tg-client] Translation error for msg ${message_id}:`, transErr.message);
+                }
+                
+                if (finalLabel) finalText = `${finalLabel} ${finalText}`;
 
                 const chunks = splitTextIntoChunks(finalText, 3900);
                 for (let i = 0; i < chunks.length; i++) {
