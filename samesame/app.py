@@ -33,7 +33,7 @@ os.environ["XDG_DATA_HOME"] = os.environ.get("TTS_MODEL_DIR", "/models")
 os.environ["TRANSFORMERS_CACHE"] = os.environ.get("TTS_MODEL_DIR", "/models")
 
 # The TTS model will be downloaded into TTS_MODEL_DIR and loaded at startup.
-from TTS.api import TTS
+from TTS.api import TTS # type: ignore
 
 app = FastAPI(title="SAMESAME Voice Clone Service")
 
@@ -50,7 +50,7 @@ if os.environ.get("SAMESAME_LOCAL_ONLY", "true").lower() in ("1", "true", "yes")
 
 SAMESAME_SECRET = os.environ.get("SAMESAME_SECRET", "changeme")
 MODEL_NAME = os.environ.get(
-    "SAMESAME_MODEL_NAME", "tts_models/multilingual/multi-dataset/your_tts"
+    "SAMESAME_MODEL_NAME", "tts_models/multilingual/multi-dataset/xtts_v2"
 )
 TTS_MODEL_DIR = os.environ.get("TTS_MODEL_DIR", "/models")
 OUTPUT_SAMPLE_RATE = int(os.environ.get("SAMESAME_SAMPLE_RATE", "22050"))
