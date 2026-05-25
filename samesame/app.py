@@ -268,7 +268,7 @@ def clone_voice(
         print(f"[samesame] Output encoded in {time.time() - encode_start:.2f}s")
 
         audio_base64 = base64.b64encode(response_bytes).decode("utf-8")
-        print(f"[samesame] Total voice clone request completed in {time.time() - clone_start:.2f}s")
+        print(f"[samesame] SUCCESS | model={MODEL_NAME} | format={request.output_format} | total_time={time.time() - clone_start:.2f}s", flush=True)
         
         return {"audio_base64": audio_base64, "content_type": media_type}
 

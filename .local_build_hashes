@@ -1,5 +1,4 @@
 samesame:dac836440e8756b0a30b033709dd9e61
-whisper-service-v2:f75fa99c3b40cb74566660329ee764e9
 tg-client-manager:6d689ea771337238976855ec137dc79d
 tg-client:d9bd895f77add6b8c8b2cef78b5f5ac4
 voicemsg-tester:5dc5aad8167f0bce74ce44175fb94398
@@ -9,3 +8,4 @@ instagram-fca-manager:8afc3b26bd65b67793acfa697de7acaa
 instagram-fca-client:9330a68757dc7a9386b068eede268d99
 whatsapp-baileys-manager:231217f045ff41a282a4dcf0382b0fc5
 whatsapp-baileys-client:ee5c8fece80d1bfc2f26ef590a55a3de
+whisper-service-v2:26e93a2edb2091112fff871929e95dfd

@@ -275,14 +275,16 @@ export async function processFile(filePath, targetLanguage) {
 
       const totalMs = Date.now() - jobStart;
       const avgDecode = decodeCount > 0 ? Math.round(totalDecodeMs / decodeCount) : 0;
+      const modelName = 'large-v3-turbo (Sherpa-ONNX)';
 
-      console.log(`[whisper] PHASES | init=${initMs}ms | vadCreate=${vadCreateMs}ms | ffmpegFirstData=${ffmpegFirstDataMs}ms | ffmpegTotal=${totalFfmpegMs}ms | punct=${punctMs}ms | segments=${decodeCount} | totalProcess=${totalMs}ms | textLen=${punctuated.length}`);
+      console.log(`[whisper] TRANSCRIPTION DONE | model=${modelName} | init=${initMs}ms | vadCreate=${vadCreateMs}ms | ffmpegFirstData=${ffmpegFirstDataMs}ms | ffmpegTotal=${totalFfmpegMs}ms | punct=${punctMs}ms | segments=${decodeCount} | totalProcess=${totalMs}ms | textLen=${punctuated.length}`);
 
       resolve({
         text: punctuated,
         language: detectedLanguage || 'unknown',
         translated: false,
         target_language: targetLanguage || null,
+        model: 'large-v3-turbo (Sherpa-ONNX)',
         metrics: { usedVAD: true, totalMs, decodeCount, avgDecodeMs: avgDecode, initMs, ffmpegFirstDataMs, ffmpegTotalMs: totalFfmpegMs, punctMs },
       });
     });

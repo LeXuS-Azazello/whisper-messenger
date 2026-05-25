@@ -149,11 +149,13 @@ async function processSingleMessage(message) {
 
             const transcribeDuration = ((Date.now() - transcribeStart) / 1000).toFixed(1);
 
-            const originalText = (result.text || '').trim();
-            const detectedLang = result.language || 'auto';
+            const originalText = result?.text || '';
+            const detectedLang = result?.language || '';
+            const usedModel = result?.model || 'unknown model';
+            const metrics = result?.metrics;
 
             if (originalText) {
-                console.log(`[tg-client] Transcription for msg ${message_id}: ${originalText}`);
+                console.log(`[tg-client] Transcription for msg ${message_id} completed via model: ${usedModel}. Text length: ${originalText.length}`);
 
                 let finalText = originalText;
                 const label = getLangLabel(detectedLang);

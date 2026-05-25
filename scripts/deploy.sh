@@ -292,6 +292,7 @@ else
     # Update image in k8s manifests
     echo ">>> Updating image tags in Deployments..."
     kubectl set image deployment/echo-frontend frontend="$FRONTEND_IMAGE" -n "$NAMESPACE"
+    kubectl rollout restart deployment/echo-frontend -n "$NAMESPACE" || true
 
     # Update echo-static initContainer so that new static assets (CSS, etc.) are picked up
     kubectl set image deployment/echo-static \
