@@ -1,12 +1,12 @@
-import { createClient, getLangLabel, telegramLangToNLLB, logError } from './utils.js';
+import { createClient, getLangLabel, logError } from './utils.js';
 import {
     TARGET_USER_ID,
     redis
 } from './config.js';
-import { downloadTelegramFile } from './downloader.js';
+import { downloadTelegramFile, handleFileUpdate } from './downloader.js';
 import { transcribePath, splitTextIntoChunks } from './transcriber.js';
 import { safeSendMessage, deleteMessage, updateManagerStats } from './messenger.js';
-import { isSamesameRequest, extractSamesameText, cloneVoiceWithSamesame } from '../shared/samesame.js';
+import { isSamesameRequest, parseSamesameRequest, cloneVoiceWithSamesame } from '../shared/samesame.js';
 
 import fs from 'fs';
 
@@ -16,6 +16,7 @@ let myUserId = null;
 const clientStartTime = Math.floor(Date.now() / 1000);
 let oldMessagesProcessed = 0;
 
+export const pendingUploads = new Map();
 
 const incomingQueue = [];
 let isProcessingQueue = false;
@@ -100,61 +101,35 @@ async function processSingleMessage(message) {
                 : '🎤 Transcribing voice message...';
             statusMessage = await safeSendMessage(client, chat_id, message_id, statusText);
 
+            console.time(`[tg-client] Download msg ${message_id}`);
             const downloadStart = Date.now();
             const file = await downloadTelegramFile(client, file_id, mime_type);
+            console.timeEnd(`[tg-client] Download msg ${message_id}`);
             const downloadDuration = ((Date.now() - downloadStart) / 1000).toFixed(1);
             filePath = file.local.path;
             if (!filePath) throw new Error('File download failed: no path');
 
-            // === Language detection + translation target logic ===
-            let userLangCode = 'ru';
-
-            try {
-                const chat = await client.invoke({ '_': 'getChat', chat_id: chat_id });
-                if (chat.type['_'] === 'chatTypePrivate') {
-                    const user = await client.invoke({ '_': 'getUser', user_id: chat.type.user_id });
-                    if (user && user.language_code) {
-                        userLangCode = user.language_code;
-                    }
-                }
-            } catch (e) { }
-
-            // Target language priority:
-            // 1. What user set in Dashboard (PREFERRED_TRANSLATION_LANGUAGE)
-            // 2. Language from user's Telegram profile
-            const preferredFromEnv = process.env.PREFERRED_TRANSLATION_LANGUAGE;
-            const targetLanguage = preferredFromEnv
-                ? preferredFromEnv
-                : telegramLangToNLLB(userLangCode);
-
+            // Just detect language (no translation for now)
+            console.time(`[tg-client] Transcribe msg ${message_id}`);
             const transcribeStart = Date.now();
 
-            // Always use 'auto' for proper language detection by Whisper
             const result = await transcribePath(
                 filePath,
                 mime_type,
-                'auto',
-                targetLanguage || null     // pass target only if we have one
+                'auto'
             );
+            console.timeEnd(`[tg-client] Transcribe msg ${message_id}`);
 
             const transcribeDuration = ((Date.now() - transcribeStart) / 1000).toFixed(1);
 
             const originalText = (result.text || '').trim();
-            const detectedLang = result.language || 'unknown';
-            const translatedText = result.translated ? result.translated.trim() : null;
+            const detectedLang = result.language || 'auto';
 
             if (originalText) {
                 console.log(`[tg-client] Transcription for msg ${message_id}: ${originalText}`);
 
-                // Always show original in the language it was spoken
-                const origLabel = getLangLabel(detectedLang);
-                let finalText = `${origLabel} ${originalText}`;
-
-                // Show translation on second line only if we got one
-                if (translatedText) {
-                    const targetLabel = getLangLabel(targetLanguage);
-                    finalText += `\n\n${targetLabel} ${translatedText}`;
-                }
+                const label = getLangLabel(detectedLang);
+                let finalText = `${label} ${originalText}`;
 
                 const chunks = splitTextIntoChunks(finalText, 3900);
                 for (let i = 0; i < chunks.length; i++) {
@@ -175,7 +150,6 @@ async function processSingleMessage(message) {
             logError(e, 'processSingleMessage');
         } finally {
             if (statusMessage) await deleteMessage(client, chat_id, statusMessage.id);
-            if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
             if (file_id) {
                 try { await client.invoke({ '_': 'deleteFile', file_id: Number(file_id) }); } catch { }
             }
@@ -201,6 +175,16 @@ export async function startUserClient() {
             console.log(`[tg-client] 🎉 Authorized!`);
         }
         if (type === 'updateNewMessage') handleNewMessage(update.message);
+        
+        if (type === 'updateMessageSendSucceeded' || type === 'updateMessageSendFailed') {
+            const oldId = update.old_message_id;
+            if (oldId && pendingUploads.has(oldId)) {
+                const filePath = pendingUploads.get(oldId);
+                try { fs.unlinkSync(filePath); } catch (_) {}
+                pendingUploads.delete(oldId);
+            }
+        }
+        if (type === 'updateFile') handleFileUpdate(update);
     });
     client.on('error', (err) => logError(err, 'TDLib'));
 
@@ -236,16 +220,26 @@ export async function sendTestMessage(messageText) {
  * Uses the shared module so the same logic can be reused in WhatsApp / FB / IG clients.
  */
 async function handleSamesameReplyIfNeeded(message) {
+    console.log('[samesame] handleSamesameReplyIfNeeded called for text message', {
+      hasReplyTo: !!(message?.reply_to_message_id || message?.reply_to?.message_id || message?.replyTo?.message_id),
+      textPreview: (message?.content?.text?.text || '').substring(0, 60),
+      isOutgoing: message?.is_outgoing,
+      chatId: message?.chat_id
+    });
+
     if (!message || !message.content || message.content['_'] !== 'messageText') return;
 
     const text = message.content.text?.text || '';
     if (!isSamesameRequest(text)) return;
 
-    const replyToId = message.reply_to_message_id;
-    if (!replyToId) return;
+    let replyToId = message.reply_to_message_id || message.reply_to?.message_id || message.replyTo?.message_id;
+    if (!replyToId) {
+      console.log('[samesame] no reply_to_message_id in any known location, skipping');
+      return;
+    }
 
     const chatId = message.chat_id;
-    const cleanText = extractSamesameText(text);
+    const { text: cleanText, language } = parseSamesameRequest(text);
     if (!cleanText) {
         await safeSendMessage(client, chatId, message.id, '⚠️ После !SAMESAME! нужно написать текст, который нужно произнести.');
         return;
@@ -265,6 +259,8 @@ async function handleSamesameReplyIfNeeded(message) {
         }
 
         const repliedType = replied.content['_'];
+        console.log('[samesame] replied message fetched, type=', repliedType);
+
         let fileId = null;
         let mime = 'audio/ogg';
 
@@ -275,6 +271,8 @@ async function handleSamesameReplyIfNeeded(message) {
             mime = 'video/mp4';
         }
 
+        console.log('[samesame] extracted fileId=', fileId, 'mime=', mime);
+
         if (!fileId) {
             await safeSendMessage(client, chatId, message.id, 'Нужно ответить на голосовое сообщение или кружок.');
             return;
@@ -282,41 +280,72 @@ async function handleSamesameReplyIfNeeded(message) {
 
         // Download the original voice
         const statusMsg = await safeSendMessage(client, chatId, message.id, '🎤 Клонирую голос... (SAMESAME)');
+        console.time(`[tg-client] Download source voice (samesame) msg ${message.id}`);
         const file = await downloadTelegramFile(client, fileId, mime);
+        console.timeEnd(`[tg-client] Download source voice (samesame) msg ${message.id}`);
         const audioPath = file.local?.path;
         if (!audioPath) throw new Error('Failed to download source audio');
 
-        const audioBuffer = fs.readFileSync(audioPath);
-
-        // Call the shared SAMESAME service
-        const { audioBuffer: resultBuffer } = await cloneVoiceWithSamesame({
-            sourceAudioBuffer: audioBuffer,
-            text: cleanText,
-            samesameSecret: process.env.SAMESAME_SECRET
-        });
-
-        // Send the cloned voice back (as voice note)
-        const tempOut = `/tmp/samesame-${Date.now()}.ogg`;
-        fs.writeFileSync(tempOut, resultBuffer);
-
-        await client.invoke({
-            '_': 'sendMessage',
-            chat_id: chatId,
-            reply_to_message_id: message.id,
-            input_message_content: {
-                '_': 'inputMessageVoiceNote',
-                voice_note: {
-                    '_': 'inputFileLocal',
-                    path: tempOut
-                },
-                duration: 0,
-                waveform: ''
+        // TDLib can report is_downloading_completed=true while the file is not yet
+        // visible to fs.readFileSync on Kubernetes emptyDir (race on some node storage).
+        // Do a short retry loop so we don't crash with ENOENT on perfectly valid downloads.
+        let audioBuffer = null;
+        for (let attempt = 0; attempt < 10; attempt++) {
+            try {
+                audioBuffer = fs.readFileSync(audioPath);
+                break;
+            } catch (e) {
+                if (attempt === 9) throw e;
+                await new Promise(r => setTimeout(r, 120 + attempt * 40));
             }
-        });
+        }
 
-        // cleanup
-        fs.unlinkSync(tempOut);
-        if (statusMsg) await deleteMessage(client, chatId, statusMsg.id);
+        let tempOut = null;
+        try {
+
+            console.log('[samesame] calling cloneVoiceWithSamesame with text len=', cleanText.length, 'mime=', mime);
+
+            // Call the shared SAMESAME service (pass correct mime for voice vs video note)
+            console.time(`[tg-client] SAMESAME clone request msg ${message.id}`);
+            const { audioBuffer: resultBuffer } = await cloneVoiceWithSamesame({
+                sourceAudioBuffer: audioBuffer,
+                text: cleanText,
+                language,
+                sourceMimeType: mime,
+                samesameSecret: process.env.SAMESAME_SECRET,
+                samesameUrl: process.env.SAMESAME_URL
+            });
+            console.timeEnd(`[tg-client] SAMESAME clone request msg ${message.id}`);
+
+            // Send the cloned voice back (as voice note)
+            tempOut = `/tmp/samesame-${Date.now()}.ogg`;
+            fs.writeFileSync(tempOut, resultBuffer);
+
+            console.time(`[tg-client] Send SAMESAME Voice Reply msg ${message.id}`);
+            const sentMsg = await client.invoke({
+                '_': 'sendMessage',
+                chat_id: chatId,
+                reply_to_message_id: message.id,
+                input_message_content: {
+                    '_': 'inputMessageVoiceNote',
+                    voice_note: {
+                        '_': 'inputFileLocal',
+                        path: tempOut
+                    },
+                    duration: 0,
+                    waveform: ''
+                }
+            });
+            console.timeEnd(`[tg-client] Send SAMESAME Voice Reply msg ${message.id}`);
+            
+            if (sentMsg && sentMsg.id) {
+                pendingUploads.set(sentMsg.id, tempOut);
+                tempOut = null; // Do not delete in finally block
+            }
+        } finally {
+            if (tempOut) { try { fs.unlinkSync(tempOut); } catch (_) {} }
+            if (statusMsg) await deleteMessage(client, chatId, statusMsg.id);
+        }
 
     } catch (err) {
         console.error('[samesame] clone error:', err);

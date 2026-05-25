@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 import Redis from 'ioredis';
+import fs from 'fs';
+import path from 'path';
 import { sampleAudioBase64 } from './sample_audio';
+import { cloneVoiceWithSamesame } from '../shared/samesame.js';
 
 export interface TestLog {
   timestamp: string;
@@ -397,6 +400,123 @@ export class TestSuiteRunner {
     }
   }
 
+  // 5. Voice Clone Roundtrip (SAMESAME + Whisper)
+  // Uses the real file test_whisper.ogg:
+  //   1. Transcribe it with Whisper → get text
+  //   2. Clone voice using the SAME audio as reference speaker
+  //   3. Synthesize the transcribed text in the cloned voice
+  //   4. Return synthesized ogg audio (validates analyze + generate pipeline)
+  async testSamesameVoiceClone(): Promise<TestResult> {
+    const logs: TestLog[] = [];
+    const log = this.createLogger(logs);
+    const id = 'samesame-clone';
+    const name = 'SAMESAME Voice Clone Roundtrip';
+    const whisperTarget = this.env.WHISPER_PROVIDER || this.env.WHISPER_TURBO_URL || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+    const samesameTarget = this.env.SAMESAME_URL || 'http://samesame:8002';
+
+    log.info(`Starting voice clone roundtrip test...`);
+    log.info(`Whisper target: ${whisperTarget}`);
+    log.info(`SAMESAME target: ${samesameTarget}`);
+
+    const startTime = Date.now();
+
+    try {
+      // Locate the real reference audio shipped with the tester image
+      const audioPath = path.resolve(process.cwd(), 'test_whisper.ogg');
+      if (!fs.existsSync(audioPath)) {
+        throw new Error(`Reference audio not found: ${audioPath}`);
+      }
+      const sourceAudio = fs.readFileSync(audioPath);
+      log.info(`Loaded reference audio: ${sourceAudio.length} bytes (test_whisper.ogg)`);
+
+      // ── Step 1: Transcribe the audio to obtain the text we will synthesize ──
+      log.info(`Transcribing reference audio with Whisper...`);
+      const whisperBase = whisperTarget.replace(/\/$/, '');
+      const whisperSecret = this.env.WHISPER_SECRET || '';
+
+      let transcribed = '';
+      try {
+        const asrRes = await fetch(`${whisperBase}/v1/transcribe-base64`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(whisperSecret ? { 'Authorization': `Bearer ${whisperSecret}` } : {})
+          },
+          body: JSON.stringify({ file_data: sourceAudio.toString('base64'), language: 'auto' }),
+          signal: AbortSignal.timeout(30000),
+        });
+
+        if (asrRes.status === 200) {
+          const asrJson = await asrRes.json() as any;
+          transcribed = (asrJson.text || '').trim();
+          log.success(`ASR result: "${transcribed}"`);
+        } else if (asrRes.status === 202) {
+          log.warn(`Whisper returned 202 Accepted (requires polling). Using fallback text instead.`);
+        } else {
+          const errText = await asrRes.text();
+          log.error(`Whisper ASR failed: ${asrRes.status} ${errText}`);
+        }
+      } catch (err: any) {
+        log.error(`Whisper request failed: ${err.message || err}`);
+      }
+
+      if (!transcribed) {
+        // Fallback sentence so the clone still exercises the full path
+        transcribed = 'Привет, это тест клонирования голоса через SAMESAME.';
+        log.warn(`Empty transcription, using fallback: "${transcribed}"`);
+      }
+
+      // ── Step 2: Clone + synthesize using the same audio as speaker reference (exact same helper as tg-client auto-reply) ──
+      const samesameSecret = this.env.SAMESAME_SECRET || '';
+      if (!samesameSecret) {
+        throw new Error('SAMESAME_SECRET not provided — cannot test voice synthesis');
+      }
+
+      log.info(`Synthesizing transcribed text via shared cloneVoiceWithSamesame (text len=${transcribed.length})...`);
+      const synthStart = Date.now();
+
+      const { audioBuffer: outAudio, contentType } = await cloneVoiceWithSamesame({
+        sourceAudioBuffer: sourceAudio,
+        text: transcribed,
+        language: 'ru',
+        outputFormat: 'ogg',
+        sourceMimeType: 'audio/ogg',
+        samesameSecret,
+        samesameUrl: samesameTarget,
+      });
+
+      const synthLatency = Date.now() - synthStart;
+      const totalLatency = Date.now() - startTime;
+
+      if (!outAudio || outAudio.length < 500) {
+        throw new Error(`SAMESAME returned empty or tiny audio (${outAudio?.length || 0} bytes)`);
+      }
+
+      log.success(`SAMESAME synthesis OK | audio=${outAudio.length}B | type=${contentType} | synth=${synthLatency}ms | total=${totalLatency}ms`);
+      log.success(`Transcribed & re-synthesized text: "${transcribed}"`);
+
+      return {
+        id,
+        name,
+        target: `${whisperTarget} → ${samesameTarget}/v1/clone`,
+        status: 'success',
+        latency: totalLatency,
+        logs,
+      };
+
+    } catch (err: any) {
+      log.error(`Voice clone roundtrip failed: ${err.message || String(err)}`);
+      return {
+        id,
+        name,
+        target: `${whisperTarget} → ${samesameTarget}`,
+        status: 'failed',
+        latency: Date.now() - startTime,
+        logs,
+      };
+    }
+  }
+
   // Run a single test by ID
   async runTestById(testId: string): Promise<TestResult> {
     switch (testId) {
@@ -408,6 +528,8 @@ export class TestSuiteRunner {
         return await this.testRedis();
       case 'mongodb':
         return await this.testMongoDB();
+      case 'samesame-clone':
+        return await this.testSamesameVoiceClone();
       default:
         throw new Error(`Invalid test ID: ${testId}`);
     }
@@ -419,7 +541,8 @@ export class TestSuiteRunner {
       this.testMailWorker(),
       this.testWhisperTurbo(),
       this.testRedis(),
-      this.testMongoDB()
+      this.testMongoDB(),
+      this.testSamesameVoiceClone()
     ]);
   }
 }

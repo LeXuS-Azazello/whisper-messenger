@@ -2,12 +2,35 @@ import base64
 import io
 import os
 import subprocess
+import sys
 import tempfile
 from typing import Optional
+
+# Hotfix: install torchcodec dynamically since it's required by latest torchaudio
+try:
+    import torchcodec
+except ImportError:
+    print("[samesame] Installing torchcodec hotfix...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "torchcodec"])
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
+
+import torch
+original_load = torch.load
+def safe_load(*args, **kwargs):
+    kwargs.setdefault('weights_only', False)
+    return original_load(*args, **kwargs)
+torch.load = safe_load
+
+# Speed up PyTorch CPU inference
+os.environ["OMP_NUM_THREADS"] = "4"
+os.environ["MKL_NUM_THREADS"] = "4"
+torch.set_num_threads(4)
+
+os.environ["XDG_DATA_HOME"] = os.environ.get("TTS_MODEL_DIR", "/models")
+os.environ["TRANSFORMERS_CACHE"] = os.environ.get("TTS_MODEL_DIR", "/models")
 
 # The TTS model will be downloaded into TTS_MODEL_DIR and loaded at startup.
 from TTS.api import TTS
@@ -26,11 +49,15 @@ if os.environ.get("SAMESAME_LOCAL_ONLY", "true").lower() in ("1", "true", "yes")
     os.environ.setdefault("HF_LOCAL_FILES_ONLY", "true")
 
 SAMESAME_SECRET = os.environ.get("SAMESAME_SECRET", "changeme")
-MODEL_NAME = os.environ.get("SAMESAME_MODEL_NAME", "tts_models/multilingual/multi-dataset/your_tts")
+MODEL_NAME = os.environ.get(
+    "SAMESAME_MODEL_NAME", "tts_models/multilingual/multi-dataset/your_tts"
+)
 TTS_MODEL_DIR = os.environ.get("TTS_MODEL_DIR", "/models")
 OUTPUT_SAMPLE_RATE = int(os.environ.get("SAMESAME_SAMPLE_RATE", "22050"))
+DEFAULT_LANGUAGE = os.environ.get("SAMESAME_DEFAULT_LANGUAGE", "ru")
 
 os.environ["TTS_MODEL_DIR"] = TTS_MODEL_DIR
+
 
 class CloneRequest(BaseModel):
     source_audio_base64: str
@@ -41,49 +68,61 @@ class CloneRequest(BaseModel):
 
 
 def run_ffmpeg_decode(input_bytes: bytes, output_path: str) -> None:
-    subprocess.run([
-        "ffmpeg",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-i",
-        "pipe:0",
-        "-ar",
-        str(OUTPUT_SAMPLE_RATE),
-        "-ac",
-        "1",
-        output_path,
-    ], input=input_bytes, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            "pipe:0",
+            "-ar",
+            str(OUTPUT_SAMPLE_RATE),
+            "-ac",
+            "1",
+            output_path,
+        ],
+        input=input_bytes,
+        check=True,
+        capture_output=True,
+    )
 
 
 def run_ffmpeg_encode_wav_to_ogg(wav_bytes: bytes) -> bytes:
-    result = subprocess.run([
-        "ffmpeg",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-f",
-        "wav",
-        "-i",
-        "pipe:0",
-        "-c:a",
-        "libopus",
-        "-b:a",
-        "96k",
-        "-f",
-        "ogg",
-        "pipe:1",
-    ], input=wav_bytes, check=True, capture_output=True)
+    result = subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "wav",
+            "-i",
+            "pipe:0",
+            "-c:a",
+            "libopus",
+            "-b:a",
+            "96k",
+            "-f",
+            "ogg",
+            "pipe:1",
+        ],
+        input=wav_bytes,
+        check=True,
+        capture_output=True,
+    )
     return result.stdout
 
 
-def wav_bytes_from_numpy(wav: "np.ndarray", sample_rate: int) -> bytes:
-    import soundfile as sf
+def wav_bytes_from_numpy(wav, sample_rate: int) -> bytes:
+    import scipy.io.wavfile
+    import numpy as np
 
     buffer = io.BytesIO()
-    sf.write(buffer, wav, sample_rate, format="WAV")
+    wav_arr = np.array(wav, dtype=np.float32)
+    scipy.io.wavfile.write(buffer, sample_rate, wav_arr)
     return buffer.getvalue()
 
 
@@ -100,6 +139,7 @@ def decode_source_audio_bytes(audio_bytes: bytes) -> str:
 
 tts: Optional[TTS] = None
 model_ready: bool = False
+
 
 def try_load_model() -> bool:
     """Try to load the TTS model. Returns True on success.
@@ -121,27 +161,48 @@ def try_load_model() -> bool:
         tts = None
         return False
 
+
+import threading
+import time
+
 @app.on_event("startup")
 async def startup_event():
-    # Do NOT block startup / crash the pod if models are missing.
-    # The dedicated downloader Job (samesame-downloader-job.yaml) is the
-    # ONLY thing allowed to download models (per AGENTS.md).
-    # We just attempt a non-fatal load here so that subsequent requests
-    # or readiness checks can succeed once the Job has finished.
-    try_load_model()
+    # Load model in a background thread to prevent blocking the asyncio event loop.
+    # This ensures liveness probes (/live) continue to respond during the slow model load.
+    def load_loop():
+        while not model_ready:
+            try_load_model()
+            if model_ready:
+                break
+            time.sleep(10)
+            
+    threading.Thread(target=load_loop, daemon=True).start()
 
 
 @app.get("/health")
 async def health():
     """Readiness probe target. Returns 503 until the TTS model is loaded by the downloader Job."""
     if model_ready and tts is not None:
-        return {"status": "ok", "service": "samesame", "model": MODEL_NAME, "model_ready": True}
+        return {
+            "status": "ok",
+            "service": "samesame",
+            "model": MODEL_NAME,
+            "model_ready": True,
+        }
     else:
         from starlette.responses import JSONResponse
+
         return JSONResponse(
-            {"status": "downloading", "service": "samesame", "model": MODEL_NAME, "model_ready": False, "note": "waiting for downloader Job"},
-            status_code=503
+            {
+                "status": "downloading",
+                "service": "samesame",
+                "model": MODEL_NAME,
+                "model_ready": False,
+                "note": "waiting for downloader Job",
+            },
+            status_code=503,
         )
+
 
 @app.get("/live")
 async def live():
@@ -150,7 +211,9 @@ async def live():
 
 
 @app.post("/v1/clone")
-async def clone_voice(request: CloneRequest, authorization: Optional[str] = Header(None)):
+def clone_voice(
+    request: CloneRequest, authorization: Optional[str] = Header(None)
+):
     if authorization is None or authorization.replace("Bearer ", "") != SAMESAME_SECRET:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -158,40 +221,62 @@ async def clone_voice(request: CloneRequest, authorization: Optional[str] = Head
         raise HTTPException(status_code=400, detail="Text must not be empty")
 
     if request.output_format not in {"wav", "ogg"}:
-        raise HTTPException(status_code=400, detail="Unsupported output_format, use wav or ogg")
+        raise HTTPException(
+            status_code=400, detail="Unsupported output_format, use wav or ogg"
+        )
 
     try:
         source_audio = base64.b64decode(request.source_audio_base64)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid base64 audio: {exc}")
 
+    print(f"[samesame] Starting voice clone for text length {len(request.text)}...")
+    clone_start = time.time()
+    
     source_wav_path = None
     try:
+        decode_start = time.time()
         source_wav_path = decode_source_audio_bytes(source_audio)
+        print(f"[samesame] Source audio decoded in {time.time() - decode_start:.2f}s")
 
         if tts is None or not model_ready:
             # Trigger a lazy load attempt (in case the Job just finished)
             if not try_load_model():
-                raise HTTPException(status_code=503, detail="SAMESAME model is still downloading (downloader Job not finished). Try again in a minute.")
+                raise HTTPException(
+                    status_code=503,
+                    detail="SAMESAME model is still downloading (downloader Job not finished). Try again in a minute.",
+                )
 
-        tts_kwargs = {"speaker_wav": source_wav_path}
-        if request.language:
-            tts_kwargs["language"] = request.language
+        lang = request.language or DEFAULT_LANGUAGE
+        tts_kwargs = {"speaker_wav": source_wav_path, "language": lang}
 
+        print(f"[samesame] Generating speech using Coqui TTS (language: {lang})...")
+        tts_start = time.time()
         wav = tts.tts(request.text, **tts_kwargs)
+        print(f"[samesame] Speech synthesis completed in {time.time() - tts_start:.2f}s")
+        
+        encode_start = time.time()
         wav_bytes = wav_bytes_from_numpy(wav, OUTPUT_SAMPLE_RATE)
 
         if request.output_format == "ogg":
+            print("[samesame] Encoding output to OGG Opus...")
             response_bytes = run_ffmpeg_encode_wav_to_ogg(wav_bytes)
             media_type = "audio/ogg"
         else:
             response_bytes = wav_bytes
             media_type = "audio/wav"
+        print(f"[samesame] Output encoded in {time.time() - encode_start:.2f}s")
 
-        return StreamingResponse(io.BytesIO(response_bytes), media_type=media_type)
+        audio_base64 = base64.b64encode(response_bytes).decode("utf-8")
+        print(f"[samesame] Total voice clone request completed in {time.time() - clone_start:.2f}s")
+        
+        return {"audio_base64": audio_base64, "content_type": media_type}
 
     except subprocess.CalledProcessError as exc:
-        raise HTTPException(status_code=400, detail=f"Audio decode failed: {exc.stderr.decode('utf-8', errors='ignore')}\n{exc}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Audio decode failed: {exc.stderr.decode('utf-8', errors='ignore')}\n{exc}",
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Voice clone failed: {exc}")
     finally:

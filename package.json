@@ -8,7 +8,8 @@
     "test": "npx vitest run",
     "build": "esbuild src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --packages=external --sourcemap",
     "build:ui": "echo 'UI assets are served directly from src/ui'",
-    "deploy:k8s": "bash scripts/deploy.sh"
+    "deploy:k8s": "bash scripts/deploy.sh",
+    "deploy": "bash scripts/deploy-targeted.sh"
   },
   "type": "module",
   "dependencies": {

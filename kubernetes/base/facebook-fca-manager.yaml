@@ -19,12 +19,16 @@ data:
             "name": "facebook-fca-client",
             "image": "harbor.dev.takatan.cloud/devcenter/facebook-fca-client:latest",
             "imagePullPolicy": "Always",
-            "env": [
-              {
-                "name": "WHISPER_PROVIDER",
-                "value": "http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000/v1/transcribe-base64"
-              }
-            ],
+              "env": [
+                {
+                  "name": "WHISPER_PROVIDER",
+                  "value": "http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000/v1/transcribe-base64"
+                },
+                {
+                  "name": "REDIS_URL",
+                  "value": "redis://redis:6379"
+                }
+              ],
             "resources": {
               "requests": {
                 "cpu": "100m",
@@ -82,10 +86,7 @@ spec:
         - name: REDIS_URL
           value: "redis://redis:6379"
         - name: MONGODB_URI
-          valueFrom:
-            secretKeyRef:
-              name: whisper-messenger-env
-              key: MONGODB_URI
+          value: "mongodb://mongodb:27017/voicemsg"
 ---
 apiVersion: v1
 kind: Service

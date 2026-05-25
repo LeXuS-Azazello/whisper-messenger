@@ -49,6 +49,14 @@ spec:
               name: whisper-messenger-env
               key: WHISPER_PROVIDER
               optional: true
+        - name: SAMESAME_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: SAMESAME_SECRET
+              optional: true
+        - name: SAMESAME_URL
+          value: "http://samesame:8002"
         resources:
           requests:
             cpu: "100m"

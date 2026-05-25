@@ -22,6 +22,7 @@ resources:
   - whatsapp-baileys-manager.yaml
   - facebook-fca-manager.yaml
   - instagram-fca-manager.yaml
+  - rbac-whisper-exec.yaml
 
 
 

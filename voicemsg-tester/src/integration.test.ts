@@ -54,4 +54,15 @@ describe('Voice Messenger Production Cluster Integration Tests', () => {
 
     expect(result.status).toBe('success');
   }, 10000); // 10s timeout
+
+  it('should perform full voice clone roundtrip: test_whisper.ogg → Whisper ASR → SAMESAME clone + synthesis of the recognized text', async () => {
+    const result = await runner.testSamesameVoiceClone();
+    console.log(`[Vitest Result] SAMESAME Voice Clone: ${result.status} in ${result.latency}ms`);
+    
+    result.logs.forEach(log => {
+      console.log(`  [${log.type.toUpperCase()}] ${log.message}`);
+    });
+
+    expect(result.status).toBe('success');
+  }, 240000); // up to 4 minutes (first run may need model load + heavy inference)
 });

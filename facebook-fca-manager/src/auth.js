@@ -7,22 +7,25 @@ import { spawnPod } from './k8s.js';
 const login = typeof fcaLogin === 'function' ? fcaLogin : (fcaLogin.default || fcaLogin);
 
 export async function handleLogin(req, res) {
-    const { userId, email, password, appState } = req.body;
+    const { userId, appState } = req.body;
     if (!userId) return res.status(400).json({ error: 'Missing userId' });
 
-    console.log(`[auth-fca] Login request for user ${userId} using ${appState ? 'appState' : 'email/password'}`);
+    // Facebook credential login (email/password) is permanently dead — Facebook breaks the page scraping constantly.
+    // We only accept AppState now.
+    if (!appState) {
+        console.warn(`[auth-fca] Rejected credential login attempt for user ${userId}`);
+        return res.status(400).json({
+            error: "Email + Password login is disabled for Facebook. Facebook blocks direct logins. Export AppState JSON using the C3C UFC Utility browser extension (Chrome/Firefox) and paste the array here."
+        });
+    }
+
+    console.log(`[auth-fca] Login request for user ${userId} using appState`);
 
     let credentials = {};
-    if (appState) {
-        try {
-            credentials.appState = typeof appState === 'string' ? JSON.parse(appState) : appState;
-        } catch (e) {
-            return res.status(400).json({ error: 'Invalid appState JSON format' });
-        }
-    } else if (email && password) {
-        credentials = { email, password };
-    } else {
-        return res.status(400).json({ error: 'Provide appState or email and password' });
+    try {
+        credentials.appState = typeof appState === 'string' ? JSON.parse(appState) : appState;
+    } catch (e) {
+        return res.status(400).json({ error: 'Invalid AppState JSON format — must be a JSON array of cookie objects' });
     }
 
     const loginOpts = {
@@ -36,15 +39,11 @@ export async function handleLogin(req, res) {
             if (err) {
                     console.error(`[auth-fca] Login failed for user ${userId}:`, err);
                     const rawMsg = err.error || err.message || 'Login failed';
-                    
-                    if (appState && /JSON|Unexpected|Expected \'\,\' or \'\]\'|position \d+/i.test(String(rawMsg))) {
-                        return res.status(400).json({ error: `Invalid AppState JSON: ${rawMsg}. Ensure you pasted raw AppState JSON (an array) without trailing commas.` });
+
+                    if (/JSON|Unexpected|Expected \'\,\' or \'\]\'|position \d+/i.test(String(rawMsg))) {
+                        return res.status(400).json({ error: `Invalid AppState JSON: ${rawMsg}. Make sure you exported the full array from C3C UFC Utility extension (starts with [{\"key\":\"c_user\",...}]).` });
                     }
-                    
-                    if (!appState) {
-                        return res.status(401).json({ error: `Credentials login failed: ${rawMsg}. Facebook blocks direct logins frequently; we highly recommend using AppState JSON instead.` });
-                    }
-                    
+
                     return res.status(401).json({ error: rawMsg });
                 }
 
@@ -62,7 +61,7 @@ export async function handleLogin(req, res) {
                 );
                 await MessengerSession.findOneAndUpdate(
                     { userId: String(userId), platform: 'facebook' },
-                    { sessionData: appStateString, isActive: true, identifier: email || 'facebook-appstate' },
+                    { sessionData: appStateString, isActive: true, identifier: 'facebook-appstate' },
                     { upsert: true }
                 );
 

@@ -11,33 +11,61 @@ process.env.MODELS_DIR = TEST_MODELS_DIR;
 vi.mock('sherpa-onnx-node', () => {
   return {
     OfflineRecognizer: class {
-      constructor() {}
+      constructor() { }
       createStream() {
-        return { acceptWaveform: () => {} };
+        return {
+          acceptWaveform: () => { },
+        };
       }
-      decode() {}
+      decode() { }
       getResult() {
         return { text: 'mock result', lang: 'en' };
       }
     },
-    VoiceActivityDetector: class {
+    VAD: class {
       constructor() {
-        this._done = false;
+        this._segments = [];
+        this._idx = 0;
       }
       acceptWaveform() {
-        this._done = false;
+        if (this._segments.length === 0) {
+          this._segments.push({ samples: new Float32Array([0, 0, 0]) });
+        }
       }
       isEmpty() {
-        return this._done;
+        return this._idx >= this._segments.length;
       }
       front() {
-        this._done = true;
-        return { samples: new Float32Array([0, 0, 0]) };
+        return this._segments[this._idx];
       }
-      pop() {}
+      pop() {
+        this._idx++;
+      }
+      flush() {}
     },
-    OfflinePunctuation: class {
-      constructor() {}
+    Vad: class {
+      constructor() {
+        this._segments = [];
+        this._idx = 0;
+      }
+      acceptWaveform() {
+        if (this._segments.length === 0) {
+          this._segments.push({ samples: new Float32Array([0, 0, 0]) });
+        }
+      }
+      isEmpty() {
+        return this._idx >= this._segments.length;
+      }
+      front() {
+        return this._segments[this._idx];
+      }
+      pop() {
+        this._idx++;
+      }
+      flush() {}
+    },
+    OnlinePunctuation: class {
+      constructor() { }
       addPunct(text) {
         return `${text}.`;
       }

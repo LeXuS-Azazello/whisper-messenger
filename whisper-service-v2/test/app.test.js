@@ -10,14 +10,14 @@ vi.mock('bullmq', () => ({
 vi.mock('sherpa-onnx-node', () => ({
   OfflineRecognizer: class {
     createStream() {
-      return { acceptWaveform: () => {} };
+      return { acceptWaveform: () => { } };
     }
-    decode() {}
+    decode() { }
     getResult() {
       return { text: '', lang: 'en' };
     }
   },
-  VoiceActivityDetector: class {
+  VAD: class {
     constructor() {
       this._done = false;
     }
@@ -31,7 +31,7 @@ vi.mock('sherpa-onnx-node', () => ({
       this._done = true;
       return { samples: new Float32Array([0, 0]) };
     }
-    pop() {}
+    pop() { }
   },
   OfflinePunctuation: class {
     addPunct(text) {

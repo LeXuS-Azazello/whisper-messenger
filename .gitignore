@@ -10,6 +10,13 @@ models/
 whisper-server/venv/
 audio_test.ogg
 
+# Models and large files
+*.onnx
+*.tar.bz2
+whisper-service-v2/local-sherpa-turbo/
+*.bin
+*.pt
+
 # Secrets and state
 kubernetes/whisper-messenger-env-secret.yaml
 k8s_state.txt

@@ -464,12 +464,28 @@ app.get('/', (c) => {
         <div class="test-desc">Validates Mongoose handshake, runs server ping, and queries schemas to assert full CRUD authentication.</div>
         <div class="test-footer">
           <span class="latency-badge" id="lat-mongodb">-- ms</span>
-          <button class="btn btn-secondary btn-card" onclick="runSingleTest('mongodb')">Run Test</button>
-        </div>
-      </div>
-    </div>
+           <button class="btn btn-secondary btn-card" onclick="runSingleTest('mongodb')">Run Test</button>
+         </div>
+       </div>
 
-    <!-- Terminal -->
+       <!-- Card 5: SAMESAME Voice Clone Roundtrip -->
+       <div class="test-card" id="card-samesame-clone">
+         <div class="test-header">
+           <div>
+             <div class="test-title">Voice Clone Roundtrip</div>
+             <div class="test-target">whisper → samesame /v1/clone</div>
+           </div>
+           <span class="status-indicator" id="ind-samesame-clone"></span>
+         </div>
+         <div class="test-desc">Real file test_whisper.ogg → ASR → clone reference + synthesize the recognized text back as new voice in same speaker.</div>
+         <div class="test-footer">
+           <span class="latency-badge" id="lat-samesame-clone">-- ms</span>
+           <button class="btn btn-secondary btn-card" onclick="runSingleTest('samesame-clone')">Run Test</button>
+         </div>
+       </div>
+     </div>
+ 
+     <!-- Terminal -->
     <div class="terminal-container">
       <div class="terminal-header">
         <div class="terminal-title">
@@ -554,7 +570,7 @@ app.get('/', (c) => {
       appendToConsole('===========================================');
       appendToConsole('Running full integration test suite...');
       
-      const ids = ['mail-worker', 'whisper-service', 'redis', 'mongodb'];
+      const ids = ['mail-worker', 'whisper-service', 'redis', 'mongodb', 'samesame-clone'];
       ids.forEach(id => updateCardUI(id, 'running'));
       
       try {

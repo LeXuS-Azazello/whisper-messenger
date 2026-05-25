@@ -7,6 +7,10 @@ const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
 const CACHE_TTL = parseInt(process.env.CACHE_TTL || '3600', 10);
 const PORT = parseInt(process.env.WORKER_PORT || '3001', 10);
 
+// CRITICAL: for CPU-only sherpa-onnx inference, concurrency MUST be 1 (or at most physical cores).
+// High concurrency destroys latency because every job fights for the same limited cores + cache.
+const WORKER_CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '1', 10);
+
 // Best-effort warm-up: initialize models at startup so the worker is ready
 // before the first job lands.
 try {
@@ -17,7 +21,7 @@ try {
   console.log('[whisper-service-v2 worker] Status:', {
     whisper: status.whisper ? 'loaded' : 'FAILED',
     vad: status.vad ? 'enabled' : 'disabled (full audio)',
-    punctuation: status.punctuation ? 'CT-Transformer' : 'simple fallback',
+    punctuation: status.punctuation === 'none' ? 'simple fallback' : status.punctuation,
     translation: status.translationUrl,
   });
 } catch (error) {
@@ -26,36 +30,51 @@ try {
 }
 
 const worker = new Worker(ASR_QUEUE, async (job) => {
+  const enqueuedAt = job.timestamp || Date.now();
+  const pickedAt = Date.now();
+  const queueWaitMs = pickedAt - enqueuedAt;
+
   const { file_data, target_language, cacheKey } = job.data;
   if (!file_data) {
     throw new Error('Missing file_data in job payload');
   }
 
+  console.log(`[whisper-worker] Job ${job.id} picked | queueWait=${queueWaitMs}ms`);
+
+  const jobStart = Date.now();
   const buffer = Buffer.from(file_data, 'base64');
   const computedHash = getAudioHash(buffer);
   const key = cacheKey || makeCacheKey(computedHash);
 
   const cached = await redisCache.get(key);
   if (cached) {
+    const dt = Date.now() - jobStart;
+    console.log(`[whisper-service-v2] Job ${job.id} CACHE_HIT | ${dt}ms`);
     return JSON.parse(cached);
   }
 
   const result = await processBuffer(buffer, target_language);
+  const processMs = Date.now() - jobStart;
 
-  console.log(`[whisper-service-v2] Job ${job.id} done | lang=${result.language} | translated=${!!result.translated} | vad=${result.metrics?.usedVAD ?? 'n/a'}`);
+  console.log(`[whisper-service-v2] Job ${job.id} done | process=${processMs}ms | lang=${result.language} | segments=${result.metrics?.decodeCount ?? '?'} | avg_decode=${result.metrics?.avgDecodeMs ?? '?'}ms`);
 
   const payload = {
     text: result.text,
     language: result.language,
     translated: result.translated || null,
     target_language: result.target_language || null,
-    metrics: result.metrics || {},
+    metrics: {
+      ... (result.metrics || {}),
+      queueWaitMs,
+      processMs,
+    },
   };
   await redisCache.set(key, JSON.stringify(payload), 'EX', CACHE_TTL);
   return payload;
 }, {
   connection: new Redis(REDIS_URL, { maxRetriesPerRequest: null, enableReadyCheck: false }),
-  concurrency: parseInt(process.env.WORKER_CONCURRENCY || '1', 10),
+  concurrency: WORKER_CONCURRENCY,
+  useWorkerThreads: false
 });
 
 worker.on('completed', (job) => {
@@ -101,4 +120,4 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-console.log('[whisper-service-v2] Worker started');
+console.log(`[whisper-service-v2] Worker started | concurrency=${WORKER_CONCURRENCY} | NUM_THREADS=${process.env.NUM_THREADS || 'default'}`);

@@ -1,44 +1,94 @@
-import { execFileSync } from 'child_process';
-import { existsSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import crypto from 'crypto';
 import sherpa from 'sherpa-onnx-node';
+import { spawn } from 'child_process';
+import { existsSync, writeFileSync, unlinkSync } from 'fs';
+
+/*
+ * === CRITICAL PERFORMANCE RULES FOR sherpa-onnx ON CPU (per operator guidance) ===
+ * 1. OMP_NUM_THREADS=1 + OMP_WAIT_POLICY=PASSIVE must be set in the container env
+ *    (Dockerfile + K8s Deployment) BEFORE this module is loaded.
+ *    This stops ONNX Runtime from creating a thread army on every inference.
+ * 2. NUM_THREADS passed to OfflineRecognizer should be small (1-3) when running
+ *    multiple replicas. "cores-1" or even "1" is often optimal for latency.
+ * 3. Worker concurrency must stay at 1 (or physical_cores) — never 50.
+ * 4. VAD minSpeechDuration tuned to 0.8-1.5s for amortization (see createVad()).
+ * 5. Recognizer is a singleton (module scope) — never recreate per chunk.
+ */
 
 const MODELS_DIR = process.env.MODELS_DIR || '/models';
-const NUM_THREADS = parseInt(process.env.NUM_THREADS || '4', 10);
-const PUNCT_THREADS = parseInt(process.env.PUNCT_THREADS || '2', 10);
+const NUM_THREADS = parseInt(process.env.NUM_THREADS || '2', 10);
+const PUNCT_THREADS = parseInt(process.env.PUNCT_THREADS || '1', 10);
 
-// Whisper large-v3-turbo int8 (best multilingual + strongest language detection)
-// Excellent Russian, Hebrew, Arabic, 99+ languages. Far superior LID vs distil variants.
-const WHISPER_ENCODER = join(MODELS_DIR, 'whisper', 'large-v3-turbo-encoder.int8.onnx');
-const WHISPER_DECODER = join(MODELS_DIR, 'whisper', 'large-v3-turbo-decoder.int8.onnx');
-const WHISPER_TOKENS  = join(MODELS_DIR, 'whisper', 'large-v3-turbo-tokens.txt');
+const WHISPER_ENCODER = join(MODELS_DIR, 'whisper', 'turbo-encoder.int8.onnx');
+const WHISPER_DECODER = join(MODELS_DIR, 'whisper', 'turbo-decoder.int8.onnx');
+
+const WHISPER_TOKENS_CANDIDATES = [
+  join(MODELS_DIR, 'whisper', 'tokens.txt'),
+  join(MODELS_DIR, 'whisper', 'turbo-tokens.txt'),
+];
+
+let WHISPER_TOKENS = WHISPER_TOKENS_CANDIDATES[0];
 
 const VAD_MODEL = join(MODELS_DIR, 'vad', 'silero_vad.onnx');
-const PUNCT_MODEL = join(MODELS_DIR, 'punctuation', 'model.onnx');
-const PUNCT_VOCAB = join(MODELS_DIR, 'punctuation', 'vocab.txt');
+
+const PUNCT_MODEL_NEW = join(MODELS_DIR, 'punctuation', 'model.int8.onnx');
+const PUNCT_BPE_VOCAB = join(MODELS_DIR, 'punctuation', 'bpe.vocab');
 
 let recognizer = null;
-let vad = null;
 let punctuator = null;
 let isReady = false;
+let punctuationType = 'none';
 let isPunctuationEnabled = false;
 
+const SAMPLE_RATE = 16000;
+const FRAME_SAMPLES = 512;
+const FRAME_BYTES = FRAME_SAMPLES * 4;
+
 function ensureModelFiles() {
-  if (!existsSync(WHISPER_ENCODER) || !existsSync(WHISPER_DECODER) || !existsSync(WHISPER_TOKENS)) {
-    throw new Error(`Missing Whisper large-v3-turbo.int8 model in ${join(MODELS_DIR, 'whisper')}`);
+  if (!existsSync(WHISPER_ENCODER) || !existsSync(WHISPER_DECODER)) {
+    throw new Error('Missing Whisper model');
   }
+
+  WHISPER_TOKENS = WHISPER_TOKENS_CANDIDATES.find(p => existsSync(p));
+
+  if (!WHISPER_TOKENS) {
+    throw new Error('Missing tokens.txt');
+  }
+
   if (!existsSync(VAD_MODEL)) {
-    throw new Error(`Missing Silero VAD model in ${join(MODELS_DIR, 'vad')}`);
+    throw new Error('Missing VAD model');
   }
+}
+
+function createVad() {
+  // Bigger chunks = dramatically better inference amortization for sherpa-onnx on CPU.
+  // Target: 800–1500 ms speech segments instead of tiny 100-200 ms fragments.
+  // With worker concurrency=1 this still gives good "realtime feel" for voice messages.
+  const minSpeech = parseFloat(process.env.VAD_MIN_SPEECH_DURATION || '0.85');
+  const minSilence = parseFloat(process.env.VAD_MIN_SILENCE_DURATION || '0.35');
+
+  return new sherpa.Vad({
+    sileroVad: {
+      model: VAD_MODEL,
+      threshold: 0.45,
+      minSilenceDuration: minSilence,
+      minSpeechDuration: minSpeech,
+      windowSize: 512,
+    },
+    sampleRate: SAMPLE_RATE,
+    numThreads: 1,
+    provider: 'cpu',
+    debug: 0,
+  });
 }
 
 function initialize() {
   if (isReady) return;
+
   ensureModelFiles();
 
-  // === Whisper (distil-large-v2) ===
   recognizer = new sherpa.OfflineRecognizer({
     modelConfig: {
       whisper: {
@@ -49,228 +99,228 @@ function initialize() {
       },
       tokens: WHISPER_TOKENS,
       numThreads: NUM_THREADS,
-      debug: 0,
-      provider: 'cpu',
-    },
+    }
   });
-  console.log('[whisper-service-v2] ✓ Whisper model loaded (large-v3-turbo.int8, excellent multilingual + LID)');
 
-  // === Silero VAD ===
-  try {
-    vad = new sherpa.VoiceActivityDetector({
-      sileroVad: {
-        model: VAD_MODEL,
-        threshold: 0.5,
-        minSilenceDuration: 0.5,
-        minSpeechDuration: 0.25,
-        windowSize: 512,
-      },
-      sampleRate: 16000,
-      numThreads: 2,
-      debug: 0,
-      provider: 'cpu',
-    });
-    console.log('[whisper-service-v2] ✓ Silero VAD enabled');
-  } catch (e) {
-    console.warn('[whisper-service-v2] ⚠️ Silero VAD failed to initialize → falling back to full-audio transcription');
-    console.warn('[whisper-service-v2] VAD error:', e?.message || e);
-    vad = null;
-  }
-
-  // === CT-Transformer Punctuation ===
-  if (existsSync(PUNCT_MODEL) && existsSync(PUNCT_VOCAB)) {
+  if (existsSync(PUNCT_MODEL_NEW) && existsSync(PUNCT_BPE_VOCAB)) {
     try {
-      punctuator = new sherpa.OfflinePunctuation({
-        model: PUNCT_MODEL,
-        vocab: PUNCT_VOCAB,
-        numThreads: PUNCT_THREADS,
-        debug: 0,
-        provider: 'cpu',
+      punctuator = new sherpa.OnlinePunctuation({
+        model: {
+          cnnBilstm: PUNCT_MODEL_NEW,
+          bpeVocab: PUNCT_BPE_VOCAB,
+          numThreads: PUNCT_THREADS,
+          provider: 'cpu',
+        }
       });
       isPunctuationEnabled = true;
-      console.log('[whisper-service-v2] ✓ Offline Punctuation (CT-Transformer) enabled');
+      punctuationType = 'en-online';
+      console.log('[whisper-service-v2] ✓ Online Punctuation + Truecasing enabled');
     } catch (e) {
-      console.warn('[whisper-service-v2] ⚠️ Punctuation model failed to load, using simple fallback');
+      console.warn('[whisper-service-v2] ⚠️ English punctuation failed:', e?.message || e);
+      punctuator = null;
       isPunctuationEnabled = false;
     }
-  } else {
-    console.log('[whisper-service-v2] ℹ️ Punctuation model not found → using simple multilingual fallback');
-    isPunctuationEnabled = false;
   }
 
   isReady = true;
   console.log('[whisper-service-v2] Initialization complete');
 }
 
-function decodeAudioToPCM(filePath) {
-  const raw = execFileSync('ffmpeg', [
-    '-y', '-i', filePath,
-    '-vn', '-ar', '16000', '-ac', '1', '-f', 'f32le', 'pipe:1',
-  ], { maxBuffer: 200 * 1024 * 1024 });
-  return new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4);
-}
-
-function applyVAD(pcm) {
-  if (!vad || !pcm || pcm.length === 0) {
-    return pcm || new Float32Array(0); // fallback: no VAD available → transcribe full audio
-  }
-  vad.acceptWaveform(pcm);
-  const segments = [];
-  let total = 0;
-
-  while (!vad.isEmpty()) {
-    const chunk = vad.front();
-    segments.push(chunk.samples);
-    total += chunk.samples.length;
-    vad.pop();
+function transcribeSegment(samples, language = '') {
+  if (!samples?.length) {
+    return { text: '', language };
   }
 
-  if (segments.length === 0) return new Float32Array(0);
-  const merged = new Float32Array(total);
-  let offset = 0;
-  for (const chunk of segments) {
-    merged.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return merged;
-}
-
-function transcribePCM(pcm) {
-  if (!pcm || pcm.length === 0) {
-    return { text: '', language: 'unknown' };
-  }
+  const t0 = Date.now();
   const stream = recognizer.createStream();
-  stream.acceptWaveform({ sampleRate: 16000, samples: pcm });
+  stream.acceptWaveform({ sampleRate: SAMPLE_RATE, samples });
   recognizer.decode(stream);
   const result = recognizer.getResult(stream);
+
+  // Release native resources immediately (sherpa-onnx streams hold C++ memory / ONNX sessions)
+  try {
+    if (typeof stream.free === 'function') stream.free();
+    else if (typeof stream.release === 'function') stream.release();
+  } catch (_) {
+    /* best effort */
+  }
+
+  const dt = Date.now() - t0;
+
+  console.log(`[whisper] segment ${dt}ms | samples=${samples.length} | lang=${result.lang || language}`);
+
   return {
     text: result.text?.trim() || '',
-    language: result.lang || 'auto',
+    language: result.lang || language || 'unknown',
   };
 }
 
-function addPunctuation(text, detectedLang = 'unknown') {
-  if (!text) return text;
+function addPunctuation(text, lang) {
+  if (!text || !isPunctuationEnabled || !punctuator) {
+    return text;
+  }
+  try {
+    return punctuator.addPunct(text);
+  } catch (e) {
+    return text;
+  }
+}
 
-  // Use high-quality sherpa model only for zh/en when available (best results)
-  if (punctuator && isPunctuationEnabled) {
-    try {
-      return punctuator.addPunct(text);
-    } catch (error) {
-      console.warn('[whisper-service-v2] Sherpa punctuation failed, using simple fallback');
+export async function processFile(filePath, targetLanguage) {
+  const tInit = Date.now();
+  initialize();
+  const initMs = Date.now() - tInit;
+
+  const tVAD = Date.now();
+  const vad = createVad();
+  const vadCreateMs = Date.now() - tVAD;
+
+  const tFfmpeg = Date.now();
+  const ffmpeg = spawn('ffmpeg', [
+    '-i', filePath,
+    '-vn',
+    '-ac', '1',
+    '-ar', '16000',
+    '-f', 'f32le',
+    'pipe:1',
+  ]);
+
+  const FRAME_SIZE = FRAME_BYTES;
+
+  let buffer = Buffer.alloc(0);
+  let finalText = '';
+  let detectedLanguage = targetLanguage || '';
+
+  const jobStart = Date.now();
+  let decodeCount = 0;
+  let totalDecodeMs = 0;
+  let firstDataTs = null;
+  let ffmpegFirstDataMs = 0;
+  let totalFfmpegMs = 0;
+
+  return await new Promise((resolve, reject) => {
+    ffmpeg.stdout.on('data', (chunk) => {
+      if (!firstDataTs) {
+        firstDataTs = Date.now();
+        ffmpegFirstDataMs = firstDataTs - tFfmpeg;
+      }
+
+      buffer = Buffer.concat([buffer, chunk]);
+
+      while (buffer.length >= FRAME_SIZE) {
+        const frame = buffer.subarray(0, FRAME_SIZE);
+        buffer = buffer.subarray(FRAME_SIZE);
+
+        const samples = new Float32Array(
+          frame.buffer,
+          frame.byteOffset,
+          frame.byteLength / 4
+        );
+
+        vad.acceptWaveform(samples);
+
+        while (!vad.isEmpty()) {
+          const segment = vad.front();
+          vad.pop();
+
+          const tSeg = Date.now();
+          const result = transcribeSegment(segment.samples, detectedLanguage);
+          const dtSeg = Date.now() - tSeg;
+
+          decodeCount++;
+          totalDecodeMs += dtSeg;
+
+          if (!detectedLanguage && result.language) {
+            detectedLanguage = result.language;
+          }
+
+          if (result.text) {
+            finalText += ' ' + result.text;
+          }
+        }
+      }
+    });
+
+    ffmpeg.on('close', () => {
+      totalFfmpegMs = Date.now() - tFfmpeg;
+
+      try {
+        if (typeof vad.flush === 'function') {
+          vad.flush();
+        }
+      } catch (_) {}
+
+      const tPunct = Date.now();
+      try {
+        while (!vad.isEmpty()) {
+          const segment = vad.front();
+          vad.pop();
+
+          const tSeg = Date.now();
+          const result = transcribeSegment(segment.samples, detectedLanguage);
+          const dtSeg = Date.now() - tSeg;
+
+          decodeCount++;
+          totalDecodeMs += dtSeg;
+
+          if (result.text) {
+            finalText += ' ' + result.text;
+          }
+        }
+      } catch (_) {}
+
+      finalText = finalText.trim();
+      const punctuated = addPunctuation(finalText, detectedLanguage);
+      const punctMs = Date.now() - tPunct;
+
+      const totalMs = Date.now() - jobStart;
+      const avgDecode = decodeCount > 0 ? Math.round(totalDecodeMs / decodeCount) : 0;
+
+      console.log(`[whisper] PHASES | init=${initMs}ms | vadCreate=${vadCreateMs}ms | ffmpegFirstData=${ffmpegFirstDataMs}ms | ffmpegTotal=${totalFfmpegMs}ms | punct=${punctMs}ms | segments=${decodeCount} | totalProcess=${totalMs}ms | textLen=${punctuated.length}`);
+
+      resolve({
+        text: punctuated,
+        language: detectedLanguage || 'unknown',
+        translated: false,
+        target_language: targetLanguage || null,
+        metrics: { usedVAD: true, totalMs, decodeCount, avgDecodeMs: avgDecode, initMs, ffmpegFirstDataMs, ffmpegTotalMs: totalFfmpegMs, punctMs },
+      });
+    });
+
+    ffmpeg.on('error', reject);
+  });
+}
+
+export async function processBuffer(buffer, targetLanguage) {
+  const tWrite = Date.now();
+  const tmpFile = join(
+    tmpdir(),
+    `whisper-v3-${crypto.randomBytes(8).toString('hex')}.ogg`
+  );
+
+  try {
+    writeFileSync(tmpFile, buffer);
+    const writeMs = Date.now() - tWrite;
+    console.log(`[whisper] tmp write ${writeMs}ms | size=${buffer.length}B`);
+
+    const res = await processFile(tmpFile, targetLanguage);
+    return res;
+  } finally {
+    if (existsSync(tmpFile)) {
+      try {
+        unlinkSync(tmpFile);
+      } catch (_) {}
     }
   }
-
-  // Simple offline punctuation — works for 100+ languages, zero extra models
-  return addSimplePunctuation(text, detectedLang);
-}
-
-function addSimplePunctuation(text, lang = 'unknown') {
-  let t = text.trim();
-  if (!t) return '';
-
-  // Capitalize first letter (works for Latin, Cyrillic, Greek, etc.)
-  const first = t.charAt(0);
-  if (first === first.toLowerCase() && first !== first.toUpperCase()) {
-    t = first.toUpperCase() + t.slice(1);
-  }
-
-  // Add terminal punctuation if missing
-  if (!/[.!?。！？؟۔]$/.test(t)) {
-    if (['zh', 'ja', 'ko', 'yue'].includes(lang)) t += '。';
-    else if (['ar', 'fa', 'ur'].includes(lang)) t += '۔';
-    else t += '.';
-  }
-
-  // Very light comma fixes for the most common languages (big readability win)
-  t = addLightCommas(t, lang);
-
-  return t.replace(/\s{2,}/g, ' ').trim();
-}
-
-function addLightCommas(text, lang) {
-  let t = text;
-
-  // Russian / Ukrainian — before common conjunctions in longer sentences
-  if (['ru', 'uk', 'be'].includes(lang)) {
-    t = t.replace(/\s+(и|а|но|или|что|чтобы|если|когда|как|потому что)\s+/gi, ' $1 ');
-  }
-
-  // English + similar European languages
-  if (['en', 'de', 'fr', 'es', 'it', 'pt', 'pl', 'nl'].includes(lang)) {
-    t = t.replace(/\s+(and|but|or|so|because|if|when|while|although|aber|mais|pero|ma|ma|ale|maar)\s+/gi, ' $1 ');
-  }
-
-  return t;
 }
 
 export function getAudioHash(buffer) {
-  const prefix = buffer.subarray(0, Math.min(buffer.length, 8192));
-  return crypto.createHash('sha256').update(prefix).digest('hex');
+  const toHash = buffer.length > 8192 ? buffer.subarray(0, 8192) : buffer;
+  return crypto.createHash('sha256').update(toHash).digest('hex');
 }
 
 export function makeCacheKey(hash) {
   return `whisper-v2:cache:${hash}`;
-}
-
-export async function processFile(filePath, targetLanguage) {
-  initialize();
-  const start = Date.now();
-
-  try {
-    const pcmFull = decodeAudioToPCM(filePath);
-    const decodedMs = Date.now() - start;
-
-    const speech = applyVAD(pcmFull);
-    const usedVAD = !!vad && speech.length < pcmFull.length;
-    const vadMs = Date.now() - start - decodedMs;
-
-    const textResult = transcribePCM(speech);
-    const asrMs = Date.now() - start - decodedMs - vadMs;
-
-    const text = addPunctuation(textResult.text, textResult.language);
-
-    // Translation is now expected to be handled via Whisper built-in (task: 'translate')
-    // when target_language is passed. External NLLB service has been removed.
-    const translated = null;
-
-    return {
-      text,
-      language: textResult.language,
-      translated,
-      target_language: targetLanguage || null,
-      metrics: {
-        decodedMs,
-        vadMs,
-        asrMs,
-        durationMs: Date.now() - start,
-        speechSamples: speech.length,
-        rawSamples: pcmFull.length,
-        usedVAD,
-      },
-    };
-  } catch (error) {
-    console.error('[whisper-service-v2] processFile failed:', error?.message || error);
-    return {
-      text: '',
-      language: 'unknown',
-      translated: null,
-      target_language: null,
-      metrics: { durationMs: Date.now() - start, error: error?.message || String(error) },
-    };
-  }
-}
-
-export async function processBuffer(buffer, targetLanguage) {
-  const tmpFile = join(tmpdir(), `whisper-v2-${crypto.randomBytes(8).toString('hex')}.tmp`);
-  try {
-    writeFileSync(tmpFile, buffer);
-    return await processFile(tmpFile, targetLanguage);
-  } finally {
-    if (existsSync(tmpFile)) {
-      try { unlinkSync(tmpFile); } catch (_) { /* ignore cleanup */ }
-    }
-  }
 }
 
 export function isServiceReady() {
@@ -278,7 +328,7 @@ export function isServiceReady() {
     initialize();
     return true;
   } catch (error) {
-    console.error('[whisper-service-v2] isServiceReady: initialization failed:', error?.message || error);
+    console.error('[whisper-service-v2] init failed:', error?.message || error);
     return false;
   }
 }
@@ -286,7 +336,7 @@ export function isServiceReady() {
 export function getServiceStatus() {
   return {
     whisper: !!recognizer,
-    vad: !!vad,
-    punctuation: isPunctuationEnabled,
+    vad: true,
+    punctuation: isPunctuationEnabled ? punctuationType : 'none',
   };
 }

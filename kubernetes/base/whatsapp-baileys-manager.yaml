@@ -95,10 +95,7 @@ spec:
         - name: REDIS_URL
           value: "redis://redis:6379"
         - name: MONGODB_URI
-          valueFrom:
-            secretKeyRef:
-              name: whisper-messenger-env
-              key: MONGODB_URI
+          value: "mongodb://mongodb:27017/voicemsg"
 ---
 apiVersion: v1
 kind: Service

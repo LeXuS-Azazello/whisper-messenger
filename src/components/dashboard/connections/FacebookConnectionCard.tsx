@@ -1,5 +1,6 @@
 /** @jsxImportSource preact */
 import type { UserSession } from '../../../types';
+
 export function FacebookConnectionCard({ user, env }: { user: UserSession; env: any }) {
     return (
         <div class="card fb-fca-card">
@@ -13,51 +14,64 @@ export function FacebookConnectionCard({ user, env }: { user: UserSession; env: 
             </div>
             <div class="card-content">
                 <p class="card-description">
-                    Connect your Facebook Messenger. AppState is strongly recommended.
+                    Подключите Facebook Messenger для автоматической транскрипции голосовых сообщений.
                 </p>
 
-                {/* Method selectors — now real <button> for semantics + keyboard + beauty */}
-                <div class="wa-methods-grid">
-                    <button type="button" class="wa-method-card" id="fb-method-appstate" data-method="appstate"
-                        {...{ onclick: "window.setFbMethod && window.setFbMethod('appstate')" } as any}>
-                        <div class="wa-method-icon">🔑</div>
-                        <div class="wa-method-content">
-                            <div class="wa-method-title">AppState JSON <span class="badge recommended">Recommended</span></div>
-                            <div class="wa-method-subtitle">Export from browser (most stable)</div>
-                        </div>
-                    </button>
+                {/* Security warning */}
+                <div style={{
+                    background: '#fff3cd',
+                    border: '1px solid #ffc107',
+                    borderRadius: '6px',
+                    padding: '8px 10px',
+                    marginBottom: '12px',
+                    fontSize: '12px',
+                    color: '#664d03'
+                }}>
+                    ⚠️ <strong>Внимание:</strong> AppState даёт боту полный доступ к вашему Messenger.
+                    Никому не передавайте этот JSON. После подключения вы можете в любой момент отключить аккаунт.
+                </div>
 
-                    <button type="button" class="wa-method-card" id="fb-method-creds" data-method="creds"
-                        {...{ onclick: "window.setFbMethod && window.setFbMethod('creds')" } as any}>
-                        <div class="wa-method-icon">✉️</div>
-                        <div class="wa-method-content">
-                            <div class="wa-method-title">Email + Password</div>
-                            <div class="wa-method-subtitle">Direct login (often blocked by Facebook)</div>
-                        </div>
-                    </button>
+                <div style={{ marginBottom: '10px', fontSize: '13px', lineHeight: '1.4' }}>
+                    <strong>Как получить AppState (единственный рабочий способ):</strong>
+                    <ol style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                        <li>
+                            Установите расширение <strong>C3C UFC Utility</strong>:<br />
+                            <a href="https://github.com/c3cbot/c3c-ufc-utility" target="_blank" style={{ color: '#0d6efd' }}>C3C UFC Utility (GitHub)</a> — там ссылки на Chrome Web Store и Firefox Add-ons
+                        </li>
+                        <li>Зайдите на <a href="https://www.facebook.com" target="_blank">facebook.com</a> или <a href="https://www.messenger.com" target="_blank">messenger.com</a> и войдите в аккаунт в <strong>том же браузере</strong>.</li>
+                        <li>Нажмите на иконку расширения → <strong>Export</strong> → скопируйте JSON (это массив cookies).</li>
+                        <li>Вставьте скопированный текст в поле ниже и нажмите «Подключить».</li>
+                    </ol>
+                    <div style={{ marginTop: '6px', fontSize: '11px', color: '#555' }}>
+                        <strong>Админам:</strong> если нужно массово подключать аккаунты — используйте локальный скрипт{' '}
+                        <code>scripts/generate-facebook-appstate.js</code> (запускайте на своём компьютере с хорошим IP).
+                        Он делает ровно то, что рекомендуют в документации fca-unofficial: логинится по кредам один раз и сохраняет AppState.
+                    </div>
                 </div>
 
                 <div id="fb-appstate-area">
                     <div class="input-group">
-                        <label class="input-label">AppState JSON</label>
-                        <textarea id="fb-appstate" class="input-field" rows={4} placeholder='[{"key": "c_user", "value": "..."}]' style={{ fontFamily: 'monospace', fontSize: '12px' }} />
+                        <label class="input-label">AppState JSON (массив cookies)</label>
+                        <textarea
+                            id="fb-appstate"
+                            class="input-field"
+                            rows={5}
+                            placeholder='[{"key":"c_user","value":"123456789","domain":"facebook.com","path":"/"},{"key":"xs","value":"...","domain":"facebook.com","path":"/"}, ...]'
+                            style={{ fontFamily: 'monospace', fontSize: '11px', lineHeight: '1.3' }}
+                        />
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#666', marginTop: '-4px', marginBottom: '8px' }}>
+                        Должен начинаться с <code>[{`{`}"key": "c_user"...</code> — это формат, который понимает библиотека fca-unofficial.
                     </div>
                 </div>
 
-                <form id="fb-creds-area" style={{ display: 'none' }} onSubmit={(e) => e.preventDefault()}>
-                    <div class="input-group">
-                        <label class="input-label">Email / Username</label>
-                        <input type="text" id="fb-email" class="input-field" placeholder="email@example.com" autoComplete="username" />
-                    </div>
-                    <div class="input-group">
-                        <label class="input-label">Password</label>
-                        <input type="password" id="fb-password" class="input-field" placeholder="••••••••" autoComplete="current-password" />
-                    </div>
-                </form>
+                <div class="button-group-2" style={{ marginTop: '8px' }}>
+                    <button class="btn btn-primary" id="connect-fb-fca-btn">Подключить аккаунт</button>
+                    <button class="btn btn-danger btn-xs" id="disconnect-fb-fca-btn" style={{ display: 'none' }}>Отключить</button>
+                </div>
 
-                <div class="button-group-2" style={{ marginTop: '12px' }}>
-                    <button class="btn btn-primary" id="connect-fb-fca-btn">Connect Account</button>
-                    <button class="btn btn-danger btn-xs" id="disconnect-fb-fca-btn" style={{ display: 'none' }}>Disconnect</button>
+                <div style={{ fontSize: '11px', color: '#888', marginTop: '8px' }}>
+                    Email + Password больше не поддерживается — Facebook блокирует такие логины. Только AppState.
                 </div>
             </div>
         </div>

@@ -90,10 +90,15 @@ fi
 
 
 FORCE_REBUILD=false
+SKIP_BUILD=false
 for arg in "$@"; do
     if [[ "$arg" == "--force" || "$arg" == "-f" ]]; then
         FORCE_REBUILD=true
         echo ">>> Force rebuild enabled!"
+    fi
+    if [[ "$arg" == "--skip-build" ]]; then
+        SKIP_BUILD=true
+        echo ">>> Skip build mode - using existing images in Harbor"
     fi
 done
 
@@ -146,6 +151,12 @@ build_and_push_image() {
     local image_tag=$4
     local latest_image="${REPO}/${name}:latest"
     
+    if [ "$SKIP_BUILD" = "true" ]; then
+        echo ">>> [SKIP BUILD] Using existing ${latest_image} in Harbor"
+        docker pull "$latest_image" 2>/dev/null || echo ">>> WARNING: Could not pull $latest_image"
+        return 0
+    fi
+    
     # Try to check local docker or pull the latest image to check if it exists
     local has_latest=false
     if docker image inspect "$latest_image" >/dev/null 2>&1; then
@@ -157,6 +168,19 @@ build_and_push_image() {
     # Always fully rebuild the frontend (whisper-frontend) so that all TypeScript / Preact changes
     # (new components, ConnectionsPane, extracted cards etc.) are recompiled via esbuild.
     if [ "$name" = "whisper-frontend" ]; then
+        if [ ! -d "whisper" ]; then
+            echo ">>> [SKIP HEAVY] whisper-frontend: 'whisper/' directory missing (heavy ML models — forbidden on local machine per AGENTS.md)"
+            echo ">>>            Using latest image from Harbor (models are downloaded on-cluster by downloader jobs anyway)."
+            if docker pull "${REPO}/whisper-frontend:latest" >/dev/null 2>&1; then
+                docker tag "${REPO}/whisper-frontend:latest" "$image_tag"
+                docker tag "${REPO}/whisper-frontend:latest" "$latest_image"
+                docker push "$image_tag" || true
+                docker push "$latest_image" || true
+            else
+                echo ">>>            (No previous whisper-frontend image in Harbor — frontend assets may be stale)"
+            fi
+            return 0
+        fi
         echo ">>> [FORCE REBUILD] whisper-frontend — always recompiling all TypeScript/Preact to pick up UI changes"
         echo ">>> [BUILD] Building and pushing $name..."
         docker build -t "$image_tag" -f "$dockerfile" "$image_path"
@@ -204,13 +228,16 @@ fi
 
 # Inject shared/ utilities (samesame.js etc.) into clients that need them
 echo ">>> Injecting shared/ code into client build contexts..."
-for CLIENT_DIR in tg-client whatsapp-baileys-client facebook-fca-client instagram-fca-client; do
+for CLIENT_DIR in tg-client whatsapp-baileys-client facebook-fca-client instagram-fca-client voicemsg-tester; do
     if [ -d "$CLIENT_DIR" ]; then
         rm -rf "$CLIENT_DIR/shared"
         mkdir -p "$CLIENT_DIR/shared"
         cp -r shared/* "$CLIENT_DIR/shared/"
     fi
 done
+
+echo "12. Whisper Service v2: $WHISPER_V2_IMAGE"
+build_and_push_image "whisper-service-v2" "whisper-service-v2" "whisper-service-v2/Dockerfile" "$WHISPER_V2_IMAGE"
 
 echo "1. Frontend: $FRONTEND_IMAGE"
 build_and_push_image "whisper-frontend" "." "Dockerfile" "$FRONTEND_IMAGE"
@@ -245,8 +272,6 @@ build_and_push_image "whatsapp-baileys-client" "whatsapp-baileys-client" "whatsa
 echo "11. Samesame: $SAMESAME_IMAGE"
 build_and_push_image "samesame" "samesame" "samesame/Dockerfile" "$SAMESAME_IMAGE"
 
-echo "12. Whisper Service v2: $WHISPER_V2_IMAGE"
-build_and_push_image "whisper-service-v2" "whisper-service-v2" "whisper-service-v2/Dockerfile" "$WHISPER_V2_IMAGE"
 
 # Clean up temporary injections (tdlib + shared code)
 if [ "$HAS_CUSTOM_TDLIB" = true ]; then
@@ -255,7 +280,7 @@ if [ "$HAS_CUSTOM_TDLIB" = true ]; then
 fi
 
 echo ">>> Cleaning up injected shared/ directories from clients..."
-for CLIENT_DIR in tg-client whatsapp-baileys-client facebook-fca-client instagram-fca-client; do
+for CLIENT_DIR in tg-client whatsapp-baileys-client facebook-fca-client instagram-fca-client voicemsg-tester; do
     rm -rf "$CLIENT_DIR/shared" 2>/dev/null || true
 done
 echo ""
@@ -263,76 +288,89 @@ echo ""
 # Single kustomize apply covers: frontend, redis, mongodb, tg-client-manager,
 # tg-client, whisper-v2, voicemsg-cf, real managers (test deployments removed)
 
-echo ">>> Cleaning up old model downloader Jobs..."
-kubectl delete job -n "$NAMESPACE" -l component=model-downloader --ignore-not-found
-kubectl delete job samesame-model-downloader -n "$NAMESPACE" --ignore-not-found
+if [ "$SKIP_BUILD" = "true" ]; then
+    echo ">>> [SKIP BUILD] Skipping image updates - using existing Harbor images"
+    echo ">>> Applying base resources via kustomize..."
+    kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || echo "Warning: Some resources failed to apply (likely RBAC restrictions)."
+else
+    echo ">>> Checking if model downloader Jobs are needed (skip if models already present)..."
+    # We no longer blindly delete + recreate downloaders.
+    # The downloader scripts themselves are idempotent (marker files + size checks).
+    # We only launch them if the corresponding Deployment does not have ready replicas yet.
 
-echo ">>> Applying base resources via kustomize..."
-kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || echo "Warning: Some resources failed to apply (likely RBAC restrictions). Proceeding to update images..."
-echo ""
+    echo ">>> Applying base resources via kustomize..."
+    kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || echo "Warning: Some resources failed to apply (likely RBAC restrictions). Proceeding to update images..."
+    echo ""
 
-# Update image in k8s manifests
-echo ">>> Updating image tags in Deployments..."
-kubectl set image deployment/echo-frontend frontend="$FRONTEND_IMAGE" -n "$NAMESPACE"
+    # Update image in k8s manifests
+    echo ">>> Updating image tags in Deployments..."
+    kubectl set image deployment/echo-frontend frontend="$FRONTEND_IMAGE" -n "$NAMESPACE"
 
-# Update echo-static initContainer so that new static assets (CSS, etc.) are picked up
-kubectl set image deployment/echo-static \
-  build-assets="$FRONTEND_IMAGE" -n "$NAMESPACE" || true
+    # Update echo-static initContainer so that new static assets (CSS, etc.) are picked up
+    kubectl set image deployment/echo-static \
+      build-assets="$FRONTEND_IMAGE" -n "$NAMESPACE" || true
 
-kubectl rollout restart deployment/echo-static -n "$NAMESPACE" || true
-
-kubectl set image deployment/tg-client-manager manager="$MANAGER_IMAGE" -n "$NAMESPACE"
-kubectl set env deployment/tg-client-manager TG_CLIENT_IMAGE="$TG_CLIENT_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/facebook-fca-manager manager="$FCA_MANAGER_IMAGE" -n "$NAMESPACE"
-kubectl set env deployment/facebook-fca-manager FCA_CLIENT_IMAGE="$FCA_CLIENT_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/whatsapp-baileys-manager manager="$WA_MANAGER_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/samesame samesame="$SAMESAME_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/whisper-service-v2 whisper-service-v2="$WHISPER_V2_IMAGE" -n "$NAMESPACE"
-kubectl set image deployment/voicemsg-tester tester="$TESTER_IMAGE" -n "$NAMESPACE"
+    kubectl rollout restart deployment/echo-static -n "$NAMESPACE" || true
 
 echo ">>> Whisper Service v2 + Samesame deployed."
 
-# CRITICAL ORDER (prevents chicken-egg + local downloads):
-# 1. Launch downloader Jobs IMMEDIATELY after apply (they are safe to run multiple times thanks to marker files).
-# 2. The Deployments may start in "not ready" state (models missing) — this is expected and desired.
-# 3. The Jobs download into the PVC (only on Kubernetes nodes, never locally).
-# 4. Once files appear, the containers load the models and become Ready.
-# This guarantees that heavy model downloads happen ONLY via the dedicated Jobs on the cluster.
+    # CRITICAL ORDER (prevents chicken-egg + local downloads):
+    # 1. Launch downloader Jobs IMMEDIATELY after apply (they are safe to run multiple times thanks to marker files).
+    # 2. The Deployments may start in "not ready" state (models missing) — this is expected and desired.
+    # 3. The Jobs download into the PVC (only on Kubernetes nodes, never locally).
+    # 4. Once files appear, the containers load the models and become Ready.
+    # This guarantees that heavy model downloads happen ONLY via the dedicated Jobs on the cluster.
 
-echo ">>> Launching model downloader Jobs first (marker files prevent re-downloads on subsequent deploys)..."
-kubectl create -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n "$NAMESPACE" || true
-kubectl create -f kubernetes/base/samesame-downloader-job.yaml -n "$NAMESPACE" || true
+    echo ">>> Checking whether model downloader Jobs are needed..."
 
-echo ">>> Waiting for downloader Jobs to complete AND model deployments to become Ready..."
-echo "    (On first run this can take 10-30 min depending on network + model size. Subsequent deploys are instant.)"
-
-while true; do
-    echo ""
-    echo "=== Model Deployments ==="
-    kubectl get deploy -n "$NAMESPACE" \
-        whisper-service-v2 samesame \
-        --no-headers 2>/dev/null || true
-
-    echo ""
-    echo "=== Downloader Jobs (component=model-downloader) ==="
-    kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers 2>/dev/null || echo "  (no downloader jobs)"
-
-    WHISPER_READY=$(kubectl get deploy whisper-service-v2 -n "$NAMESPACE" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
-    SAMESAME_READY=$(kubectl get deploy samesame -n "$NAMESPACE" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
-
-    # Check if the latest downloader jobs have succeeded (we don't care about old ones)
-    WHISPER_JOB_DONE=$(kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers -o jsonpath='{range .items[*]}{.status.succeeded}{" "}{end}' 2>/dev/null | grep -E ' [1-9]' || echo "")
-    SAMESAME_JOB_DONE=$(kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers -o jsonpath='{range .items[*]}{.status.succeeded}{" "}{end}' 2>/dev/null | grep -E ' [1-9]' || echo "")
-
-    if [ "${WHISPER_READY:-0}" -ge 1 ] && [ "${SAMESAME_READY:-0}" -ge 1 ]; then
-        echo ""
-        echo ">>> Both model deployments are Ready."
-        break
+    # Whisper models check (key files)
+    WHISPER_READY=$(kubectl get deploy whisper-service-v2 -n "$NAMESPACE" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+    if [ "${WHISPER_READY:-0}" -ge 1 ]; then
+      echo ">>> Whisper models appear ready (deployment has ready replicas) — skipping downloader Job"
+    else
+      echo ">>> Launching whisper-service-v2 model downloader Job..."
+      kubectl create -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n "$NAMESPACE" || true
     fi
 
-    echo "Waiting 10 seconds... (Jobs download only on Kubernetes — never on your laptop)"
-    sleep 10
-done
+    # Samesame models check
+    SAMESAME_READY=$(kubectl get deploy samesame -n "$NAMESPACE" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+    if [ "${SAMESAME_READY:-0}" -ge 1 ]; then
+      echo ">>> Samesame models appear ready — skipping downloader Job"
+    else
+      echo ">>> Launching samesame model downloader Job..."
+      kubectl create -f kubernetes/base/samesame-downloader-job.yaml -n "$NAMESPACE" || true
+    fi
+
+    echo ">>> Waiting for model deployments to become Ready (downloaders run only if needed)..."
+
+    while true; do
+        echo ""
+        echo "=== Model Deployments ==="
+        kubectl get deploy -n "$NAMESPACE" \
+            whisper-service-v2 samesame \
+            --no-headers 2>/dev/null || true
+
+        echo ""
+        echo "=== Downloader Jobs (component=model-downloader) ==="
+        kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers 2>/dev/null || echo "  (no downloader jobs)"
+
+        WHISPER_READY=$(kubectl get deploy whisper-service-v2 -n "$NAMESPACE" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
+        SAMESAME_READY=$(kubectl get deploy samesame -n "$NAMESPACE" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
+
+        # Check if the latest downloader jobs have succeeded (we don't care about old ones)
+        WHISPER_JOB_DONE=$(kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers -o jsonpath='{range .items[*]}{.status.succeeded}{" "}{end}' 2>/dev/null | grep -E ' [1-9]' || echo "")
+        SAMESAME_JOB_DONE=$(kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers -o jsonpath='{range .items[*]}{.status.succeeded}{" "}{end}' 2>/dev/null | grep -E ' [1-9]' || echo "")
+
+        if [ "${WHISPER_READY:-0}" -ge 1 ] && [ "${SAMESAME_READY:-0}" -ge 1 ]; then
+            echo ""
+            echo ">>> Both model deployments are Ready."
+            break
+        fi
+
+        echo "Waiting 10 seconds... (Jobs download only on Kubernetes — never on your laptop)"
+        sleep 10
+    done
+fi
 
 echo ">>> Deleting existing user tg-client pods to force recreation with new image..."
 kubectl delete pods -l app=tg-client-user -n "$NAMESPACE" --ignore-not-found

@@ -24,11 +24,22 @@ export async function handleInstaStatus(env: Env, userId: string): Promise<Respo
 
 export async function handleInstaLogin(env: Env, userId: string, body: any): Promise<Response> {
   try {
-    const { username, password } = body;
+    const { username, password, appState } = body;
+
+    // If appState is provided, prefer it (more stable for Instagram too)
+    const payload: any = { userId };
+    if (appState) payload.appState = appState;
+    else if (username && password) {
+      payload.username = username;
+      payload.password = password;
+    } else {
+      return Response.json({ error: "Provide appState or username+password for Instagram" }, { status: 400 });
+    }
+
     const res = await fetch(`${getManagerUrl(env)}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-manager-secret": env.MANAGER_SECRET || "changeme" },
-      body: JSON.stringify({ userId, username, password })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     return Response.json(data, { status: res.status });

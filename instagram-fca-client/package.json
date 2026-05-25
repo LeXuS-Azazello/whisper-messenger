@@ -6,6 +6,7 @@
   "dependencies": {
     "dotenv": "^16.4.5",
     "re2": "^1.24.1",
-    "instagram-private-api": "^1.46.1"
+    "instagram-private-api": "^1.46.1",
+    "ioredis": "^5.4.1"
   }
 }

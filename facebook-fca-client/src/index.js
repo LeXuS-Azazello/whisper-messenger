@@ -1,5 +1,6 @@
 import fcaLogin from '@vangbanlanhat/fca-unofficial';
 import 'dotenv/config';
+import { getPreferredTranslationLang, reportClientStatus } from '../shared/redis.js';
 
 const TARGET_USER_ID = process.env.TARGET_USER_ID || 'unknown';
 const WHISPER_PROVIDER = process.env.WHISPER_PROVIDER 
@@ -85,12 +86,14 @@ console.log('[FCA-Client] Starting login with AppState...');
 login({ appState: appStateParsed }, loginOpts, (err, api) => {
     if (err) {
         console.error('[FCA-Client] Login failed:', err);
+        reportClientStatus('fb', TARGET_USER_ID, 'revoked');
         reportAccessRevoked();
         process.exit(1);
     }
 
     const myId = api.getCurrentUserID();
     console.log(`[FCA-Client] Logged in successfully! My Facebook User ID is ${myId}`);
+    reportClientStatus('fb', TARGET_USER_ID, 'ready');
 
     api.setOptions({ listenEvents: true, selfListen: true });
 
@@ -166,6 +169,11 @@ login({ appState: appStateParsed }, loginOpts, (err, api) => {
 
                     const transcribeStart = Date.now();
                     let transcriptionText = '';
+                    let language = 'auto';
+                    try {
+                        const preferred = await getPreferredTranslationLang(TARGET_USER_ID);
+                        if (preferred) language = preferred;
+                    } catch {}
                     try {
                         const base64Audio = buffer.toString('base64');
                         const response = await fetch(WHISPER_PROVIDER, {
@@ -174,7 +182,7 @@ login({ appState: appStateParsed }, loginOpts, (err, api) => {
                             body: JSON.stringify({
                                 file_data: base64Audio,
                                 mime_type: mimeType,
-                                language: 'auto'
+                                language
                             }),
                             signal: AbortSignal.timeout(300000)
                         });

@@ -23,6 +23,9 @@ data:
     echo "[samesame-downloader] MODELS_DIR=$MODELS_DIR"
     mkdir -p "$MODELS_DIR"
 
+    export XDG_DATA_HOME="$MODELS_DIR"
+    export TRANSFORMERS_CACHE="$MODELS_DIR"
+
     python /app/download_model.py "$MODELS_DIR"
 ---
 apiVersion: apps/v1
@@ -66,24 +69,29 @@ spec:
             - name: SAMESAME_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: samesame-secret
+                  name: whisper-messenger-env
                   key: SAMESAME_SECRET
             - name: SAMESAME_LOCAL_ONLY
               value: "true"
             - name: SAMESAME_MODEL_NAME
-              value: "tts_models/multilingual/multi-dataset/your_tts"
+              value: "tts_models/multilingual/multi-dataset/xtts_v2"
+            - name: COQUI_TOS_AGREED
+              value: "1"
           resources:
-            # Reduced to 1 CPU for debugging-testcrash-pub 12 CPU HRQ
+            # OPTIMIZED: Increased for faster voice cloning (TTS)
             requests:
-              cpu: "800m"
-              memory: "2Gi"
-            limits:
-              cpu: "1"
+              cpu: "2"
               memory: "4Gi"
+            limits:
+              cpu: "3"
+              memory: "8Gi"
           volumeMounts:
             - name: models
               mountPath: /models
               readOnly: true
+            - name: hotfix
+              mountPath: /app/app.py
+              subPath: app.py
           # Readiness: fails (503) until the downloader Job has populated the models.
           # This keeps the pod out of load-balancing until it can actually serve requests.
           readinessProbe:
@@ -109,6 +117,9 @@ spec:
         - name: models
           persistentVolumeClaim:
             claimName: samesame-model-cache
+        - name: hotfix
+          configMap:
+            name: samesame-hotfix
 ---
 apiVersion: v1
 kind: Service

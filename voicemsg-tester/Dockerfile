@@ -10,6 +10,10 @@ RUN npm install
 
 # Copy source code
 COPY src/ ./src/
+COPY shared/ ./shared/
+
+# Real reference audio used for ASR + voice clone roundtrip test
+COPY test_whisper.ogg ./test_whisper.ogg
 
 EXPOSE 3000
 

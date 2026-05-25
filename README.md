@@ -40,7 +40,7 @@ All heavy ASR work happens in the isolated worker container inside whisper-servi
 | `*-manager/` (4 managers)   | Kubernetes controllers that spawn & manage per-user client pods | No (shared) |
 | `*-client/` folders         | Actual messenger clients (tdlib, Baileys, FCA) running inside user pods | Yes |
 | `whisper-service-v2`        | ASR service (API + BullMQ worker + distil-large-v2) | Shared (API + worker containers) |
-| `samesame`                  | Premium voice cloning (YourTTS + reference audio)   | Shared |
+| `samesame`                  | Premium voice cloning (XTTS v2 + CPU optimized)     | Shared |
 | `kubernetes/`               | Kustomize manifests for all services         | —              |
 
 ---
@@ -102,8 +102,8 @@ npm run deploy:k8s
 .
 ├── src/                              # Preact dashboard + Hono backend
 │   └── components/dashboard/         # ConnectionsPane + per-messenger cards
-├── tg-client-manager/                # Spawns & manages per-user Telegram pods
-├── tg-client/                        # tdlib client (runs inside user pods)
+├── tg-client-manager/                # Spawns & manages per-user Telegram pods (see README)
+├── tg-client/                        # tdlib client (runs inside user pods) (see README)
 ├── whatsapp-baileys-manager/         # WhatsApp (Baileys) manager
 ├── whatsapp-baileys-client/          # Baileys client (per-user pods)
 ├── facebook-fca-manager/             # Facebook Messenger (FCA)
@@ -111,10 +111,16 @@ npm run deploy:k8s
 ├── instagram-fca-manager/            # Instagram Direct (FCA)
 ├── instagram-fca-client/
 ├── whisper-service-v2/               # ASR (API + BullMQ worker + distil-large-v2)
-├── samesame/                         # Premium voice cloning (YourTTS + reference audio)
-├── kubernetes/                       # Kustomize manifests (base + overlays)
+├── samesame/                         # Premium voice cloning (XTTS v2 + CPU optimized) (see README)
+├── kubernetes/                       # Kustomize manifests (base + overlays) (see README)
 └── scripts/deploy.sh                 # Full build + push + rollout + auto model downloaders
 ```
+
+### 📚 Detailed Documentation
+*   [**Kubernetes Manifests & Architecture**](kubernetes/README.md)
+*   [**SAMESAME Voice Cloning**](samesame/README.md)
+*   [**Telegram Client**](tg-client/README.md)
+*   [**Telegram Client Manager**](tg-client-manager/README.md)
 
 ---
 
@@ -127,4 +133,4 @@ npm run deploy:k8s
 
 ---
 
-*Updated 2026-05 — whisper-service-v2 + samesame (voice cloning via 
+*Updated 2026-05 — whisper-service-v2 + samesame (voice cloning via XTTS v2 with CPU multi-threading).*

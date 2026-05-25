@@ -3,3 +3,5 @@ uvicorn[standard]
 TTS
 soundfile
 numpy
+transformers<4.40.0
+torchcodec

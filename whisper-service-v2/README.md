@@ -83,11 +83,14 @@ TTL default: `3600` seconds.
 - `PORT` — HTTP port (default `8000`)
 - `REDIS_URL` — Redis connection string
 - `CACHE_TTL` — cache TTL seconds (default `3600`)
-- `NUM_THREADS` — ASR thread count (default `4`)
-- `PUNCT_THREADS` — only used if you keep the optional zh/en CT-Transformer model (default `2`)
+- `NUM_THREADS` — ASR thread count (default `2`; **keep LOW** when replicas>1)
+- `PUNCT_THREADS` — only used if you keep the optional zh/en CT-Transformer model (default `1`)
 - `TRANSLATE_SERVICE_URL` — translation backend URL
 - `MODELS_DIR` — path to local models (default `/models`)
-- `WORKER_CONCURRENCY` — worker concurrency
+- `WORKER_CONCURRENCY` — worker concurrency (default `1`; **never increase on CPU-only**)
+- `OMP_NUM_THREADS` — must be `1` for CPU-only inference (set in Dockerfile/K8s)
+- `OMP_WAIT_POLICY` — must be `PASSIVE` (prevents thread explosion)
+- `VAD_MIN_SPEECH_DURATION` — seconds of speech per chunk (default `0.85`; target 800-1500ms)
 
 ## Kubernetes
 

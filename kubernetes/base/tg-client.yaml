@@ -33,7 +33,9 @@ data:
             { "name": "APP_VERSION", "value": "4.15.2" },
             { "name": "SYSTEM_VERSION", "value": "Ubuntu 24.04" },
             { "name": "WHISPER_PROVIDER", "value": "http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000" },
-            { "name": "WHISPER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "WHISPER_SECRET", "optional": true}} }
+            { "name": "WHISPER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "WHISPER_SECRET", "optional": true}} },
+            { "name": "SAMESAME_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "SAMESAME_SECRET"}} },
+            { "name": "SAMESAME_URL", "value": "http://samesame:8002" }
           ],
           "volumeMounts": [{
             "name": "tdlib-storage",

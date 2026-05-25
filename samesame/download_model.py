@@ -1,5 +1,9 @@
 import os
 import sys
+
+os.environ["XDG_DATA_HOME"] = os.environ.get("TTS_MODEL_DIR", "/models")
+os.environ["TRANSFORMERS_CACHE"] = os.environ.get("TTS_MODEL_DIR", "/models")
+
 from TTS.api import TTS
 
 MODEL_NAME = os.environ.get("SAMESAME_MODEL_NAME", "tts_models/multilingual/multi-dataset/your_tts")

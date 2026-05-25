@@ -2,7 +2,7 @@
 #
 # PURPOSE:
 #   One-time (or on-demand) Job that downloads the large ASR models
-#   (SenseVoice, Silero VAD, Punctuation) into the PVC used by whisper-service-v2.
+#   (Whisper large-v3-turbo int8 + Silero VAD) into the PVC used by whisper-service-v2.
 #
 # WHEN TO RUN:
 #   - First time after deploying whisper-service-v2
@@ -53,11 +53,8 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: downloader
-          image: debian:bookworm-slim
-          command: ["/bin/bash", "-c", "apt-get update && apt-get install -y curl bzip2 ca-certificates && bash /scripts/download-models.sh"]
-          envFrom:
-          - secretRef:
-              name: hf-token
+          image: curlimages/curl:latest
+          command: ["/bin/sh", "/scripts/download-models.sh"]
           env:
             - name: MODELS_DIR
               value: "/models"
@@ -66,14 +63,6 @@ spec:
               mountPath: /models
             - name: scripts
               mountPath: /scripts
-          resources:
-            # Reduced for debugging-testcrash-pub 12 CPU HRQ
-            requests:
-              cpu: "500m"
-              memory: "256Mi"
-            limits:
-              cpu: "1"
-              memory: "1Gi"
       volumes:
         - name: models
           persistentVolumeClaim:

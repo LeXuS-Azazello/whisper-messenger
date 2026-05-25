@@ -1,19 +1,19 @@
 ---
-# Whisper Service v2: sherpa-onnx + Silero VAD + CT-Transformer
-# CPU-only deployment for debugging-testcrash-pub
+# Whisper Service v2: sherpa-onnx Whisper large-v3-turbo int8 + Silero VAD
+# CPU-only deployment for debugging-testcrash-pub (namespace: debugging-testcrash-pub)
 #
-# Model downloader Job has been moved to a separate file:
-#   kubernetes/base/whisper-service-v2-downloader-job.yaml
-#
-# Reason: Jobs should not be part of regular declarative deploys.
-# To download or re-download models run:
+# Model downloader Job is in a separate file (Jobs are not declarative):
 #   kubectl create -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n debugging-testcrash-pub
+#
+# This will download ~1.6 GB of models into the PVC on the first run.
+# Subsequent runs are instant (marker files).
 
 
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: whisper-service-v2-models-pvc
+  namespace: debugging-testcrash-pub
 spec:
   accessModes:
     - ReadWriteOnce
@@ -26,6 +26,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: whisper-service-v2-download-scripts
+  namespace: debugging-testcrash-pub
 data:
   download-models.sh: |
     #!/bin/sh
@@ -35,7 +36,6 @@ data:
     # CRITICAL RULES (per AGENTS.md):
     # - Runs ONLY inside Kubernetes Job + PVC. NEVER on laptop.
     # - Downloads happen at most ONCE (marker files).
-    # - Punctuation model is optional; simple fallback covers 100+ languages.
     # =============================================================================
     set -euo pipefail
 
@@ -46,96 +46,123 @@ data:
 
     MODELS_DIR="${MODELS_DIR:-/models}"
 
-    mkdir -p "$MODELS_DIR/sense_voice" "$MODELS_DIR/vad" "$MODELS_DIR/punctuation"
+    mkdir -p "$MODELS_DIR/whisper" "$MODELS_DIR/vad"
 
     BASE="https://github.com/k2-fsa/sherpa-onnx/releases/download"
 
+    # --- helper: single file (Silero VAD) ----------------------------------------
     download_if_missing() {
       local url="$1"
       local out="$2"
+
       if [ -f "$out" ]; then
         echo "[download-models] SKIP (exists): $out"
         return 0
       fi
-      echo "[download-models] DOWNLOADING (single): $url → $out"
+
+      echo "[download-models] DOWNLOADING (single file): $url → $out"
       if ! curl -L --fail --retry 8 --retry-delay 5 --max-time 300 -o "$out" "$url"; then
-        echo "[download-models] FATAL: failed to download $url" >&2
+        echo "[download-models] FATAL: failed to download $url after retries" >&2
         exit 1
       fi
       echo "[download-models] SUCCESS: $out"
     }
 
+    # --- helper: tar.bz2 archive (Whisper turbo etc.) ----------------------------
     download_tar_if_missing() {
       local url="$1"
       local dest_dir="$2"
       local marker="$3"
       local name="$4"
+
       if [ -f "$marker" ]; then
-        echo "[download-models] SKIP (exists): $marker  [$name]"
-        return 0
+        size=$(stat -c%s "$marker" 2>/dev/null || echo 0)
+        if [ "$size" -gt 100000000 ]; then
+          echo "[download-models] SKIP (exists and valid, ${size} bytes): $marker  [$name]"
+          return 0
+        else
+          echo "[download-models] WARNING: $marker exists but too small (${size} bytes) — will re-download"
+          rm -f "$marker"
+        fi
       fi
+
       echo "[download-models] DOWNLOADING ARCHIVE ($name): $url"
       tmp="$(mktemp)"
       if ! curl -L --fail --retry 8 --retry-delay 5 --max-time 600 -o "$tmp" "$url"; then
-        echo "[download-models] FATAL: failed to download archive $url" >&2
+        echo "[download-models] FATAL: failed to download archive $url after retries" >&2
         rm -f "$tmp"
         exit 1
       fi
-      echo "[download-models] EXTRACTING $name ..."
+
+      echo "[download-models] EXTRACTING $name into $dest_dir ..."
       tar -xjf "$tmp" -C "$dest_dir" --strip-components=1
+      find "$dest_dir" -mindepth 2 -type f -exec mv {} "$dest_dir"/ \; 2>/dev/null || true
+      find "$dest_dir" -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
       rm -f "$tmp"
-      echo "[download-models] SUCCESS: $name extracted"
+      echo "[download-models] SUCCESS: $name extracted (marker: $marker)"
     }
 
+    # 1. Whisper large-v3-turbo int8 — official sherpa-onnx export
+    #    Best quality + LID for 99+ languages (Russian, Hebrew, Arabic, etc.)
+    echo "[download-models] >>> Downloading Whisper turbo int8 (large-v3-turbo) ..."
     download_tar_if_missing \
-      "${BASE}/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2" \
-      "$MODELS_DIR/sense_voice" \
-      "$MODELS_DIR/sense_voice/model.int8.onnx" \
-      "SenseVoice"
+      "${BASE}/asr-models/sherpa-onnx-whisper-turbo.tar.bz2" \
+      "$MODELS_DIR/whisper" \
+      "$MODELS_DIR/whisper/turbo-encoder.int8.onnx" \
+      "Whisper turbo int8 (large-v3-turbo)"
 
+    # 2. Silero VAD (required for voice activity detection)
+    #    Direct single-file download as requested
     download_if_missing \
-      "${BASE}/asr-models/silero_vad.onnx" \
+      "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx" \
       "$MODELS_DIR/vad/silero_vad.onnx"
 
-    # Whisper large-v3-turbo download moved to git clone (see earlier section) – old GitHub URLs removed to prevent 404 errors
-
-    echo "[download-models] >>> PUNCTUATION (most fragile) ..."
+    # 3. English Online Punctuation + Truecasing (cnn-bilstm, very small + high quality for English)
+    echo "[download-models] >>> Downloading English punctuation (online cnn-bilstm int8) ..."
     download_tar_if_missing \
-      "${BASE}/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12.tar.bz2" \
+      "${BASE}/punctuation-models/sherpa-onnx-online-punct-en-2024-08-06.tar.bz2" \
       "$MODELS_DIR/punctuation" \
-      "$MODELS_DIR/punctuation/model.onnx" \
-      "Punctuation"
+      "$MODELS_DIR/punctuation/model.int8.onnx" \
+      "English Online Punctuation + Truecase (int8)"
 
-    echo "[download-models] Verifying ..."
+    echo "[download-models] All downloads attempted. Running final verification ..."
+
+    # --- strict verification ----------------------------------------------------
     missing=0
 
-    if [ ! -f "${MODELS_DIR}/whisper/large-v3-turbo-encoder.int8.onnx" ] || [ ! -f "${MODELS_DIR}/whisper/large-v3-turbo-decoder.int8.onnx" ] || [ ! -f "${MODELS_DIR}/whisper/large-v3-turbo-tokens.txt" ]; then
-      echo "[download-models] ERROR: Whisper large-v3-turbo.int8 files missing!" >&2
+    if [ ! -f "$MODELS_DIR/whisper/turbo-encoder.int8.onnx" ] || \
+       [ ! -f "$MODELS_DIR/whisper/turbo-decoder.int8.onnx" ] || \
+       ( [ ! -f "$MODELS_DIR/whisper/tokens.txt" ] && [ ! -f "$MODELS_DIR/whisper/turbo-tokens.txt" ] ); then
+      echo "[download-models] ERROR: Whisper turbo int8 files missing!" >&2
+      echo "  Expected in $MODELS_DIR/whisper/ : turbo-encoder.int8.onnx, turbo-decoder.int8.onnx, tokens.txt or turbo-tokens.txt" >&2
       missing=1
     else
-      echo "[download-models] OK: Whisper large-v3-turbo.int8 (best multilingual + LID)"
+      echo "[download-models] OK: Whisper turbo int8 (large-v3-turbo)"
     fi
 
     if [ ! -f "$MODELS_DIR/vad/silero_vad.onnx" ]; then
-      echo "[download-models] ERROR: VAD missing!" >&2
+      echo "[download-models] ERROR: Silero VAD missing!" >&2
+      echo "  Expected: $MODELS_DIR/vad/silero_vad.onnx" >&2
       missing=1
     else
       echo "[download-models] OK: VAD"
     fi
 
-    if [ ! -f "$MODELS_DIR/punctuation/model.onnx" ] || [ ! -f "$MODELS_DIR/punctuation/vocab.txt" ]; then
-      echo "[download-models] INFO: Punctuation model absent — simple multilingual fallback active (100+ langs)"
+    if [ -f "$MODELS_DIR/punctuation/model.int8.onnx" ] && [ -f "$MODELS_DIR/punctuation/bpe.vocab" ]; then
+      echo "[download-models] OK: Punctuation (English cnn-bilstm int8 + truecasing)"
+    elif [ -f "$MODELS_DIR/punctuation/model.onnx" ] && [ -f "$MODELS_DIR/punctuation/bpe.vocab" ]; then
+      echo "[download-models] OK: Punctuation (English cnn-bilstm)"
     else
-      echo "[download-models] OK: Punctuation (zh/en bonus)"
+      echo "[download-models] INFO: No punctuation model found — using simple multilingual fallback (100+ langs)"
     fi
 
     if [ "$missing" -eq 1 ]; then
-      echo "[download-models] FATAL — large-v3-turbo or VAD missing" >&2
+      echo "[download-models] FATAL: required models (turbo or VAD) are missing." >&2
       exit 1
     fi
 
     echo "=============================================================="
-    echo "[download-models] SUCCESS at $(date -Iseconds)"
+    echo "[download-models] SUCCESS — all models ready in $MODELS_DIR at $(date -Iseconds)"
     echo "=============================================================="
 
 ---
@@ -143,10 +170,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: whisper-service-v2
+  namespace: debugging-testcrash-pub
   labels:
     app: whisper-service-v2
 spec:
-  replicas: 1   # 1 replica for debugging-testcrash-pub (12 CPU quota, ~6.7 CPU already used by other pods)
+  replicas: 1   # 1 replica of Whisper large-v3-turbo int8 + Silero VAD (streaming low-latency pipeline)
+                # Worker container runs the actual sherpa-onnx ASR (NUM_THREADS=2)
+                # HPA will scale from 1-3 based on CPU load
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: whisper-service-v2
@@ -158,80 +193,105 @@ spec:
       imagePullSecrets:
         - name: harbor-pull-secret
       containers:
-        # HTTP API — accepts requests and enqueues jobs to BullMQ/Redis
-        - name: whisper-service-v2
-          image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
-          ports:
-            - containerPort: 8000
-          env:
-            - name: MODELS_DIR
-              value: "/models"
-            - name: PORT
-              value: "8000"
-            - name: REDIS_URL
-              value: "redis://redis:6379"
-            - name: CACHE_TTL
-              value: "3600"
-            - name: WAIT_FOR_JOB_MS
-              value: "300000"   # 5 minutes - large-v3-turbo.int8 first load can take 3-6 min on CPU
-            - name: NUM_THREADS
-              value: "4"
-            - name: NUM_INTER_THREADS
-              value: "2"   # API container is lighter
-          # API is relatively light (just enqueues to Redis)
-          resources:
-            requests:
-              cpu: "200m"
-              memory: "512Mi"
-            limits:
-              cpu: "500m"
-              memory: "1Gi"
-          volumeMounts:
-            - name: models
-              mountPath: /models
-              readOnly: true
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 15
-            periodSeconds: 10
-            failureThreshold: 6
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 30
-            periodSeconds: 15
-            failureThreshold: 5
+# HTTP API — accepts requests and enqueues jobs to BullMQ/Redis
+         - name: whisper-service-v2
+           image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
+           ports:
+             - containerPort: 8000
+           env:
+             - name: MODELS_DIR
+               value: "/models"
+             - name: PORT
+               value: "8000"
+             - name: REDIS_URL
+               value: "redis://redis:6379"
+             - name: CACHE_TTL
+               value: "3600"
+             - name: WAIT_FOR_JOB_MS
+               value: "300000"
+             - name: NUM_THREADS
+               value: "4"
+             - name: NUM_INTER_THREADS
+               value: "2"
+             - name: OMP_NUM_THREADS
+               value: "4"
+             - name: OMP_WAIT_POLICY
+               value: "PASSIVE"
+             - name: OPENBLAS_NUM_THREADS
+               value: "4"
+             - name: MKL_NUM_THREADS
+               value: "4"
+           # API is relatively light (just enqueues to Redis)
+           # OPTIMIZED: Slightly increased for better request handling
+           resources:
+             requests:
+               cpu: "750m"
+               memory: "640Mi"
+             limits:
+               cpu: "1.5"
+               memory: "1.2Gi"
+           volumeMounts:
+             - name: models
+               mountPath: /models
+               readOnly: true
+           readinessProbe:
+             httpGet:
+               path: /health
+               port: 8000
+             initialDelaySeconds: 15
+             periodSeconds: 10
+             failureThreshold: 6
+           livenessProbe:
+             httpGet:
+               path: /health
+               port: 8000
+             initialDelaySeconds: 30
+             periodSeconds: 15
+             failureThreshold: 5
 
-        # BullMQ Worker — picks jobs from Redis and runs sherpa-onnx transcription
-        - name: whisper-worker-v2
-          image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
-          command: ["node", "src/worker.js"]
-          env:
-            - name: MODELS_DIR
-              value: "/models"
-            - name: REDIS_URL
-              value: "redis://redis:6379"
-            - name: CACHE_TTL
-              value: "3600"
-            - name: NUM_THREADS
-              value: "6"   # tuned for large-v3-turbo.int8 (good balance quality/speed)
-            - name: WORKER_CONCURRENCY
-              value: "1"
-            # Translation is now done via Whisper built-in (task: translate) instead of separate NLLB service
-          resources:
-            requests:
-              cpu: "2"
-              memory: "3Gi"
-            limits:
-              cpu: "3"
-              memory: "4Gi"
-          volumeMounts:
-            - name: models
-              mountPath: /models
-              readOnly: true
+# BullMQ Worker — picks jobs from Redis and runs sherpa-onnx transcription
+         - name: whisper-worker-v2
+           image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
+           command: ["node", "src/worker.js"]
+           env:
+             - name: MODELS_DIR
+               value: "/models"
+             - name: REDIS_URL
+               value: "redis://redis:6379"
+             - name: CACHE_TTL
+               value: "3600"
+             - name: NUM_THREADS
+               value: "6"
+             - name: NUM_INTER_THREADS
+               value: "3"
+             - name: OMP_NUM_THREADS
+               value: "6"
+             - name: OMP_WAIT_POLICY
+               value: "PASSIVE"
+             - name: OPENBLAS_NUM_THREADS
+               value: "3"
+             - name: MKL_NUM_THREADS
+               value: "3"
+             - name: GOTO_NUM_THREADS
+               value: "1"
+             - name: PUNCT_THREADS
+               value: "2"
+             - name: WAIT_FOR_JOB_MS
+               value: "900000"
+           # Worker runs the new streaming Whisper turbo int8 + Silero VAD pipeline (segment-by-segment decode, no giant merges)
+           # With HPA this will scale; each ready worker needs ~2-4 Gi RAM + 1.5-2 CPU while transcribing
+           # OPTIMIZED: Using ~12 cores (leaving 4 for translation services)
+           resources:
+             requests:
+               cpu: "1000m"
+               memory: "3Gi"
+             limits:
+               cpu: "2"
+               memory: "5Gi"
+           volumeMounts:
+             - name: models
+               mountPath: /models
+               readOnly: true
       volumes:
         - name: models
           persistentVolumeClaim:
@@ -242,6 +302,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: whisper-service-v2
+  namespace: debugging-testcrash-pub
   labels:
     app: whisper-service-v2
 spec:
@@ -258,13 +319,14 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: whisper-service-v2
+  namespace: debugging-testcrash-pub
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: whisper-service-v2
   minReplicas: 1
-  maxReplicas: 2   # keep low to stay under 12 CPU HRQ in debugging-testcrash-pub
+  maxReplicas: 3
   metrics:
   - type: Resource
     resource:

@@ -5,7 +5,7 @@ metadata:
 spec:
   podSelector:
     matchExpressions:
-    - {key: app, operator: In, values: [tg-client-manager, tg-client-user]}
+    - {key: app, operator: In, values: [tg-client-manager, tg-client-user, wa-baileys-client, whatsapp-baileys-manager, facebook-fca-manager, facebook-fca-client, instagram-fca-client, instagram-fca-manager]}
   policyTypes:
   - Ingress
   - Egress

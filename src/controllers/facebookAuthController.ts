@@ -24,11 +24,19 @@ export async function handleFbStatus(env: Env, userId: string): Promise<Response
 
 export async function handleFbLogin(env: Env, userId: string, body: any): Promise<Response> {
   try {
-    const { email, password, appState } = body;
+    const { appState } = body;
+
+    // Hard reject any attempt to use dead credential login for Facebook
+    if (!appState) {
+      return Response.json({
+        error: "Email/Password login is permanently disabled for Facebook Messenger. Facebook blocks it. Use AppState JSON exported with C3C UFC Utility extension only. See https://github.com/c3cbot/c3c-ufc-utility"
+      }, { status: 400 });
+    }
+
     const res = await fetch(`${getManagerUrl(env)}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-manager-secret": env.MANAGER_SECRET || "changeme" },
-      body: JSON.stringify({ userId, email, password, appState })
+      body: JSON.stringify({ userId, appState })
     });
     const data = await res.json();
     return Response.json(data, { status: res.status });

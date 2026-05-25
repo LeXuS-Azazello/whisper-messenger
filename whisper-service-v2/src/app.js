@@ -5,10 +5,20 @@ import { Job } from 'bullmq';
 
 const PORT = parseInt(process.env.PORT || '8000', 10);
 const CACHE_TTL = parseInt(process.env.CACHE_TTL || '3600', 10);
-const WAIT_FOR_JOB_MS = (() => { const v = parseInt(process.env.WAIT_FOR_JOB_MS, 10); return Number.isNaN(v) ? 300000 : v; })(); // 5 minutes default
+let WAIT_FOR_JOB_MS = 300000; // 5 minutes default
+if (process.env.WAIT_FOR_JOB_MS) {
+  const parsed = parseInt(process.env.WAIT_FOR_JOB_MS, 10);
+  if (!Number.isNaN(parsed)) {
+    WAIT_FOR_JOB_MS = parsed;
+  } else {
+    console.warn(`[whisper-service-v2] WAIT_FOR_JOB_MS="${process.env.WAIT_FOR_JOB_MS}" is not a number, using default ${WAIT_FOR_JOB_MS}ms`);
+  }
+}
+console.log(`[whisper-service-v2] WAIT_FOR_JOB_MS set to ${WAIT_FOR_JOB_MS}ms`);
 
 const app = express();
-app.use(express.json({ limit: '200mb' }));
+
+app.use(express.json({ limit: '50mb' }));
 
 app.get('/health', async (req, res) => {
   // Lenient health for liveness: transient Redis hiccups (or slow PING) should not kill the container.
@@ -27,7 +37,7 @@ app.get('/health', async (req, res) => {
     } catch (_) {
       // ignore – still return ok so liveness doesn't restart us during Redis blips
     } finally {
-      await healthRedis.quit().catch(() => {});
+      await healthRedis.quit().catch(() => { });
     }
     res.json({ status: 'ok', queue: 'asr-v2', redis: pong });
   } catch (error) {
@@ -54,17 +64,24 @@ app.post('/v1/transcribe-base64', async (req, res) => {
   const audioHash = getAudioHash(buffer);
   const cacheKey = makeCacheKey(audioHash);
 
+  const tCache = Date.now();
   try {
     const cached = await redisCache.get(cacheKey);
+    const cacheMs = Date.now() - tCache;
     if (cached) {
       const payload = JSON.parse(cached);
+      console.log(`[whisper-service-v2] CACHE_HIT on submit | ${cacheMs}ms`);
       return res.json({ ...payload, cache_hit: true });
+    }
+    if (cacheMs > 20) {
+      console.log(`[whisper-service-v2] cache miss in ${cacheMs}ms`);
     }
   } catch (error) {
     console.warn('[whisper-service-v2] Cache read failed:', error?.message || error);
   }
 
   let job;
+  const tEnqueue = Date.now();
   try {
     job = await asrQueue.add('transcribe', {
       file_data,
@@ -77,30 +94,25 @@ app.post('/v1/transcribe-base64', async (req, res) => {
       backoff: { type: 'fixed', delay: 2000 },
     });
 
+    const enqueueMs = Date.now() - tEnqueue;
     if (target_language) {
-      console.log(`[whisper-service-v2] New job ${job.id} enqueued with target_language=${target_language}`);
+      console.log(`[whisper-service-v2] New job ${job.id} enqueued in ${enqueueMs}ms with target_language=${target_language}`);
+    } else {
+      console.log(`[whisper-service-v2] New job ${job.id} enqueued in ${enqueueMs}ms`);
     }
   } catch (error) {
     console.error('[whisper-service-v2] Queue add failed:', error?.message || error);
     return res.status(500).json({ error: 'Queue enqueue failed' });
   }
 
-  try {
-    // Use the shared QueueEvents instance — passing undefined was crashing BullMQ internally
-    const result = await job.waitUntilFinished(asrQueueEvents, { timeout: WAIT_FOR_JOB_MS });
-    return res.json({ ...result, cache_hit: false });
-  } catch (error) {
-    const isTimeout = error instanceof Error && error.message.includes('timeout');
-
-    if (isTimeout) {
-      console.warn(`[whisper-service-v2] Job ${job.id} timed out after ${WAIT_FOR_JOB_MS}ms — first heavy job (cold model load) often needs 2-4 minutes on CPU`);
-      // Return 202 so the caller knows it's still processing (tg-client will see it as error for now, but at least we don't lie with 500)
-      return res.status(202).json({ status: 'processing', jobId: job.id, note: 'still working, try again in a few seconds' });
-    }
-
-    console.error('[whisper-service-v2] Job failed:', error?.message || error);
-    return res.status(500).json({ error: 'Job processing failed', details: error?.message });
-  }
+  // Always return quickly with jobId so clients (tg-client) can poll /v1/job/:id
+  // This prevents long-blocking HTTP requests that cause 500 timeouts on CPU-heavy jobs.
+  console.log(`[whisper-service-v2] Job ${job.id} accepted (202) — client should poll`);
+  return res.status(202).json({
+    status: 'processing',
+    jobId: job.id,
+    note: 'Transcription job started. Use GET /v1/job/' + job.id + ' to check status.'
+  });
 });
 
 app.get('/v1/job/:id', async (req, res) => {
@@ -116,7 +128,14 @@ app.get('/v1/job/:id', async (req, res) => {
   }
   const state = await job.getState();
   const result = await job.returnvalue;
-  return res.json({ jobId, state, result });
+  const timing = {
+    enqueuedAt: job.timestamp,
+    processedOn: job.processedOn,
+    finishedOn: job.finishedOn,
+    queueWaitMs: job.processedOn && job.timestamp ? (job.processedOn - job.timestamp) : null,
+    processMs: job.finishedOn && job.processedOn ? (job.finishedOn - job.processedOn) : null,
+  };
+  return res.json({ jobId, state, result, timing });
 });
 
 app.post('/v1/transcribe-path', async (req, res) => {

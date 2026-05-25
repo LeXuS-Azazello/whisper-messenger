@@ -70,6 +70,10 @@ spec:
                 secretKeyRef:
                   name: huggingface-token
                   key: HUGGING_FACE_HUB_TOKEN
+            - name: SAMESAME_MODEL_NAME
+              value: "tts_models/multilingual/multi-dataset/xtts_v2"
+            - name: COQUI_TOS_AGREED
+              value: "1"
           volumeMounts:
             - name: models
               mountPath: /models
@@ -82,7 +86,7 @@ spec:
               memory: "512Mi"
             limits:
               cpu: "1"
-              memory: "2Gi"
+              memory: "4Gi"
       volumes:
         - name: models
           persistentVolumeClaim:

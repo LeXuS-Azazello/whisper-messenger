@@ -586,84 +586,45 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Facebook FCA Logic
+    // Facebook FCA Logic — AppState ONLY (credentials are dead, Facebook blocks them)
     const connectFbBtn = document.getElementById('connect-fb-fca-btn');
     const disconnectFbBtn = document.getElementById('disconnect-fb-fca-btn');
     const fbAppstateInput = document.getElementById('fb-appstate');
-    const fbEmailInput = document.getElementById('fb-email');
-    const fbPasswordInput = document.getElementById('fb-password');
     const fbStatus = document.getElementById('fb-fca-status');
-
-    // Facebook method cards (new wa-method-card UI) - controls fbActiveMethod used by connect handler
-    const fbAppstateCard = document.getElementById('fb-method-appstate');
-    const fbCredsCard = document.getElementById('fb-method-creds');
     const fbAppstateArea = document.getElementById('fb-appstate-area');
-    const fbCredsArea = document.getElementById('fb-creds-area');
-    let fbActiveMethod = 'appstate'; // default
-
-    function setFbMethod(method) {
-        if (method === 'appstate') {
-            if (fbAppstateCard) fbAppstateCard.classList.add('active');
-            if (fbCredsCard) fbCredsCard.classList.remove('active');
-            if (fbAppstateArea) fbAppstateArea.style.display = 'block';
-            if (fbCredsArea) fbCredsArea.style.display = 'none';
-            fbActiveMethod = 'appstate';
-        } else {
-            if (fbCredsCard) fbCredsCard.classList.add('active');
-            if (fbAppstateCard) fbAppstateCard.classList.remove('active');
-            if (fbAppstateArea) fbAppstateArea.style.display = 'none';
-            if (fbCredsArea) fbCredsArea.style.display = 'block';
-            fbActiveMethod = 'creds';
-        }
-    }
-
-    if (fbAppstateCard) {
-        fbAppstateCard.addEventListener('click', () => setFbMethod('appstate'));
-    }
-    if (fbCredsCard) {
-        fbCredsCard.addEventListener('click', () => setFbMethod('creds'));
-    }
-    // default selection
-    setFbMethod('appstate');
-
-    // expose for inline onclick handlers in SSR Preact components
-    window.setFbMethod = setFbMethod;
-
 
     if (connectFbBtn) {
         connectFbBtn.addEventListener('click', async () => {
-            let appState = '';
-            let email = '';
-            let password = '';
+            const appState = fbAppstateInput ? fbAppstateInput.value.trim() : '';
 
-            if (fbActiveMethod === 'appstate') {
-                appState = fbAppstateInput ? fbAppstateInput.value.trim() : '';
-                if (!appState) {
-                    return alert('Please enter AppState JSON');
+            if (!appState) {
+                return alert('Пожалуйста, вставьте AppState JSON (массив cookies из расширения C3C UFC Utility)');
+            }
+
+            let parsed;
+            try {
+                parsed = JSON.parse(appState);
+                if (!Array.isArray(parsed) || parsed.length === 0) {
+                    throw new Error('AppState must be a non-empty array');
                 }
-                try {
-                    JSON.parse(appState);
-                } catch (jsonErr) {
-                    alert('Invalid AppState JSON: ' + jsonErr.message + '\nPlease paste raw AppState JSON (an array) without trailing commas.');
-                    return;
+                // Basic shape check
+                const first = parsed[0];
+                if (!first || typeof first !== 'object' || !first.key || !first.value) {
+                    throw new Error('Invalid cookie format — each item must have "key" and "value"');
                 }
-            } else {
-                email = fbEmailInput ? fbEmailInput.value.trim() : '';
-                password = fbPasswordInput ? fbPasswordInput.value.trim() : '';
-                if (!email || !password) {
-                    return alert('Please enter Email / Username and Password');
-                }
+            } catch (jsonErr) {
+                alert('Неверный AppState JSON: ' + jsonErr.message + '\n\nСкопируйте ровно то, что выдало расширение C3C UFC Utility (начинается с [ { "key": "c_user", ... } ])');
+                return;
             }
 
             connectFbBtn.disabled = true;
-            connectFbBtn.innerText = 'Connecting...';
+            connectFbBtn.innerText = 'Подключение...';
 
             try {
-                const payload = fbActiveMethod === 'appstate' ? { appState } : { email, password };
                 const res = await fetch('/dashboard/facebook/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({ appState })
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -672,24 +633,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     disconnectFbBtn.style.display = 'block';
                     connectFbBtn.style.display = 'none';
                     if (fbAppstateInput) fbAppstateInput.value = '';
-                    if (fbEmailInput) fbEmailInput.value = '';
-                    if (fbPasswordInput) fbPasswordInput.value = '';
-                    // hide method selectors and input areas immediately (no reload needed)
-                    const fbGrid = document.querySelector('.fb-fca-card .wa-methods-grid');
-                    if (fbGrid) fbGrid.style.display = 'none';
                     if (fbAppstateArea) fbAppstateArea.style.display = 'none';
-                    if (fbCredsArea) fbCredsArea.style.display = 'none';
-                    alert('Facebook Messenger connected successfully!');
+                    alert('Facebook Messenger успешно подключён!');
                 } else {
-                    alert('Connection failed: ' + (data.error || 'Unknown error'));
+                    alert('Ошибка подключения: ' + (data.error || 'Unknown error'));
                     connectFbBtn.disabled = false;
-                    connectFbBtn.innerText = 'Connect Account';
+                    connectFbBtn.innerText = 'Подключить аккаунт';
                 }
             } catch (e) {
                 console.error(e);
-                alert('Connection error');
+                alert('Ошибка сети при подключении');
                 connectFbBtn.disabled = false;
-                connectFbBtn.innerText = 'Connect Account';
+                connectFbBtn.innerText = 'Подключить аккаунт';
             }
         });
     }
@@ -710,31 +665,44 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Instagram FCA Logic
+    // Instagram FCA Logic — AppState preferred (manager supports it), username/password as fallback
     const connectInstaBtn = document.getElementById('connect-insta-fca-btn');
     const disconnectInstaBtn = document.getElementById('disconnect-insta-fca-btn');
     const instaUsernameInput = document.getElementById('insta-username');
     const instaPasswordInput = document.getElementById('insta-password');
+    const instaAppstateInput = document.getElementById('insta-appstate');
     const instaStatus = document.getElementById('insta-fca-status');
     const instaCredsArea = document.getElementById('insta-creds-area');
 
     if (connectInstaBtn) {
         connectInstaBtn.addEventListener('click', async () => {
+            const appState = instaAppstateInput ? instaAppstateInput.value.trim() : '';
             const username = instaUsernameInput ? instaUsernameInput.value.trim() : '';
             const password = instaPasswordInput ? instaPasswordInput.value.trim() : '';
 
-            if (!username || !password) {
-                return alert('Please enter Instagram username and password');
+            let payload;
+            if (appState) {
+                try {
+                    const parsed = JSON.parse(appState);
+                    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('empty array');
+                } catch (e) {
+                    return alert('Неверный AppState JSON для Instagram: ' + e.message);
+                }
+                payload = { appState };
+            } else if (username && password) {
+                payload = { username, password };
+            } else {
+                return alert('Вставьте AppState JSON или введите username + password для Instagram');
             }
 
             connectInstaBtn.disabled = true;
-            connectInstaBtn.innerText = 'Connecting...';
+            connectInstaBtn.innerText = 'Подключение...';
 
             try {
                 const res = await fetch('/dashboard/instagram/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -742,20 +710,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     instaStatus.className = 'status-tag active';
                     disconnectInstaBtn.style.display = 'block';
                     connectInstaBtn.style.display = 'none';
+                    if (instaAppstateInput) instaAppstateInput.value = '';
                     if (instaCredsArea) instaCredsArea.style.display = 'none';
                     if (instaUsernameInput) instaUsernameInput.value = '';
                     if (instaPasswordInput) instaPasswordInput.value = '';
-                    alert('Instagram connected successfully!');
+                    alert('Instagram успешно подключён!');
                 } else {
-                    alert('Connection failed: ' + (data.error || 'Unknown error'));
+                    alert('Ошибка подключения Instagram: ' + (data.error || 'Unknown error'));
                     connectInstaBtn.disabled = false;
-                    connectInstaBtn.innerText = 'Connect Account';
+                    connectInstaBtn.innerText = 'Подключить';
                 }
             } catch (e) {
                 console.error(e);
-                alert('Connection error');
+                alert('Ошибка сети');
                 connectInstaBtn.disabled = false;
-                connectInstaBtn.innerText = 'Connect Account';
+                connectInstaBtn.innerText = 'Подключить';
             }
         });
     }
@@ -827,6 +796,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (connectInstaBtn) connectInstaBtn.style.display = 'none';
             const instaCredsArea = document.getElementById('insta-creds-area');
             if (instaCredsArea) instaCredsArea.style.display = 'none';
+            const instaAppArea = document.getElementById('insta-appstate-area');
+            if (instaAppArea) instaAppArea.style.display = 'none';
         }
     });
     
