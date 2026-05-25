@@ -180,8 +180,8 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: whisper-service-v2
@@ -229,7 +229,7 @@ spec:
                memory: "640Mi"
              limits:
                cpu: "1.5"
-               memory: "1.2Gi"
+               memory: "1200Mi"
            volumeMounts:
              - name: models
                mountPath: /models
@@ -261,17 +261,17 @@ spec:
              - name: CACHE_TTL
                value: "3600"
              - name: NUM_THREADS
-               value: "6"
+               value: "4"
              - name: NUM_INTER_THREADS
-               value: "3"
+               value: "2"
              - name: OMP_NUM_THREADS
-               value: "6"
+               value: "4"
              - name: OMP_WAIT_POLICY
                value: "PASSIVE"
              - name: OPENBLAS_NUM_THREADS
-               value: "3"
+               value: "2"
              - name: MKL_NUM_THREADS
-               value: "3"
+               value: "2"
              - name: GOTO_NUM_THREADS
                value: "1"
              - name: PUNCT_THREADS
@@ -279,14 +279,14 @@ spec:
              - name: WAIT_FOR_JOB_MS
                value: "900000"
            # Worker runs the new streaming Whisper turbo int8 + Silero VAD pipeline (segment-by-segment decode, no giant merges)
-           # With HPA this will scale; each ready worker needs ~2-4 Gi RAM + 1.5-2 CPU while transcribing
-           # OPTIMIZED: Using ~12 cores (leaving 4 for translation services)
+           # With HPA this will scale; each ready worker needs ~2-4 Gi RAM + 1.5-4 CPU while transcribing
+           # OPTIMIZED: Using ~4 cores per pod for ideal scaling
            resources:
              requests:
-               cpu: "1000m"
+               cpu: "2000m"
                memory: "3Gi"
              limits:
-               cpu: "2"
+               cpu: "4"
                memory: "5Gi"
            volumeMounts:
              - name: models
@@ -325,8 +325,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: whisper-service-v2
-  minReplicas: 1
-  maxReplicas: 3
+  minReplicas: 2
+  maxReplicas: 6
   metrics:
   - type: Resource
     resource:
