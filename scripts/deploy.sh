@@ -168,19 +168,6 @@ build_and_push_image() {
     # Always fully rebuild the frontend (whisper-frontend) so that all TypeScript / Preact changes
     # (new components, ConnectionsPane, extracted cards etc.) are recompiled via esbuild.
     if [ "$name" = "whisper-frontend" ]; then
-        if [ ! -d "whisper" ]; then
-            echo ">>> [SKIP HEAVY] whisper-frontend: 'whisper/' directory missing (heavy ML models — forbidden on local machine per AGENTS.md)"
-            echo ">>>            Using latest image from Harbor (models are downloaded on-cluster by downloader jobs anyway)."
-            if docker pull "${REPO}/whisper-frontend:latest" >/dev/null 2>&1; then
-                docker tag "${REPO}/whisper-frontend:latest" "$image_tag"
-                docker tag "${REPO}/whisper-frontend:latest" "$latest_image"
-                docker push "$image_tag" || true
-                docker push "$latest_image" || true
-            else
-                echo ">>>            (No previous whisper-frontend image in Harbor — frontend assets may be stale)"
-            fi
-            return 0
-        fi
         echo ">>> [FORCE REBUILD] whisper-frontend — always recompiling all TypeScript/Preact to pick up UI changes"
         echo ">>> [BUILD] Building and pushing $name..."
         docker build -t "$image_tag" -f "$dockerfile" "$image_path"
