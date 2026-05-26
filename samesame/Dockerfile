@@ -25,20 +25,20 @@ except Exception:\
     kaldi = None' cosyvoice/cli/frontend.py
 
 # Note: we use CPU versions and bypass broken wheels (like older openai-whisper)
-RUN cd CosyVoice && \
+RUN pip install --upgrade pip "setuptools<70.0.0" wheel && \
+    pip install --no-cache-dir torch==2.3.1+cpu torchaudio==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html && \
+    cd CosyVoice && \
     sed -i '/--extra-index-url/d' requirements.txt && \
     sed -i '/onnxruntime-gpu/d' requirements.txt && \
     sed -i '/tensorrt-cu12/d' requirements.txt && \
     sed -i '/deepspeed/d' requirements.txt && \
-    sed -i 's/torch==2.3.1/torch/g' requirements.txt && \
-    sed -i 's/torchaudio==2.3.1/torchaudio/g' requirements.txt && \
+    sed -i '/torch/d' requirements.txt && \
+    sed -i '/torchaudio/d' requirements.txt && \
     sed -i '/openai-whisper/d' requirements.txt && \
-    pip install --upgrade pip "setuptools<70.0.0" wheel && \
     pip install --no-cache-dir onnxruntime && \
     pip install --no-cache-dir --no-build-isolation openai-whisper==20231117 && \
     pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir fastapi uvicorn pydantic && \
-    pip install --no-cache-dir torch==2.3.1+cpu torchaudio==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+    pip install --no-cache-dir fastapi uvicorn pydantic
 
 COPY app.py download_model.py ./
 ENV PYTHONPATH="/app/CosyVoice:/app/CosyVoice/third_party/Matcha-TTS"

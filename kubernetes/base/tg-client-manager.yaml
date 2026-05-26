@@ -18,7 +18,7 @@ spec:
       containers:
       - name: manager
         image: harbor.dev.takatan.cloud/devcenter/whisper-tg-client-manager:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         command: ["node", "index.js"]
         ports:
         - containerPort: 3000

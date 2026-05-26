@@ -18,7 +18,7 @@ data:
           {
             "name": "wa-baileys-client",
             "image": "harbor.dev.takatan.cloud/devcenter/whatsapp-baileys-client:latest",
-            "imagePullPolicy": "Always",
+            "imagePullPolicy": "IfNotPresent",
             "env": [
               {
                 "name": "REDIS_URL",
@@ -84,7 +84,7 @@ spec:
       containers:
       - name: manager
         image: harbor.dev.takatan.cloud/devcenter/whatsapp-baileys-manager:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3002
         resources:

@@ -48,5 +48,8 @@ configMapGenerator:
   - name: samesame-download-scripts
     files:
       - download-models.sh=scripts/samesame-download-models.sh
+  - name: samesame-app-py
+    files:
+      - app.py=app.py
 generatorOptions:
   disableNameSuffixHash: true

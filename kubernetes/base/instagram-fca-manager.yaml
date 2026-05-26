@@ -19,7 +19,7 @@ data:
           {
             "name": "instagram-fca-client",
             "image": "harbor.dev.takatan.cloud/devcenter/instagram-fca-client:latest",
-            "imagePullPolicy": "Always",
+            "imagePullPolicy": "IfNotPresent",
               "env": [
                 {
                   "name": "WHISPER_PROVIDER",
@@ -93,7 +93,7 @@ spec:
       containers:
       - name: manager
         image: harbor.dev.takatan.cloud/devcenter/instagram-fca-manager:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3005
         resources:
