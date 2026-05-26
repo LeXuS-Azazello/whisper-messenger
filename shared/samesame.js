@@ -99,7 +99,8 @@ export async function cloneVoiceWithSamesame({
     source_mime_type: sourceMimeType,
     text: text.trim(),
     language: language || undefined,
-    output_format: outputFormat
+    output_format: outputFormat,
+    stream: false
   };
 
   const url = `${samesameUrl.replace(/\/$/, '')}/v1/clone`;
