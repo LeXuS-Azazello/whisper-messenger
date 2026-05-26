@@ -64,7 +64,7 @@ spec:
           resources:
             # Optimized: reduced CPU to fit cluster quota while retaining speed
             requests:
-              cpu: "1.0"
+              cpu: "2.5"
               memory: "4Gi"
             limits:
               cpu: "2.5"
