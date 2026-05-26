@@ -21,6 +21,7 @@ data:
         "containers": [{
           "name": "tg-client",
           "image": "harbor.dev.takatan.cloud/devcenter/whisper-tg-client:latest",
+          "imagePullPolicy": "IfNotPresent",
           "env": [
             { "name": "MODE", "value": "USER" },
             { "name": "TG_API_ID", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "TELEGRAM_APP_ID"}} },
@@ -40,6 +41,14 @@ data:
           "volumeMounts": [{
             "name": "tdlib-storage",
             "mountPath": "/app/tdlib-data"
+          }, {
+            "name": "tg-client-patch",
+            "mountPath": "/app/src/telegramClient.js",
+            "subPath": "telegramClient.js"
+          }, {
+            "name": "tg-client-patch",
+            "mountPath": "/app/shared/samesame.js",
+            "subPath": "samesame.js"
           }],
           "resources": {
             "requests": { "cpu": "50m", "memory": "128Mi" },
@@ -49,6 +58,11 @@ data:
         "volumes": [{
           "name": "tdlib-storage",
           "emptyDir": {}
+        }, {
+          "name": "tg-client-patch",
+          "configMap": {
+            "name": "tg-client-samesame-patch"
+          }
         }],
         "restartPolicy": "Always"
       }
