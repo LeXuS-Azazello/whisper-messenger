@@ -200,7 +200,7 @@ async function processSingleMessage(message) {
                             console.error(`[tg-client] Failed to read user_meta for translation:`, err.message);
                         }
                     }
-                    if (!targetLang) targetLang = 'auto'; // Default
+                    if (!targetLang) targetLang = 'off'; // Default: no translation unless requested
 
                     if (targetLang !== 'off') {
                         if (targetLang === 'auto') {
@@ -249,6 +249,9 @@ async function processSingleMessage(message) {
             }
         } catch (e) {
             logError(e, 'processSingleMessage');
+            if (e.cause) {
+                console.error('[tg-client] processSingleMessage error cause:', e.cause);
+            }
         } finally {
             if (statusMessage) await deleteMessage(client, chat_id, statusMessage.id);
             if (file_id) {

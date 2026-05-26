@@ -61,37 +61,13 @@ async function pollJobUntilDone(jobId, baseUrl, headers, fallbackModel = 'whispe
   throw new Error('Transcription timed out after long polling');
 }
 
-export async function transcribePath(file_path, mime_type, language = 'auto', target_language = null) {
-  let url = '';
-  try {
-    url = await redis.hget('stats', 'config_local_whisper_url');
-  } catch (e) {
-    console.error('[transcriber] redis error:', e.message);
-  }
-  if (!url) {
-    url = WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
-  }
-  
-  // Auto-correct common mistakes in WHISPER_PROVIDER
-  if (url === 'whisper-turbo' || url === 'whisper-service-v2') {
-    url = 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
-  } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = 'http://' + url;
-  }
-  
-  // Strip trailing slash just in case
-  url = url.replace(/\/$/, '');
+const WHISPER_FALLBACK_URL = 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
 
-  // Determine backend name for display (respects dynamic switch to SenseVoice / FunASR)
+/** Single-attempt transcription against a specific URL. Returns normalized result. */
+async function _transcribeOnce(url, fileBuffer, mime_type, language, target_language) {
   const isSenseVoice = url.includes('sensevoice') || url.includes('50000');
   const isFunASR = url.includes('funasr') || url.includes('50001');
   const defaultModelName = isFunASR ? 'funasr' : (isSenseVoice ? 'sensevoice' : 'whisper-service-v2 (large-v3-turbo)');
-
-  const tRead = Date.now();
-  const fileBuffer = fs.readFileSync(file_path);
-  const readMs = Date.now() - tRead;
-
-  console.log(`[transcriber] file read ${readMs}ms | size=${fileBuffer.length}B | url=${url}`);
 
   const headers = { 'Content-Type': 'application/json' };
   if (WHISPER_SECRET) {
@@ -140,14 +116,13 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(60000) // 60s to submit
+      signal: AbortSignal.timeout(60000)
     });
   }
   
   const submitMs = Date.now() - tSubmit;
 
   if (response.status === 202) {
-    // Server accepted the job and returned jobId for polling
     const body = await response.json().catch(() => ({}));
     const jobId = body.jobId || body.id;
     if (jobId) {
@@ -178,6 +153,76 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
     data.text = data.text || data.transcription || "";
   }
 
+  // If server returned a jobId instead of result, poll
+  if (data.jobId || data.id) {
+    const jobId = data.jobId || data.id;
+    console.log(`[transcriber] submit ${submitMs}ms → got jobId ${jobId} (immediate poll path)`);
+    return await pollJobUntilDone(jobId, url, headers, defaultModelName);
+  }
+
+  console.log(`[transcriber] submit ${submitMs}ms → immediate result (no job)`);
+  return normalizeResult(data, defaultModelName);
+}
+
+export async function transcribePath(file_path, mime_type, language = 'auto', target_language = null) {
+  let url = '';
+  try {
+    url = await redis.hget('stats', 'config_local_whisper_url');
+  } catch (e) {
+    console.error('[transcriber] redis error:', e.message);
+  }
+  if (!url) {
+    url = WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+  }
+  
+  // Auto-correct common mistakes in WHISPER_PROVIDER
+  if (url === 'whisper-turbo' || url === 'whisper-service-v2') {
+    url = 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+  } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'http://' + url;
+  }
+  url = url.replace(/\/$/, '');
+
+  const tRead = Date.now();
+  const fileBuffer = fs.readFileSync(file_path);
+  const readMs = Date.now() - tRead;
+
+  console.log(`[transcriber] file read ${readMs}ms | size=${fileBuffer.length}B | url=${url}`);
+
+  // ── Attempt 1: primary ASR backend ──
+  try {
+    const result = await _transcribeOnce(url, fileBuffer, mime_type, language, target_language);
+    return await _maybeTranslate(result, target_language);
+  } catch (err1) {
+    console.warn(`[transcriber] primary ASR failed (${url}): ${err1.message}`);
+
+    // ── Attempt 2: retry primary after brief pause (pod may be restarting) ──
+    await sleep(2500);
+    try {
+      console.log(`[transcriber] retry primary ASR...`);
+      const result = await _transcribeOnce(url, fileBuffer, mime_type, language, target_language);
+      return await _maybeTranslate(result, target_language);
+    } catch (err2) {
+      console.warn(`[transcriber] retry primary ASR failed: ${err2.message}`);
+
+      // ── Attempt 3: fallback to whisper-service-v2 ──
+      if (url !== WHISPER_FALLBACK_URL && !url.includes('whisper-service-v2')) {
+        console.log(`[transcriber] ⚡ falling back to whisper-service-v2`);
+        try {
+          const result = await _transcribeOnce(WHISPER_FALLBACK_URL, fileBuffer, mime_type, language, target_language);
+          return await _maybeTranslate(result, target_language);
+        } catch (err3) {
+          console.error(`[transcriber] fallback whisper-service-v2 also failed: ${err3.message}`);
+          throw err3;
+        }
+      }
+      throw err2;
+    }
+  }
+}
+
+/** Apply translation if needed */
+async function _maybeTranslate(data, target_language) {
   if (target_language && target_language !== 'off' && !data.translated) {
     const detectedLanguage = data.language || 'unknown';
     const isSameLanguage = detectedLanguage && target_language 
@@ -197,17 +242,7 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
       }
     }
   }
-
-  // 2. If server returned a jobId instead of result, poll
-  if (data.jobId || data.id) {
-    const jobId = data.jobId || data.id;
-    console.log(`[transcriber] submit ${submitMs}ms → got jobId ${jobId} (immediate poll path)`);
-    return await pollJobUntilDone(jobId, url, headers, defaultModelName);
-  }
-
-  // 3. Immediate result (old sync path)
-  console.log(`[transcriber] submit ${submitMs}ms → immediate result (no job)`);
-  return normalizeResult(data, defaultModelName);
+  return data;
 }
 
 

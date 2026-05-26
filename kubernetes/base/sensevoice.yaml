@@ -6,7 +6,7 @@ metadata:
   labels:
     app: sensevoice
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       app: sensevoice
@@ -18,9 +18,21 @@ spec:
       containers:
         - name: sensevoice
           image: siyrs/sensevoice-api:latest
+          command: ["/bin/sh", "-c"]
+          args: ["pip install -U modelscope && python /app/SenseVoice/api.py"]
           env:
             - name: SENSEVOICE_DEVICE
               value: "cpu"
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: huggingface-token
+                  key: HUGGING_FACE_HUB_TOKEN
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: huggingface-token
+                  key: HUGGING_FACE_HUB_TOKEN
           ports:
             - containerPort: 50000
           resources:
@@ -28,8 +40,8 @@ spec:
               cpu: "1000m"
               memory: "2Gi"
             limits:
-              cpu: "3000m"
-              memory: "4Gi"
+              cpu: "2000m"
+              memory: "6Gi"
 ---
 apiVersion: v1
 kind: Service

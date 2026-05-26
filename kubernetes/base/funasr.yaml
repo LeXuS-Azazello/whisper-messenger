@@ -6,7 +6,7 @@ metadata:
   labels:
     app: funasr
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       app: funasr
@@ -24,6 +24,7 @@ spec:
           echo "Installing dependencies..."
           apt-get update && apt-get install -y --no-install-recommends ffmpeg git wget libsndfile1
           pip install --no-cache-dir --upgrade pip
+          pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install --no-cache-dir funasr fastapi "uvicorn[standard]" python-multipart modelscope
           echo "Downloading server.py..."
           wget -qO server.py https://raw.githubusercontent.com/modelscope/FunASR/main/examples/openai_api/server.py
@@ -41,11 +42,11 @@ spec:
           mountPath: /root/.cache
         resources:
           requests:
-            cpu: "500m"
+            cpu: "100m"
             memory: "1Gi"
           limits:
-            cpu: "2000m"
-            memory: "4Gi"
+            cpu: "1000m"
+            memory: "8Gi"
       volumes:
       - name: cache-vol
         emptyDir: {}
