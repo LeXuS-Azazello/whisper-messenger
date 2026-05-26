@@ -57,17 +57,17 @@ spec:
             - name: WAIT_FOR_JOB_MS
               value: "180000"
             - name: NUM_THREADS
-              value: "6"
+              value: "2"
             - name: NUM_INTER_THREADS
-              value: "3"
+              value: "1"
             - name: OMP_NUM_THREADS
-              value: "6"
+              value: "1"
             - name: OMP_WAIT_POLICY
               value: "PASSIVE"
             - name: OPENBLAS_NUM_THREADS
-              value: "6"
+              value: "1"
             - name: MKL_NUM_THREADS
-              value: "6"
+              value: "1"
           # API is relatively light (just enqueues to Redis)
           # OPTIMIZED: Slightly increased for better request handling
           resources:
@@ -111,17 +111,17 @@ spec:
             - name: CACHE_TTL
               value: "3600"
             - name: NUM_THREADS
-              value: "6"
+              value: "2"
             - name: NUM_INTER_THREADS
-              value: "3"
+              value: "1"
             - name: OMP_NUM_THREADS
-              value: "6"
+              value: "1"
             - name: OMP_WAIT_POLICY
               value: "PASSIVE"
             - name: OPENBLAS_NUM_THREADS
-              value: "6"
+              value: "1"
             - name: MKL_NUM_THREADS
-              value: "6"
+              value: "1"
             - name: GOTO_NUM_THREADS
               value: "1"
             - name: PUNCT_THREADS

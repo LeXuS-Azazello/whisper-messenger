@@ -58,7 +58,7 @@ spec:
             - name: SAMESAME_LOCAL_ONLY
               value: "true"
             - name: SAMESAME_MODEL_NAME
-              value: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
+              value: "iic/CosyVoice-300M"
             - name: COQUI_TOS_AGREED
               value: "1"
           resources:
