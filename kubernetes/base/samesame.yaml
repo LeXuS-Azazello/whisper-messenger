@@ -16,6 +16,8 @@ metadata:
   name: samesame
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: samesame
@@ -62,10 +64,10 @@ spec:
           resources:
             # Optimized: reduced CPU to fit cluster quota while retaining speed
             requests:
-              cpu: "0.8"
+              cpu: "1.0"
               memory: "4Gi"
             limits:
-              cpu: "1.0"
+              cpu: "2.5"
               memory: "8Gi"
           volumeMounts:
             - name: models
