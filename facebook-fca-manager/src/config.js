@@ -7,19 +7,20 @@ export const WORKER_URL = process.env.WORKER_URL || '';
 export const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://mongodb:27017/voicemsg';
 
 let redis = null;
-if (MODE === 'MANAGER') {
-  const { Redis } = await import('ioredis');
-  redis = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', {
-    maxRetriesPerRequest: 1,
-    enableOfflineQueue: true,
-    retryStrategy(times) {
-      return Math.min(times * 50, 2000);
-    }
-  });
+  if (MODE === 'MANAGER') {
+    const ioredisModule = await import('ioredis');
+    const Redis = ioredisModule.default || ioredisModule.Redis || ioredisModule;
+    redis = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', {
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: true,
+      retryStrategy(times) {
+        return Math.min(times * 50, 2000);
+      }
+    });
 
-  redis.on('error', err => {
-    console.error('[redis] Error:', err.message);
-  });
-}
+    redis.on('error', err => {
+      console.error('[redis] Error:', err.message);
+    });
+  }
 
-export { redis };
+  export { redis };

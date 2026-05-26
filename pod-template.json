@@ -1,0 +1,65 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "labels": {
+      "app": "tg-client-user"
+    }
+  },
+  "spec": {
+    "imagePullSecrets": [
+      { "name": "harbor-pull-secret" }
+    ],
+    "containers": [{
+      "name": "tg-client",
+      "image": "harbor.dev.takatan.cloud/devcenter/whisper-tg-client:latest",
+      "imagePullPolicy": "IfNotPresent",
+      "env": [
+        { "name": "MODE", "value": "USER" },
+        { "name": "TG_API_ID", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "TELEGRAM_APP_ID"}} },
+        { "name": "TG_API_HASH", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "TELEGRAM_APP_HASH"}} },
+        { "name": "MANAGER_URL", "value": "http://tg-client-manager:3000" },
+        { "name": "MANAGER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "MANAGER_SECRET"}} },
+        { "name": "REDIS_URL", "value": "redis://redis:6379" },
+        { "name": "MONGODB_URI", "value": "mongodb://mongodb:27017/voicemsg" },
+        { "name": "DEVICE_MODEL", "value": "Desktop Linux" },
+        { "name": "APP_VERSION", "value": "4.15.2" },
+        { "name": "SYSTEM_VERSION", "value": "Ubuntu 24.04" },
+        { "name": "WHISPER_PROVIDER", "value": "http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000" },
+        { "name": "WHISPER_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "WHISPER_SECRET", "optional": true}} },
+        { "name": "SAMESAME_SECRET", "valueFrom": {"secretKeyRef": {"name": "whisper-messenger-env", "key": "SAMESAME_SECRET"}} },
+        { "name": "SAMESAME_URL", "value": "http://samesame:8002" }
+      ],
+      "volumeMounts": [{
+        "name": "tdlib-storage",
+        "mountPath": "/app/tdlib-data"
+      }, {
+        "name": "tg-client-patch",
+        "mountPath": "/app/src/telegramClient.js",
+        "subPath": "telegramClient.js"
+      }, {
+        "name": "tg-client-patch",
+        "mountPath": "/app/shared/samesame.js",
+        "subPath": "samesame.js"
+      }, {
+        "name": "tg-client-patch",
+        "mountPath": "/app/src/transcriber.js",
+        "subPath": "transcriber.js"
+      }],
+      "resources": {
+        "requests": { "cpu": "50m", "memory": "128Mi" },
+        "limits": { "cpu": "200m", "memory": "256Mi" }
+      }
+    }],
+    "volumes": [{
+      "name": "tdlib-storage",
+      "emptyDir": {}
+    }, {
+      "name": "tg-client-patch",
+      "configMap": {
+        "name": "tg-client-samesame-patch"
+      }
+    }],
+    "restartPolicy": "Always"
+  }
+}

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { WHISPER_PROVIDER, WHISPER_SECRET } from './config.js';
+import { WHISPER_PROVIDER, WHISPER_SECRET, redis } from './config.js';
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 360; // ~12 minutes at 2s interval (still generous)
@@ -9,16 +9,18 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function normalizeResult(data) {
+function normalizeResult(data, fallbackModel = 'whisper-service-v2') {
   return {
     text: data.text || '',
     language: data.language || data.detected_language || data.detectedLanguage || 'auto',
     translated: data.translated || null,
-    target_language: data.target_language || null
+    target_language: data.target_language || null,
+    model: data.model || data.used_model || fallbackModel,
+    metrics: data.metrics || null
   };
 }
 
-async function pollJobUntilDone(jobId, baseUrl, headers) {
+async function pollJobUntilDone(jobId, baseUrl, headers, fallbackModel = 'whisper-service-v2') {
   const pollStart = Date.now();
   for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
     const pollAttemptStart = Date.now();
@@ -36,7 +38,7 @@ async function pollJobUntilDone(jobId, baseUrl, headers) {
         if (job.state === 'completed' && job.result) {
           const totalPollTime = Date.now() - pollStart;
           console.log(`[transcriber] poll done | attempts=${i+1} | totalPoll=${totalPollTime}ms | lastLatency=${pollLatency}ms | queueWait=${serverTiming.queueWaitMs ?? '?'} | process=${serverTiming.processMs ?? '?'}`);
-          return normalizeResult(job.result);
+          return normalizeResult(job.result, fallbackModel);
         }
         if (job.state === 'failed') {
           const errMsg = job.result?.error || job.result?.details || 'Transcription job failed';
@@ -60,7 +62,15 @@ async function pollJobUntilDone(jobId, baseUrl, headers) {
 }
 
 export async function transcribePath(file_path, mime_type, language = 'auto', target_language = null) {
-  let url = WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+  let url = '';
+  try {
+    url = await redis.hget('stats', 'config_local_whisper_url');
+  } catch (e) {
+    console.error('[transcriber] redis error:', e.message);
+  }
+  if (!url) {
+    url = WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+  }
   
   // Auto-correct common mistakes in WHISPER_PROVIDER
   if (url === 'whisper-turbo' || url === 'whisper-service-v2') {
@@ -72,36 +82,68 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
   // Strip trailing slash just in case
   url = url.replace(/\/$/, '');
 
+  // Determine backend name for display (respects dynamic switch to SenseVoice / FunASR)
+  const isSenseVoice = url.includes('sensevoice') || url.includes('50000');
+  const isFunASR = url.includes('funasr') || url.includes('50001');
+  const defaultModelName = isFunASR ? 'funasr' : (isSenseVoice ? 'sensevoice' : 'whisper-service-v2 (large-v3-turbo)');
+
   const tRead = Date.now();
   const fileBuffer = fs.readFileSync(file_path);
-  const base64Data = fileBuffer.toString('base64');
   const readMs = Date.now() - tRead;
 
-  console.log(`[transcriber] file read+base64 ${readMs}ms | size=${fileBuffer.length}B`);
-
-  const payload = {
-    file_data: base64Data,
-    mime_type: mime_type,
-    language: language
-  };
-
-  if (target_language) {
-    payload.target_language = target_language;
-  }
+  console.log(`[transcriber] file read ${readMs}ms | size=${fileBuffer.length}B | url=${url}`);
 
   const headers = { 'Content-Type': 'application/json' };
   if (WHISPER_SECRET) {
     headers['Authorization'] = `Bearer ${WHISPER_SECRET}`;
   }
 
-  // 1. Submit the job (short timeout for the initial request)
   const tSubmit = Date.now();
-  const response = await fetch(`${url}/v1/transcribe-base64`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(60000) // 60s to submit
-  });
+  let response;
+
+  if (isSenseVoice) {
+    const formData = new FormData();
+    formData.append("files", new Blob([fileBuffer], { type: 'audio/wav' }), "audio.wav");
+    formData.append("keys", "audio");
+    formData.append("lang", language === 'auto' ? 'auto' : language);
+    formData.append("use_itn", "false");
+    
+    response = await fetch(`${url}/api/v1/asr`, {
+      method: "POST",
+      body: formData,
+      signal: AbortSignal.timeout(120000)
+    });
+  } else if (isFunASR) {
+    const formData = new FormData();
+    formData.append("file", new Blob([fileBuffer], { type: 'audio/wav' }), "audio.wav");
+    formData.append("model", "paraformer");
+    formData.append("response_format", "json");
+
+    const funHeaders = WHISPER_SECRET ? { "Authorization": `Bearer ${WHISPER_SECRET}` } : {};
+    response = await fetch(`${url}/v1/audio/transcriptions`, {
+      method: "POST",
+      headers: funHeaders,
+      body: formData,
+      signal: AbortSignal.timeout(120000)
+    });
+  } else {
+    const base64Data = fileBuffer.toString('base64');
+    const payload = {
+      file_data: base64Data,
+      mime_type: mime_type,
+      language: language
+    };
+    if (target_language) {
+      payload.target_language = target_language;
+    }
+    response = await fetch(`${url}/v1/transcribe-base64`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(60000) // 60s to submit
+    });
+  }
+  
   const submitMs = Date.now() - tSubmit;
 
   if (response.status === 202) {
@@ -110,7 +152,7 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
     const jobId = body.jobId || body.id;
     if (jobId) {
       console.log(`[transcriber] Job ${jobId} accepted in ${submitMs}ms — switching to long polling`);
-      return await pollJobUntilDone(jobId, url, headers);
+      return await pollJobUntilDone(jobId, url, headers, defaultModelName);
     }
   }
 
@@ -121,16 +163,51 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
 
   const data = await response.json();
 
+  if (isSenseVoice) {
+    const resData = data.result && data.result[0];
+    data.text = resData ? resData.text : "";
+    data.language = resData ? resData.language : "unknown";
+    
+    // SenseVoice hallucination cleanup
+    let cleanText = data.text.replace(/<\|.*?\|>/g, '').trim();
+    if (/^(嗯|啊|哦|угу|м|да|ну)+[.!?,。]*$/i.test(cleanText) || cleanText === '嗯' || cleanText === '嗯.' || cleanText === '嗯。') {
+        cleanText = '';
+    }
+    data.text = cleanText;
+  } else if (isFunASR) {
+    data.text = data.text || data.transcription || "";
+  }
+
+  if (target_language && target_language !== 'off' && !data.translated) {
+    const detectedLanguage = data.language || 'unknown';
+    const isSameLanguage = detectedLanguage && target_language 
+        && (detectedLanguage.toLowerCase().startsWith(target_language.toLowerCase()) 
+            || target_language.toLowerCase().startsWith(detectedLanguage.toLowerCase()));
+    
+    if (!isSameLanguage && data.text) {
+      try {
+        const { default: translate } = await import('google-translate-api-x');
+        const transResult = await translate(data.text, { to: target_language });
+        if (transResult && transResult.text) {
+          data.translated = transResult.text;
+          data.target_language = target_language;
+        }
+      } catch (err) {
+        console.error(`[transcriber] Translation error:`, err.message);
+      }
+    }
+  }
+
   // 2. If server returned a jobId instead of result, poll
   if (data.jobId || data.id) {
     const jobId = data.jobId || data.id;
     console.log(`[transcriber] submit ${submitMs}ms → got jobId ${jobId} (immediate poll path)`);
-    return await pollJobUntilDone(jobId, url, headers);
+    return await pollJobUntilDone(jobId, url, headers, defaultModelName);
   }
 
   // 3. Immediate result (old sync path)
   console.log(`[transcriber] submit ${submitMs}ms → immediate result (no job)`);
-  return normalizeResult(data);
+  return normalizeResult(data, defaultModelName);
 }
 
 

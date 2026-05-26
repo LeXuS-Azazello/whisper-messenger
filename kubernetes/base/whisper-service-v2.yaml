@@ -18,7 +18,7 @@ metadata:
   labels:
     app: whisper-service-v2
 spec:
-  replicas: 1   # 1 replica of Whisper large-v3-turbo int8 + Silero VAD (streaming low-latency pipeline)
+  replicas: 2   # 2 replicas of Whisper large-v3-turbo int8 + Silero VAD (streaming low-latency pipeline)
                 # Worker container runs the actual sherpa-onnx ASR (NUM_THREADS=2)
                 # HPA will scale from 1-3 based on CPU load
   strategy:
@@ -37,111 +37,111 @@ spec:
       imagePullSecrets:
         - name: harbor-pull-secret
       containers:
-# HTTP API — accepts requests and enqueues jobs to BullMQ/Redis
-         - name: whisper-service-v2
-           image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
-           imagePullPolicy: IfNotPresent
-           ports:
-             - containerPort: 8000
-           env:
-             - name: MODELS_DIR
-               value: "/models"
-             - name: PORT
-               value: "8000"
-             - name: REDIS_URL
-               value: "redis://redis:6379"
-             - name: ASR_MODEL_TYPE
-               value: "whisper"
-             - name: CACHE_TTL
-               value: "3600"
-             - name: WAIT_FOR_JOB_MS
-               value: "300000"
-             - name: NUM_THREADS
-               value: "4"
-             - name: NUM_INTER_THREADS
-               value: "2"
-             - name: OMP_NUM_THREADS
-               value: "4"
-             - name: OMP_WAIT_POLICY
-               value: "PASSIVE"
-             - name: OPENBLAS_NUM_THREADS
-               value: "4"
-             - name: MKL_NUM_THREADS
-               value: "4"
-           # API is relatively light (just enqueues to Redis)
-           # OPTIMIZED: Slightly increased for better request handling
-           resources:
-             requests:
-               cpu: "2m"
-               memory: "1024Mi"
-             limits:
-               cpu: "100m"
-               memory: "2Gi"
-           volumeMounts:
-             - name: models
-               mountPath: /models
-               readOnly: true
-           readinessProbe:
-             httpGet:
-               path: /health
-               port: 8000
-             initialDelaySeconds: 15
-             periodSeconds: 10
-             failureThreshold: 6
-           livenessProbe:
-             httpGet:
-               path: /health
-               port: 8000
-             initialDelaySeconds: 30
-             periodSeconds: 15
-             failureThreshold: 5
+        # HTTP API — accepts requests and enqueues jobs to BullMQ/Redis
+        - name: whisper-service-v2
+          image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MODELS_DIR
+              value: "/models"
+            - name: PORT
+              value: "8000"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: ASR_MODEL_TYPE
+              value: "whisper"
+            - name: CACHE_TTL
+              value: "3600"
+            - name: WAIT_FOR_JOB_MS
+              value: "180000"
+            - name: NUM_THREADS
+              value: "6"
+            - name: NUM_INTER_THREADS
+              value: "3"
+            - name: OMP_NUM_THREADS
+              value: "6"
+            - name: OMP_WAIT_POLICY
+              value: "PASSIVE"
+            - name: OPENBLAS_NUM_THREADS
+              value: "6"
+            - name: MKL_NUM_THREADS
+              value: "6"
+          # API is relatively light (just enqueues to Redis)
+          # OPTIMIZED: Slightly increased for better request handling
+          resources:
+            requests:
+              cpu: "2m"
+              memory: "1024Mi"
+            limits:
+              cpu: "100m"
+              memory: "2Gi"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 5
 
-# BullMQ Worker — picks jobs from Redis and runs sherpa-onnx transcription
-         - name: whisper-worker-v2
-           image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
-           imagePullPolicy: IfNotPresent
-           command: ["node", "src/worker.js"]
-           env:
-             - name: MODELS_DIR
-               value: "/models"
-             - name: REDIS_URL
-               value: "redis://redis:6379"
-             - name: ASR_MODEL_TYPE
-               value: "whisper"
-             - name: CACHE_TTL
-               value: "3600"
-             - name: NUM_THREADS
-               value: "4"
-             - name: NUM_INTER_THREADS
-               value: "2"
-             - name: OMP_NUM_THREADS
-               value: "4"
-             - name: OMP_WAIT_POLICY
-               value: "PASSIVE"
-             - name: OPENBLAS_NUM_THREADS
-               value: "2"
-             - name: MKL_NUM_THREADS
-               value: "2"
-             - name: GOTO_NUM_THREADS
-               value: "1"
-             - name: PUNCT_THREADS
-               value: "2"
-             - name: WAIT_FOR_JOB_MS
-               value: "900000"
-           # Worker runs the new streaming Whisper turbo int8 + Silero VAD pipeline (segment-by-segment decode, no giant merges)
-           # With HPA this will scale; each ready worker needs ~2-4 Gi RAM + 1.5-4 CPU while transcribing
-           # OPTIMIZED: Using ~4 cores per pod for ideal scaling
-           resources:
-             requests:
-               cpu: "2500m"
-               memory: "4Gi"
-             limits:
-               cpu: "2800m"
-               memory: "5Gi"
-           volumeMounts:
-             - name: models
-               mountPath: /models
-               readOnly: true
+        # BullMQ Worker — picks jobs from Redis and runs sherpa-onnx transcription
+        - name: whisper-worker-v2
+          image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "src/worker.js"]
+          env:
+            - name: MODELS_DIR
+              value: "/models"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: ASR_MODEL_TYPE
+              value: "whisper"
+            - name: CACHE_TTL
+              value: "3600"
+            - name: NUM_THREADS
+              value: "6"
+            - name: NUM_INTER_THREADS
+              value: "3"
+            - name: OMP_NUM_THREADS
+              value: "6"
+            - name: OMP_WAIT_POLICY
+              value: "PASSIVE"
+            - name: OPENBLAS_NUM_THREADS
+              value: "6"
+            - name: MKL_NUM_THREADS
+              value: "6"
+            - name: GOTO_NUM_THREADS
+              value: "1"
+            - name: PUNCT_THREADS
+              value: "4"
+            - name: WAIT_FOR_JOB_MS
+              value: "180000"
+          # Worker runs the new streaming Whisper turbo int8 + Silero VAD pipeline (segment-by-segment decode, no giant merges)
+          # With HPA this will scale; each ready worker needs ~2-4 Gi RAM + 1.5-4 CPU while transcribing
+          # OPTIMIZED: Using ~4 cores per pod for ideal scaling
+          resources:
+            requests:
+              cpu: "2500m"
+              memory: "4Gi"
+            limits:
+              cpu: "2800m"
+              memory: "5Gi"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
       volumes:
         - name: models
           persistentVolumeClaim:
@@ -175,7 +175,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: whisper-service-v2
-  minReplicas: 2
+  minReplicas: 3
   maxReplicas: 6
   metrics:
   - type: Resource

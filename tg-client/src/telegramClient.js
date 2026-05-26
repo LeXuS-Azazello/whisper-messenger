@@ -240,8 +240,7 @@ async function processSingleMessage(message) {
                     }
                     // Append metrics and model name on the last part
                     if (i === chunks.length - 1) {
-                        replyText += `\n\n⏳${transcribeDuration}s ⬇️${downloadDuration}s`;
-                        replyText += `\n🧠Model: ${usedModel}`;
+                        replyText += `\n\n🤖 ${usedModel} | ⏱ ${transcribeDuration}s`;
                     }
                     await safeSendMessage(client, chat_id, message_id, replyText);
                     if (i < chunks.length - 1) await new Promise(resolve => setTimeout(resolve, 1500));

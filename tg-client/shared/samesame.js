@@ -99,7 +99,8 @@ export async function cloneVoiceWithSamesame({
     source_mime_type: sourceMimeType,
     text: text.trim(),
     language: language || undefined,
-    output_format: outputFormat
+    output_format: outputFormat,
+    stream: false
   };
 
   const url = `${samesameUrl.replace(/\/$/, '')}/v1/clone`;
@@ -107,24 +108,42 @@ export async function cloneVoiceWithSamesame({
   console.log(`[samesame] Starting voice clone request (text length: ${text.length}, language: ${language || 'default'})`);
   console.time(`[samesame] Voice Clone (${text.length} chars)`);
 
-  // Use a custom dispatcher to override the default 5-minute (300,000ms) headersTimeout
-  let dispatcher;
-  try {
-    const { Agent } = await import('undici');
-    dispatcher = new Agent({ headersTimeout: 900000, connectTimeout: 60000 });
-  } catch (e) {
-    console.warn('[samesame] undici not found, falling back to default fetch without custom timeout dispatcher.');
-  }
+  // Use native http/https with explicit socket timeout (15 min) to avoid undici headersTimeout issue
+  const parsedUrl = new URL(url);
+  const isHttps = parsedUrl.protocol === 'https:';
+  const bodyStr = JSON.stringify(payload);
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${samesameSecret}`
-    },
-    body: JSON.stringify(payload),
-    dispatcher: dispatcher,
-    signal: AbortSignal.timeout(900000) // 15 minutes overall timeout
+  const response = await new Promise(async (resolve, reject) => {
+    const lib = isHttps ? (await import('https')).default : (await import('http')).default;
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (isHttps ? 443 : 80),
+      path: parsedUrl.pathname + (parsedUrl.search || ''),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${samesameSecret}`,
+        'Content-Length': Buffer.byteLength(bodyStr)
+      }
+    };
+    const req = lib.request(options, (res) => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => {
+        const buf = Buffer.concat(chunks);
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          statusText: res.statusMessage,
+          json: () => Promise.resolve(JSON.parse(buf.toString())),
+          text: () => Promise.resolve(buf.toString())
+        });
+      });
+    });
+    req.setTimeout(900000, () => { req.destroy(new Error('Samesame request timeout after 15 minutes')); });
+    req.on('error', reject);
+    req.write(bodyStr);
+    req.end();
   });
 
   console.timeEnd(`[samesame] Voice Clone (${text.length} chars)`);

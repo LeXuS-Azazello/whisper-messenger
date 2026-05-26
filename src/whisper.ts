@@ -28,7 +28,7 @@ export async function transcribeAudio(
   const secret = env.WHISPER_SECRET || "";
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300000);
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
 
   try {
     let response;
@@ -92,6 +92,12 @@ export async function transcribeAudio(
       const resData = result.result && result.result[0];
       text = resData ? resData.text : "";
       result.language = resData ? resData.language : "unknown";
+      
+      // SenseVoice hallucination cleanup
+      text = text.replace(/<\|.*?\|>/g, '').trim();
+      if (/^(嗯|啊|哦|угу|м|да|ну)+[.!?,。]*$/i.test(text) || text === '嗯' || text === '嗯.' || text === '嗯。') {
+          text = '';
+      }
     } else {
       text = result.text || result.transcription || "";
     }
@@ -124,7 +130,7 @@ export async function transcribeAudio(
       detectedLanguage,
       translated: translatedText,
       targetLanguage: targetLanguage || null,
-      model: isFunASR ? "funasr" : (isSenseVoice ? "sensevoice" : "whisper-service-v2")
+      model: isFunASR ? "funasr" : (isSenseVoice ? "sensevoice" : "whisper-service-v2 (large-v3-turbo)")
     };
   } catch (e) {
     clearTimeout(timeoutId);
