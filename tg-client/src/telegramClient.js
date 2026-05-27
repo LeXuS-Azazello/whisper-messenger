@@ -428,7 +428,7 @@ async function handleSamesameReplyIfNeeded(message) {
 
             // Call the shared SAMESAME service (pass correct mime for voice vs video note)
             console.time(`[tg-client] SAMESAME clone request msg ${message.id}`);
-            const { audioBuffer: resultBuffer } = await cloneVoiceWithSamesame({
+            const { audioBuffer: resultBuffer, model: usedModel } = await cloneVoiceWithSamesame({
                 sourceAudioBuffer: promptBuffer,
                 text: cleanText,
                 language,
@@ -453,6 +453,10 @@ async function handleSamesameReplyIfNeeded(message) {
                     voice_note: {
                         '_': 'inputFileLocal',
                         path: tempOut
+                    },
+                    caption: {
+                        '_': 'formattedText',
+                        text: `🤖 ${usedModel || 'Samesame (CosyVoice)'}`
                     },
                     duration: 0,
                     waveform: ''

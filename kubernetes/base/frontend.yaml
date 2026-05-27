@@ -17,7 +17,7 @@ spec:
       - name: harbor-pull-secret
       containers:
       - name: frontend
-        image: harbor.dev.takatan.cloud/devcenter/whisper-frontend:latest
+        image: harbor.dev.takatan.cloud/azazellosaraksh/whisper-frontend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000

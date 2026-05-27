@@ -18,7 +18,7 @@ import Redis from 'ioredis';
 import translate from 'google-translate-api-x';
 import { isSamesameRequest, parseSamesameRequest, cloneVoiceWithSamesame } from '../shared/samesame.js';
 
-const TARGET_USER_ID  = process.env.TARGET_USER_ID || 'unknown';
+const TARGET_USER_ID = process.env.TARGET_USER_ID || 'unknown';
 let WHISPER_PROVIDER = process.env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
 if (WHISPER_PROVIDER === 'whisper-turbo' || WHISPER_PROVIDER === 'whisper-service-v2') {
     WHISPER_PROVIDER = 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
@@ -28,16 +28,16 @@ if (WHISPER_PROVIDER === 'whisper-turbo' || WHISPER_PROVIDER === 'whisper-servic
 WHISPER_PROVIDER = WHISPER_PROVIDER.replace(/\/$/, '') + '/v1/transcribe-base64';
 const MANAGER_URL = process.env.MANAGER_URL
     || 'http://whatsapp-baileys-manager.debugging-testcrash-pub.svc.cluster.local:3002';
-const SECRET      = process.env.SECRET || process.env.MANAGER_SECRET || 'changeme';
+const SECRET = process.env.SECRET || process.env.MANAGER_SECRET || 'changeme';
 const SESSION_DIR = '/app/sessions';
 
-const MAX_RETRIES      = 3;
-const RETRY_DELAYS_MS  = [3000, 6000, 12000];
+const MAX_RETRIES = 3;
+const RETRY_DELAYS_MS = [3000, 6000, 12000];
 
 // Suppress noisy pino logs emitted internally by baileys
 const silentLogger = pino({ level: 'silent' });
 
-let sock        = null;
+let sock = null;
 let isLoggedOut = false;
 let isReconnecting = false;
 
@@ -122,13 +122,13 @@ function restoreSessionFromEnv() {
 async function reportStats() {
     try {
         await fetch(`${MANAGER_URL}/internal/stats`, {
-            method:  'POST',
-            headers: { 
+            method: 'POST',
+            headers: {
                 'Content-Type': 'application/json',
                 'x-manager-secret': SECRET
             },
-            body:    JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET }),
-            signal:  AbortSignal.timeout(10000),
+            body: JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET }),
+            signal: AbortSignal.timeout(10000),
         });
     } catch (e) {
         console.warn('[WA-Client] Failed to report stats:', e.message);
@@ -138,13 +138,13 @@ async function reportStats() {
 async function reportAccessRevoked() {
     try {
         await fetch(`${MANAGER_URL}/internal/access-revoked`, {
-            method:  'POST',
-            headers: { 
+            method: 'POST',
+            headers: {
                 'Content-Type': 'application/json',
                 'x-manager-secret': SECRET
             },
-            body:    JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET }),
-            signal:  AbortSignal.timeout(10000),
+            body: JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET }),
+            signal: AbortSignal.timeout(10000),
         });
     } catch (e) {
         console.warn('[WA-Client] Failed to report access-revoked:', e.message);
@@ -153,8 +153,8 @@ async function reportAccessRevoked() {
 
 // ─── Message Queue ────────────────────────────────────────────────────────────
 
-const queue       = [];
-let   processing  = false;
+const queue = [];
+let processing = false;
 
 async function enqueue(msg) {
     queue.push(msg);
@@ -188,7 +188,7 @@ async function deleteMsg(jid, msgId) {
 async function processAudio(msg) {
     if (!sock) return;
 
-    const jid     = msg.key.remoteJid;
+    const jid = msg.key.remoteJid;
     const isAudio = !!msg.message?.audioMessage;
     const isVideo = !!msg.message?.videoMessage;
     const mimeType = isAudio
@@ -228,12 +228,12 @@ async function processAudio(msg) {
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
             const response = await fetch(WHISPER_PROVIDER, {
-                method:  'POST',
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({
-                    file_data:   base64Audio,
-                    mime_type:   mimeType,
-                    language:    'auto',
+                body: JSON.stringify({
+                    file_data: base64Audio,
+                    mime_type: mimeType,
+                    language: 'auto',
                 }),
                 signal: AbortSignal.timeout(300_000),
             });
@@ -283,15 +283,15 @@ async function processAudio(msg) {
                 targetLang = 'en'; // Default to english for auto target
             }
 
-            const isSameLanguage = detectedLang && targetLang 
-                && (detectedLang.toLowerCase().startsWith(targetLang.toLowerCase()) 
+            const isSameLanguage = detectedLang && targetLang
+                && (detectedLang.toLowerCase().startsWith(targetLang.toLowerCase())
                     || targetLang.toLowerCase().startsWith(detectedLang.toLowerCase()));
-                    
+
             if (!isSameLanguage) {
                 console.time(`[WA-Client] Translate to ${targetLang}`);
                 const transResult = await translate(finalText, { to: targetLang });
                 console.timeEnd(`[WA-Client] Translate to ${targetLang}`);
-                
+
                 if (transResult && transResult.text) {
                     finalText = transResult.text + `\n\n_(${labelPrefix} → ${getLangLabel(targetLang)})_\n_Orig: ${finalText}_`;
                     finalLabel = ''; // Label included in footer
@@ -409,12 +409,12 @@ async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
 
     sock = makeWASocket({
-        auth:                 state,
-        printQRInTerminal:    false,
-        logger:               silentLogger,
-        browser:              Browsers.ubuntu('Chrome'),
-        syncFullHistory:      false,
-        markOnlineOnConnect:  false,
+        auth: state,
+        printQRInTerminal: false,
+        logger: silentLogger,
+        browser: Browsers.ubuntu('Chrome'),
+        syncFullHistory: false,
+        markOnlineOnConnect: false,
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -439,7 +439,7 @@ async function connectToWhatsApp() {
 
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
-            const isLogout   = statusCode === DisconnectReason.loggedOut;
+            const isLogout = statusCode === DisconnectReason.loggedOut;
             console.log(`[WA-Client ${TARGET_USER_ID}] Connection closed. code=${statusCode} logout=${isLogout}`);
 
             if (isLogout) {
@@ -501,7 +501,7 @@ async function connectToWhatsApp() {
             }
 
             if (msg.key.fromMe) continue;
-            
+
             // Strictly process only private, direct messages (JIDs ending with @s.whatsapp.net)
             if (!msg.key.remoteJid || !msg.key.remoteJid.endsWith('@s.whatsapp.net')) continue;
 
@@ -523,7 +523,7 @@ function getMediaMessage(message) {
     if (message.viewOnceMessage?.message) return getMediaMessage(message.viewOnceMessage.message);
     if (message.viewOnceMessageV2?.message) return getMediaMessage(message.viewOnceMessageV2.message);
     if (message.documentWithCaptionMessage?.message) return getMediaMessage(message.documentWithCaptionMessage.message);
-    
+
     if (message.audioMessage || message.videoMessage) {
         return message;
     }
@@ -534,14 +534,14 @@ function getMediaMessage(message) {
 
 function startHttpServer() {
     const server = http.createServer((req, res) => {
-        const url    = req.url?.split('?')[0];
+        const url = req.url?.split('?')[0];
         const method = req.method;
 
         if (url === '/health' && method === 'GET') {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({
-                alive:     true,
-                userId:    TARGET_USER_ID,
+                alive: true,
+                userId: TARGET_USER_ID,
                 connected: !!(sock && sock.user),
             }));
         }

@@ -32,8 +32,16 @@ from cosyvoice.utils.file_utils import load_wav
 import torchaudio
 
 try:
-    # CosyVoice API (CPU‑only) does not accept `load_onnx`. Keep only supported flags.
-    cosyvoice = CosyVoice(MODEL_NAME, load_jit=True, fp16=True)
+    if "CosyVoice2" in MODEL_NAME:
+        try:
+            from cosyvoice.cli.cosyvoice import CosyVoice2
+            cosyvoice = CosyVoice2(MODEL_NAME, load_jit=True, fp16=True)
+        except ImportError:
+            # Fallback if CosyVoice2 class is not in this version
+            cosyvoice = CosyVoice(MODEL_NAME, load_jit=True, fp16=True)
+    else:
+        # CosyVoice API (CPU‑only) does not accept `load_onnx`. Keep only supported flags.
+        cosyvoice = CosyVoice(MODEL_NAME, load_jit=True, fp16=True)
 except Exception as e:
     print(f"[samesame-cosy] Failed to load CosyVoice: {e}")
     sys.exit(1)
@@ -92,7 +100,7 @@ def clone_voice(req: CloneRequest, authorization: Optional[str] = Header(None)):
     )
 
     try:
-        # Cross_lingual uses prompt_speech path, no prompt_text is needed!
+        # Pass the file path (temp_in) to CosyVoice API since it calls torchaudio.load() under the hood
         output = cosyvoice.inference_cross_lingual(req.text, temp_in)
         tts_audios = []
         for chunk in output:
@@ -111,8 +119,8 @@ def clone_voice(req: CloneRequest, authorization: Optional[str] = Header(None)):
     fd_out, temp_out = tempfile.mkstemp(suffix=".wav")
     os.close(fd_out)
 
-    # Save to wav
-    torchaudio.save(temp_out, tts_audio, 44100)
+    # Save to wav (CosyVoice outputs 22050 Hz)
+    torchaudio.save(temp_out, tts_audio, 22050)
 
     os.remove(temp_in)
 

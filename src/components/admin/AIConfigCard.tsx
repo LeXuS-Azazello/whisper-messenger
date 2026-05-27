@@ -33,12 +33,12 @@ export const AIConfigCard = (props: { checks: any, env: any }) => {
             </div>
 
             <div class="input-group" style="margin-top: 25px">
-                <label>SAMESAME (XTTS v2) URL</label>
-                <input type="text" id="ai-samesame-url" placeholder="http://samesame...:8002" />
+                <label>XTTS v2 Synthesis URL</label>
+                <input type="text" id="ai-xtts-url" placeholder="http://xtts...:50003" />
             </div>
             <div class="input-group">
-                <label>SAMESAME Secret</label>
-                <input type="password" id="ai-samesame-secret" placeholder="SAMESAME Secret token" />
+                <label>XTTS Secret</label>
+                <input type="password" id="ai-xtts-secret" placeholder="XTTS Secret token" />
             </div>
             
             <button class="btn" id="save-ai-btn" style="margin-top: 15px">Save AI Config</button>

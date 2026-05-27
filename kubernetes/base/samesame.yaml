@@ -30,7 +30,7 @@ spec:
         - name: harbor-pull-secret
       containers:
         - name: samesame
-          image: harbor.dev.takatan.cloud/devcenter/samesame:latest
+          image: harbor.dev.takatan.cloud/azazellosaraksh/samesame:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8002
@@ -58,16 +58,16 @@ spec:
             - name: SAMESAME_LOCAL_ONLY
               value: "true"
             - name: SAMESAME_MODEL_NAME
-              value: "iic/CosyVoice-300M"
+              value: "iic/CosyVoice2-0.5B"
             - name: COQUI_TOS_AGREED
               value: "1"
           resources:
             # Optimized: reduced CPU to fit cluster quota while retaining speed
             requests:
-              cpu: "2.5"
+              cpu: "1.5"
               memory: "4Gi"
             limits:
-              cpu: "2.5"
+              cpu: "1.5"
               memory: "8Gi"
           volumeMounts:
             - name: models
@@ -96,7 +96,7 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 10
-            failureThreshold: 3
+            failureThreshold: 100
       volumes:
         - name: models
           persistentVolumeClaim:

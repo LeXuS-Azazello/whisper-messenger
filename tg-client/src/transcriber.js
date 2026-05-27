@@ -10,12 +10,14 @@ function sleep(ms) {
 }
 
 function normalizeResult(data, fallbackModel = 'whisper-service-v2') {
+  let m = data.model || data.used_model;
+  if (!m || m === 'unknown model') m = fallbackModel;
   return {
     text: data.text || '',
     language: data.language || data.detected_language || data.detectedLanguage || 'auto',
     translated: data.translated || null,
     target_language: data.target_language || null,
-    model: data.model || data.used_model || fallbackModel,
+    model: m,
     metrics: data.metrics || null
   };
 }

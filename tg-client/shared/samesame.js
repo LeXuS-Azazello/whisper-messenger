@@ -158,6 +158,7 @@ export async function cloneVoiceWithSamesame({
 
   return {
     audioBuffer,
-    contentType: data.content_type || 'audio/ogg'
+    contentType: data.content_type || 'audio/ogg',
+    model: data.model || 'samesame-cosyvoice'
   };
 }

@@ -24,9 +24,13 @@ if [ -f .env ]; then
   set -u
 fi
 
-HARBOR_HOST="${HARBOR_HOST:-harbor.dev.takatan.cloud}"
+HARBOR_HOST="${HARBOR_HOST:-}"
 HARBOR_PROJECT="${HARBOR_PROJECT:-devcenter}"
-REPO="${HARBOR_HOST}/${HARBOR_PROJECT}"
+if [ -n "$HARBOR_HOST" ]; then
+  REPO="${HARBOR_HOST}/${HARBOR_PROJECT}"
+else
+  REPO="${HARBOR_PROJECT}"
+fi
 NAMESPACE="${NAMESPACE:-debugging-testcrash-pub}"
 
 echo ">>> Targeted deploy for: ${SERVICES[*]}"

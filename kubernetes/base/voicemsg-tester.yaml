@@ -16,8 +16,8 @@ spec:
       - name: harbor-pull-secret
       containers:
       - name: tester
-        image: harbor.dev.takatan.cloud/devcenter/whisper-tester:latest
-        imagePullPolicy: Always
+        image: harbor.dev.takatan.cloud/azazellosaraksh/whisper-tester:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
         env:
@@ -63,7 +63,24 @@ spec:
             memory: "256Mi"
           limits:
             cpu: "500m"
-            memory: "512Mi"
+            memory: "1536Mi"
+        volumeMounts:
+        - name: tester-patch
+          mountPath: /app/src/index.ts
+          subPath: index.ts
+        - name: tester-patch
+          mountPath: /app/src/tests.ts
+          subPath: tests.ts
+        - name: tester-patch
+          mountPath: /app/shared/samesame.js
+          subPath: samesame.js
+        - name: tester-patch
+          mountPath: /app/test_whisper.ogg
+          subPath: test_whisper.ogg
+      volumes:
+      - name: tester-patch
+        configMap:
+          name: voicemsg-tester-patch
 ---
 apiVersion: v1
 kind: Service

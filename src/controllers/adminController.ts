@@ -252,21 +252,21 @@ export async function getUsersJson(env: Env): Promise<Response> {
 export async function getAiConfig(env: Env): Promise<Response> {
     const provider = env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
     const localSecret = env.WHISPER_SECRET || "";
-    const samesameUrl = env.SAMESAME_URL || 'http://samesame.debugging-testcrash-pub.svc.cluster.local:8002';
-    const samesameSecret = env.SAMESAME_SECRET || "";
+    const xttsUrl = env.XTTS_URL || 'http://xtts.debugging-testcrash-pub.svc.cluster.local:50003';
+    const xttsSecret = env.XTTS_SECRET || "";
 
-    return Response.json({ provider, localSecret, samesameUrl, samesameSecret });
+    return Response.json({ provider, localSecret, xttsUrl, xttsSecret });
 }
 
 export async function updateAiConfig(env: Env, req: Request): Promise<Response> {
-    const { provider, localSecret, samesameUrl, samesameSecret } = await req.json() as any;
+    const { provider, localSecret, xttsUrl, xttsSecret } = await req.json() as any;
     const { default: ServerSetting } = await import("../models/ServerSetting");
 
     const settings = [
         { key: "config_whisper_provider", value: provider },
         { key: "config_local_whisper_secret", value: localSecret },
-        { key: "config_samesame_url", value: samesameUrl },
-        { key: "config_samesame_secret", value: samesameSecret }
+        { key: "config_xtts_url", value: xttsUrl },
+        { key: "config_xtts_secret", value: xttsSecret }
     ];
 
     for (const s of settings) {
@@ -395,8 +395,8 @@ export async function renderDashboardPage(env: Env, origin: string): Promise<Res
         ...({
             WHISPER_PROVIDER: provider,
             WHISPER_PROVIDER_NAME: provider.replace('-', ' ').toUpperCase(),
-            SAMESAME_URL: env.SAMESAME_URL || 'http://samesame.debugging-testcrash-pub.svc.cluster.local:8002',
-            SAMESAME_SECRET: Boolean(env.SAMESAME_SECRET)
+            XTTS_URL: env.XTTS_URL || 'http://xtts.debugging-testcrash-pub.svc.cluster.local:50003',
+            XTTS_SECRET: Boolean(env.XTTS_SECRET)
         } as any)
     };
 

@@ -45,8 +45,8 @@ export interface Env {
   // Whisper Config
   WHISPER_PROVIDER?: string;
   WHISPER_SECRET?: string;
-  SAMESAME_URL?: string;
-  SAMESAME_SECRET?: string;
+  XTTS_URL?: string;
+  XTTS_SECRET?: string;
 
   // SMTP Config
   EMAIL_FROM?: string;

@@ -39,7 +39,7 @@ spec:
       containers:
         # HTTP API — accepts requests and enqueues jobs to BullMQ/Redis
         - name: whisper-service-v2
-          image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
+          image: harbor.dev.takatan.cloud/azazellosaraksh/whisper-service-v2:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -98,7 +98,7 @@ spec:
 
         # BullMQ Worker — picks jobs from Redis and runs sherpa-onnx transcription
         - name: whisper-worker-v2
-          image: harbor.dev.takatan.cloud/devcenter/whisper-service-v2:latest
+          image: harbor.dev.takatan.cloud/azazellosaraksh/whisper-service-v2:latest
           imagePullPolicy: IfNotPresent
           command: ["node", "src/worker.js"]
           env:

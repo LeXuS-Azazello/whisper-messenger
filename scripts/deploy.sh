@@ -27,7 +27,7 @@ fi
 # Image configuration
 TAG=$(date +%Y%m%d-%H%M%S)
 HARBOR_HOST="${HARBOR_HOST:-harbor.dev.takatan.cloud}"
-PROJECT_NAME="${HARBOR_PROJECT:-devcenter}"
+PROJECT_NAME="${HARBOR_PROJECT:-azazellosaraksh}"
 REPO="${HARBOR_HOST}/${PROJECT_NAME}"
 
 # Ensure Harbor project exists

@@ -55,7 +55,8 @@ spec:
         - name: harbor-pull-secret
       containers:
         - name: downloader
-          image: harbor.dev.takatan.cloud/devcenter/samesame:latest
+          image: harbor.dev.takatan.cloud/azazellosaraksh/samesame:latest
+          imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c", "/scripts/download-models.sh"]
           env:
             - name: MODELS_DIR
@@ -73,7 +74,7 @@ spec:
             - name: DOWNLOAD_TIMEOUT
               value: "1800"
             - name: SAMESAME_MODEL_NAME
-              value: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
+              value: "iic/CosyVoice2-0.5B"
             - name: COQUI_TOS_AGREED
               value: "1"
           volumeMounts:

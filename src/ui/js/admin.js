@@ -167,13 +167,13 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/admin/ai-config').then(r => r.json()).then(data => {
             const whisperUrlInput = document.getElementById('ai-whisper-url');
             const whisperSecretInput = document.getElementById('ai-whisper-secret');
-            const samesameUrlInput = document.getElementById('ai-samesame-url');
-            const samesameSecretInput = document.getElementById('ai-samesame-secret');
+            const xttsUrlInput = document.getElementById('ai-xtts-url');
+            const xttsSecretInput = document.getElementById('ai-xtts-secret');
             
             if (whisperUrlInput && data.provider) whisperUrlInput.value = data.provider;
             if (whisperSecretInput && data.localSecret) whisperSecretInput.value = data.localSecret;
-            if (samesameUrlInput && data.samesameUrl) samesameUrlInput.value = data.samesameUrl;
-            if (samesameSecretInput && data.samesameSecret) samesameSecretInput.value = data.samesameSecret;
+            if (xttsUrlInput && data.xttsUrl) xttsUrlInput.value = data.xttsUrl;
+            if (xttsSecretInput && data.xttsSecret) xttsSecretInput.value = data.xttsSecret;
         });
     }
     loadAiConfig();
@@ -183,14 +183,14 @@ document.addEventListener('DOMContentLoaded', function() {
         saveAiBtn.addEventListener('click', () => {
             const provider = document.getElementById('ai-whisper-url')?.value || '';
             const localSecret = document.getElementById('ai-whisper-secret')?.value || '';
-            const samesameUrl = document.getElementById('ai-samesame-url')?.value || '';
-            const samesameSecret = document.getElementById('ai-samesame-secret')?.value || '';
+            const xttsUrl = document.getElementById('ai-xtts-url')?.value || '';
+            const xttsSecret = document.getElementById('ai-xtts-secret')?.value || '';
             
             saveAiBtn.innerText = 'Saving...';
             fetch('/admin/ai-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ provider, localSecret, samesameUrl, samesameSecret })
+                body: JSON.stringify({ provider, localSecret, xttsUrl, xttsSecret })
             }).then(r => r.json()).then(d => {
                 alert(d.success ? 'AI config saved' : 'Error: ' + d.error);
                 saveAiBtn.innerText = 'Save AI Config';

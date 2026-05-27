@@ -21,7 +21,7 @@ export function TelegramAppConnectionCard({ user, env }: { user: UserSession; en
                         <div class="avatar-icon tg-gradient">📱</div>
                         <div class="bridge-details">
                             <div class="bridge-label">Active Bridge</div>
-                            <div class="bridge-name">{user.username ? `@${user.username}` : user.firstName}</div>
+                             <div class="bridge-name">{user.session ? (user.username ? `@${user.username}` : user.firstName) : 'Not Connected'}</div>
                             <div class="bridge-status">
                                 Status: <span class={user.isActive ? 'text-success' : 'text-danger'}>
                                     {user.isActive ? 'ONLINE' : 'OFFLINE'}

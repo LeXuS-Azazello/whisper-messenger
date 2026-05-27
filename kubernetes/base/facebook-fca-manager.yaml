@@ -17,7 +17,7 @@ data:
         "containers": [
           {
             "name": "facebook-fca-client",
-            "image": "harbor.dev.takatan.cloud/devcenter/facebook-fca-client:latest",
+            "image": "harbor.dev.takatan.cloud/azazellosaraksh/facebook-fca-client:latest",
             "imagePullPolicy": "IfNotPresent",
               "env": [
                 {
@@ -69,7 +69,7 @@ spec:
       - name: harbor-pull-secret
       containers:
       - name: manager
-        image: harbor.dev.takatan.cloud/devcenter/facebook-fca-manager:latest
+        image: harbor.dev.takatan.cloud/azazellosaraksh/facebook-fca-manager:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3003

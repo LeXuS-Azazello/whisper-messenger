@@ -286,7 +286,7 @@ document.addEventListener('DOMContentLoaded', function () {
             stopQrPolling();
             alert('QR code expired');
             showStep('choice');
-        }, 300000); // 5 minutes
+        }, 600000); // 10 minutes
 
         qrPollInterval = setInterval(() => {
             fetch('/auth/qr-check?token=' + token)
@@ -969,5 +969,116 @@ document.addEventListener('DOMContentLoaded', function () {
                 })
                 .catch(() => alert('Failed to copy link.'));
         });
+    }
+
+    // Generate referral QR code on load
+    const refQrCode = document.getElementById('ref-qr-code');
+    if (refQrCode && refLinkText) {
+        const refUrl = refLinkText.innerText.trim();
+        setTimeout(() => {
+            if (window.QRCode) {
+                new QRCode(refQrCode, {
+                    text: refUrl,
+                    width: 180,
+                    height: 180,
+                    colorDark: '#000000',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+            }
+        }, 100);
+    }
+
+    // ─── Translation Settings Card ─────────────────────────────────────────────
+    const translationCard = document.getElementById('translation-settings-card');
+    if (translationCard) {
+        const langSelect = document.getElementById('translation-lang-select');
+        const saveBtn = document.getElementById('translation-save-btn');
+        const statusEl = document.getElementById('translation-status-badge');
+
+        const LANG_LABELS = {
+            'off':  '🚫 Disabled (default)',
+            'auto': '🌐 Auto (detect from Telegram)',
+            'ru':   '🇷🇺 Russian',
+            'uk':   '🇺🇦 Ukrainian',
+            'en':   '🇬🇧 English',
+            'de':   '🇩🇪 German',
+            'fr':   '🇫🇷 French',
+            'es':   '🇪🇸 Spanish',
+            'zh':   '🇨🇳 Chinese',
+            'ja':   '🇯🇵 Japanese',
+            'ko':   '🇰🇷 Korean',
+            'ar':   '🇸🇦 Arabic',
+            'tr':   '🇹🇷 Turkish',
+            'pl':   '🇵🇱 Polish',
+            'it':   '🇮🇹 Italian',
+            'pt':   '🇵🇹 Portuguese'
+        };
+
+        function updateTranslationStatusBadge(lang) {
+            if (!statusEl) return;
+            if (lang === 'off') {
+                statusEl.textContent = 'DISABLED';
+                statusEl.className = 'status-tag inactive';
+            } else {
+                statusEl.textContent = 'ACTIVE';
+                statusEl.className = 'status-tag active';
+            }
+        }
+
+        // Load current setting
+        fetch('/dashboard/translation-settings')
+            .then(r => r.json())
+            .then(data => {
+                if (langSelect) {
+                    // Populate options if not already in HTML
+                    if (langSelect.options.length <= 1) {
+                        Object.entries(LANG_LABELS).forEach(([val, label]) => {
+                            const opt = document.createElement('option');
+                            opt.value = val;
+                            opt.textContent = label;
+                            langSelect.appendChild(opt);
+                        });
+                    }
+                    langSelect.value = data.lang || 'off';
+                }
+                updateTranslationStatusBadge(data.lang || 'off');
+            })
+            .catch(err => console.error('[translation] Load error:', err));
+
+        if (saveBtn && langSelect) {
+            saveBtn.addEventListener('click', () => {
+                const lang = langSelect.value;
+                const orig = saveBtn.textContent;
+                saveBtn.textContent = 'Saving...';
+                saveBtn.disabled = true;
+
+                fetch('/dashboard/translation-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lang })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        updateTranslationStatusBadge(data.lang);
+                        saveBtn.textContent = '✓ Saved!';
+                        setTimeout(() => {
+                            saveBtn.textContent = orig;
+                            saveBtn.disabled = false;
+                        }, 2000);
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown'));
+                        saveBtn.textContent = orig;
+                        saveBtn.disabled = false;
+                    }
+                })
+                .catch(() => {
+                    alert('Connection error');
+                    saveBtn.textContent = orig;
+                    saveBtn.disabled = false;
+                });
+            });
+        }
     }
 });

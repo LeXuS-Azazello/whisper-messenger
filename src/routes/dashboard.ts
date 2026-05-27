@@ -15,6 +15,27 @@ import { handleTestWa } from "../controllers/whatsappAuthController";
 
 export { incrementUserStats };
 
+const VALID_LANGS = ['off', 'auto', 'ru', 'uk', 'en', 'de', 'fr', 'es', 'zh', 'ja', 'ko', 'ar', 'tr', 'pl', 'it', 'pt'];
+
+async function handleTranslationSettingsGet(env: Env, userId: string): Promise<Response> {
+  const lang = await env.STATS.get(`translate_lang_${userId}`) || 'off';
+  return Response.json({ lang, validLangs: VALID_LANGS });
+}
+
+async function handleTranslationSettingsPost(env: Env, req: Request, userId: string): Promise<Response> {
+  try {
+    const { lang } = await req.json() as any;
+    const safe = (lang || 'off').toLowerCase().trim();
+    if (!VALID_LANGS.includes(safe)) {
+      return Response.json({ error: `Invalid lang. Use one of: ${VALID_LANGS.join(', ')}` }, { status: 400 });
+    }
+    await env.STATS.put(`translate_lang_${userId}`, safe);
+    return Response.json({ success: true, lang: safe });
+  } catch (e: any) {
+    return Response.json({ error: e.message }, { status: 500 });
+  }
+}
+
 export async function handleUserDashboard(env: Env, req: Request, userId: string | null): Promise<Response> {
   const url = new URL(req.url);
   let pathname = url.pathname;
@@ -137,7 +158,15 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       return await handleDeleteAccount(env, req, userId);
     }
 
+    if (pathname === "/dashboard/translation-settings") {
+      return await handleTranslationSettingsPost(env, req, userId);
+    }
+
     return new Response(`Not found: ${pathname}`, { status: 404 });
+  }
+
+  if (req.method === "GET" && pathname === "/dashboard/translation-settings") {
+    return await handleTranslationSettingsGet(env, userId);
   }
 
   if (req.method === "GET" && pathname === "/dashboard") {

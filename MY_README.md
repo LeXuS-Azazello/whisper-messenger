@@ -33,11 +33,11 @@
 
 2. у меня сервак облачный кубернетис: GPU нет. Домен и почта на cloudflare.
 
-CPU: 16.1 cores
+C
+Storage: 320 Gi
+PU: 16.1 cores
 
 Memory: 56.3 Gi
-
-Storage: 320 Gi
 
 PODs: 500
 

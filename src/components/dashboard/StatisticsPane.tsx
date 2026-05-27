@@ -83,26 +83,26 @@ export function StatisticsPane({ user }: PaneProps) {
                                 <div class="bar-value" style="height: 70px;"><span class="bar-text">14</span></div>
                                 <div class="bar-label">Tue</div>
                             </div>
-                            <div class="bar-item">
-                                <div class="bar-value" style="height: 110px;"><span class="bar-text">22</span></div>
-                                <div class="bar-label">Wed</div>
-                            </div>
-                            <div class="bar-item">
-                                <div class="bar-value" style="height: 55px;"><span class="bar-text">11</span></div>
-                                <div class="bar-label">Thu</div>
-                            </div>
-                            <div class="bar-item">
-                                <div class="bar-value active" style="height: 160px;"><span class="bar-text">32</span></div>
-                                <div class="bar-label">Fri</div>
-                            </div>
-                            <div class="bar-item">
-                                <div class="bar-value" style="height: 35px;"><span class="bar-text">7</span></div>
-                                <div class="bar-label">Sat</div>
-                            </div>
-                            <div class="bar-item">
-                                <div class="bar-value" style="height: 25px;"><span class="bar-text">4</span></div>
-                                <div class="bar-label">Sun</div>
-                            </div>
+                                <div class="bar-item">
+                                    <div class="bar-value" style="height: 25px;"><span class="bar-text">4</span></div>
+                                    <div class="bar-label">Wed</div>
+                                </div>
+                                <div class="bar-item">
+                                    <div class="bar-value" style="height: 35px;"><span class="bar-text">7</span></div>
+                                    <div class="bar-label">Thu</div>
+                                </div>
+                                <div class="bar-item">
+                                    <div class="bar-value" style="height: 45px;"><span class="bar-text">9</span></div>
+                                    <div class="bar-label">Fri</div>
+                                </div>
+                                <div class="bar-item">
+                                    <div class="bar-value active" style="height: 70px;"><span class="bar-text">14</span></div>
+                                    <div class="bar-label">Sat</div>
+                                </div>
+                                <div class="bar-item">
+                                    <div class="bar-value" style="height: 110px;"><span class="bar-text">22</span></div>
+                                    <div class="bar-label">Sun</div>
+                                </div>
                         </div>
                     </div>
                 </div>

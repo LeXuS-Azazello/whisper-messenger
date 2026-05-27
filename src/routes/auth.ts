@@ -37,14 +37,6 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
 
   // Handle all authentication GET requests
   if (method === "GET") {
-    // If the user has a valid active session, direct them to their dashboard
-    if (currentUserId) {
-      return new Response(null, {
-        status: 302,
-        headers: { "Location": "/dashboard" }
-      });
-    }
-
     const successType = url.searchParams.get('success');
     const action = url.searchParams.get('action');
 
@@ -52,6 +44,13 @@ export async function handlePublicAuth(env: Env, req: Request, currentUserId: st
     const isAuthGet = authGetPaths.includes(pathname);
 
     if (isAuthGet) {
+      // If the user has a valid active session, direct them to their dashboard
+      if (currentUserId) {
+        return new Response(null, {
+          status: 302,
+          headers: { "Location": "/dashboard" }
+        });
+      }
       // Determine the default active view
       let activeView: 'login' | 'register' | 'forgot' | 'reset' | 'success' = 'login';
       if (pathname === '/register' || pathname === '/signup' || action === 'register') {

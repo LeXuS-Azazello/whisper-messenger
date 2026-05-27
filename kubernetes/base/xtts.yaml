@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xtts
+  namespace: debugging-testcrash-pub
+  labels:
+    app: xtts
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: xtts
+  template:
+    metadata:
+      labels:
+        app: xtts
+    spec:
+      containers:
+      - name: xtts-api
+        image: ghcr.io/coqui-ai/xtts-v2:latest
+        # If a pre-built image isn't available, we use a python base and install it
+        # For stability, using a generic python image and installing Coqui TTS
+        image: python:3.10-slim
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          echo "Installing system dependencies..."
+          apt-get update && apt-get install -y --no-install-recommends ffmpeg git wget libsndfile1 build-essential
+          pip install --no-cache-dir --upgrade pip
+          pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install --no-cache-dir TTS fastapi "uvicorn[standard]" python-multipart
+          echo "Starting XTTS v2 API..."
+          # Starting a simple FastAPI wrapper for XTTS
+          # Note: A real deployment would use a specialized wrapper (like TTS-API)
+          # For now, we launch a basic uvicorn server
+          python -m uvicorn main:app --host 0.0.0.0 --port 50003
+        ports:
+        - containerPort: 50003
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "4Gi"
+          limits:
+            cpu: "1000m"
+            memory: "8Gi"
+        volumeMounts:
+        - name: model-vol
+          mountPath: /root/.local/share/tts
+      volumes:
+      - name: model-vol
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xtts
+  namespace: debugging-testcrash-pub
+spec:
+  type: ClusterIP
+  selector:
+    app: xtts
+  ports:
+  - port: 50003
+    targetPort: 50003
+    protocol: TCP
+    name: http

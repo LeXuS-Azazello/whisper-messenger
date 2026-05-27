@@ -17,8 +17,8 @@ data:
         "containers": [
           {
             "name": "wa-baileys-client",
-            "image": "harbor.dev.takatan.cloud/devcenter/whatsapp-baileys-client:latest",
-            "imagePullPolicy": "IfNotPresent",
+            "image": "harbor.dev.takatan.cloud/azazellosaraksh/whatsapp-baileys-client:latest",
+            "imagePullPolicy": "Always",
             "env": [
               {
                 "name": "REDIS_URL",
@@ -65,11 +65,6 @@ metadata:
   name: whatsapp-baileys-manager
 spec:
   replicas: 1
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
   selector:
     matchLabels:
       app: whatsapp-baileys-manager
@@ -83,17 +78,10 @@ spec:
       - name: harbor-pull-secret
       containers:
       - name: manager
-        image: harbor.dev.takatan.cloud/devcenter/whatsapp-baileys-manager:latest
-        imagePullPolicy: IfNotPresent
+        image: harbor.dev.takatan.cloud/azazellosaraksh/whatsapp-baileys-manager:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 3002
-        resources:
-          requests:
-            cpu: 50m
-            memory: 128Mi
-          limits:
-            cpu: 200m
-            memory: 256Mi
         env:
         - name: MODE
           value: "MANAGER"
@@ -107,7 +95,10 @@ spec:
         - name: REDIS_URL
           value: "redis://redis:6379"
         - name: MONGODB_URI
-          value: "mongodb://mongodb:27017/voicemsg"
+          valueFrom:
+            secretKeyRef:
+              name: whisper-messenger-env
+              key: MONGODB_URI
 ---
 apiVersion: v1
 kind: Service
