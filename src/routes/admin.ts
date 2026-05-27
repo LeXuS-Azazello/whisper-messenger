@@ -14,7 +14,8 @@ import {
     userAction,
     runDiagnostics,
     renderDashboardPage,
-    switchAsrModel
+    switchAsrModel,
+    runAsrTest
 } from "../controllers/adminController";
 
 export async function handleAdmin(env: Env, req: Request): Promise<Response> {
@@ -38,7 +39,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         }
 
         if (adminId !== "admin") {
-            if (method === "POST" || pathname.endsWith(".json") || pathname.includes("/tg-") || pathname.includes("/user-action") || pathname.includes("/admin/tester") || pathname.includes("/admin/mongo")) {
+            if (method === "POST" || pathname.endsWith(".json") || pathname.includes("/tg-") || pathname.includes("/user-action") || pathname.includes("/admin/tester") || pathname.includes("/admin/mongo") || pathname.includes("/admin/run-asr-test")) {
                 return new Response(JSON.stringify({ success: false, error: "Unauthorized. Please login." }), {
                     status: 401,
                     headers: { "Content-Type": "application/json" }
@@ -195,9 +196,8 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
             return await userAction(env, req);
         }
 
-        if (method === "POST" && pathname === "/admin/run-diagnostics") {
-            return await runDiagnostics(env);
-        }
+        if (method === "POST" && pathname === "/admin/run-diagnostics") { return await runDiagnostics(env); }
+        if (method === "POST" && pathname === "/admin/run-asr-test") { return await runAsrTest(env); }
 
         if (method === "GET" && pathname === "/admin") {
             return await renderDashboardPage(env, url.origin);

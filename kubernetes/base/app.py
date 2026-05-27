@@ -85,7 +85,13 @@ def clone_voice(req: CloneRequest, authorization: Optional[str] = Header(None)):
     os.close(fd_in)
 
     # 1. Load the prompt speech
-    prompt_speech_16k = load_wav(temp_in, 16000)
+        prompt_speech_16k, _ = torchaudio.load(temp_in)
+    prompt_speech_16k = prompt_speech_16k.mean(dim=0, keepdim=True)
+    # Resample if not 16kHz
+    if prompt_speech_16k.shape[1] != 16000:
+        resampler = torchaudio.transforms.Resample(orig_freq=prompt_speech_16k.shape[1], new_freq=16000).to(prompt_speech_16k.device)
+        prompt_speech_16k = resampler(prompt_speech_16k)
+    
 
     # 2. Extract prompt text using whisper (required for CosyVoice zero_shot)
     import whisper

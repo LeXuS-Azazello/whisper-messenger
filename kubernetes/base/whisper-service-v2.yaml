@@ -72,10 +72,10 @@ spec:
           # OPTIMIZED: Slightly increased for better request handling
           resources:
             requests:
-              cpu: "2m"
-              memory: "1024Mi"
+              cpu: "50m"
+              memory: "512Mi"
             limits:
-              cpu: "100m"
+              cpu: "500m"
               memory: "2Gi"
           volumeMounts:
             - name: models
@@ -87,6 +87,7 @@ spec:
               port: 8000
             initialDelaySeconds: 15
             periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 6
           livenessProbe:
             httpGet:
@@ -94,6 +95,7 @@ spec:
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 15
+            timeoutSeconds: 5
             failureThreshold: 5
 
         # BullMQ Worker — picks jobs from Redis and runs sherpa-onnx transcription
@@ -110,8 +112,6 @@ spec:
               value: "whisper"
             - name: CACHE_TTL
               value: "3600"
-            - name: NUM_THREADS
-              value: "2"
             - name: NUM_INTER_THREADS
               value: "1"
             - name: OMP_NUM_THREADS
@@ -128,6 +128,14 @@ spec:
               value: "4"
             - name: WAIT_FOR_JOB_MS
               value: "180000"
+            - name: ENABLE_PUNCTUATION
+              value: "false"
+            - name: VAD_MIN_SPEECH_DURATION
+              value: "1.2"
+            - name: VAD_MIN_SILENCE_DURATION
+              value: "0.5"
+            - name: NUM_THREADS
+              value: "1"
           # Worker runs the new streaming Whisper turbo int8 + Silero VAD pipeline (segment-by-segment decode, no giant merges)
           # With HPA this will scale; each ready worker needs ~2-4 Gi RAM + 1.5-4 CPU while transcribing
           # OPTIMIZED: Using ~4 cores per pod for ideal scaling
