@@ -36,7 +36,7 @@ spec:
         - name: ME_CONFIG_BASICAUTH_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: ADMIN_SECRET
         resources:
           requests:

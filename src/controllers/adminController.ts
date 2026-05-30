@@ -75,21 +75,21 @@ export async function runDiagnostics(env: Env): Promise<Response> {
 
     // 4. Test ASR
     try {
-        const asrUrl = env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+        const asrUrl = env.ASR_PROVIDER || env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
 
         const start = Date.now();
         const res = await fetch(`${asrUrl}/health`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
         const lat = Date.now() - start;
 
         if (res && res.ok) {
-            results.asr = { status: 'healthy', message: `whisper-service-v2 active (Latency: ${lat}ms)` };
+            results.asr = { status: 'healthy', message: `funasr active (Latency: ${lat}ms)` };
         } else {
             // Try simple ping
             const ping = await fetch(asrUrl, { method: 'HEAD', signal: AbortSignal.timeout(2000) }).catch(() => null);
             if (ping) {
-                results.asr = { status: 'healthy', message: `whisper-service-v2 reachable (Latency: ${lat}ms)` };
+                results.asr = { status: 'healthy', message: `funasr reachable (Latency: ${lat}ms)` };
             } else {
-                results.asr = { status: 'unhealthy', message: `whisper-service-v2 at ${asrUrl} is unreachable` };
+                results.asr = { status: 'unhealthy', message: `funasr at ${asrUrl} is unreachable` };
             }
         }
     } catch (e: any) {
@@ -250,7 +250,7 @@ export async function getUsersJson(env: Env): Promise<Response> {
 }
 
 export async function getAiConfig(env: Env): Promise<Response> {
-    const provider = env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+    const provider = env.WHISPER_PROVIDER || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
     const localSecret = env.WHISPER_SECRET || "";
     const xttsUrl = env.XTTS_URL || 'http://xtts.debugging-testcrash-pub.svc.cluster.local:50003';
     const xttsSecret = env.XTTS_SECRET || "";
@@ -337,7 +337,7 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
         );
 
         // Sync to Redis
-        await env.STATS.put(`translate_lang_${userId}`, language || "off");
+        await env.STATS.put(`translate_lang_${userId}`, language || "translate_off");
 
         // Sync to user_meta cache in Redis
         const metaRaw = await env.STATS.get(`user_meta_${userId}`);
@@ -350,12 +350,7 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
             } catch (e) {}
         }
 
-        // Restart the user pod so it picks up the new env var on next spawn
-        await fetch(`${managerUrl}/delete?secret=${secret}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-manager-secret": secret },
-            body: JSON.stringify({ userId })
-        }).catch(() => {});
+
         return Response.json({ success: true });
     } else if (action === "delete") {
         // Delete user from MongoDB persistence
@@ -379,7 +374,7 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
 
 export async function renderDashboardPage(env: Env, origin: string): Promise<Response> {
     const users = await fetchUsersWithStatus(env);
-    const provider = env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+    const provider = env.WHISPER_PROVIDER || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
     const checks: HealthChecks = {
         VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
         META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
@@ -466,16 +461,10 @@ export async function switchAsrModel(env: Env, req: Request): Promise<Response> 
         // Wait, Node.js `child_process.exec` `kubectl` isn't there.
         // Let's do the native fetch approach.
         let providerUrl = "";
-        if (model === "whisper") {
-            providerUrl = `http://whisper-service-v2.${namespace}.svc.cluster.local:8000`;
-            // Whisper: scale sensevoice to 0, whisper to 1
-        } else if (model === "sensevoice") {
-            providerUrl = `http://sensevoice.${namespace}.svc.cluster.local:50000`;
-            // SenseVoice: scale whisper to 0, sensevoice to 1
-        } else if (model === "funasr") {
+        if (model === "funasr") {
             providerUrl = `http://funasr.${namespace}.svc.cluster.local:50001`;
         } else {
-            return Response.json({ success: false, error: "Unknown model" }, { status: 400 });
+            return Response.json({ success: false, error: "Only FunASR is supported now." }, { status: 400 });
         }
 
         // We update Redis and MongoDB first
@@ -516,17 +505,7 @@ export async function switchAsrModel(env: Env, req: Request): Promise<Response> 
                 }
             };
             
-            if (model === "whisper") {
-                await patch("funasr", 0);
-                await patch("sensevoice", 0);
-                await patch("whisper-service-v2", 1);
-            } else if (model === "sensevoice") {
-                await patch("funasr", 0);
-                await patch("whisper-service-v2", 0);
-                await patch("sensevoice", 1);
-            } else if (model === "funasr") {
-                await patch("sensevoice", 0);
-                await patch("whisper-service-v2", 0);
+            if (model === "funasr") {
                 await patch("funasr", 1);
             }
         }

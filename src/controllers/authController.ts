@@ -109,11 +109,6 @@ export async function createSessionResponse(userId: string, env: Env, returnJson
   const isSecure = (env.WORKER_URL || "").trim().startsWith("https://");
   const cookie = `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax;${isSecure ? " Secure;" : ""} Max-Age=${SESSION_MAX_AGE}`;
 
-  try {
-    await env.STATS.put(`tg_session_${userId}`, signedSession, { expirationTtl: SESSION_MAX_AGE });
-  } catch (e) {
-    console.warn(`[Auth] Failed to track session for ${userId}:`, e);
-  }
 
   if (returnJson) {
     return Response.json({ success: true, userId }, {

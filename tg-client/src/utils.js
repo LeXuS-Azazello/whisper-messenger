@@ -64,7 +64,7 @@ export function unpackSession(userId, base64) {
 }
 
 
-// Telegram language_code → NLLB code for whisper-service-v2 translation
+// Telegram language_code → NLLB code for translation
 export function telegramLangToNLLB(code) {
     if (!code) return 'eng_Latn';
 

@@ -4,7 +4,7 @@
 # Usage: ./update-secret.sh
 #
 # Splits .env into two secrets:
-#   whisper-messenger-env  — everything except HUGGINGFACE_API_KEY
+#   voicemsg-secrets  — everything except HUGGINGFACE_API_KEY
 #   huggingface-token      — HUGGINGFACE_API_KEY only
 
 set -e
@@ -35,8 +35,8 @@ else
   echo "[SKIP] $HF_ENV_KEY not found in .env, skipping $HF_SECRET_NAME"
 fi
 
-# ── Everything else → whisper-messenger-env ─────────────────────────────────
-SECRET_NAME="whisper-messenger-env"
+# ── Everything else → voicemsg-secrets ─────────────────────────────────
+SECRET_NAME="voicemsg-secrets"
 
 TEMP_FILE=$(mktemp)
 

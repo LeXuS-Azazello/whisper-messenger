@@ -22,8 +22,8 @@ data:
             "imagePullPolicy": "IfNotPresent",
               "env": [
                 {
-                  "name": "WHISPER_PROVIDER",
-                  "value": "http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000/v1/transcribe-base64"
+                  "name": "FUNASR_URL",
+                  "value": "http://funasr.debugging-testcrash-pub.svc.cluster.local:50001/v1/transcribe-base64"
                 },
                 {
                   "name": "WHISPER_SECRET",
@@ -111,7 +111,7 @@ spec:
         - name: SECRET
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: MANAGER_SECRET
         - name: REDIS_URL
           value: "redis://redis:6379"

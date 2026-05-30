@@ -17,24 +17,13 @@ spec:
     spec:
       containers:
       - name: funasr-api
-        image: python:3.10-slim
-        command: ["/bin/bash", "-c"]
-        args:
-        - |
-          echo "Installing dependencies..."
-          apt-get update && apt-get install -y --no-install-recommends ffmpeg git wget libsndfile1
-          pip install --no-cache-dir --upgrade pip
-          pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install --no-cache-dir funasr fastapi "uvicorn[standard]" python-multipart modelscope
-          echo "Downloading server.py..."
-          wget -qO server.py https://raw.githubusercontent.com/modelscope/FunASR/main/examples/openai_api/server.py
-          echo "Starting FunASR OpenAI API Server with Paraformer..."
-          python server.py --model paraformer --device cpu --port 50001
+        image: harbor.dev.takatan.cloud/azazellosaraksh/funasr:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 50001
         env:
         - name: FUNASR_MODEL
-          value: "paraformer"
+          value: "Fun-ASR-MLT-Nano"
         - name: FUNASR_DEVICE
           value: "cpu"
         volumeMounts:

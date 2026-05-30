@@ -10,9 +10,9 @@ export const MANAGER_SECRET = process.env.MANAGER_SECRET || process.env.BRIDGE_S
 export const DEVICE_MODEL = process.env.DEVICE_MODEL || 'Desktop Linux';
 export const APP_VERSION = process.env.APP_VERSION || '4.15.2';
 export const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Ubuntu 24.04';
-export const WHISPER_SECRET = process.env.WHISPER_SECRET || '';
 
-export const WHISPER_PROVIDER = process.env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+
+export const FUNASR_URL = process.env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
 export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 export const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
 

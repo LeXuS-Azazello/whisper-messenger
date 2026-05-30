@@ -37,13 +37,21 @@ import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => 
                     const managerSecret = process.env.MANAGER_SECRET || process.env.BRIDGE_SECRET || 'changeme';
                     await fetch(`${managerUrl}/internal/access-revoked`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'x-manager-secret': managerSecret
+                        },
                         body: JSON.stringify({ userId: TARGET_USER_ID, secret: managerSecret })
                     });
                     console.log(`[tg-client] Successfully notified backend about session revocation.`);
                 } catch (fetchErr) {
                     console.error('[tg-client] Failed to notify backend:', fetchErr.message);
                 }
+                
+                // Keep the pod alive just long enough for the manager to delete the deployment, 
+                // preventing Kubernetes from immediately crash-loop-restarting it
+                console.log(`[tg-client] Waiting for manager to delete pod...`);
+                await new Promise(resolve => setTimeout(resolve, 30000));
             }
             process.exit(1);
         });

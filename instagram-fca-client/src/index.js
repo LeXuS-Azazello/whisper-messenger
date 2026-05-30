@@ -2,13 +2,8 @@ import { IgApiClient } from 'instagram-private-api';
 import { getPreferredTranslationLang, reportClientStatus } from '../shared/redis.js';
 
 const TARGET_USER_ID = process.env.TARGET_USER_ID || 'unknown';
-let WHISPER_PROVIDER = process.env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
-if (WHISPER_PROVIDER === 'whisper-turbo' || WHISPER_PROVIDER === 'whisper-service-v2') {
-    WHISPER_PROVIDER = 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
-} else if (!WHISPER_PROVIDER.startsWith('http://') && !WHISPER_PROVIDER.startsWith('https://')) {
-    WHISPER_PROVIDER = 'http://' + WHISPER_PROVIDER;
-}
-WHISPER_PROVIDER = WHISPER_PROVIDER.replace(/\/$/, '') + '/v1/transcribe-base64';
+const FUNASR_URL = process.env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+const WHISPER_PROVIDER = FUNASR_URL + '/v1/transcribe-base64';
 const MANAGER_URL = process.env.MANAGER_URL 
     || 'http://instagram-fca-manager:3005';
 const SECRET = process.env.SECRET || process.env.MANAGER_SECRET || 'changeme';

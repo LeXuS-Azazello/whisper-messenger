@@ -35,97 +35,97 @@ spec:
         - name: MANAGER_SECRET
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: MANAGER_SECRET
               optional: true
         - name: MANAGER_URL
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: MANAGER_URL
               optional: true
         - name: SESSION_SECRET
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: SESSION_SECRET
               optional: true
         - name: WORKER_URL
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: WORKER_URL
               optional: true
         - name: GOOGLE_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: GOOGLE_CLIENT_ID
               optional: true
         - name: GOOGLE_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: GOOGLE_CLIENT_SECRET
               optional: true
         - name: TELEGRAM_BOT_TOKEN
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: TELEGRAM_BOT_TOKEN
               optional: true
         - name: TELEGRAM_BOT_USERNAME
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: TELEGRAM_BOT_USERNAME
               optional: true
         - name: ADMIN_SECRET
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: ADMIN_SECRET
               optional: true
         - name: TELEGRAM_MINI_APP_URL
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: TELEGRAM_MINI_APP_URL
               optional: true
         - name: TELEGRAM_APP_ID
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: TELEGRAM_APP_ID
               optional: true
         - name: TELEGRAM_APP_HASH
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: TELEGRAM_APP_HASH
               optional: true
         - name: MAIL_WORKER_URL
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: MAIL_WORKER_URL
               optional: true
         - name: MAIL_API_TOKEN
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: MAIL_API_TOKEN
               optional: true
         - name: WA_MANAGER_URL
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: WA_MANAGER_URL
               optional: true
         - name: FB_MANAGER_URL
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: FB_MANAGER_URL
               optional: true
         resources:

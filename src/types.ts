@@ -47,6 +47,10 @@ export interface Env {
   WHISPER_SECRET?: string;
   XTTS_URL?: string;
   XTTS_SECRET?: string;
+  FUNASR_URL?: string;
+  FUNASR_SECRET?: string;
+  ASR_PROVIDER?: string;
+  ASR_MODEL?: string;
 
   // SMTP Config
   EMAIL_FROM?: string;
@@ -157,6 +161,9 @@ export interface WhatsAppMessage {
 
 export interface UserSession {
   userId: string;
+  // Optional translation language preferences (dashboard settings)
+  preferred_translation_lang?: string;
+  preferredTranslationLanguage?: string;
   firstName: string;
   username?: string;
   email?: string;
@@ -187,6 +194,14 @@ export interface UserSession {
   lineSecret?: string;
   tgAuthenticated?: boolean;
   podName?: string;
+  tgId?: string;
+  tgLogin?: string;
+  waId?: string;
+  waLogin?: string;
+  fbId?: string;
+  fbLogin?: string;
+  igId?: string;
+  igLogin?: string;
 }
 
 export interface DiagnosticResult {

@@ -223,7 +223,9 @@ export async function handleRestartTg(env: Env, userId: string, user: UserSessio
       headers: { "Content-Type": "application/json", "x-manager-secret": secret },
       body: JSON.stringify({
         userId,
-        username: user.username || user.firstName || user.email || userId
+        username: user.username || user.firstName || user.email || userId,
+        tgId: user.tgId || "",
+        tgLogin: user.tgLogin || user.username || ""
       })
     });
 

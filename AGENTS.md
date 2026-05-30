@@ -22,7 +22,7 @@ DO NOT build heavy services or ML models (e.g., `whisper-service`) on the local 
 
 
 ## Project Structure & Module Organization
-Voice Messenger is a multi-tenant voice-to-text  connecting Meta (FB/Insta), WhatsApp, and Telegram to  large-v3-turbo.
+Voice Messenger is a multi-tenant voice-to-text connecting Meta (FB/Insta), WhatsApp, and Telegram to FunASR (MLT-Nano).
 
 - **Kubernetes Configs (`kubernetes/`)**: Infrastructure definitions ingress controllers.
 

@@ -19,13 +19,13 @@ import translate from 'google-translate-api-x';
 import { isSamesameRequest, parseSamesameRequest, cloneVoiceWithSamesame } from '../shared/samesame.js';
 
 const TARGET_USER_ID = process.env.TARGET_USER_ID || 'unknown';
-let WHISPER_PROVIDER = process.env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
-if (WHISPER_PROVIDER === 'whisper-turbo' || WHISPER_PROVIDER === 'whisper-service-v2') {
-    WHISPER_PROVIDER = 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
-} else if (!WHISPER_PROVIDER.startsWith('http://') && !WHISPER_PROVIDER.startsWith('https://')) {
-    WHISPER_PROVIDER = 'http://' + WHISPER_PROVIDER;
+let ASR_PROVIDER = process.env.ASR_PROVIDER || process.env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+if (ASR_PROVIDER === 'funasr') {
+    ASR_PROVIDER = 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+} else if (!ASR_PROVIDER.startsWith('http://') && !ASR_PROVIDER.startsWith('https://')) {
+    ASR_PROVIDER = 'http://' + ASR_PROVIDER;
 }
-WHISPER_PROVIDER = WHISPER_PROVIDER.replace(/\/$/, '') + '/v1/transcribe-base64';
+ASR_PROVIDER = ASR_PROVIDER.replace(/\/$/, '') + '/v1/transcribe-base64';
 const MANAGER_URL = process.env.MANAGER_URL
     || 'http://whatsapp-baileys-manager.debugging-testcrash-pub.svc.cluster.local:3002';
 const SECRET = process.env.SECRET || process.env.MANAGER_SECRET || 'changeme';
@@ -121,7 +121,7 @@ function restoreSessionFromEnv() {
 
 async function reportStats() {
     try {
-        await fetch(`${MANAGER_URL}/internal/stats`, {
+        fetch(`${MANAGER_URL}/internal/stats`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -129,9 +129,11 @@ async function reportStats() {
             },
             body: JSON.stringify({ userId: TARGET_USER_ID, secret: SECRET }),
             signal: AbortSignal.timeout(10000),
+        }).catch(e => {
+            console.warn('[WA-Client] Failed to report stats:', e.message);
         });
     } catch (e) {
-        console.warn('[WA-Client] Failed to report stats:', e.message);
+        console.warn('[WA-Client] Failed to trigger stats report:', e.message);
     }
 }
 
@@ -227,7 +229,7 @@ async function processAudio(msg) {
     let lastErr;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            const response = await fetch(WHISPER_PROVIDER, {
+            const response = await fetch(ASR_PROVIDER, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -237,14 +239,14 @@ async function processAudio(msg) {
                 }),
                 signal: AbortSignal.timeout(300_000),
             });
-            if (!response.ok) throw new Error(`Whisper HTTP ${response.status}`);
+            if (!response.ok) throw new Error(`ASR HTTP ${response.status}`);
             const data = await response.json();
             transcription = data.text || '';
             detectedLang = data.language || '';
             break;
         } catch (e) {
             lastErr = e;
-            console.error(`[WA-Client] Whisper attempt ${attempt}/${MAX_RETRIES}: ${e.message}`);
+            console.error(`[WA-Client] ASR attempt ${attempt}/${MAX_RETRIES}: ${e.message}`);
             if (attempt < MAX_RETRIES) await sleep(RETRY_DELAYS_MS[attempt - 1] ?? 6000);
         }
     }
@@ -276,10 +278,10 @@ async function processAudio(msg) {
                 console.error(`[WA-Client] Failed to read user_meta for translation:`, err.message);
             }
         }
-        if (!targetLang) targetLang = 'auto';
+        if (!targetLang) targetLang = 'translate_off';
 
-        if (targetLang !== 'off') {
-            if (targetLang === 'auto') {
+        if (targetLang !== 'translate_off' && targetLang !== 'off') {
+            if (targetLang === 'messenger_system_lang' || targetLang === 'auto') {
                 targetLang = 'en'; // Default to english for auto target
             }
 
@@ -317,7 +319,7 @@ async function processAudio(msg) {
         if (i < chunks.length - 1) await sleep(1500);
     }
 
-    await reportStats();
+    reportStats();
 }
 
 // ─── Voice Cloning (SAMESAME) ──────────────────────────────────────────────────

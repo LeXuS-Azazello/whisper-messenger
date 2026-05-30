@@ -13,7 +13,7 @@ SERVICES=("$@")
 
 if [ ${#SERVICES[@]} -eq 0 ]; then
   echo "Usage: $0 <service1> [service2 ...]"
-  echo "Supported: whisper-service-v2, tg-client, wa-client, wa-manager, samesame, tester, frontend"
+  echo "Supported: funasr, tg-client, wa-client, wa-manager, samesame, tester, frontend"
   exit 1
 fi
 
@@ -42,23 +42,23 @@ fi
 
 for svc in "${SERVICES[@]}"; do
   case "$svc" in
-    whisper-service-v2|whisper)
+    funasr)
       echo ""
-      echo "=== Building & deploying whisper-service-v2 ==="
+      echo "=== Building & deploying funasr ==="
       TAG=$(date +%Y%m%d-%H%M%S)
-      IMAGE="${REPO}/whisper-service-v2:${TAG}"
+      IMAGE="${REPO}/funasr:${TAG}"
 
-      docker build -t "$IMAGE" -f whisper-service-v2/Dockerfile whisper-service-v2
-      docker tag "$IMAGE" "${REPO}/whisper-service-v2:latest"
-      docker push "${REPO}/whisper-service-v2:latest"
-      docker rmi "$IMAGE" "${REPO}/whisper-service-v2:latest" || true
+      docker build -t "$IMAGE" -f funasr/Dockerfile funasr
+      docker tag "$IMAGE" "${REPO}/funasr:latest"
+      docker push "${REPO}/funasr:latest"
+      docker rmi "$IMAGE" "${REPO}/funasr:latest" || true
 
-      kubectl set image deployment/whisper-service-v2 \
-        whisper-service-v2="${REPO}/whisper-service-v2:latest" \
-        whisper-worker-v2="${REPO}/whisper-service-v2:latest" \
+      kubectl set image deployment/funasr \
+        funasr-api="${REPO}/funasr:latest" \
+        funasr-worker="${REPO}/funasr:latest" \
         -n "$NAMESPACE"
 
-      kubectl rollout restart deployment/whisper-service-v2 -n "$NAMESPACE"
+      kubectl rollout restart deployment/funasr -n "$NAMESPACE"
       ;;
 
     tg-client|tg)

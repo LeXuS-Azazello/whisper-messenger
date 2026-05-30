@@ -48,11 +48,56 @@ except Exception as e:
         # print(f"[samesame-cosy] FATAL: Failed to load any CosyVoice model: {e2}")
         sys.exit(1)
 
-# Load Whisper ONCE at startup for prompt transcription (needed for zero_shot)
-import whisper
-print("[samesame-cosy] Loading Whisper base model for prompt transcription...")
-whisper_model = whisper.load_model("base", device="cpu")
-print("[samesame-cosy] Whisper model loaded.")
+def transcribe_prompt_with_funasr(audio_path: str) -> tuple[str, str]:
+    """Transcribes the prompt audio using the FunASR service.
+    Returns a tuple of (text, language_code).
+    """
+    import urllib.request
+    import json
+    import base64
+    import os
+    
+    url = os.environ.get("FUNASR_URL", "http://funasr:50001/v1/transcribe-base64")
+    print(f"[samesame-cosy] Transcribing prompt audio via FunASR at: {url}")
+    
+    try:
+        with open(audio_path, 'rb') as f:
+            file_content = f.read()
+
+        base64_data = base64.b64encode(file_content).decode('utf-8')
+        
+        payload = {
+            "file_data": base64_data,
+            "mime_type": "audio/ogg"
+        }
+        
+        body = json.dumps(payload).encode('utf-8')
+        
+        req = urllib.request.Request(
+            url,
+            data=body,
+            headers={
+                'Content-Type': 'application/json',
+                'Content-Length': str(len(body))
+            },
+            method='POST'
+        )
+        
+        with urllib.request.urlopen(req, timeout=30) as response:
+            res_data = response.read().decode('utf-8')
+            result = json.loads(res_data)
+            
+            text = result.get("text", "")
+            # FunASR might not return language explicitly, fallback to detection
+            language = result.get("language", "")
+            
+            print(f"[samesame-cosy] FunASR success: lang={language}, text={text[:80]!r}")
+            return text, language
+            
+    except Exception as e:
+        print(f"[samesame-cosy] FunASR transcription failed: {e}")
+        return "", ""
+
 
 # CosyVoice2 outputs at 22050 Hz
 SAMPLE_RATE = 22050
@@ -144,25 +189,33 @@ def clone_voice(req: CloneRequest, authorization: Optional[str] = Header(None)):
             # Save truncated audio back to temp_in for Whisper
             torchaudio.save(temp_in, prompt_speech_16k, 16000)
 
-        # Transcribe prompt with Whisper to get prompt_text for zero_shot
-        print("[samesame-cosy] Transcribing prompt audio with Whisper...")
-        whisper_result = whisper_model.transcribe(temp_in, language=None)
-        prompt_text = (whisper_result.get("text") or "").strip()
-        prompt_lang = (whisper_result.get("language") or "").lower()[:2]
-        print(f"[samesame-cosy] Prompt lang={prompt_lang}, text={prompt_text[:80]!r}")
+        # Transcribe prompt with FunASR to get prompt_text for zero_shot
+        prompt_text, prompt_lang = transcribe_prompt_with_funasr(temp_in)
 
+        # Prepend the language tag to force CosyVoice2 to synthesize in that language
+        cosy_tag = lang
+        if lang == 'uk': cosy_tag = 'ru' # Fallback Ukrainian to Russian phonetics for CosyVoice
+        if cosy_tag in ['ru', 'en', 'zh', 'ja', 'ko', 'de', 'es', 'fr', 'it']:
+            req_text_with_tag = f"<|{cosy_tag}|>{req.text}"
+        else:
+            req_text_with_tag = req.text
+
+        # If FunASR didn't return a language, detect it from the transcribed text
+        if prompt_text and not prompt_lang:
+            prompt_lang = detect_language_from_text(prompt_text)
+            
         # Decide inference strategy: always use zero_shot when target language is allowed
         # (zero_shot gives best quality). If Whisper failed to detect language, fallback to cross_lingual.
         tts_audios = []
         if prompt_text and (prompt_lang == lang or not prompt_lang):
             print(f"[samesame-cosy] Strategy: zero_shot (lang={lang})")
             output = cosyvoice.inference_zero_shot(
-                req.text, prompt_text, prompt_speech_16k, stream=False
+                req_text_with_tag, prompt_text, temp_in, stream=False
             )
         else:
             print(f"[samesame-cosy] Strategy: cross_lingual (prompt_lang={prompt_lang} → tts_lang={lang})")
             output = cosyvoice.inference_cross_lingual(
-                req.text, prompt_speech_16k, stream=False
+                req_text_with_tag, temp_in, stream=False
             )
 
         for chunk in output:

@@ -997,8 +997,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const statusEl = document.getElementById('translation-status-badge');
 
         const LANG_LABELS = {
-            'off':  '🚫 Disabled (default)',
-            'auto': '🌐 Auto (detect from Telegram)',
+            'translate_off':  '🚫 Disabled (default)',
+            'messenger_system_lang': '🌐 Auto (detect from Telegram)',
             'ru':   '🇷🇺 Russian',
             'uk':   '🇺🇦 Ukrainian',
             'en':   '🇬🇧 English',
@@ -1017,7 +1017,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         function updateTranslationStatusBadge(lang) {
             if (!statusEl) return;
-            if (lang === 'off') {
+            if (lang === 'translate_off' || lang === 'off' || !lang) {
                 statusEl.textContent = 'DISABLED';
                 statusEl.className = 'status-tag inactive';
             } else {
@@ -1040,9 +1040,9 @@ document.addEventListener('DOMContentLoaded', function () {
                             langSelect.appendChild(opt);
                         });
                     }
-                    langSelect.value = data.lang || 'off';
+                    langSelect.value = data.lang || 'translate_off';
                 }
-                updateTranslationStatusBadge(data.lang || 'off');
+                updateTranslationStatusBadge(data.lang || 'translate_off');
             })
             .catch(err => console.error('[translation] Load error:', err));
 

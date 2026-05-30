@@ -1,9 +1,0 @@
-node_modules
-npm-debug.log
-Dockerfile
-Dockerfile.*
-.git
-.gitignore
-test
-whisper-service-v2/test-models
-*.tgz

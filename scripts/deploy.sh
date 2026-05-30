@@ -19,9 +19,9 @@ echo ""
 # Load environment variables
 if [ -f .env ]; then
     export $(grep -v '^#' .env | xargs)
-    echo ">>> Recreating whisper-messenger-env secret from .env..."
-    kubectl delete secret whisper-messenger-env -n "$NAMESPACE" --ignore-not-found
-    kubectl create secret generic whisper-messenger-env --from-env-file=.env -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+    echo ">>> Recreating voicemsg-secrets secret from .env..."
+    kubectl delete secret voicemsg-secrets -n "$NAMESPACE" --ignore-not-found
+    kubectl create secret generic voicemsg-secrets --from-env-file=.env -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 fi
 
 # Image configuration
@@ -204,7 +204,6 @@ INSTA_CLIENT_IMAGE="${REPO}/instagram-fca-client:${TAG}"
 WA_MANAGER_IMAGE="${REPO}/whatsapp-baileys-manager:${TAG}"
 WA_CLIENT_IMAGE="${REPO}/whatsapp-baileys-client:${TAG}"
 SAMESAME_IMAGE="${REPO}/samesame:${TAG}"
-WHISPER_V2_IMAGE="${REPO}/whisper-service-v2:${TAG}"
 
 
 echo ">>> Building and pushing Docker images..."
@@ -229,8 +228,6 @@ for CLIENT_DIR in tg-client whatsapp-baileys-client facebook-fca-client instagra
     fi
 done
 
-echo "12. Whisper Service v2: $WHISPER_V2_IMAGE"
-build_and_push_image "whisper-service-v2" "whisper-service-v2" "whisper-service-v2/Dockerfile" "$WHISPER_V2_IMAGE"
 
 echo "1. Frontend: $FRONTEND_IMAGE"
 build_and_push_image "whisper-frontend" "." "Dockerfile" "$FRONTEND_IMAGE"
@@ -317,14 +314,6 @@ echo ">>> Whisper Service v2 + Samesame deployed."
 
     echo ">>> Checking whether model downloader Jobs are needed..."
 
-    # Whisper models check (key files)
-    WHISPER_READY=$(kubectl get deploy whisper-service-v2 -n "$NAMESPACE" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
-    if [ "${WHISPER_READY:-0}" -ge 1 ]; then
-      echo ">>> Whisper models appear ready (deployment has ready replicas) — skipping downloader Job"
-    else
-      echo ">>> Launching whisper-service-v2 model downloader Job..."
-      kubectl create -f kubernetes/base/whisper-service-v2-downloader-job.yaml -n "$NAMESPACE" || true
-    fi
 
     # Samesame models check
     SAMESAME_READY=$(kubectl get deploy samesame -n "$NAMESPACE" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
@@ -341,21 +330,19 @@ echo ">>> Whisper Service v2 + Samesame deployed."
         echo ""
         echo "=== Model Deployments ==="
         kubectl get deploy -n "$NAMESPACE" \
-            whisper-service-v2 samesame \
+            funasr samesame \
             --no-headers 2>/dev/null || true
 
         echo ""
         echo "=== Downloader Jobs (component=model-downloader) ==="
         kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers 2>/dev/null || echo "  (no downloader jobs)"
 
-        WHISPER_READY=$(kubectl get deploy whisper-service-v2 -n "$NAMESPACE" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
         SAMESAME_READY=$(kubectl get deploy samesame -n "$NAMESPACE" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
 
         # Check if the latest downloader jobs have succeeded (we don't care about old ones)
-        WHISPER_JOB_DONE=$(kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers -o jsonpath='{range .items[*]}{.status.succeeded}{" "}{end}' 2>/dev/null | grep -E ' [1-9]' || echo "")
         SAMESAME_JOB_DONE=$(kubectl get jobs -n "$NAMESPACE" -l component=model-downloader --no-headers -o jsonpath='{range .items[*]}{.status.succeeded}{" "}{end}' 2>/dev/null | grep -E ' [1-9]' || echo "")
 
-        if [ "${WHISPER_READY:-0}" -ge 1 ] && [ "${SAMESAME_READY:-0}" -ge 1 ]; then
+        if [ "${SAMESAME_READY:-0}" -ge 1 ]; then
             echo ""
             echo ">>> Both model deployments are Ready."
             break

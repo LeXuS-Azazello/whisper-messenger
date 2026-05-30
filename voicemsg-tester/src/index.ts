@@ -420,37 +420,6 @@ app.get('/', (c) => {
         </div>
       </div>
 
-      <!-- Card 2 -->
-      <div class="test-card" id="card-whisper-service">
-        <div class="test-header">
-          <div>
-            <div class="test-title">Whisper-Turbo ASR</div>
-            <div class="test-target">http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000</div>
-          </div>
-          <span class="status-indicator" id="ind-whisper-service"></span>
-        </div>
-        <div class="test-desc">Tests internal service DNS resolution and runs a real 1-second ASR transcription audio check.</div>
-        <div class="test-footer">
-          <span class="latency-badge" id="lat-whisper-service">-- ms</span>
-          <button class="btn btn-secondary btn-card" onclick="runSingleTest('whisper-service')">Run Test</button>
-        </div>
-      </div>
-
-      <!-- Card 2b: SenseVoice ASR -->
-      <div class="test-card" id="card-sensevoice-service">
-        <div class="test-header">
-          <div>
-            <div class="test-title">SenseVoice ASR</div>
-            <div class="test-target">http://sensevoice...:50000</div>
-          </div>
-          <span class="status-indicator" id="ind-sensevoice-service"></span>
-        </div>
-        <div class="test-desc">Tests internal SenseVoice API (/api/v1/asr) with sample audio.</div>
-        <div class="test-footer">
-          <span class="latency-badge" id="lat-sensevoice-service">-- ms</span>
-          <button class="btn btn-secondary btn-card" onclick="runSingleTest('sensevoice-service')">Run Test</button>
-        </div>
-      </div>
 
       <!-- Card 2c: FunASR ASR -->
       <div class="test-card" id="card-funasr-service">
@@ -505,11 +474,11 @@ app.get('/', (c) => {
          <div class="test-header">
            <div>
              <div class="test-title">Voice Clone Roundtrip</div>
-             <div class="test-target">whisper → samesame /v1/clone</div>
+             <div class="test-target">funasr → samesame /v1/clone</div>
            </div>
            <span class="status-indicator" id="ind-samesame-clone"></span>
          </div>
-         <div class="test-desc">Real file test_whisper.ogg → ASR → clone reference + synthesize the recognized text back as new voice in same speaker.</div>
+         <div class="test-desc">Real file test_audio.ogg → ASR → clone reference + synthesize the recognized text back as new voice in same speaker.</div>
          <div class="test-footer">
            <span class="latency-badge" id="lat-samesame-clone">-- ms</span>
            <button class="btn btn-secondary btn-card" onclick="runSingleTest('samesame-clone')">Run Test</button>
@@ -602,7 +571,7 @@ app.get('/', (c) => {
       appendToConsole('===========================================');
       appendToConsole('Running full integration test suite...');
       
-      const ids = ['mail-worker', 'whisper-service', 'sensevoice-service', 'funasr-service', 'redis', 'mongodb', 'samesame-clone'];
+      const ids = ['mail-worker', 'funasr-service', 'redis', 'mongodb', 'samesame-clone'];
       ids.forEach(id => updateCardUI(id, 'running'));
       
       try {

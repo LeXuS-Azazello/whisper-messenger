@@ -130,187 +130,7 @@ export class TestSuiteRunner {
     }
   }
 
-  // 2. Whisper-Turbo ASR Inference Test
-  // Uses the full async pipeline: POST /v1/transcribe-base64 enqueues a BullMQ job,
-  // the express handler waits up to 30 s via waitUntilFinished, and the result
-  // is returned as soon as the worker finishes. If the worker is slow or Redis
-  // stalls, we fall back to the synchronous /v1/audio/transcriptions endpoint
-  // so the test does not simply mark "failed" when the service simply hasn't
-  // started yet.
-  async testWhisperTurbo(): Promise<TestResult> {
-    const logs: TestLog[] = [];
-    const log = this.createLogger(logs);
-    const id = 'whisper-service';
-    const name = 'Whisper-Turbo ASR Transcription';
-    const target = this.env.WHISPER_TURBO_URL || this.env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
 
-    log.info(`Initializing internal transcription test...`);
-    log.info(`Target ASR engine URL: ${target}`);
-
-    const startTime = Date.now();
-    try {
-      log.info(`Decoding sample silent audio file from base64 string...`);
-      const base64Data = sampleAudioBase64.replace(/^data:audio\/\w+;base64,/, '');
-      const audioBuffer = Buffer.from(base64Data, 'base64');
-      log.info(`Decoded audio buffer size: ${audioBuffer.byteLength} bytes`);
-
-      log.info(`Preparing FormData with model configuration...`);
-      const formData = new FormData();
-      const blob = new Blob([audioBuffer], { type: 'audio/ogg' });
-      formData.append('file', blob, 'audio.ogg');
-      formData.append('language', 'auto');
-
-      const whisperSecret = this.env.WHISPER_SECRET || '';
-      const baseUrl = target.replace(/\/$/, '');
-
-      // ─── Step 1: try the async pipeline ───────────────────────────────────
-      // POST /v1/transcribe-base64 enqueues a job then calls
-      // job.waitUntilFinished(undefined, { timeout: WAIT_FOR_JOB_MS }).
-      // whisper-service-v2 treats a timeout as HTTP 202 { status: 'processing' },
-      // which we then poll with GET /v1/job/:id until completion.
-      log.info(`Dispatching async job to ${baseUrl}/v1/transcribe-base64...`);
-      const asyncRes = await fetch(baseUrl + '/v1/transcribe-base64', {
-        method: 'POST',
-        headers: {
-          ...(whisperSecret ? { 'Authorization': `Bearer ${whisperSecret}` } : {}),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ file_data: audioBuffer.toString('base64'), language: 'auto' }),
-        signal: AbortSignal.timeout(25000),
-      });
-
-      const statusLabel = `${asyncRes.status} ${asyncRes.statusText}`;
-      log.info(`Async transcribe responded: ${statusLabel}`);
-
-      if (asyncRes.ok) {
-        // Job completed inline via waitUntilFinished
-        const result = await asyncRes.json();
-        const latency = Date.now() - startTime;
-        log.success(`Async transcription completed in ${latency}ms`);
-        log.success(`Transcribed Text: "${result.text || ''}"`);
-        return { id, name, target, status: 'success', latency, logs };
-      }
-
-      if (asyncRes.status === 202) {
-        // Job queued but timed out inside whisper-service-v2; poll it.
-        const pending = await asyncRes.json() as any;
-        const jobId = pending.jobId;
-        if (!jobId) {
-          throw new Error('202 response missing jobId');
-        }
-        log.info(`Job accepted, awaiting completion. jobId=${jobId}`);
-        const pollStart = Date.now();
-        while (Date.now() - pollStart < 20000) {
-          await new Promise(r => setTimeout(r, 1000));
-          const pollRes = await fetch(`${baseUrl}/v1/job/${encodeURIComponent(jobId)}`, {
-            signal: AbortSignal.timeout(5000),
-          });
-          if (!pollRes.ok) {
-            log.warn(`Job poll returned ${pollRes.status}, retrying...`);
-            continue;
-          }
-          const pollData = await pollRes.json() as any;
-          if (pollData.state === 'completed' || pollData.state === 'fulfilled') {
-            const latency = Date.now() - startTime;
-            log.success(`Job completed after polling. state=${pollData.state}`);
-            const text = pollData.result?.text || '';
-            log.success(`Transcribed Text: "${text}"`);
-            return { id, name, target, status: 'success', latency, logs };
-          }
-          if (pollData.state === 'failed') {
-            throw new Error(`Job failed: ${pollData.result?.message || 'unknown error'}`);
-          }
-          log.info(`Job state: ${pollData.state}, waiting...`);
-        }
-        throw new Error('Job polling timed out after 20 s');
-      }
-
-      // Non-ok, non-202 → read the body for context and try sync fallback
-      const asyncErr = await asyncRes.text();
-      log.warn(`Async path returned ${statusLabel}: ${asyncErr.slice(0, 200)} — trying sync fallback`);
-
-      // ─── Step 2: sync fallback ────────────────────────────────────────────
-      log.info(`Trying synchronous /v1/audio/transcriptions as fallback...`);
-      formData.append('model', 'openai/whisper-large-v3-turbo');
-      const syncForm = new FormData();
-      syncForm.append('file', blob, 'audio.ogg');
-      syncForm.append('model', 'openai/whisper-large-v3-turbo');
-      syncForm.append('language', 'auto');
-
-      const response = await fetch(`${baseUrl}/v1/audio/transcriptions`, {
-        method: 'POST',
-        headers: {
-          ...(whisperSecret ? { 'Authorization': `Bearer ${whisperSecret}` } : {}),
-        },
-        body: syncForm,
-        signal: AbortSignal.timeout(30000),
-      });
-
-      const latency = Date.now() - startTime;
-      log.info(`Sync transcribe responded with status ${response.status} in ${latency}ms`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`ASR engine returned error ${response.status}: ${errorText}`);
-      }
-
-      const result = await response.json() as any;
-      log.success(`ASR response parsed successfully! Result payload: ${JSON.stringify(result)}`);
-      log.success(`Transcribed Text: "${result.text || ''}"`);
-      return { id, name, target, status: 'success', latency, logs };
-
-    } catch (err: any) {
-      log.error(`ASR test failed: ${err.message || String(err)}`);
-      return { id, name, target, status: 'failed', latency: Date.now() - startTime, logs };
-    }
-  }
-
-  // 2b. SenseVoice ASR Inference Test
-  async testSenseVoice(): Promise<TestResult> {
-    const logs: TestLog[] = [];
-    const log = this.createLogger(logs);
-    const id = 'sensevoice-service';
-    const name = 'SenseVoice ASR Transcription';
-    const target = 'http://sensevoice.debugging-testcrash-pub.svc.cluster.local:50000';
-
-    log.info(`Initializing internal transcription test...`);
-    log.info(`Target SenseVoice URL: ${target}`);
-
-    const startTime = Date.now();
-    try {
-      log.info(`Decoding sample silent audio file from base64 string...`);
-      const base64Data = sampleAudioBase64.replace(/^data:audio\/\w+;base64,/, '');
-      const audioBuffer = Buffer.from(base64Data, 'base64');
-      
-      const formData = new FormData();
-      const blob = new Blob([audioBuffer], { type: 'audio/wav' });
-      formData.append('files', blob, 'audio.wav');
-      formData.append('keys', 'audio');
-      formData.append('lang', 'auto');
-      formData.append('use_itn', 'false');
-
-      log.info(`Dispatching job to ${target}/api/v1/asr...`);
-      const res = await fetch(`${target}/api/v1/asr`, {
-        method: 'POST',
-        body: formData,
-        signal: AbortSignal.timeout(20000),
-      });
-
-      const latency = Date.now() - startTime;
-      if (!res.ok) {
-        throw new Error(`SenseVoice returned ${res.status}: ${await res.text()}`);
-      }
-      
-      const result = await res.json() as any;
-      log.success(`ASR response parsed successfully!`);
-      const text = result.result && result.result[0] ? result.result[0].text : '';
-      log.success(`Transcribed Text: "${text}"`);
-      return { id, name, target, status: 'success', latency, logs };
-    } catch (err: any) {
-      log.error(`SenseVoice test failed: ${err.message || String(err)}`);
-      return { id, name, target, status: 'failed', latency: Date.now() - startTime, logs };
-    }
-  }
 
   // 2c. FunASR ASR Inference Test
   async testFunASR(): Promise<TestResult> {
@@ -492,9 +312,9 @@ export class TestSuiteRunner {
     }
   }
 
-  // 5. Voice Clone Roundtrip (SAMESAME + Whisper)
-  // Uses the real file test_whisper.ogg:
-  //   1. Transcribe it with Whisper → get text
+  // 5. Voice Clone Roundtrip (SAMESAME + FunASR)
+  // Uses the real file test_audio.ogg:
+  //   1. Transcribe it with FunASR → get text
   //   2. Clone voice using the SAME audio as reference speaker
   //   3. Synthesize the transcribed text in the cloned voice
   //   4. Return synthesized ogg audio (validates analyze + generate pipeline)
@@ -503,36 +323,36 @@ export class TestSuiteRunner {
     const log = this.createLogger(logs);
     const id = 'samesame-clone';
     const name = 'SAMESAME Voice Clone Roundtrip';
-    const whisperTarget = this.env.WHISPER_PROVIDER || this.env.WHISPER_TURBO_URL || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+    const asrTarget = this.env.ASR_PROVIDER || this.env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
     const samesameTarget = this.env.SAMESAME_URL || 'http://samesame:8002';
 
     log.info(`Starting voice clone roundtrip test...`);
-    log.info(`Whisper target: ${whisperTarget}`);
+    log.info(`ASR target: ${asrTarget}`);
     log.info(`SAMESAME target: ${samesameTarget}`);
 
     const startTime = Date.now();
 
     try {
       // Locate the real reference audio shipped with the tester image
-      const audioPath = path.resolve(process.cwd(), 'test_whisper.ogg');
+      const audioPath = path.resolve(process.cwd(), 'test_audio.ogg');
       if (!fs.existsSync(audioPath)) {
         throw new Error(`Reference audio not found: ${audioPath}`);
       }
       const sourceAudio = fs.readFileSync(audioPath);
-      log.info(`Loaded reference audio: ${sourceAudio.length} bytes (test_whisper.ogg)`);
+      log.info(`Loaded reference audio: ${sourceAudio.length} bytes (test_audio.ogg)`);
 
       // ── Step 1: Transcribe the audio to obtain the text we will synthesize ──
-      log.info(`Transcribing reference audio with Whisper...`);
-      const whisperBase = whisperTarget.replace(/\/$/, '');
-      const whisperSecret = this.env.WHISPER_SECRET || '';
+      log.info(`Transcribing reference audio with FunASR...`);
+      const asrBase = asrTarget.replace(/\/$/, '');
+      const asrSecret = this.env.ASR_SECRET || '';
 
       let transcribed = '';
       try {
-        const asrRes = await fetch(`${whisperBase}/v1/transcribe-base64`, {
+        const asrRes = await fetch(`${asrBase}/v1/transcribe-base64`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(whisperSecret ? { 'Authorization': `Bearer ${whisperSecret}` } : {})
+            ...(asrSecret ? { 'Authorization': `Bearer ${asrSecret}` } : {})
           },
           body: JSON.stringify({ file_data: sourceAudio.toString('base64'), language: 'auto' }),
           signal: AbortSignal.timeout(30000),
@@ -543,13 +363,13 @@ export class TestSuiteRunner {
           transcribed = (asrJson.text || '').trim();
           log.success(`ASR result: "${transcribed}"`);
         } else if (asrRes.status === 202) {
-          log.warn(`Whisper returned 202 Accepted (requires polling). Using fallback text instead.`);
+          log.warn(`FunASR returned 202 Accepted (requires polling). Using fallback text instead.`);
         } else {
           const errText = await asrRes.text();
-          log.error(`Whisper ASR failed: ${asrRes.status} ${errText}`);
+          log.error(`FunASR failed: ${asrRes.status} ${errText}`);
         }
       } catch (err: any) {
-        log.error(`Whisper request failed: ${err.message || err}`);
+        log.error(`FunASR request failed: ${err.message || err}`);
       }
 
       if (!transcribed) {
@@ -590,7 +410,7 @@ export class TestSuiteRunner {
       return {
         id,
         name,
-        target: `${whisperTarget} → ${samesameTarget}/v1/clone`,
+        target: `${asrTarget} → ${samesameTarget}/v1/clone`,
         status: 'success',
         latency: totalLatency,
         logs,
@@ -601,7 +421,7 @@ export class TestSuiteRunner {
       return {
         id,
         name,
-        target: `${whisperTarget} → ${samesameTarget}`,
+        target: `${asrTarget} → ${samesameTarget}`,
         status: 'failed',
         latency: Date.now() - startTime,
         logs,
@@ -614,10 +434,6 @@ export class TestSuiteRunner {
     switch (testId) {
       case 'mail-worker':
         return await this.testMailWorker();
-      case 'whisper-service':
-        return await this.testWhisperTurbo();
-      case 'sensevoice-service':
-        return await this.testSenseVoice();
       case 'funasr-service':
         return await this.testFunASR();
       case 'redis':
@@ -635,8 +451,6 @@ export class TestSuiteRunner {
   async runAllTests(): Promise<TestResult[]> {
     return await Promise.all([
       this.testMailWorker(),
-      this.testWhisperTurbo(),
-      this.testSenseVoice(),
       this.testFunASR(),
       this.testRedis(),
       this.testMongoDB(),

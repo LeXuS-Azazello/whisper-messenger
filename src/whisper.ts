@@ -9,7 +9,7 @@ export interface TranscriptionResult {
 }
 
 /**
- * Calls whisper-service-v2 with auto language detection + optional translation.
+ * Calls FunASR with auto language detection + optional translation.
  * This is the recommended function for all messengers.
  */
 export async function transcribeAudio(
@@ -17,11 +17,11 @@ export async function transcribeAudio(
   env: Env,
   targetLanguage?: string | null
 ): Promise<TranscriptionResult> {
-  const url = await env.STATS.get("config_local_whisper_url") 
-    || env.WHISPER_PROVIDER 
-    || "http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000";
+  const url = await env.STATS.get("config_local_funasr_url") 
+    || env.ASR_PROVIDER 
+    || "http://funasr.debugging-testcrash-pub.svc.cluster.local:50001";
 
-  if (!url) throw new Error("Whisper Turbo URL not configured");
+  if (!url) throw new Error("ASR URL not configured");
 
   const isSenseVoice = url.includes('sensevoice') || url.includes('50000');
   const isFunASR = url.includes('funasr') || url.includes('50001');
@@ -130,7 +130,7 @@ export async function transcribeAudio(
       detectedLanguage,
       translated: translatedText,
       targetLanguage: targetLanguage || null,
-      model: isFunASR ? "funasr" : (isSenseVoice ? "sensevoice" : "whisper-service-v2 (large-v3-turbo)")
+      model: "funasr-mlt-nano"
     };
   } catch (e) {
     clearTimeout(timeoutId);

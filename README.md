@@ -1,12 +1,10 @@
 # 🎙️ Voice Messenger
 
-> **Multi-tenant voice-to-text platform connecting Telegram, WhatsApp (Baileys), Facebook Messenger (FCA), and Instagram (FCA) to high-quality offline ASR via whisper-service-v2 (large-v3-turbo) and TTS via Samesame (CosyVoice2-0.5B).**
+> **Multi-tenant voice-to-text platform connecting Telegram, WhatsApp (Baileys), Facebook Messenger (FCA), and Instagram (FCA) to high-quality offline ASR via FunASR (Fun-ASR-Nano или Fun-ASR-MLT-Nano) and TTS via Samesame (CosyVoice 3.0).**
 
 ## 📢 Recent Changes (May 2026)
-- Increased `whisper-service-v2-models-pvc` to **6 GiB** to accommodate Whisper, SenseVoice, VAD and punctuation models.
-- Refactored `whisper-download-models.sh` to download each model into its own sub‑directory, preventing accidental overwrites.
 - Switched `samesame` Docker base image to `python:3.10‑slim` and removed Miniconda, fixing build errors.
-- Updated `samesame` to use **FunAudioLLM/CosyVoice2‑0.5B** (CPU‑optimized) instead of XTTS.
+- Updated `samesame` to use **FunAudioLLM/CosyVoice3-0** (CPU‑optimized) instead of XTTS.
 - Adjusted resource requests for `samesame` (CPU 1 → 1.5, RAM 4 Gi → 8 Gi) to fit namespace quotas.
 - All services now start cleanly; `samesame` reports **Model ready** and health checks return `200 OK`.
 
@@ -26,7 +24,7 @@ It uses a **per-user Kubernetes pod architecture**: for every connected account 
 - **Facebook Messenger** — personal accounts via FCA (per-user pods)
 - **Instagram** — Direct messages via FCA (per-user pods)
 
-**ASR backend**: whisper-service-v2 (large-v3-turbo.int8 + BullMQ worker) — best-in-class multilingual + language detection (Russian, Hebrew, Arabic, 99+ langs).
+**ASR backend**: Fun-ASR-Nano или Fun-ASR-MLT-Nano, (Russian, Hebrew, Arabic, Thai, many langs).
 
 ---
 
@@ -36,10 +34,9 @@ The system follows a **per-user pod** model:
 
 - Every connected messenger account (Telegram, WhatsApp, FB, IG) gets its own dedicated Kubernetes pod running the client library (tdlib or Baileys/FCA).
 - These pods are created and supervised by the corresponding **manager** (tg-client-manager, whatsapp-baileys-manager, facebook-fca-manager, instagram-fca-manager).
-- Voice messages are sent to **whisper-service-v2** (API + BullMQ worker) for transcription.
+- Voice messages are sent to **FunASR-Nano** (API + BullMQ worker) for transcription.
 - Results are delivered back to the user via the original platform or the web dashboard.
 
-All heavy ASR work happens in the isolated worker container inside whisper-service-v2, while the API layer stays lightweight.
 
 ### 🧱 Core Components
 
@@ -48,8 +45,8 @@ All heavy ASR work happens in the isolated worker container inside whisper-servi
 | `src/` (Frontend + Hono)    | Web dashboard, auth, webhooks, UI            | No             |
 | `*-manager/` (4 managers)   | Kubernetes controllers that spawn & manage per-user client pods | No (shared) |
 | `*-client/` folders         | Actual messenger clients (tdlib, Baileys, FCA) running inside user pods | Yes |
-| `whisper-service-v2`        | ASR service (API + BullMQ worker + Whisper large-v3-turbo) | Shared (API + worker containers) |
-| `samesame`                  | Premium voice cloning (FunAudioLLM/CosyVoice2-0.5B + CPU optimized)     | Shared |
+| `funasr`                    | ASR service (FunASR-MLT-Nano)    | Shared |
+| `samesame`                  | Premium voice cloning (FunAudioLLM/CosyVoice3-0.5B + CPU optimized)     | Shared |
 | `kubernetes/`               | Kustomize manifests for all services         | —              |
 
 ---
@@ -61,7 +58,7 @@ All heavy ASR work happens in the isolated worker container inside whisper-servi
 | **Backend**    | TypeScript, Node.js, Hono                         |
 | **Frontend**   | Preact + TSX (modern dashboard with per-messenger cards) |
 | **Database**   | Redis (BullMQ queues, sessions, user settings), MongoDB |
-| **ASR & TTS**  | whisper-service-v2 (large-v3-turbo ONNX) & samesame (CosyVoice2-0.5B) |
+| **ASR & TTS**  | funasr (Fun-ASR-MLT-Nano) & samesame (CosyVoice 3.0) |
 | **Infrastructure** | Kubernetes + Kustomize, Docker, Harbor registry |
 | **Deployment** | `npm run deploy:k8s` (builds + pushes + updates images) |
 
@@ -87,8 +84,8 @@ npm run deploy:k8s
 | Service                  | Endpoint (internal)                                      | Role |
 |--------------------------|----------------------------------------------------------|------|
 | **Frontend**             | `https://voicemsg.net`                                   | Main dashboard & landing |
-| **whisper-service-v2**   | `http://whisper-service-v2:8000`                         | ASR API (transcribe-base64) + BullMQ entrypoint |
-| **samesame**             | `http://samesame:8002`                                   | Premium voice cloning (CosyVoice2) (`/v1/clone`) |
+| **funasr**               | `http://funasr:50001`                                    | ASR API (transcribe-base64) |
+| **samesame**             | `http://samesame:8002`                                   | Premium voice cloning (CosyVoice3.0) (`/v1/clone`) |
 | **Managers**             | tg-client-manager:3000, whatsapp-baileys-manager:3002, facebook-fca-manager:3003, instagram-fca-manager:3005 | Per-user pod orchestration |
 
 ---
@@ -119,8 +116,8 @@ npm run deploy:k8s
 ├── facebook-fca-client/
 ├── instagram-fca-manager/            # Instagram Direct (FCA)
 ├── instagram-fca-client/
-├── whisper-service-v2/               # ASR (API + BullMQ worker + Whisper large-v3-turbo)
-├── samesame/                         # Premium voice cloning (CosyVoice2-0.5B + CPU optimized) (see README)
+├── funasr/                           # ASR (API + Fun-ASR-Nano или Fun-ASR-MLT-Nano)
+├── samesame/                         # Premium voice cloning (CosyVoice3.0 + CPU optimized) (see README)
 ├── kubernetes/                       # Kustomize manifests (base + overlays) (see README)
 └── scripts/deploy.sh                 # Full build + push + rollout + auto model downloaders
 ```
@@ -137,9 +134,9 @@ npm run deploy:k8s
 
 - **Per-user isolation** — every account runs in its own Kubernetes pod (no shared sessions).
 - **Zero persistent audio** — voice messages are processed in memory only.
-- **whisper-service-v2 split** — lightweight HTTP API + separate heavy worker for stable ASR under load.
+- **FunASR-Nano** — stable ASR under load (Russian, Hebrew, Arabic, Thai, many langs).
 - **Modern dashboard** — clean Preact UI with dedicated connection cards for each messenger.
 
 ---
 
-*Updated 2026-05 — whisper-service-v2 (large-v3-turbo) + samesame (voice cloning via CosyVoice2-0.5B with CPU multi-threading).*
+*Updated 2026-05 — FunASR-Nano + samesame (voice cloning via CosyVoice 3.0 with CPU multi-threading).* 

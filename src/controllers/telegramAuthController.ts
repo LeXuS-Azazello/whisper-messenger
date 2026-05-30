@@ -38,6 +38,8 @@ async function saveAuthSessionData(env: Env, data: any, currentUserId: string | 
   metaUser.isActive = true;
   metaUser.firstName = data.firstName || metaUser.firstName || "Telegram User";
   metaUser.username = data.username || metaUser.username;
+  metaUser.tgId = data.tgId || metaUser.tgId || "";
+  metaUser.tgLogin = data.username || data.phone || metaUser.tgLogin || "";
   await env.STATS.put(`user_meta_${userId}`, JSON.stringify(metaUser));
 
   await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
@@ -50,7 +52,9 @@ async function saveAuthSessionData(env: Env, data: any, currentUserId: string | 
     headers: { "Content-Type": "application/json", "x-manager-secret": managerSecret },
     body: JSON.stringify({
       userId,
-      username: metaUser.username || metaUser.firstName || userId
+      username: metaUser.username || metaUser.firstName || userId,
+      tgId: data.tgId || "",
+      tgLogin: data.username || data.phone || ""
     })
   }).catch(e => console.error("[Auth] Failed to trigger spawn:", e.message));
 
@@ -189,6 +193,7 @@ export async function handleTelegramVerifyCode(env: Env, req: Request, currentUs
       firstName: s.user?.first_name,
       username: s.user?.username,
       phone: phone,
+      tgId: tgUserId,
       session: packed
     }, currentUserId, ctx);
 
@@ -237,6 +242,7 @@ export async function handleTelegramVerifyPassword(env: Env, req: Request, curre
       firstName: s.user?.first_name,
       username: s.user?.username,
       phone: phone || finalUserId,
+      tgId: tgUserId,
       session: packed
     }, currentUserId, ctx);
 
@@ -341,6 +347,7 @@ export async function handleTelegramQrCheck(env: Env, token: string | null, curr
       userId: finalUserId,
       firstName: s.user?.first_name,
       username: s.user?.username,
+      tgId: tgUserId,
       session: packed
     }, currentUserId, ctx);
 

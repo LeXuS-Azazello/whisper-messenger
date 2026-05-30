@@ -53,7 +53,7 @@ spec:
             - name: SAMESAME_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: whisper-messenger-env
+                  name: voicemsg-secrets
                   key: SAMESAME_SECRET
             - name: SAMESAME_LOCAL_ONLY
               value: "true"

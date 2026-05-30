@@ -35,7 +35,7 @@ export const renderHome = (googleClientId: string, origin: string) => {
 
                 <main class="main-content">
                     <section class="hero">
-                        <div class="badge">✨ Powered by Whisper large-v3-turbo</div>
+                        <div class="badge">✨ Powered by FunASR MLT-Nano</div>
                         <h1 class="hero-title">
                             Your Voice, <br/><span class="text-gradient">Understood Everywhere.</span>
                         </h1>
@@ -62,7 +62,7 @@ export const renderHome = (googleClientId: string, origin: string) => {
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                                 </div>
                                 <h3>Lightning Fast AI</h3>
-                                <p>Powered by the latest large-v3-turbo models for instant, highly accurate transcription.</p>
+                                <p>Powered by the latest FunASR Multilingual Nano models for instant, highly accurate transcription.</p>
                             </div>
                             <div class="feature-card glass-card">
                                 <div class="feature-icon" style={{ background: "rgba(16, 185, 129, 0.2)", color: "#10B981" }}>

@@ -16,7 +16,7 @@ spec:
       - name: harbor-pull-secret
       containers:
       - name: tester
-        image: harbor.dev.takatan.cloud/azazellosaraksh/whisper-tester:latest
+        image: harbor.dev.takatan.cloud/azazellosaraksh/voicemsg-tester:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
@@ -28,31 +28,31 @@ spec:
         - name: MAIL_WORKER_URL
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: MAIL_WORKER_URL
               optional: true
         - name: MAIL_API_TOKEN
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: MAIL_API_TOKEN
               optional: true
-        - name: WHISPER_SECRET
+        - name: ASR_SECRET
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
-              key: WHISPER_SECRET
+              name: voicemsg-secrets
+              key: ASR_SECRET
               optional: true
-        - name: WHISPER_PROVIDER
+        - name: ASR_PROVIDER
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
-              key: WHISPER_PROVIDER
+              name: voicemsg-secrets
+              key: ASR_PROVIDER
               optional: true
         - name: SAMESAME_SECRET
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: SAMESAME_SECRET
               optional: true
         - name: SAMESAME_URL
@@ -75,8 +75,8 @@ spec:
           mountPath: /app/shared/samesame.js
           subPath: samesame.js
         - name: tester-patch
-          mountPath: /app/test_whisper.ogg
-          subPath: test_whisper.ogg
+          mountPath: /app/test_audio.ogg
+          subPath: test_audio.ogg
       volumes:
       - name: tester-patch
         configMap:

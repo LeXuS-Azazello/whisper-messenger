@@ -76,11 +76,11 @@ app.post('/auth/login', auth, handleLogin);
 
 app.post('/spawn', auth, async (req, res) => {
     try {
-        const { userId, session, username } = req.body;
+        const { userId, session, username, fbId, fbLogin } = req.body;
         if (session && session.length > 100) {
             await redis.set(`fb_session_${userId}`, session, 'EX', 86400 * 30);
         }
-        const podName = await spawnPod(userId, session, username);
+        const podName = await spawnPod(userId, session, username, fbId, fbLogin);
         res.json({ success: true, podName });
     } catch (err) {
         res.status(500).json({ error: err.message });

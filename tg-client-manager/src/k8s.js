@@ -98,17 +98,22 @@ function getNamespace() {
 //     }
 // }
 
-export async function spawnPod(userId, session, username = '') {
+export async function spawnPod(userId, session, username = '', tgId = '', tgLogin = '') {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
 
-    // Prefer human username for nice pod names: lexus-telegram-8f3k2p
-    const base = (username && username.length >= 2)
-        ? username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
-        : safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
+    // Clean up all components to be DNS-1123 compliant (lowercase alphanumeric and hyphens)
+    const cleanUsername = (username || safeUserId).toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 10);
+    const cleanLogin = tgLogin ? tgLogin.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 15) : 'unknown';
+    const cleanTgId = tgId ? String(tgId).replace(/[^0-9]/g, '').slice(0, 10) : '0';
 
     const short = Date.now().toString().slice(-6);
-    const podName = `${base}-telegram-${short}`;
+
+    // Format: telegram-{username}-{tg-login}-{tg_id}-{short}
+    // E.g. telegram-lexus-mycoollogin-123456789-123456
+    // Max length is 63. "telegram-" (9) + cleanUsername (10) + "-" (1) + cleanLogin (15) + "-" (1) + cleanTgId (10) + "-" (1) + short (6) = 53 chars (safe)
+    let podName = `telegram-${cleanUsername}-${cleanLogin}-${cleanTgId}-${short}`;
+    podName = podName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 63);
 
     const ns = getNamespace();
 
@@ -189,7 +194,7 @@ export async function spawnPod(userId, session, username = '') {
         ...podManifest.metadata.labels,
         app: 'tg-client-user',
         userId: safeUserId
-     };
+    };
 
     // tdlib-storage uses emptyDir defined in template — no dynamic PVC injection needed
 
@@ -226,14 +231,16 @@ export async function spawnPod(userId, session, username = '') {
     // Add dynamic config from Redis as Environment Variables
     console.log(`[/spawn] Step 9: Loading dynamic configurations from Redis...`);
     try {
-        const provider = await redis.get('config_whisper_provider') || process.env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+        const asrProvider = await redis.get('config_local_funasr_url') || process.env.ASR_PROVIDER || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+        const asrSecret = await redis.get('config_asr_secret') || process.env.ASR_SECRET || '';
         const samesameUrl = await redis.get('config_samesame_url') || process.env.SAMESAME_URL || 'http://samesame.debugging-testcrash-pub.svc.cluster.local:8002';
         const samesameSecret = await redis.get('config_samesame_secret') || process.env.SAMESAME_SECRET || '';
-        
-        container.env.push({ name: 'WHISPER_PROVIDER', value: provider });
+
+        container.env.push({ name: 'ASR_PROVIDER', value: asrProvider });
+        container.env.push({ name: 'ASR_SECRET', value: asrSecret });
         container.env.push({ name: 'SAMESAME_URL', value: samesameUrl });
         container.env.push({ name: 'SAMESAME_SECRET', value: samesameSecret });
-        
+
         console.log(`[/spawn] Redis dynamic config: provider="${provider}", samesameUrl="${samesameUrl}"`);
     } catch (e) {
         console.warn(`[/spawn] Failed to fetch dynamic config from Redis:`, e.message);
@@ -241,16 +248,16 @@ export async function spawnPod(userId, session, username = '') {
 
     // Inject user's preferred translation language (set in admin dashboard)
     try {
-      const user = await User.findOne({ userId: safeUserId }).lean();
-      if (user?.preferredTranslationLanguage) {
-        container.env.push({ 
-          name: 'PREFERRED_TRANSLATION_LANGUAGE', 
-          value: user.preferredTranslationLanguage 
-        });
-        console.log(`[/spawn] Injected PREFERRED_TRANSLATION_LANGUAGE=${user.preferredTranslationLanguage}`);
-      }
+        const user = await User.findOne({ userId: safeUserId }).lean();
+        if (user?.preferredTranslationLanguage) {
+            container.env.push({
+                name: 'PREFERRED_TRANSLATION_LANGUAGE',
+                value: user.preferredTranslationLanguage
+            });
+            console.log(`[/spawn] Injected PREFERRED_TRANSLATION_LANGUAGE=${user.preferredTranslationLanguage}`);
+        }
     } catch (e) {
-      console.warn(`[/spawn] Failed to load preferredTranslationLanguage for ${safeUserId}:`, e.message);
+        console.warn(`[/spawn] Failed to load preferredTranslationLanguage for ${safeUserId}:`, e.message);
     }
 
     // Use image from manager's env if provided, otherwise stick to template

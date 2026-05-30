@@ -24,7 +24,7 @@ spec:
         - containerPort: 3000
         envFrom:
         - secretRef:
-            name: whisper-messenger-env
+            name: voicemsg-secrets
         env:
         - name: MODE
           value: "MANAGER"
@@ -41,17 +41,17 @@ spec:
         - name: TG_API_ID
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: TELEGRAM_APP_ID
         - name: TG_API_HASH
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: TELEGRAM_APP_HASH
         - name: MANAGER_SECRET
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: MANAGER_SECRET
               optional: true
         - name: REDIS_URL

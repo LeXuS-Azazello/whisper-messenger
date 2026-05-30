@@ -25,15 +25,15 @@ data:
                 "value": "redis://redis:6379"
               },
               {
-                "name": "WHISPER_URL",
-                "value": "http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000"
+                "name": "FUNASR_URL",
+                "value": "http://funasr.debugging-testcrash-pub.svc.cluster.local:50001"
               },
               {
-                "name": "WHISPER_SECRET",
+                "name": "ASR_SECRET",
                 "valueFrom": {
                   "secretKeyRef": {
                     "name": "voicemsg-secrets",
-                    "key": "WHISPER_SECRET"
+                    "key": "ASR_SECRET"
                   }
                 }
               }
@@ -90,14 +90,14 @@ spec:
         - name: SECRET
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: MANAGER_SECRET
         - name: REDIS_URL
           value: "redis://redis:6379"
         - name: MONGODB_URI
           valueFrom:
             secretKeyRef:
-              name: whisper-messenger-env
+              name: voicemsg-secrets
               key: MONGODB_URI
 ---
 apiVersion: v1

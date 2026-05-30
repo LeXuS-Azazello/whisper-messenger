@@ -44,16 +44,20 @@ function getNamespace() {
     return resolveNamespace();
 }
 
-export async function spawnPod(userId, igSession, username = '') {
+export async function spawnPod(userId, igSession, username = '', igId = '', igLogin = '') {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
+    const sanitizedId = safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
 
-    const base = (username && username.length >= 2)
-        ? username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24)
-        : safeUserId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
+    const cleanUsername = (username || safeUserId).toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 10);
+    const cleanLogin = igLogin ? igLogin.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 15) : 'unknown';
+    const cleanIgId = igId ? String(igId).replace(/[^0-9]/g, '').slice(0, 10) : '0';
 
     const short = Date.now().toString().slice(-6);
-    const podName = `${base}-instagram-${short}`;
+    
+    // Format: instagram-{username}-{ig-login}-{ig_id}-{short}
+    let podName = `instagram-${cleanUsername}-${cleanLogin}-${cleanIgId}-${short}`;
+    podName = podName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 63);
 
     const ns = getNamespace();
 
@@ -103,11 +107,11 @@ export async function spawnPod(userId, igSession, username = '') {
     container.env = Array.from(envMap.values());
     
     try {
-        const provider = await redis.get('config_whisper_provider') || process.env.WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+        const provider = await redis.get('config_local_funasr_url') || process.env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001/v1/transcribe-base64';
         const samesameUrl = await redis.get('config_samesame_url') || process.env.SAMESAME_URL || 'http://samesame.debugging-testcrash-pub.svc.cluster.local:8002';
         const samesameSecret = await redis.get('config_samesame_secret') || process.env.SAMESAME_SECRET || '';
         
-        container.env.push({ name: 'WHISPER_PROVIDER', value: provider });
+        container.env.push({ name: 'FUNASR_URL', value: provider });
         container.env.push({ name: 'SAMESAME_URL', value: samesameUrl });
         container.env.push({ name: 'SAMESAME_SECRET', value: samesameSecret });
     } catch (e) {

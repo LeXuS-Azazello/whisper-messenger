@@ -10,8 +10,6 @@ resources:
   - network-policy.yaml
   - tg-client-manager.yaml
   - tg-client.yaml
-  - whisper-service-v2.yaml
-  - whisper-service-network-policy.yaml
   - samesame.yaml
   - samesame-secret.yaml
   - huggingface-secret.yaml
@@ -22,8 +20,6 @@ resources:
   - whatsapp-baileys-manager.yaml
   - facebook-fca-manager.yaml
   - instagram-fca-manager.yaml
-  - rbac-whisper-exec.yaml
-  - sensevoice.yaml
   - funasr.yaml
 
 
@@ -42,9 +38,6 @@ images:
 namespace: debugging-testcrash-pub
 
 configMapGenerator:
-  - name: whisper-service-v2-download-scripts
-    files:
-      - download-models.sh=scripts/whisper-download-models.sh
   - name: samesame-download-scripts
     files:
       - download-models.sh=scripts/samesame-download-models.sh

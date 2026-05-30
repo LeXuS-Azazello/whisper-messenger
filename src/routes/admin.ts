@@ -14,8 +14,7 @@ import {
     userAction,
     runDiagnostics,
     renderDashboardPage,
-    switchAsrModel,
-    runAsrTest
+    switchAsrModel
 } from "../controllers/adminController";
 
 export async function handleAdmin(env: Env, req: Request): Promise<Response> {
@@ -197,7 +196,6 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         }
 
         if (method === "POST" && pathname === "/admin/run-diagnostics") { return await runDiagnostics(env); }
-        if (method === "POST" && pathname === "/admin/run-asr-test") { return await runAsrTest(env); }
 
         if (method === "GET" && pathname === "/admin") {
             return await renderDashboardPage(env, url.origin);

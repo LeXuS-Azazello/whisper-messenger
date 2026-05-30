@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { WHISPER_PROVIDER, WHISPER_SECRET, redis } from './config.js';
+import { telegramLangToNLLB } from '../../src/lang.js';
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 360; // ~12 minutes at 2s interval (still generous)
@@ -9,7 +9,16 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function normalizeResult(data, fallbackModel = 'whisper-service-v2') {
+function normalizeResult(data, fallbackModel = 'funasr-service') {
+  if (typeof data !== 'object') {
+    return {
+      text: String(data),
+      language: 'auto',
+      translated: false,
+      model: fallbackModel,
+      metrics: {}
+    };
+  }
   let m = data.model || data.used_model;
   if (!m || m === 'unknown model') m = fallbackModel;
   return {
@@ -22,7 +31,8 @@ function normalizeResult(data, fallbackModel = 'whisper-service-v2') {
   };
 }
 
-async function pollJobUntilDone(jobId, baseUrl, headers, fallbackModel = 'whisper-service-v2') {
+async function pollJobUntilDone(jobId, baseUrl, headers, fallbackModel = 'funasr-service') {
+  console.log(`[transcriber] 🔄 Polling job ${jobId} at ${baseUrl}/v1/status/${jobId}`);
   const pollStart = Date.now();
   for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
     const pollAttemptStart = Date.now();
@@ -39,7 +49,7 @@ async function pollJobUntilDone(jobId, baseUrl, headers, fallbackModel = 'whispe
 
         if (job.state === 'completed' && job.result) {
           const totalPollTime = Date.now() - pollStart;
-          console.log(`[transcriber] poll done | attempts=${i+1} | totalPoll=${totalPollTime}ms | lastLatency=${pollLatency}ms | queueWait=${serverTiming.queueWaitMs ?? '?'} | process=${serverTiming.processMs ?? '?'}`);
+          console.log(`[transcriber] poll done | attempts=${i + 1} | totalPoll=${totalPollTime}ms | lastLatency=${pollLatency}ms | queueWait=${serverTiming.queueWaitMs ?? '?'} | process=${serverTiming.processMs ?? '?'}`);
           return normalizeResult(job.result, fallbackModel);
         }
         if (job.state === 'failed') {
@@ -49,12 +59,12 @@ async function pollJobUntilDone(jobId, baseUrl, headers, fallbackModel = 'whispe
 
         // still processing — log current server view
         if (i % 3 === 0 || serverTiming.queueWaitMs) {
-          console.log(`[transcriber] poll #${i+1} | state=${job.state} | latency=${pollLatency}ms | serverQueueWait=${serverTiming.queueWaitMs ?? 'n/a'} | processedOn=${serverTiming.processedOn ?? 'waiting'}`);
+          console.log(`[transcriber] poll #${i + 1} | state=${job.state} | latency=${pollLatency}ms | serverQueueWait=${serverTiming.queueWaitMs ?? 'n/a'} | processedOn=${serverTiming.processedOn ?? 'waiting'}`);
         }
       }
     } catch (e) {
       // transient poll error — keep trying
-      console.log(`[transcriber] poll #${i+1} error: ${e?.message || e}`);
+      console.log(`[transcriber] poll #${i + 1} error: ${e?.message || e}`);
     }
 
     await sleep(POLL_INTERVAL_MS + Math.random() * 1500);
@@ -63,65 +73,33 @@ async function pollJobUntilDone(jobId, baseUrl, headers, fallbackModel = 'whispe
   throw new Error('Transcription timed out after long polling');
 }
 
-const WHISPER_FALLBACK_URL = 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+
 
 /** Single-attempt transcription against a specific URL. Returns normalized result. */
 async function _transcribeOnce(url, fileBuffer, mime_type, language, target_language) {
-  const isSenseVoice = url.includes('sensevoice') || url.includes('50000');
-  const isFunASR = url.includes('funasr') || url.includes('50001');
-  const defaultModelName = isFunASR ? 'funasr' : (isSenseVoice ? 'sensevoice' : 'whisper-service-v2 (large-v3-turbo)');
+  const defaultModelName = 'funasr-mlt-nano';
 
-  const headers = { 'Content-Type': 'application/json' };
-  if (WHISPER_SECRET) {
-    headers['Authorization'] = `Bearer ${WHISPER_SECRET}`;
-  }
+  const headers = {
+    'Content-Type': 'application/json'
+  };
 
   const tSubmit = Date.now();
-  let response;
-
-  if (isSenseVoice) {
-    const formData = new FormData();
-    formData.append("files", new Blob([fileBuffer], { type: 'audio/wav' }), "audio.wav");
-    formData.append("keys", "audio");
-    formData.append("lang", language === 'auto' ? 'auto' : language);
-    formData.append("use_itn", "false");
-    
-    response = await fetch(`${url}/api/v1/asr`, {
-      method: "POST",
-      body: formData,
-      signal: AbortSignal.timeout(120000)
-    });
-  } else if (isFunASR) {
-    const formData = new FormData();
-    formData.append("file", new Blob([fileBuffer], { type: 'audio/wav' }), "audio.wav");
-    formData.append("model", "paraformer");
-    formData.append("response_format", "json");
-
-    const funHeaders = WHISPER_SECRET ? { "Authorization": `Bearer ${WHISPER_SECRET}` } : {};
-    response = await fetch(`${url}/v1/audio/transcriptions`, {
-      method: "POST",
-      headers: funHeaders,
-      body: formData,
-      signal: AbortSignal.timeout(120000)
-    });
-  } else {
-    const base64Data = fileBuffer.toString('base64');
-    const payload = {
-      file_data: base64Data,
-      mime_type: mime_type,
-      language: language
-    };
-    if (target_language) {
-      payload.target_language = target_language;
-    }
-    response = await fetch(`${url}/v1/transcribe-base64`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(60000)
-    });
+  const base64Data = fileBuffer.toString('base64');
+  const payload = {
+    file_data: base64Data,
+    mime_type: mime_type,
+    language: language === 'auto' ? 'auto' : telegramLangToNLLB(language) || language
+  };
+  if (target_language) {
+    payload.target_language = target_language;
   }
-  
+  const response = await fetch(`${url}/v1/transcribe-base64`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(60000)
+  });
+
   const submitMs = Date.now() - tSubmit;
 
   if (response.status === 202) {
@@ -144,11 +122,11 @@ async function _transcribeOnce(url, fileBuffer, mime_type, language, target_lang
     const resData = data.result && data.result[0];
     data.text = resData ? resData.text : "";
     data.language = resData ? resData.language : "unknown";
-    
+
     // SenseVoice hallucination cleanup
     let cleanText = data.text.replace(/<\|.*?\|>/g, '').trim();
     if (/^(嗯|啊|哦|угу|м|да|ну)+[.!?,。]*$/i.test(cleanText) || cleanText === '嗯' || cleanText === '嗯.' || cleanText === '嗯。') {
-        cleanText = '';
+      cleanText = '';
     }
     data.text = cleanText;
   } else if (isFunASR) {
@@ -169,18 +147,15 @@ async function _transcribeOnce(url, fileBuffer, mime_type, language, target_lang
 export async function transcribePath(file_path, mime_type, language = 'auto', target_language = null) {
   let url = '';
   try {
-    url = await redis.hget('stats', 'config_local_whisper_url');
+    url = await redis.hget('stats', 'config_local_funasr_url');
   } catch (e) {
     console.error('[transcriber] redis error:', e.message);
   }
   if (!url) {
-    url = WHISPER_PROVIDER || 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
+    url = FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
   }
-  
-  // Auto-correct common mistakes in WHISPER_PROVIDER
-  if (url === 'whisper-turbo' || url === 'whisper-service-v2') {
-    url = 'http://whisper-service-v2.debugging-testcrash-pub.svc.cluster.local:8000';
-  } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
+
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
     url = 'http://' + url;
   }
   url = url.replace(/\/$/, '');
@@ -207,17 +182,6 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
     } catch (err2) {
       console.warn(`[transcriber] retry primary ASR failed: ${err2.message}`);
 
-      // ── Attempt 3: fallback to whisper-service-v2 ──
-      if (url !== WHISPER_FALLBACK_URL && !url.includes('whisper-service-v2')) {
-        console.log(`[transcriber] ⚡ falling back to whisper-service-v2`);
-        try {
-          const result = await _transcribeOnce(WHISPER_FALLBACK_URL, fileBuffer, mime_type, language, target_language);
-          return await _maybeTranslate(result, target_language);
-        } catch (err3) {
-          console.error(`[transcriber] fallback whisper-service-v2 also failed: ${err3.message}`);
-          throw err3;
-        }
-      }
       throw err2;
     }
   }
@@ -227,10 +191,10 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
 async function _maybeTranslate(data, target_language) {
   if (target_language && target_language !== 'off' && !data.translated) {
     const detectedLanguage = data.language || 'unknown';
-    const isSameLanguage = detectedLanguage && target_language 
-        && (detectedLanguage.toLowerCase().startsWith(target_language.toLowerCase()) 
-            || target_language.toLowerCase().startsWith(detectedLanguage.toLowerCase()));
-    
+    const isSameLanguage = detectedLanguage && target_language
+      && (detectedLanguage.toLowerCase().startsWith(target_language.toLowerCase())
+        || target_language.toLowerCase().startsWith(detectedLanguage.toLowerCase()));
+
     if (!isSameLanguage && data.text) {
       try {
         const { default: translate } = await import('google-translate-api-x');
@@ -249,37 +213,37 @@ async function _maybeTranslate(data, target_language) {
 
 
 export function splitTextIntoChunks(text, limit = 3900) {
-    if (!text) return [];
-    if (text.length <= limit) return [text];
+  if (!text) return [];
+  if (text.length <= limit) return [text];
 
-    const chunks = [];
-    let currentChunk = "";
-    const paragraphs = text.split('\n');
+  const chunks = [];
+  let currentChunk = "";
+  const paragraphs = text.split('\n');
 
-    for (const paragraph of paragraphs) {
-        if ((currentChunk + (currentChunk ? '\n' : '') + paragraph).length > limit) {
-            if (paragraph.length > limit) {
-                if (currentChunk) chunks.push(currentChunk);
-                currentChunk = "";
-                const sentences = paragraph.match(/[^.!?]+[.!?]+(\s+|$)/g) || [paragraph];
-                for (const sentence of sentences) {
-                    const clean = sentence.trim();
-                    if (!clean) continue;
-                    if ((currentChunk + (currentChunk ? ' ' : '') + clean).length > limit) {
-                        if (currentChunk) chunks.push(currentChunk);
-                        currentChunk = clean;
-                    } else {
-                        currentChunk = currentChunk ? currentChunk + ' ' + clean : clean;
-                    }
-                }
-            } else {
-                chunks.push(currentChunk);
-                currentChunk = paragraph;
-            }
-        } else {
-            currentChunk = currentChunk ? currentChunk + '\n' + paragraph : paragraph;
+  for (const paragraph of paragraphs) {
+    if ((currentChunk + (currentChunk ? '\n' : '') + paragraph).length > limit) {
+      if (paragraph.length > limit) {
+        if (currentChunk) chunks.push(currentChunk);
+        currentChunk = "";
+        const sentences = paragraph.match(/[^.!?]+[.!?]+(\s+|$)/g) || [paragraph];
+        for (const sentence of sentences) {
+          const clean = sentence.trim();
+          if (!clean) continue;
+          if ((currentChunk + (currentChunk ? ' ' : '') + clean).length > limit) {
+            if (currentChunk) chunks.push(currentChunk);
+            currentChunk = clean;
+          } else {
+            currentChunk = currentChunk ? currentChunk + ' ' + clean : clean;
+          }
         }
+      } else {
+        chunks.push(currentChunk);
+        currentChunk = paragraph;
+      }
+    } else {
+      currentChunk = currentChunk ? currentChunk + '\n' + paragraph : paragraph;
     }
-    if (currentChunk) chunks.push(currentChunk);
-    return chunks.filter(Boolean);
+  }
+  if (currentChunk) chunks.push(currentChunk);
+  return chunks.filter(Boolean);
 }

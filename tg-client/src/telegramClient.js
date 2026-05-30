@@ -146,7 +146,7 @@ async function processSingleMessage(message) {
     }
 
     if (file_id) {
-        let filePath = null, statusMessage = null;
+        let filePath = null, statusMessage = null, tempWavPath = null;
         try {
             const statusText = type === 'messageVideoNote'
                 ? '📹 Transcribing circle video message...'
@@ -161,14 +161,26 @@ async function processSingleMessage(message) {
             filePath = file.local.path;
             if (!filePath) throw new Error('File download failed: no path');
 
-            // Just detect language (no translation for now)
+            let transcriptionPath = filePath;
+            let transcriptionMime = mime_type;
+
+            // FunASR handles video/mp4 directly via its internal ffmpeg extraction now
+            // Just detect language or use forced preference
             console.time(`[tg-client] Transcribe msg ${message_id}`);
             const transcribeStart = Date.now();
 
+            let asrLang = 'auto';
+            try {
+                const forcedLang = await redis.get(`transcription_lang_${TARGET_USER_ID}`);
+                if (forcedLang) asrLang = forcedLang;
+            } catch (err) {
+                console.error(`[tg-client] Failed to read transcription_lang:`, err.message);
+            }
+
             const result = await transcribePath(
-                filePath,
-                mime_type,
-                'auto'
+                transcriptionPath,
+                transcriptionMime,
+                asrLang
             );
             console.timeEnd(`[tg-client] Transcribe msg ${message_id}`);
 
@@ -200,10 +212,10 @@ async function processSingleMessage(message) {
                             console.error(`[tg-client] Failed to read user_meta for translation:`, err.message);
                         }
                     }
-                    if (!targetLang) targetLang = 'off'; // Default: no translation unless requested
+                    if (!targetLang) targetLang = 'translate_off'; // Default: no translation unless requested
 
-                    if (targetLang !== 'off') {
-                        if (targetLang === 'auto') {
+                    if (targetLang !== 'translate_off' && targetLang !== 'off') {
+                        if (targetLang === 'messenger_system_lang' || targetLang === 'auto') {
                             const me = await client.invoke({ '_': 'getUser', 'user_id': myUserId || TARGET_USER_ID });
                             targetLang = me?.language_code || 'en';
                         }
@@ -216,7 +228,8 @@ async function processSingleMessage(message) {
 
                         if (!isSameLanguage) {
                             console.time(`[tg-client] Translate msg ${message_id} to ${targetLang}`);
-                            const transResult = await translate(originalText, { to: targetLang });
+                            const translationTarget = targetLang.toLowerCase() === 'ua' ? 'uk' : targetLang;
+                            const transResult = await translate(originalText, { to: translationTarget });
                             console.timeEnd(`[tg-client] Translate msg ${message_id} to ${targetLang}`);
 
                             if (transResult && transResult.text) {
@@ -256,6 +269,9 @@ async function processSingleMessage(message) {
             if (statusMessage) await deleteMessage(client, chat_id, statusMessage.id);
             if (file_id) {
                 try { await client.invoke({ '_': 'deleteFile', file_id: Number(file_id) }); } catch { }
+            }
+            if (tempWavPath) {
+                try { fs.unlinkSync(tempWavPath); } catch (_) {}
             }
         }
     }
@@ -428,7 +444,7 @@ async function handleSamesameReplyIfNeeded(message) {
 
             // Call the shared SAMESAME service (pass correct mime for voice vs video note)
             console.time(`[tg-client] SAMESAME clone request msg ${message.id}`);
-            const { audioBuffer: resultBuffer, model: usedModel } = await cloneVoiceWithSamesame({
+            const { audioBuffer: resultBuffer, model: usedModel, duration: samesameDuration } = await cloneVoiceWithSamesame({
                 sourceAudioBuffer: promptBuffer,
                 text: cleanText,
                 language,
@@ -456,7 +472,7 @@ async function handleSamesameReplyIfNeeded(message) {
                     },
                     caption: {
                         '_': 'formattedText',
-                        text: `🤖 ${usedModel || 'Samesame (CosyVoice)'}`
+                        text: `🤖 ${usedModel || 'Samesame (CosyVoice)'} | ⏱ ${samesameDuration || '?'}s`
                     },
                     duration: 0,
                     waveform: ''
