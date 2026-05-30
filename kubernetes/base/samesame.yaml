@@ -1,21 +1,13 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: samesame-model-cache
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 20Gi
-  storageClassName: local-path
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  labels:
+    app: samesame
   name: samesame
   namespace: debugging-testcrash-pub
 spec:
+  imagePullSecrets:
+    - name: harbor-pull-secret
   replicas: 1
   selector:
     matchLabels:
@@ -25,55 +17,29 @@ spec:
       labels:
         app: samesame
     spec:
-      initContainers:
-        - name: download-models
-          image: harbor.dev.takatan.cloud/azazellosaraksh/modelscope-runner:latest
-          command:
-            - "modelscope"
-            - "download"
-            - "--model_id"
-            - "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
-            - "--cache_dir"
-            - "/models"
-          env:
-            - name: MODELSCOPE_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: modelscope-token
-                  key: MODELSCOPE_TOKEN
-          volumeMounts:
-            - name: models
-              mountPath: /models
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
-              memory: "1Gi"
       containers:
-        - name: samesame
+        - env:
+          - name: TTS_MODEL_DIR
+            value: "/models"
+          - name: HF_HOME
+            value: "/models"
+          - name: HUGGINGFACE_API_KEY
+            valueFrom:
+              secretKeyRef:
+                key: token
+                name: huggingface-token
+          - name: SAMESAME_SECRET
+            valueFrom:
+              secretKeyRef:
+                key: SAMESAME_SECRET
+                name: voicemsg-secrets
+          - name: SAMESAME_MODEL_NAME
+            value: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
           image: harbor.dev.takatan.cloud/azazellosaraksh/samesame:latest
           imagePullPolicy: IfNotPresent
+          name: samesame
           ports:
             - containerPort: 8002
-          env:
-            - name: TTS_MODEL_DIR
-              value: "/models"
-            - name: HF_HOME
-              value: "/models"
-            - name: HUGGINGFACE_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: huggingface-token
-                  key: token
-            - name: SAMESAME_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: voicemsg-secrets
-                  key: SAMESAME_SECRET
-            - name: SAMESAME_MODEL_NAME
-              value: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
           resources:
             requests:
               cpu: "1.5"
@@ -82,23 +48,30 @@ spec:
               cpu: "1.5"
               memory: "8Gi"
           volumeMounts:
-            - name: models
-              mountPath: "/models"
-      volumes:
-        - name: models
-          persistentVolumeClaim:
-            claimName: samesame-model-cache
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: samesame
-spec:
-  selector:
-    app: samesame
-  ports:
-    - name: http
-      port: 8002
-      targetPort: 8002
-  type: ClusterIP
+            - mountPath: "/models"
+              name: models
+        initContainers:
+          - command:
+            - modelscope
+            - download
+            -- -model_id
+            - "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
+            -- -cache_dir
+            - "/models"
+          name: download-models
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          volumeMounts:
+            - mountPath: "/models"
+              name: models
+        volumes:
+          - name: models
+            persistentVolumeClaim:
+              claimName: samesame-model-cache
+  strategy:
+    type: RollingUpdate

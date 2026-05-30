@@ -13,6 +13,8 @@ spec:
       labels:
         app: funasr
     spec:
+      imagePullSecrets:
+        - name: harbor-pull-secret
       initContainers:
         - name: download-models
           image: harbor.dev.takatan.cloud/azazellosaraksh/modelscope-runner:latest
