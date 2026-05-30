@@ -276,7 +276,9 @@ def clone_voice(req: CloneRequest, authorization: Optional[str] = Header(None)):
         "content_type": mime,
         "audio_base64": base64.b64encode(out_bytes).decode("utf-8"),
         "model": MODEL_NAME,
-        "latency_ms": latency_ms
+        "latency_ms": latency_ms,
+        "input_language": prompt_lang or detect_language_from_text(req.text),
+        "output_language": lang
     }
 
 

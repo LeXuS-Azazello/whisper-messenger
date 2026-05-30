@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-cli-temp
+  namespace: debugging-testcrash-pub
+spec:
+  containers:
+  - name: redis-cli
+    image: redis:7-alpine
+    command: ["sleep", "3600"]
+  restartPolicy: Never

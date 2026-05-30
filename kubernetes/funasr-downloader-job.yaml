@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: funasr-model-downloader
+  namespace: debugging-testcrash-pub
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: funasr
+        component: model-downloader
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: downloader
+          image: python:3.9-slim
+          command: ["python", "/app/download_model.py", "/models"]
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: huggingface-token
+                  key: token
+            - name: MODEL_NAME
+              value: "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: funasr-model-pvc

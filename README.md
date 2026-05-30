@@ -3,6 +3,7 @@
 > **Multi-tenant voice-to-text platform connecting Telegram, WhatsApp (Baileys), Facebook Messenger (FCA), and Instagram (FCA) to high-quality offline ASR via FunASR (Fun-ASR-MLT-Nano) and TTS via Samesame (CosyVoice 3.0).**
 
 ## 📢 Recent Changes (May 2026)
+- **Updated FunASR to 1.3.9** with AutoModel support, fixing tokenizer import issues and enabling VAD, punctuation, and auto-language detection.
 - Switched `samesame` Docker base image to `python:3.10‑slim` and removed Miniconda, fixing build errors.
 - Updated `samesame` to use **FunAudioLLM/CosyVoice3-0** (CPU‑optimized) instead of XTTS.
 - Adjusted resource requests for `samesame` (CPU 1 → 1.5, RAM 4 Gi → 8 Gi) to fit namespace quotas.

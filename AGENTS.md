@@ -2,6 +2,9 @@
 my domain is voicemsg.net 
 namespace: debugging-testcrash-pub
 
+## Recent Updates (May 2026)
+- **FunASR 1.3.9**: Updated ASR service to version 1.3.9 with AutoModel support for VAD, punctuation, and auto-language detection. Fixed `UnboundLocalError` in tokenizer initialization by importing `AutoTokenizer` from `funasr.tokenizer`.
+
 
 ## Kubernetes Access
 ```bash

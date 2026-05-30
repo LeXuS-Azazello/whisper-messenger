@@ -1,38 +1,5 @@
 # samesame Model Downloader Job
-#
-# PURPOSE:
-#   One-time (or on-demand) Job that downloads the TTS models
-#   (Coqui YourTTS + Vocoder) into the PVC used by the samesame Deployment.
-#
-# WHEN TO RUN:
-#   - First time after deploying samesame
-#   - If models are missing or corrupted
-#   - After changing the download script
-#
-# USAGE (IMPORTANT):
-#   This file uses `generateName`, therefore you MUST use `create`, not `apply`.
-#
-#   Correct command:
-#   kubectl create -f kubernetes/base/samesame-downloader-job.yaml -n debugging-testcrash-pub
-#
-#   Why not `apply`?
-#   `kubectl apply` does not support `generateName`. Every time you want to re-download
-#   the models, run `create` again — it will create a fresh Job.
-#
-#   To watch logs:
-#   kubectl logs -f job/<generated-name> -n debugging-testcrash-pub
-#
-#   Example job name:
-#   samesame-model-downloader-8f3k9
-#
-# NOTES:
-#   - This Job is intentionally NOT part of the regular base kustomization.
-#   - Regular deploys (deploy.sh / kubectl apply -k) will NOT recreate it.
-#   - The actual download logic lives in the ConfigMap "samesame-download-scripts"
-#     created by samesame.yaml (calls python /app/download_model.py).
-#   - The Job is safe to run multiple times (the python script handles idempotency).
-#
-
+# One-time (or on-demand) Job that downloads the TTS models into the PVC used by the samesame Deployment.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -57,7 +24,7 @@ spec:
         - name: downloader
           image: harbor.dev.takatan.cloud/azazellosaraksh/samesame:latest
           imagePullPolicy: IfNotPresent
-          command: ["/bin/sh", "-c", "/scripts/download-models.sh"]
+          command: ["/bin/sh", "-c", "/scripts/download-models.sh && /scripts/prepare_models.sh"]
           env:
             - name: MODELS_DIR
               value: "/models"
@@ -65,16 +32,16 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: huggingface-token
-                  key: HUGGING_FACE_HUB_TOKEN
+                  key: token
             - name: HUGGING_FACE_HUB_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: huggingface-token
-                  key: HUGGING_FACE_HUB_TOKEN
+                  key: token
             - name: DOWNLOAD_TIMEOUT
               value: "1800"
             - name: SAMESAME_MODEL_NAME
-              value: "iic/CosyVoice2-0.5B"
+              value: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
             - name: COQUI_TOS_AGREED
               value: "1"
           volumeMounts:
@@ -83,7 +50,6 @@ spec:
             - name: scripts
               mountPath: /scripts
           resources:
-            # Increased resources for reliable download
             requests:
               cpu: "1"
               memory: "2Gi"

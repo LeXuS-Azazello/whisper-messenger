@@ -3,8 +3,6 @@ kind: Deployment
 metadata:
   name: funasr
   namespace: debugging-testcrash-pub
-  labels:
-    app: funasr
 spec:
   replicas: 1
   selector:
@@ -15,42 +13,62 @@ spec:
       labels:
         app: funasr
     spec:
+      initContainers:
+        - name: download-models
+          image: harbor.dev.takatan.cloud/azazellosaraksh/modelscope-runner:latest
+          command:
+            - "modelscope"
+            - "download"
+            - "--model_id"
+            - "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
+            - "--cache_dir"
+            - "/models"
+          env:
+            - name: MODELSCOPE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: modelscope-token
+                  key: MODELSCOPE_TOKEN
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
       containers:
-      - name: funasr-api
-        image: harbor.dev.takatan.cloud/azazellosaraksh/funasr:latest
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 50001
-        env:
-        - name: FUNASR_MODEL
-          value: "Fun-ASR-MLT-Nano"
-        - name: FUNASR_DEVICE
-          value: "cpu"
-        volumeMounts:
-        - name: cache-vol
-          mountPath: /root/.cache
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "1Gi"
-          limits:
-            cpu: "1000m"
-            memory: "8Gi"
+        - name: funasr-api
+          image: harbor.dev.takatan.cloud/azazellosaraksh/funasr:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 50001
+          env:
+            - name: FUNASR_MODEL
+              value: "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
+            - name: FUNASR_DEVICE
+              value: "cpu"
+            - name: FUNASR_MODEL_PATH
+              value: "/models"
+          volumeMounts:
+            - name: models
+              mountPath: "/models"
       volumes:
-      - name: cache-vol
-        emptyDir: {}
+        - name: models
+          persistentVolumeClaim:
+            claimName: samesame-model-cache
+
 ---
 apiVersion: v1
-kind: Service
+kind: PersistentVolumeClaim
 metadata:
-  name: funasr
-  namespace: debugging-testcrash-pub
+  name: funasr-model-pvc
 spec:
-  type: ClusterIP
-  selector:
-    app: funasr
-  ports:
-  - port: 50001
-    targetPort: 50001
-    protocol: TCP
-    name: http
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: local-path

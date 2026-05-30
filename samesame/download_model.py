@@ -13,7 +13,7 @@ print(f"Downloading model {MODEL_NAME} to {MODELS_DIR}...")
 try:
     from modelscope import snapshot_download
 
-    snapshot_download(MODEL_NAME, cache_dir=MODELS_DIR)
+    snapshot_download(MODEL_NAME, cache_dir=MODELS_DIR, hub="ms")
     print("Download complete.")
 except Exception as e:
     print(f"Error downloading model via modelscope: {e}")
