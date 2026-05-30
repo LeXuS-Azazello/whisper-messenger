@@ -17,14 +17,12 @@ export async function transcribeAudio(
   env: Env,
   targetLanguage?: string | null
 ): Promise<TranscriptionResult> {
-  const url = await env.STATS.get("config_local_funasr_url") 
-    || env.ASR_PROVIDER 
-    || "http://funasr.debugging-testcrash-pub.svc.cluster.local:50001";
+  const service = (await env.STATS.get('config_asr_service')) || 'funasr';
+  const isSenseVoice = service === 'sensevoice';
+  const isFunASR = service === 'funasr';
+  // Resolve base URL according to selected service if not explicitly set
+  const url = await env.STATS.get('config_local_funasr_url') || env.ASR_PROVIDER || (service === 'sensevoice' ? 'http://sensevoice.debugging-testcrash-pub.svc.cluster.local:50000' : 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001');
 
-  if (!url) throw new Error("ASR URL not configured");
-
-  const isSenseVoice = url.includes('sensevoice') || url.includes('50000');
-  const isFunASR = url.includes('funasr') || url.includes('50001');
   const secret = env.WHISPER_SECRET || "";
 
   const controller = new AbortController();
@@ -32,7 +30,7 @@ export async function transcribeAudio(
 
   try {
     let response;
-    
+
     if (isFunASR) {
       const formData = new FormData();
       formData.append("file", new Blob([audio], { type: 'audio/wav' }), "audio.wav");
@@ -51,7 +49,7 @@ export async function transcribeAudio(
       formData.append("keys", "audio");
       formData.append("lang", "auto");
       formData.append("use_itn", "false");
-      
+
       response = await fetch(`${url}/api/v1/asr`, {
         method: "POST",
         body: formData,
@@ -92,11 +90,11 @@ export async function transcribeAudio(
       const resData = result.result && result.result[0];
       text = resData ? resData.text : "";
       result.language = resData ? resData.language : "unknown";
-      
+
       // SenseVoice hallucination cleanup
       text = text.replace(/<\|.*?\|>/g, '').trim();
       if (/^(嗯|啊|哦|угу|м|да|ну)+[.!?,。]*$/i.test(text) || text === '嗯' || text === '嗯.' || text === '嗯。') {
-          text = '';
+        text = '';
       }
     } else {
       text = result.text || result.transcription || "";
@@ -109,9 +107,9 @@ export async function transcribeAudio(
     let translatedText = result.translated || null;
 
     if (targetLanguage && targetLanguage !== "off" && !translatedText) {
-      const isSameLanguage = detectedLanguage && targetLanguage 
-          && (detectedLanguage.toLowerCase().startsWith(targetLanguage.toLowerCase()) 
-              || targetLanguage.toLowerCase().startsWith(detectedLanguage.toLowerCase()));
+      const isSameLanguage = detectedLanguage && targetLanguage
+        && (detectedLanguage.toLowerCase().startsWith(targetLanguage.toLowerCase())
+          || targetLanguage.toLowerCase().startsWith(detectedLanguage.toLowerCase()));
       if (!isSameLanguage) {
         try {
           const { default: translate } = await import("google-translate-api-x");

@@ -51,6 +51,7 @@ export interface Env {
   FUNASR_SECRET?: string;
   ASR_PROVIDER?: string;
   ASR_MODEL?: string;
+  ASR_SERVICE?: string;
 
   // SMTP Config
   EMAIL_FROM?: string;

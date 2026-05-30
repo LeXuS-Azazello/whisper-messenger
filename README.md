@@ -1,6 +1,6 @@
 # 🎙️ Voice Messenger
 
-> **Multi-tenant voice-to-text platform connecting Telegram, WhatsApp (Baileys), Facebook Messenger (FCA), and Instagram (FCA) to high-quality offline ASR via FunASR (Fun-ASR-Nano или Fun-ASR-MLT-Nano) and TTS via Samesame (CosyVoice 3.0).**
+> **Multi-tenant voice-to-text platform connecting Telegram, WhatsApp (Baileys), Facebook Messenger (FCA), and Instagram (FCA) to high-quality offline ASR via FunASR (Fun-ASR-MLT-Nano) and TTS via Samesame (CosyVoice 3.0).**
 
 ## 📢 Recent Changes (May 2026)
 - Switched `samesame` Docker base image to `python:3.10‑slim` and removed Miniconda, fixing build errors.

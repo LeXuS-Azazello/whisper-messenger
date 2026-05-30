@@ -143,94 +143,94 @@ export function getLangLabel(code) {
 
     const map = {
         // English
-        en: "🇺🇸 English",
-        eng: "🇺🇸 English",
+        en: "🇺🇸",
+        eng: "🇺🇸",
 
         // Russian
-        ru: "🇷🇺 Russian",
-        rus: "🇷🇺 Russian",
+        ru: "🇷🇺",
+        rus: "🇷🇺",
 
         // Ukrainian
-        uk: "🇺🇦 Ukrainian",
-        ukr: "🇺🇦 Ukrainian",
+        uk: "🇺🇦",
+        ukr: "🇺🇦",
 
         // Hebrew
-        he: "🇮🇱 Hebrew",
-        heb: "🇮🇱 Hebrew",
+        he: "🇮🇱",
+        heb: "🇮🇱",
 
         // German
-        de: "🇩🇪 German",
-        deu: "🇩🇪 German",
-        ger: "🇩🇪 German",
+        de: "🇩🇪",
+        deu: "🇩🇪",
+        ger: "🇩🇪",
 
         // French
-        fr: "🇫🇷 French",
-        fra: "🇫🇷 French",
-        fre: "🇫🇷 French",
+        fr: "🇫🇷",
+        fra: "🇫🇷",
+        fre: "🇫🇷",
 
         // Spanish
-        es: "🇪🇸 Spanish",
-        spa: "🇪🇸 Spanish",
+        es: "🇪🇸",
+        spa: "🇪🇸",
 
         // Thai
-        th: "🇹🇭 Thai",
-        tha: "🇹🇭 Thai",
+        th: "🇹🇭",
+        tha: "🇹🇭",
 
         // Chinese
-        zh: "🇨🇳 Chinese",
-        zho: "🇨🇳 Chinese",
-        chi: "🇨🇳 Chinese",
+        zh: "🇨🇳",
+        zho: "🇨🇳",
+        chi: "🇨🇳",
 
         // Japanese
-        ja: "🇯🇵 Japanese",
-        jpn: "🇯🇵 Japanese",
+        ja: "🇯🇵",
+        jpn: "🇯🇵",
 
         // Korean
-        ko: "🇰🇷 Korean",
-        kor: "🇰🇷 Korean",
+        ko: "🇰🇷",
+        kor: "🇰🇷",
 
         // Arabic
-        ar: "🇸🇦 Arabic",
-        ara: "🇸🇦 Arabic",
+        ar: "🇸🇦",
+        ara: "🇸🇦",
 
         // Vietnamese
-        vi: "🇻🇳 Vietnamese",
-        vie: "🇻🇳 Vietnamese",
+        vi: "🇻🇳",
+        vie: "🇻🇳",
 
         // Indonesian
-        id: "🇮🇩 Indonesian",
-        ind: "🇮🇩 Indonesian",
+        id: "🇮🇩",
+        ind: "🇮🇩",
 
         // Turkish
-        tr: "🇹🇷 Turkish",
-        tur: "🇹🇷 Turkish",
+        tr: "🇹🇷",
+        tur: "🇹🇷",
 
         // Portuguese
-        pt: "🇵🇹 Portuguese",
-        por: "🇵🇹 Portuguese",
+        pt: "🇵🇹",
+        por: "🇵🇹",
 
         // Italian
-        it: "🇮🇹 Italian",
-        ita: "🇮🇹 Italian",
+        it: "🇮🇹",
+        ita: "🇮🇹",
 
         // Polish
-        pl: "🇵🇱 Polish",
-        pol: "🇵🇱 Polish",
+        pl: "🇵🇱",
+        pol: "🇵🇱",
 
         // Dutch
-        nl: "🇳🇱 Dutch",
-        nld: "🇳🇱 Dutch",
-        dut: "🇳🇱 Dutch",
+        nl: "🇳🇱",
+        nld: "🇳🇱",
+        dut: "🇳🇱",
 
         // Hindi
-        hi: "🇮🇳 Hindi",
-        hin: "🇮🇳 Hindi",
+        hi: "🇮🇳",
+        hin: "🇮🇳",
 
         // Auto / unknown
-        auto: "🌐 Auto Detect",
+        auto: "🌐",
     };
 
-    return map[normalized] || `🌐 ${normalized}`;
+    return map[normalized] || `🌐`;
 }
 
 export function logError(err, context = '') {

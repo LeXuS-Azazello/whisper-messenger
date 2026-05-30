@@ -1,4 +1,4 @@
-Стек: sherpa-onnx SenseVoice INT8 + Silero VAD + CT-Transformer Punctuation + BullMQ + Redis SHA256 Cache + NLLB-200 Translation
+Стек: SenseVoice INT8 + Silero VAD + CT-Transformer Punctuation + BullMQ + Redis SHA256 Cache
 
 Instant response
 

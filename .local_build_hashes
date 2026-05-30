@@ -1,4 +1,3 @@
-tg-client:1ca667a149cb814bc6881b2dc9b919a5
 voicemsg-tester:04e712e878ccebe1f7065b0b2912206f
 facebook-fca-manager:ff868f52850dcab9b9eb5a380def19b1
 facebook-fca-client:203c5efc98e8153b306fd188abb03ce0
@@ -9,3 +8,4 @@ whatsapp-baileys-client:2d9b58c0fc1e0309a8d9bae4954bb1ff
 samesame:3a9740056e9007a67250de9ea79f676c
 whisper-service-v2:886f4202f9e4fea2af611f1642f84a08
 tg-client-manager:d710d2413d9b3a77944681cf0b258f90
+tg-client:05cb2929f7cd82e46dde39d262dcc6b2
