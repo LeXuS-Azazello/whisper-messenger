@@ -9,13 +9,13 @@
   "spec": {
     "imagePullSecrets": [
       {
-        "name": "harbor-pull-secret"
+         "name": "dockerhub-pull-secret"
       }
     ],
     "containers": [
       {
         "name": "tg-client",
-        "image": "harbor.dev.takatan.cloud/devcenter/whisper-tg-client:latest",
+        "image": "hub.docker.com/repository/docker/lexusazazello/tg-client:latest",
         "imagePullPolicy": "IfNotPresent",
         "env": [
           {

@@ -14,10 +14,10 @@ spec:
     spec:
       serviceAccountName: tg-client-manager-sa
       imagePullSecrets:
-      - name: harbor-pull-secret
+      - name: dockerhub-pull-secret
       containers:
       - name: manager
-        image: harbor.dev.takatan.cloud/azazellosaraksh/whisper-tg-client-manager:latest
+        image: lexusazazello/voicemsg:tg-client-manager-latest
         imagePullPolicy: IfNotPresent
         command: ["node", "index.js"]
         ports:
@@ -59,7 +59,7 @@ spec:
         - name: MONGODB_URI
           value: "mongodb://mongodb:27017/voicemsg"
         - name: TG_CLIENT_IMAGE
-          value: "harbor.dev.takatan.cloud/azazellosaraksh/whisper-tg-client:latest"
+          value: "lexusazazello/voicemsg:tg-client-latest"
         resources:
           requests:
             cpu: "200m"

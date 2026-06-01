@@ -15,7 +15,7 @@ spec:
         app: mongodb
     spec:
       imagePullSecrets:
-      - name: harbor-pull-secret
+      - name: dockerhub-pull-secret
       containers:
       - name: mongodb
         image: mongo:latest

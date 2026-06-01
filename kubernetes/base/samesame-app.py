@@ -31,22 +31,97 @@ else:
     MODEL_LOAD_PATH = MODEL_NAME
     print(f"[samesame-cosy] Local model not found at {_local_model_path}, using model name: {MODEL_LOAD_PATH}")
 
-print("[samesame-cosy] Initializing CosyVoice3 model: {}".format(MODEL_LOAD_PATH))
+print("[samesame-cosy] Initializing CosyVoice model: {}".format(MODEL_LOAD_PATH))
 sys.path.append("/app/CosyVoice")
 sys.path.append("/app/CosyVoice/third_party/Matcha-TTS")
 
 from cosyvoice.utils.file_utils import load_wav
 import torchaudio
 
-from cosyvoice.cli.cosyvoice import CosyVoice3
+# CosyVoice3 is the primary model; fall back to CosyVoice2 then CosyVoice300M
 try:
+    from cosyvoice.cli.cosyvoice import CosyVoice3
     cosyvoice = CosyVoice3(MODEL_LOAD_PATH, load_trt=False, fp16=False)
     print(f"[samesame-cosy] CosyVoice3 loaded: {MODEL_LOAD_PATH}")
 except Exception as e:
-    print(f"[samesame-cosy] FATAL: Failed to load CosyVoice3 model: {e}")
-    sys.exit(1)
+    print(f"[samesame-cosy] CosyVoice3 failed ({e}), falling back to CosyVoice2...")
+    try:
+        from cosyvoice.cli.cosyvoice import CosyVoice2
+        cosyvoice = CosyVoice2(MODEL_LOAD_PATH, load_jit=False, load_trt=False, fp16=False)
+        print(f"[samesame-cosy] CosyVoice2 loaded: {MODEL_LOAD_PATH}")
+    except Exception as e2:
+        print(f"[samesame-cosy] CosyVoice2 also failed ({e2}), falling back to CosyVoice (300M)...")
+        try:
+            from cosyvoice.cli.cosyvoice import CosyVoice
+            cosyvoice = CosyVoice(MODEL_LOAD_PATH, load_jit=False, fp16=False)
+            print(f"[samesame-cosy] CosyVoice (300M compat) loaded: {MODEL_LOAD_PATH}")
+        except Exception as e3:
+            print(f"[samesame-cosy] FATAL: Failed to load any CosyVoice model: {e3}")
+            sys.exit(1)
 
-SAMPLE_RATE = cosyvoice.sample_rate
+def transcribe_prompt_with_funasr(audio_path: str) -> tuple[str, str]:
+    """Transcribes the prompt audio using the FunASR service.
+    Returns a tuple of (text, language_code).
+    """
+    import urllib.request
+    import json
+    import base64
+    import os
+    
+    # Use the base URL from env, and append the endpoint
+    base_url = os.environ.get("FUNASR_URL", "http://funasr:50001").rstrip('/')
+    url = f"{base_url}/v1/transcribe-base64"
+    print(f"[samesame-cosy] Transcribing prompt audio via FunASR at: {url}")
+    
+    max_retries = 3
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            with open(audio_path, 'rb') as f:
+                file_content = f.read()
+
+            base64_data = base64.b64encode(file_content).decode('utf-8')
+            
+            payload = {
+                "file_data": base64_data,
+                "mime_type": "audio/ogg"
+            }
+            
+            body = json.dumps(payload).encode('utf-8')
+            
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers={
+                    'Content-Type': 'application/json',
+                    'Content-Length': str(len(body))
+                },
+                method='POST'
+            )
+            
+            with urllib.request.urlopen(req, timeout=30) as response:
+                res_data = response.read().decode('utf-8')
+                result = json.loads(res_data)
+                
+                text = result.get("text", "")
+                language = result.get("language", "auto")
+                
+                print(f"[samesame-cosy] FunASR success: lang={language}, text={text[:80]!r}")
+                return text, language
+        except Exception as e:
+            print(f"[samesame-cosy] FunASR request failed (attempt {attempt+1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                print(f"[samesame-cosy] All retries failed for FunASR transcription.")
+                return "", ""
+
+
+# CosyVoice3 uses its own sample rate; CosyVoice2 defaults to 16000
+SAMPLE_RATE = getattr(cosyvoice, 'sample_rate', 16000)
+print(f"[samesame-cosy] Sample rate: {SAMPLE_RATE}")
 
 SAMESAME_SECRET = os.environ.get("SAMESAME_SECRET")
 app = FastAPI(title="Samesame CosyVoice Service")
@@ -88,7 +163,8 @@ class CloneRequest(BaseModel):
 @app.get("/health")
 @app.get("/live")
 def health():
-    return {"status": "ok", "model": MODEL_NAME, "backend": "cosyvoice3"}
+    backend_name = "cosyvoice3" if "CosyVoice3" in str(type(cosyvoice).__name__) else "cosyvoice2" if "CosyVoice2" in str(type(cosyvoice).__name__) else "cosyvoice"
+    return {"status": "ok", "model": MODEL_NAME, "backend": backend_name, "sample_rate": SAMPLE_RATE}
 
 
 @app.post("/v1/clone")

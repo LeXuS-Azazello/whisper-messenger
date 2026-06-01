@@ -3,37 +3,23 @@ kind: Kustomization
 
 resources:
   - frontend.yaml
-  - frontend-network-policy.yaml
   - redis.yaml
   - mongodb.yaml
   - mongo-express.yaml
-  - network-policy.yaml
   - tg-client-manager.yaml
   - tg-client.yaml
   - samesame.yaml
-  - samesame-secret.yaml
   - huggingface-secret.yaml
   - rbac.yaml
   - cert-manager.yaml
   - voicemsg-cf.yaml
   - voicemsg-tester.yaml
   - whatsapp-baileys-manager.yaml
-  - facebook-fca-manager.yaml
-  - instagram-fca-manager.yaml
+  # - facebook-fca-manager.yaml
+  # - instagram-fca-manager.yaml
   - funasr.yaml
 
 
-
-images:
-  - name: mongo
-    newName: harbor.dev.takatan.cloud/azazellosaraksh/mongo
-    newTag: latest
-  - name: redis
-    newName: harbor.dev.takatan.cloud/azazellosaraksh/redis
-    newTag: 7-alpine
-  - name: mongo-express
-    newName: harbor.dev.takatan.cloud/azazellosaraksh/mongo-express
-    newTag: latest
 
 namespace: debugging-testcrash-pub
 
@@ -41,8 +27,14 @@ configMapGenerator:
   - name: samesame-download-scripts
     files:
       - download-models.sh=scripts/samesame-download-models.sh
+  - name: funasr-download-scripts
+    files:
+      - funasr-download-models.sh=scripts/funasr-download-models.sh
+  - name: funasr-server
+    files:
+      - server.py=funasr-server.py
   - name: samesame-app-py
     files:
-      - app.py=app.py
+      - app.py=samesame-app.py
 generatorOptions:
   disableNameSuffixHash: true

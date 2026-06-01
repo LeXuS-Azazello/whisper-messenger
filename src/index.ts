@@ -36,6 +36,31 @@ function getPublicOrigin(env: Env, fallbackOrigin: string): string {
   return origin;
 }
 
+async function performDiagnostic(env: Env) {
+  const results: any = {
+    services: {}
+  };
+
+  const checkService = async (name: string, url: string) => {
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(id);
+      return { status: res.ok ? "ok" : "error", url, last_check: new Date().toISOString() };
+    } catch (e: any) {
+      return { status: "error", url, error: e.message, last_check: new Date().toISOString() };
+    }
+  };
+
+  results.services.funasr = await checkService("funasr", "http://funasr:50001/ready");
+  results.services.samesame = await checkService("samesame", "http://samesame:8002/health");
+  results.services.redis = await checkService("redis", "redis://redis:6379"); // Note: fetch won't work for redis, this is a placeholder
+  results.services.mongodb = await checkService("mongodb", "mongodb://mongodb:27017"); // Note: fetch won't work for mongodb, this is a placeholder
+
+  return results;
+}
+
 /**
  * Check if the request path starts with a given prefix.
  * Handles both "/admin" and "/admin/something" correctly.
@@ -61,6 +86,16 @@ export default {
 
       // ─── Health check ───────────────────────────────────────────────────
       if (pathname === "/health") return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+
+      if (pathname === "/internal/diagnostic") {
+        const secret = url.searchParams.get("secret");
+        if (secret !== env.MANAGER_SECRET) return new Response("Unauthorized", { status: 401 });
+        
+        const diagnostic = await performDiagnostic(env);
+        return new Response(JSON.stringify(diagnostic), { 
+          headers: { "Content-Type": "application/json" } 
+        });
+      }
 
       // ─── Diagnostic logs ─────────────────────────────────────────────
       if (pathname === "/internal/diagnostic-logs") {

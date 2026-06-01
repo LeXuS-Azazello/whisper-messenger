@@ -2,11 +2,14 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install modelscope
 RUN pip install --no-cache-dir modelscope
 
-# Create entrypoint script
-RUN echo '#!/bin/bash\nexec "$@"' > /entrypoint.sh && \
-    chmod +x /entrypoint.sh
+RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
 
-ENTRYPOINT ["/entrypoint.sh"]
+RUN mkdir -p /models
+
+COPY modelscope-download.sh /modelscope-download.sh
+
+RUN chmod +x /modelscope-download.sh
+
+CMD ["/modelscope-download.sh", "--model", "FunAudioLLM/Fun-ASR-MLT-Nano-2512", "--cache_dir", "/models"]

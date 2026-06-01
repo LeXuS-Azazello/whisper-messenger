@@ -11,14 +11,12 @@
 
 ## 📢 Recent Changes (May 2026)
 - Switched to **FunAudioLLM/CosyVoice2‑0.5B** (CPU‑optimized) instead of XTTS.
-- Added Docker base image `python:3.10‑slim` and removed Miniconda.
-- Models download via dedicated Job; PVC size increased to 6 GiB.
-- `samesame` now reports **Model ready** on startup.
+- Models download via dedicated Job;
+- `samesame` now reports **Model ready** when model on mounted storage is available.
 
 Особенности текущей реализации:
-1. **CPU Оптимизация**: Работает на процессорах без GPU. Для ускорения инференса используется принудительное выделение потоков (`OMP_NUM_THREADS="4"` и `torch.set_num_threads(4)`).
-2. Модели скачиваются **только** через dedicated Kubernetes Job (`samesame-downloader-job.yaml`) в PVC. Никогда не на локальной машине. Маркер-файлы предотвращают повторные скачивания при последующих деплоях.
-
+1. **CPU Оптимизация**: Работает только на CPU, на процессорах без GPU. Для ускорения инференса используется принудительное выделение потоков, VAD и все возможные примочки.  (`OMP_NUM_THREADS="4"` и `torch.set_num_threads(4)`).
+2. Модели скачиваются на shared storage **только** через dedicated Kubernetes Job и не качаются в случае уже скачаного. (`samesame-downloader-job.yaml`) в PVC. Никогда не на локальной машине. 
 ## API
 
 ### Health
@@ -51,9 +49,7 @@ Body:
 
 ## Развертывание
 
-1. Убедитесь, что в `.env` задан `HUGGINGFACE_API_KEY`.
-2. Добавьте `SAMESAME_SECRET` в корень `.env` (он будет лежать в секрете `samesame-secret`).
-3. Просто запусти основной деплой — всё соберётся и задеплоится автоматически:
+1. Просто запусти основной деплой — всё соберётся и задеплоится автоматически:
 
 ```bash
 ./scripts/deploy.sh
@@ -62,8 +58,8 @@ Body:
 Скрипт:
 - Соберёт и запушит образ `samesame`
 - Применит все манифесты (включая `samesame.yaml`)
-- Дождётся готовности пода
-- Автоматически запустит `samesame-downloader-job.yaml` (модели скачаются один раз в PVC)
+- Дождётся готовности пода и скачаной модели на примонтированом PVC storage.
+- в случае отсутствия, Автоматически запустит `samesame-downloader-job.yaml` (модели скачаются один раз в PVC)
 
 4. После деплоя сервис доступен внутри кластера по адресу:
 
@@ -80,13 +76,12 @@ http://samesame:8002
 
 ## Особенности
 
-- Модели скачиваются **только** через отдельный Job (`samesame-downloader-job.yaml`).
-- Основной сервис всегда стартует с `SAMESAME_LOCAL_ONLY=true` → `HF_LOCAL_FILES_ONLY=true` (никаких скачиваний во время работы).
-- Это **отдельный премиум-сервис**. Пока что он не подключён ни к одному мессенджеру (см. ниже).
+- Модели скачиваются **только** отдельным Job downloader. например (`samesame-downloader-job.yaml`).
+- Основной сервис всегда стартует с `SAMESAME_LOCAL_ONLY=true` → `HF_LOCAL_FILES_ONLY=true` (никаких скачиваний любыми другими, кроме наших загрузчиков (downloader's) ).
 
 ## Статус интеграции и логика работы (важно!)
 
-- **Telegram (tg-client)**: поддерживается команда `!SAMESAME! [язык] текст` в ответе на голосовое/кружок.
+- **Telegram (tg-client)**: поддерживается команда `!SAMESAME! [язык] текст` в ответе на голосовое/кружок. Если не указан язык ввода, используем detect language.
   - Пример: `!SAMESAME! Привет, как дела?` (язык по умолчанию `ru`)
   - Явный язык: `!SAMESAME! en Hello world`
 

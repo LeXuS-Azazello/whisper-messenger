@@ -6,8 +6,6 @@ metadata:
   name: samesame
   namespace: debugging-testcrash-pub
 spec:
-  imagePullSecrets:
-    - name: harbor-pull-secret
   replicas: 1
   selector:
     matchLabels:
@@ -17,25 +15,29 @@ spec:
       labels:
         app: samesame
     spec:
+      imagePullSecrets:
+        - name: dockerhub-pull-secret
       containers:
         - env:
-          - name: TTS_MODEL_DIR
-            value: "/models"
-          - name: HF_HOME
-            value: "/models"
-          - name: HUGGINGFACE_API_KEY
-            valueFrom:
-              secretKeyRef:
-                key: token
-                name: huggingface-token
-          - name: SAMESAME_SECRET
-            valueFrom:
-              secretKeyRef:
-                key: SAMESAME_SECRET
-                name: voicemsg-secrets
-          - name: SAMESAME_MODEL_NAME
-            value: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
-          image: harbor.dev.takatan.cloud/azazellosaraksh/samesame:latest
+            - name: TTS_MODEL_DIR
+              value: "/models"
+            - name: HF_HOME
+              value: "/models"
+            - name: HUGGINGFACE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: token
+                  name: huggingface-token
+            - name: MODELSCOPE_CACHE
+              value: "/models"
+            - name: SAMESAME_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: SAMESAME_SECRET
+                  name: voicemsg-secrets
+            - name: SAMESAME_MODEL_NAME
+              value: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
+          image: lexusazazello/voicemsg:samesame-latest
           imagePullPolicy: IfNotPresent
           name: samesame
           ports:
@@ -50,28 +52,26 @@ spec:
           volumeMounts:
             - mountPath: "/models"
               name: models
-        initContainers:
-          - command:
-            - modelscope
-            - download
-            -- -model_id
-            - "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
-            -- -cache_dir
-            - "/models"
-          name: download-models
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
-              memory: "1Gi"
-          volumeMounts:
-            - mountPath: "/models"
-              name: models
-        volumes:
-          - name: models
-            persistentVolumeClaim:
-              claimName: samesame-model-cache
-  strategy:
-    type: RollingUpdate
+            - mountPath: "/app/app.py"
+              subPath: "app.py"
+              name: app-py
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: samesame-model-cache
+        - name: app-py
+          configMap:
+            name: samesame-app-py
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: samesame
+  namespace: debugging-testcrash-pub
+spec:
+  selector:
+    app: samesame
+  ports:
+    - port: 8002
+      targetPort: 8002

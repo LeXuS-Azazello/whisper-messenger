@@ -24,12 +24,13 @@ if [ -f .env ]; then
   set -u
 fi
 
-HARBOR_HOST="${HARBOR_HOST:-}"
-HARBOR_PROJECT="${HARBOR_PROJECT:-devcenter}"
-if [ -n "$HARBOR_HOST" ]; then
-  REPO="${HARBOR_HOST}/${HARBOR_PROJECT}"
+DOCKER_HUB_HOST="${DOCKER_HUB_HOST:-hub.docker.com}"
+DOCKER_HUB_USERNAME="${DOCKER_HUB_USERNAME:-}"
+DOCKER_HUB_PASSWORD="${DOCKER_HUB_PASSWORD:-}"
+if [ -n "$DOCKER_HUB_HOST" ]; then
+  REPO="${DOCKER_HUB_HOST}/${DOCKER_HUB_USERNAME}"
 else
-  REPO="${HARBOR_PROJECT}"
+  REPO="${DOCKER_HUB_USERNAME}"
 fi
 NAMESPACE="${NAMESPACE:-debugging-testcrash-pub}"
 
@@ -42,26 +43,21 @@ fi
 
 for svc in "${SERVICES[@]}"; do
   case "$svc" in
-    funasr)
+    (funasr)
       echo ""
       echo "=== Building & deploying funasr ==="
-      TAG=$(date +%Y%m%d-%H%M%S)
-      IMAGE="${REPO}/funasr:${TAG}"
+       TAG=$(date +%Y%m%d-%H%M%S)
+       IMAGE="lexusazazello/voicemsg:funasr-${TAG}"
 
-      docker build -t "$IMAGE" -f funasr/Dockerfile funasr
-      docker tag "$IMAGE" "${REPO}/funasr:latest"
-      docker push "${REPO}/funasr:latest"
-      docker rmi "$IMAGE" "${REPO}/funasr:latest" || true
-
-      kubectl set image deployment/funasr \
-        funasr-api="${REPO}/funasr:latest" \
-        funasr-worker="${REPO}/funasr:latest" \
-        -n "$NAMESPACE"
-
+       docker build -t "$IMAGE" -f funasr/Dockerfile funasr
+       docker tag "$IMAGE" "lexusazazello/voicemsg:funasr-latest"
+       docker push "lexusazazello/voicemsg:funasr-latest"
+       docker rmi "$IMAGE" "lexusazazello/voicemsg:funasr-latest" || true
+       
       kubectl rollout restart deployment/funasr -n "$NAMESPACE"
       ;;
 
-    tg-client|tg)
+    (tg-client|tg)
       echo ""
       echo "=== Building & deploying tg-client ==="
 
@@ -85,7 +81,7 @@ for svc in "${SERVICES[@]}"; do
       kubectl delete pods -n "$NAMESPACE" -l app=tg-client-user --ignore-not-found || true
       ;;
 
-    whatsapp-baileys-client|wa-client)
+    (whatsapp-baileys-client|wa-client)
       echo ""
       echo "=== Building & deploying whatsapp-baileys-client ==="
 
@@ -109,7 +105,7 @@ for svc in "${SERVICES[@]}"; do
       kubectl delete pods -n "$NAMESPACE" -l app=wa-baileys-client --ignore-not-found || true
       ;;
 
-    whatsapp-baileys-manager|wa-manager)
+    (whatsapp-baileys-manager|wa-manager)
       echo ""
       echo "=== Building & deploying whatsapp-baileys-manager ==="
       TAG=$(date +%Y%m%d-%H%M%S)
@@ -123,7 +119,7 @@ for svc in "${SERVICES[@]}"; do
       kubectl rollout restart deployment/whatsapp-baileys-manager -n "$NAMESPACE"
       ;;
 
-    samesame)
+    (samesame)
       echo ""
       echo "=== Building & deploying samesame ==="
       TAG=$(date +%Y%m%d-%H%M%S)
@@ -141,7 +137,7 @@ for svc in "${SERVICES[@]}"; do
       kubectl rollout restart deployment/samesame -n "$NAMESPACE" || true
       ;;
 
-    tester)
+    (tester)
       echo ""
       echo "=== Building & deploying voicemsg-tester (lightweight) ==="
       
@@ -164,7 +160,7 @@ for svc in "${SERVICES[@]}"; do
       kubectl rollout status deployment/voicemsg-tester -n "$NAMESPACE" --timeout=120s || true
       ;;
 
-    frontend|echo-frontend)
+    (frontend|echo-frontend)
       echo ""
       echo "=== Building & deploying echo-frontend (main web app) ==="
       
@@ -187,7 +183,7 @@ for svc in "${SERVICES[@]}"; do
       kubectl rollout restart deployment/echo-static -n "$NAMESPACE" || true
       ;;
 
-    *)
+    (default)
       echo "Unknown service: $svc (skipping)"
       ;;
   esac

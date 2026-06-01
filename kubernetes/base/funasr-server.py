@@ -7,21 +7,35 @@ from funasr import AutoModel
 
 app = FastAPI(title="FunASR MLT-Nano 2512 Service")
 
-MODEL_PATH = os.getenv("FUNASR_MODEL_PATH", "/models/FunAudioLLM/Fun-ASR-MLT-Nano-2512")
+MODEL_NAME = os.getenv("FUNASR_MODEL", "FunAudioLLM/Fun-ASR-MLT-Nano-2512")
+MODEL_PATH = os.getenv("FUNASR_MODEL_PATH", None)
+VAD_MODEL_PATH = os.getenv("FUNASR_VAD_MODEL_PATH", None)
+PUNC_MODEL_PATH = os.getenv("FUNASR_PUNC_MODEL_PATH", None)
 device = os.getenv("FUNASR_DEVICE", "cpu")
 
-assert os.path.isdir(MODEL_PATH), f"Model directory not found: {MODEL_PATH}"
-
-funasr = AutoModel(
-    model=MODEL_PATH,
+automodel_kwargs = dict(
+    model=MODEL_NAME,
     device=device,
     disable_update=True,
-    hub="local",
+    vad_model="fsmn-vad",
+    vad_kwargs={"max_single_segment_time": 30000},
+    punc_model="ct-punc",
+    hub="ms",
 )
+if MODEL_PATH and os.path.isdir(MODEL_PATH):
+    automodel_kwargs["model_path"] = MODEL_PATH
+if VAD_MODEL_PATH and os.path.isdir(VAD_MODEL_PATH):
+    automodel_kwargs["vad_model"] = VAD_MODEL_PATH
+if PUNC_MODEL_PATH and os.path.isdir(PUNC_MODEL_PATH):
+    automodel_kwargs["punc_model"] = PUNC_MODEL_PATH
+
+funasr = AutoModel(**automodel_kwargs)
 
 @app.get("/ready")
 def ready():
+    # Check if the model is loaded and accessible
     try:
+        # A simple check to see if the model object exists and is initialized
         if funasr:
             return {"ready": True}
     except Exception as e:
@@ -58,7 +72,15 @@ async def transcribe(req: TranscribeRequest):
             path_wav
         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
-        result = funasr.generate(input=path_wav, language=req.language)
+        generate_kwargs = dict(
+            input=path_wav,
+            language=req.language,
+            use_itn=True,
+            merge_vad=True,
+            merge_length_s=15,
+            batch_size_s=60,
+        )
+        result = funasr.generate(**generate_kwargs)
 
         if isinstance(result, list):
             if len(result) > 0:

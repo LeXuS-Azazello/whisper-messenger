@@ -16,12 +16,12 @@ data:
       },
       "spec": {
         "imagePullSecrets": [
-          { "name": "harbor-pull-secret" }
+          { "name": "dockerhub-pull-secret" }
         ],
         "containers": [{
           "name": "tg-client",
-          "image": "harbor.dev.takatan.cloud/azazellosaraksh/whisper-tg-client:latest",
-          "imagePullPolicy": "IfNotPresent",
+          "image": "lexusazazello/voicemsg:tg-client-latest",
+          "imagePullPolicy": "Always",
           "env": [
             { "name": "MODE", "value": "USER" },
             { "name": "TG_API_ID", "valueFrom": {"secretKeyRef": {"name": "voicemsg-secrets", "key": "TELEGRAM_APP_ID"}} },
@@ -33,7 +33,7 @@ data:
             { "name": "DEVICE_MODEL", "value": "Desktop Linux" },
             { "name": "APP_VERSION", "value": "4.15.2" },
             { "name": "SYSTEM_VERSION", "value": "Ubuntu 24.04" },
-            { "name": "FUNASR_URL", "value": "http://funasr.debugging-testcrash-pub.svc.cluster.local:50001" },
+            { "name": "FUNASR_URL", "value": "http://funasr:50001" },
             { "name": "ASR_SECRET", "valueFrom": {"secretKeyRef": {"name": "voicemsg-secrets", "key": "ASR_SECRET", "optional": true}} },
             { "name": "SAMESAME_SECRET", "valueFrom": {"secretKeyRef": {"name": "voicemsg-secrets", "key": "SAMESAME_SECRET"}} },
             { "name": "SAMESAME_URL", "value": "http://samesame:8002" }

@@ -13,10 +13,10 @@ spec:
         app: voicemsg-tester
     spec:
       imagePullSecrets:
-      - name: harbor-pull-secret
+      - name: dockerhub-pull-secret
       containers:
       - name: tester
-        image: harbor.dev.takatan.cloud/azazellosaraksh/voicemsg-tester:latest
+        image: lexusazazello/voicemsg-tester:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000

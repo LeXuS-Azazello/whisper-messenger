@@ -14,59 +14,72 @@ spec:
         app: funasr
     spec:
       imagePullSecrets:
-        - name: harbor-pull-secret
-      initContainers:
-        - name: download-models
-          image: harbor.dev.takatan.cloud/azazellosaraksh/modelscope-runner:latest
-          command:
-            - "modelscope"
-            - "download"
-            - "--model_id"
-            - "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
-            - "--cache_dir"
-            - "/models"
-          env:
-            - name: MODELSCOPE_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: modelscope-token
-                  key: MODELSCOPE_TOKEN
-          volumeMounts:
-            - name: models
-              mountPath: /models
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
-              memory: "1Gi"
+        - name: dockerhub-pull-secret
       containers:
         - name: funasr-api
-          image: harbor.dev.takatan.cloud/azazellosaraksh/funasr:latest
-          imagePullPolicy: Always
+          image: lexusazazello/voicemsg:funasr-latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 50001
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 50001
+            initialDelaySeconds: 120
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 20
           env:
             - name: FUNASR_MODEL
               value: "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
             - name: FUNASR_DEVICE
               value: "cpu"
             - name: FUNASR_MODEL_PATH
-              value: "/models"
+              value: "/models/FunAudioLLM/Fun-ASR-MLT-Nano-2512"
+            - name: FUNASR_VAD_MODEL_PATH
+              value: "/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+            - name: FUNASR_PUNC_MODEL_PATH
+              value: "/models/iic/punc_ct-transformer_cn-en-common-vocab471067-large"
+            - name: FUNASR_DISABLE_UPDATE
+              value: "true"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "8Gi"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
           volumeMounts:
             - name: models
               mountPath: "/models"
+            - name: funasr-server-patch
+              mountPath: "/app/server.py"
+              subPath: "server.py"
       volumes:
         - name: models
           persistentVolumeClaim:
-            claimName: samesame-model-cache
-
+            claimName: funasr-model-pvc
+        - name: funasr-server-patch
+          configMap:
+            name: funasr-server
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: funasr
+  namespace: debugging-testcrash-pub
+spec:
+  selector:
+    app: funasr
+  ports:
+    - port: 50001
+      targetPort: 50001
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: funasr-model-pvc
+  namespace: debugging-testcrash-pub
 spec:
   accessModes:
     - ReadWriteOnce

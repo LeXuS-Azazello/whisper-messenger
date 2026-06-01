@@ -2,6 +2,7 @@ export function telegramLangToNLLB(code) {
   if (!code) return null;
   const map = {
     ru: 'rus_Cyrl', en: 'eng_Latn', de: 'deu_Latn', fr: 'fra_Latn', es: 'spa_Latn', it: 'ita_Latn', pt: 'por_Latn', nl: 'nld_Latn', pl: 'pol_Latn', tr: 'tur_Latn',
+    ua: 'ukr_Cyrl',
     th: 'tha_Thai', vi: 'vie_Latn', id: 'ind_Latn', ms: 'msa_Latn', ja: 'jpn_Jpan', ko: 'kor_Hang',
     zh: 'zho_Hans', 'zh-hans': 'zho_Hans', 'zh-cn': 'zho_Hans', 'zh-hant': 'zho_Hant', 'zh-tw': 'zho_Hant', 'zh-hk': 'zho_Hant',
     hi: 'hin_Deva', bn: 'ben_Beng', ta: 'tam_Taml', te: 'tel_Telu', mr: 'mar_Deva', gu: 'guj_Gujr', pa: 'pan_Guru',

@@ -25,7 +25,7 @@ spec:
         app: redis
     spec:
       imagePullSecrets:
-      - name: harbor-pull-secret
+      - name: dockerhub-pull-secret
       containers:
       - name: redis
         image: redis:7-alpine

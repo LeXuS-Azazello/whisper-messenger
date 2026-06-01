@@ -26,35 +26,36 @@ fi
 
 # Image configuration
 TAG=$(date +%Y%m%d-%H%M%S)
-HARBOR_HOST="${HARBOR_HOST:-harbor.dev.takatan.cloud}"
-PROJECT_NAME="${HARBOR_PROJECT:-azazellosaraksh}"
-REPO="${HARBOR_HOST}/${PROJECT_NAME}"
+DOCKER_HUB_REGISTRY="index.docker.io"
+DOCKER_HUB_API_HOST="hub.docker.com"
+PROJECT_NAME="voicemsg"
+REPO="${DOCKER_HUB_REGISTRY}/${DOCKER_HUB_USERNAME}/${PROJECT_NAME}"
 
-# Ensure Harbor project exists
-if [[ -n "${HARBOR_USER:-}" && -n "${HARBOR_PASS:-}" ]]; then
-    echo ">>> Checking/Creating Harbor project '$PROJECT_NAME'..."
-    API_URL="${HARBOR_API_URL:-https://${HARBOR_HOST}/api/v2.0}"
-    curl -s -u "$HARBOR_USER:$HARBOR_PASS" -X POST "${API_URL}/projects" \
+# Ensure Docker Hub repository exists
+if [[ -n "${DOCKER_HUB_USERNAME:-}" && -n "${DOCKER_HUB_PASSWORD:-}" ]]; then
+    echo ">>> Checking/Creating Docker Hub repository '$PROJECT_NAME'..."
+    API_URL="${DOCKER_HUB_API_URL:-https://${DOCKER_HUB_HOST}/v2}"
+    curl -s -u "$DOCKER_HUB_USERNAME:$DOCKER_HUB_PASSWORD" -X POST "${API_URL}/repositories" \
       -H "Content-Type: application/json" \
-      -d "{\"project_name\": \"$PROJECT_NAME\", \"metadata\": {\"public\": \"false\"}}" || echo "Project might already exist (ensuring it is private)..."
+      -d "{\"project_name\": \"$PROJECT_NAME\", \"metadata\": {\"public\": \"false\"}}" || echo "Repository might already exist (ensuring it is private)..."
     
-    # Update project to private if it exists
-    curl -s -u "$HARBOR_USER:$HARBOR_PASS" -X PUT "${API_URL}/projects/$PROJECT_NAME" \
+    # Update repository to private if it exists
+    curl -s -u "$DOCKER_HUB_USERNAME:$DOCKER_HUB_PASSWORD" -X PUT "${API_URL}/repositories/$PROJECT_NAME" \
       -H "Content-Type: application/json" \
       -d "{\"metadata\": {\"public\": \"false\"}}" || true
 
-    echo ">>> Creating Kubernetes imagePullSecret 'harbor-pull-secret'..."
-    kubectl create secret docker-registry harbor-pull-secret \
-      --docker-server="$HARBOR_HOST" \
-      --docker-username="$HARBOR_USER" \
-      --docker-password="$HARBOR_PASS" \
+    echo ">>> Creating Kubernetes imagePullSecret 'dockerhub-pull-secret'..."
+    kubectl create secret docker-registry dockerhub-pull-secret \
+      --docker-server="$DOCKER_HUB_REGISTRY" \
+      --docker-username="$DOCKER_HUB_USERNAME" \
+      --docker-password="$DOCKER_HUB_PASSWORD" \
       --docker-email="admin@$(grep '^DOMAIN=' .env | cut -d= -f2)" \
       -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
     
-    echo ">>> Logging into Harbor..."
-    echo "$HARBOR_PASS" | docker login "$HARBOR_HOST" -u "$HARBOR_USER" --password-stdin
+    echo ">>> Logging into Docker Hub..."
+    echo "$DOCKER_HUB_PASSWORD" | docker login "$DOCKER_HUB_REGISTRY" -u "$DOCKER_HUB_USERNAME" --password-stdin
     
-    echo ">>> Mirroring third-party images to Harbor..."
+    echo ">>> Mirroring third-party images to Docker Hub..."
     IMAGES_TO_MIRROR=(
         "mongo:latest"
         "redis:7-alpine"
@@ -70,11 +71,11 @@ if [[ -n "${HARBOR_USER:-}" && -n "${HARBOR_PASS:-}" ]]; then
         [[ "$NAME" == "$TAG_PART" ]] && TAG_PART="latest"
     
         
-        TARGET="${REPO}/${NAME}:${TAG_PART}"
+        TARGET="${DOCKER_HUB_REGISTRY}/${DOCKER_HUB_USERNAME}/${NAME}:${TAG_PART}"
         
         # Skip mirroring if already exists (to save bandwidth)
         if docker manifest inspect "$TARGET" >/dev/null 2>&1; then
-            echo ">>> Image $TARGET already exists in Harbor, skipping mirror."
+            echo ">>> Image $TARGET already exists in Docker Hub, skipping mirror."
             continue
         fi
 
@@ -149,7 +150,7 @@ build_and_push_image() {
     local image_path=$2
     local dockerfile=$3
     local image_tag=$4
-    local latest_image="${REPO}/${name}:latest"
+    local latest_image="${REPO}:${name}-latest"
     
     if [ "$SKIP_BUILD" = "true" ]; then
         echo ">>> [SKIP BUILD] Using existing ${latest_image} in Harbor"
@@ -170,40 +171,35 @@ build_and_push_image() {
     if [ "$name" = "whisper-frontend" ]; then
         echo ">>> [FORCE REBUILD] whisper-frontend — always recompiling all TypeScript/Preact to pick up UI changes"
         echo ">>> [BUILD] Building and pushing $name..."
-        docker build -t "$image_tag" -f "$dockerfile" "$image_path"
-        docker tag "$image_tag" "$latest_image"
-        docker push "$image_tag"
+        docker build -t "$latest_image" -f "$dockerfile" "$image_path"
         docker push "$latest_image"
         
         echo ">>> [CLEANUP] Removing local images to save space..."
-        docker rmi "$image_tag" "$latest_image" || true
+        docker rmi "$latest_image" || true
     elif [ "$has_latest" = "true" ] && ! check_dir_changed "$image_path"; then
-        echo ">>> [SKIP BUILD] $name has not changed. Re-tagging existing latest image..."
-        docker tag "$latest_image" "$image_tag"
-        docker push "$image_tag"
+        echo ">>> [SKIP BUILD] $name has not changed. Using existing latest image..."
+        return 0
     else
         echo ">>> [BUILD] Building and pushing $name..."
-        docker build -t "$image_tag" -f "$dockerfile" "$image_path"
-        docker tag "$image_tag" "$latest_image"
-        docker push "$image_tag"
+        docker build -t "$latest_image" -f "$dockerfile" "$image_path"
         docker push "$latest_image"
         
         echo ">>> [CLEANUP] Removing local images to save space..."
-        docker rmi "$image_tag" "$latest_image" || true
+        docker rmi "$latest_image" || true
     fi
 }
 
-FRONTEND_IMAGE="${REPO}/whisper-frontend:${TAG}"
-MANAGER_IMAGE="${REPO}/whisper-tg-client-manager:${TAG}"
-TG_CLIENT_IMAGE="${REPO}/whisper-tg-client:${TAG}"
-TESTER_IMAGE="${REPO}/whisper-tester:${TAG}"
-FCA_MANAGER_IMAGE="${REPO}/facebook-fca-manager:${TAG}"
-FCA_CLIENT_IMAGE="${REPO}/facebook-fca-client:${TAG}"
-INSTA_MANAGER_IMAGE="${REPO}/instagram-fca-manager:${TAG}"
-INSTA_CLIENT_IMAGE="${REPO}/instagram-fca-client:${TAG}"
-WA_MANAGER_IMAGE="${REPO}/whatsapp-baileys-manager:${TAG}"
-WA_CLIENT_IMAGE="${REPO}/whatsapp-baileys-client:${TAG}"
-SAMESAME_IMAGE="${REPO}/samesame:${TAG}"
+FRONTEND_IMAGE="${REPO}:frontend-${TAG}"
+MANAGER_IMAGE="${REPO}:tg-client-manager-${TAG}"
+TG_CLIENT_IMAGE="${REPO}:tg-client-${TAG}"
+TESTER_IMAGE="${REPO}:tester-${TAG}"
+FCA_MANAGER_IMAGE="${REPO}:facebook-fca-manager-${TAG}"
+FCA_CLIENT_IMAGE="${REPO}:facebook-fca-client-${TAG}"
+INSTA_MANAGER_IMAGE="${REPO}:instagram-fca-manager-${TAG}"
+INSTA_CLIENT_IMAGE="${REPO}:instagram-fca-client-${TAG}"
+WA_MANAGER_IMAGE="${REPO}:whatsapp-baileys-manager-${TAG}"
+WA_CLIENT_IMAGE="${REPO}:whatsapp-baileys-client-${TAG}"
+SAMESAME_IMAGE="${REPO}:samesame-${TAG}"
 
 
 echo ">>> Building and pushing Docker images..."
@@ -281,7 +277,10 @@ echo ""
 if [ "$SKIP_BUILD" = "true" ]; then
     echo ">>> [SKIP BUILD] Skipping image updates - using existing Harbor images"
     echo ">>> Applying base resources via kustomize..."
-    kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || echo "Warning: Some resources failed to apply (likely RBAC restrictions)."
+    kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || {
+        echo "ERROR: Failed to apply base resources."
+        exit 1
+    }
 else
     echo ">>> Checking if model downloader Jobs are needed (skip if models already present)..."
     # We no longer blindly delete + recreate downloaders.
@@ -289,19 +288,11 @@ else
     # We only launch them if the corresponding Deployment does not have ready replicas yet.
 
     echo ">>> Applying base resources via kustomize..."
-    kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || echo "Warning: Some resources failed to apply (likely RBAC restrictions). Proceeding to update images..."
+    kubectl apply -k kubernetes/base/ -n "$NAMESPACE" || {
+        echo "ERROR: Failed to apply base resources."
+        exit 1
+    }
     echo ""
-
-    # Update image in k8s manifests
-    echo ">>> Updating image tags in Deployments..."
-    kubectl set image deployment/echo-frontend frontend="$FRONTEND_IMAGE" -n "$NAMESPACE"
-    kubectl rollout restart deployment/echo-frontend -n "$NAMESPACE" || true
-
-    # Update echo-static initContainer so that new static assets (CSS, etc.) are picked up
-    kubectl set image deployment/echo-static \
-      build-assets="$FRONTEND_IMAGE" -n "$NAMESPACE" || true
-
-    kubectl rollout restart deployment/echo-static -n "$NAMESPACE" || true
 
 echo ">>> Whisper Service v2 + Samesame deployed."
 
@@ -322,6 +313,15 @@ echo ">>> Whisper Service v2 + Samesame deployed."
     else
       echo ">>> Launching samesame model downloader Job..."
       kubectl create -f kubernetes/base/samesame-downloader-job.yaml -n "$NAMESPACE" || true
+    fi
+
+    # FunASR models check
+    FUNASR_READY=$(kubectl get deploy funasr -n "$NAMESPACE" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+    if [ "${FUNASR_READY:-0}" -ge 1 ]; then
+      echo ">>> FunASR models appear ready — skipping downloader Job"
+    else
+      echo ">>> Launching funasr model downloader Job..."
+      kubectl create -f kubernetes/base/funasr-model-downloader-job.yaml -n "$NAMESPACE" || true
     fi
 
     echo ">>> Waiting for model deployments to become Ready (downloaders run only if needed)..."

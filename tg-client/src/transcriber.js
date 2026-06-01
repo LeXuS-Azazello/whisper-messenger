@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { telegramLangToNLLB } from '../../src/lang.js';
+import { telegramLangToNLLB } from './lang.js';
+import { FUNASR_URL, redis } from './config.js';
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 360; // ~12 minutes at 2s interval (still generous)
@@ -118,22 +119,6 @@ async function _transcribeOnce(url, fileBuffer, mime_type, language, target_lang
 
   const data = await response.json();
 
-  if (isSenseVoice) {
-    const resData = data.result && data.result[0];
-    data.text = resData ? resData.text : "";
-    data.language = resData ? resData.language : "unknown";
-
-    // SenseVoice hallucination cleanup
-    let cleanText = data.text.replace(/<\|.*?\|>/g, '').trim();
-    if (/^(嗯|啊|哦|угу|м|да|ну)+[.!?,。]*$/i.test(cleanText) || cleanText === '嗯' || cleanText === '嗯.' || cleanText === '嗯。') {
-      cleanText = '';
-    }
-    data.text = cleanText;
-  } else if (isFunASR) {
-    data.text = data.text || data.transcription || "";
-  }
-
-  // If server returned a jobId instead of result, poll
   if (data.jobId || data.id) {
     const jobId = data.jobId || data.id;
     console.log(`[transcriber] submit ${submitMs}ms → got jobId ${jobId} (immediate poll path)`);
@@ -152,7 +137,7 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
     console.error('[transcriber] redis error:', e.message);
   }
   if (!url) {
-    url = FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+    url = FUNASR_URL || 'http://funasr:50001';
   }
 
   if (!url.startsWith('http://') && !url.startsWith('https://')) {

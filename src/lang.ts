@@ -2,7 +2,7 @@ export function telegramLangToNLLB(code: string | null | undefined): string | nu
   if (!code) return null;
   const map: Record<string, string> = {
     // Major
-    ru: 'rus_Cyrl', en: 'eng_Latn', de: 'deu_Latn', fr: 'fra_Latn', es: 'spa_Latn', it: 'ita_Latn', pt: 'por_Latn', nl: 'nld_Latn', pl: 'pol_Latn', tr: 'tur_Latn',
+    ru: 'rus_Cyrl', ua: 'ukr_Cyrl', en: 'eng_Latn', de: 'deu_Latn', fr: 'fra_Latn', es: 'spa_Latn', it: 'ita_Latn', pt: 'por_Latn', nl: 'nld_Latn', pl: 'pol_Latn', tr: 'tur_Latn',
     // Asian
     th: 'tha_Thai', vi: 'vie_Latn', id: 'ind_Latn', ms: 'msa_Latn', ja: 'jpn_Jpan', ko: 'kor_Hang',
     // Chinese

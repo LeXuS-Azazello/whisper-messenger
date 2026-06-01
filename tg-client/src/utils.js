@@ -73,6 +73,7 @@ export function telegramLangToNLLB(code) {
     const map = {
         // Major
         'ru': 'rus_Cyrl',
+        'ua': 'ukr_Cyrl',
         'en': 'eng_Latn',
         'de': 'deu_Latn',
         'fr': 'fra_Latn',

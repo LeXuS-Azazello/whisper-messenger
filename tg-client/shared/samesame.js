@@ -21,7 +21,7 @@
  */
 
 
-import { telegramLangToNLLB } from '../../src/lang.js';
+import { telegramLangToNLLB } from '../src/lang.js';
 
 const DEFAULT_SAMESAME_URL = 'http://samesame:8002';
 const DEFAULT_OUTPUT_FORMAT = 'ogg';

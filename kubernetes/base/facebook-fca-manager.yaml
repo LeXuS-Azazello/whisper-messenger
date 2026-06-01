@@ -17,18 +17,18 @@ data:
         "containers": [
           {
             "name": "facebook-fca-client",
-            "image": "harbor.dev.takatan.cloud/azazellosaraksh/facebook-fca-client:latest",
+            "image": "lexusazazello/facebook-fca-client:latest",
             "imagePullPolicy": "IfNotPresent",
-              "env": [
-                {
-                  "name": "FUNASR_URL",
-                  "value": "http://funasr.debugging-testcrash-pub.svc.cluster.local:50001"
-                },
-                {
-                  "name": "REDIS_URL",
-                  "value": "redis://redis:6379"
-                }
-              ],
+            "env": [
+              {
+                "name": "FUNASR_URL",
+                "value": "http://funasr:50001"
+              },
+              {
+                "name": "REDIS_URL",
+                "value": "redis://redis:6379"
+              }
+            ],
             "resources": {
               "requests": {
                 "cpu": "100m",
@@ -43,7 +43,7 @@ data:
         ],
         "imagePullSecrets": [
           {
-            "name": "harbor-pull-secret"
+            "name": "dockerhub-pull-secret"
           }
         ],
         "restartPolicy": "Never"
@@ -66,10 +66,10 @@ spec:
     spec:
       serviceAccountName: voicemsg-client-manager
       imagePullSecrets:
-      - name: harbor-pull-secret
+        - name: dockerhub-pull-secret
       containers:
       - name: manager
-        image: harbor.dev.takatan.cloud/azazellosaraksh/facebook-fca-manager:latest
+        image: lexusazazello/facebook-fca-manager:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3003

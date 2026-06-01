@@ -18,12 +18,12 @@ data:
         "containers": [
           {
             "name": "instagram-fca-client",
-            "image": "harbor.dev.takatan.cloud/azazellosaraksh/instagram-fca-client:latest",
+            "image": "lexusazazello/instagram-fca-client:latest",
             "imagePullPolicy": "IfNotPresent",
               "env": [
                 {
                   "name": "FUNASR_URL",
-                  "value": "http://funasr.debugging-testcrash-pub.svc.cluster.local:50001/v1/transcribe-base64"
+                  "value": "http://funasr:50001"
                 },
                 {
                   "name": "WHISPER_SECRET",
@@ -66,7 +66,7 @@ data:
         ],
         "imagePullSecrets": [
           {
-            "name": "harbor-pull-secret"
+            "name": "dockerhub-pull-secret"
           }
         ],
         "restartPolicy": "Never"
@@ -89,42 +89,31 @@ spec:
     spec:
       serviceAccountName: voicemsg-client-manager
       imagePullSecrets:
-      - name: harbor-pull-secret
+        - name: dockerhub-pull-secret
       containers:
-      - name: manager
-        image: harbor.dev.takatan.cloud/azazellosaraksh/instagram-fca-manager:latest
-        imagePullPolicy: IfNotPresent
-        ports:
+        - name: manager
+          image: lexusazazello/instagram-fca-manager:latest
+          imagePullPolicy: IfNotPresent
+          ports:
         - containerPort: 3005
-        resources:
-          requests:
-            cpu: "500m"
-            memory: "512Mi"
-          limits:
-            cpu: "2"
-            memory: "2Gi"
-        env:
-        - name: MODE
-          value: "MANAGER"
-        - name: PORT
-          value: "3005"
-        - name: SECRET
-          valueFrom:
-            secretKeyRef:
-              name: voicemsg-secrets
-              key: MANAGER_SECRET
-        - name: REDIS_URL
-          value: "redis://redis:6379"
-        - name: MONGODB_URI
-          value: "mongodb://mongodb:27017/voicemsg"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: instagram-fca-manager
-spec:
-  selector:
-    app: instagram-fca-manager
-  ports:
-  - port: 3005
-    targetPort: 3005
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          env:
+          - name: MODE
+            value: "MANAGER"
+          - name: PORT
+            value: "3005"
+          - name: SECRET
+            valueFrom:
+              secretKeyRef:
+                name: voicemsg-secrets
+                key: MANAGER_SECRET
+          - name: REDIS_URL
+            value: "redis://redis:6379"
+          - name: MONGODB_URI
+            value: "mongodb://mongodb:27017/voicemsg"

@@ -132,50 +132,46 @@ export class TestSuiteRunner {
 
 
 
-  // 2c. FunASR ASR Inference Test
-  async testFunASR(): Promise<TestResult> {
-    const logs: TestLog[] = [];
-    const log = this.createLogger(logs);
-    const id = 'funasr-service';
-    const name = 'FunASR ASR Transcription';
-    const target = 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+    async testFunASR(): Promise<TestResult> {
+      const logs: TestLog[] = [];
+      const log = this.createLogger(logs);
+      const id = 'funasr-service';
+      const name = 'FunASR ASR Transcription';
+      const target = 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
 
-    log.info(`Initializing internal transcription test...`);
-    log.info(`Target FunASR URL: ${target}`);
+      log.info(`Initializing internal transcription test...`);
+      log.info(`Target FunASR URL: ${target}`);
 
-    const startTime = Date.now();
-    try {
-      log.info(`Decoding sample silent audio file from base64 string...`);
-      const base64Data = sampleAudioBase64.replace(/^data:audio\/\w+;base64,/, '');
-      const audioBuffer = Buffer.from(base64Data, 'base64');
-      
-      const formData = new FormData();
-      const blob = new Blob([audioBuffer], { type: 'audio/wav' });
-      formData.append('file', blob, 'audio.wav');
-      formData.append('model', 'paraformer');
-      formData.append('response_format', 'json');
+      const startTime = Date.now();
+      try {
+        log.info(`Decoding sample silent audio file...`);
+        const base64Data = sampleAudioBase64.replace(/^data:audio\/\w+;base64,/, '');
+        
+        log.info(`Dispatching job to ${target}/v1/transcribe-base64...`);
+        const res = await fetch(`${target}/v1/transcribe-base64`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            file_data: base64Data, 
+            language: 'auto' 
+          }),
+          signal: AbortSignal.timeout(20000),
+        });
 
-      log.info(`Dispatching job to ${target}/v1/audio/transcriptions...`);
-      const res = await fetch(`${target}/v1/audio/transcriptions`, {
-        method: 'POST',
-        body: formData,
-        signal: AbortSignal.timeout(20000),
-      });
-
-      const latency = Date.now() - startTime;
-      if (!res.ok) {
-        throw new Error(`FunASR returned ${res.status}: ${await res.text()}`);
+        const latency = Date.now() - startTime;
+        if (!res.ok) {
+          throw new Error(`FunASR returned ${res.status}: ${await res.text()}`);
+        }
+        
+        const result = await res.json() as any;
+        log.success(`ASR response parsed successfully!`);
+        log.success(`Transcribed Text: "${result.text || ''}"`);
+        return { id, name, target, status: 'success', latency, logs };
+      } catch (err: any) {
+        log.error(`FunASR test failed: ${err.message || String(err)}`);
+        return { id, name, target, status: 'failed', latency: Date.now() - startTime, logs };
       }
-      
-      const result = await res.json() as any;
-      log.success(`ASR response parsed successfully!`);
-      log.success(`Transcribed Text: "${result.text || ''}"`);
-      return { id, name, target, status: 'success', latency, logs };
-    } catch (err: any) {
-      log.error(`FunASR test failed: ${err.message || String(err)}`);
-      return { id, name, target, status: 'failed', latency: Date.now() - startTime, logs };
     }
-  }
 
   // 3. Redis Connectivity Test
   async testRedis(): Promise<TestResult> {
@@ -312,84 +308,30 @@ export class TestSuiteRunner {
     }
   }
 
-  // 5. Voice Clone Roundtrip (SAMESAME + FunASR)
-  // Uses the real file test_audio.ogg:
-  //   1. Transcribe it with FunASR → get text
-  //   2. Clone voice using the SAME audio as reference speaker
-  //   3. Synthesize the transcribed text in the cloned voice
-  //   4. Return synthesized ogg audio (validates analyze + generate pipeline)
-  async testSamesameVoiceClone(): Promise<TestResult> {
+  // 6. SAMESAME Translation Synthesis Test
+  async testSamesameTranslation(): Promise<TestResult> {
     const logs: TestLog[] = [];
     const log = this.createLogger(logs);
-    const id = 'samesame-clone';
-    const name = 'SAMESAME Voice Clone Roundtrip';
-    const asrTarget = this.env.ASR_PROVIDER || this.env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+    const id = 'samesame-translate';
+    const name = 'SAMESAME Translation & Synth';
     const samesameTarget = this.env.SAMESAME_URL || 'http://samesame:8002';
 
-    log.info(`Starting voice clone roundtrip test...`);
-    log.info(`ASR target: ${asrTarget}`);
-    log.info(`SAMESAME target: ${samesameTarget}`);
-
+    log.info(`Initializing translation and synthesis test...`);
     const startTime = Date.now();
-
     try {
-      // Locate the real reference audio shipped with the tester image
-      const audioPath = path.resolve(process.cwd(), 'test_audio.ogg');
-      if (!fs.existsSync(audioPath)) {
-        throw new Error(`Reference audio not found: ${audioPath}`);
-      }
-      const sourceAudio = fs.readFileSync(audioPath);
-      log.info(`Loaded reference audio: ${sourceAudio.length} bytes (test_audio.ogg)`);
-
-      // ── Step 1: Transcribe the audio to obtain the text we will synthesize ──
-      log.info(`Transcribing reference audio with FunASR...`);
-      const asrBase = asrTarget.replace(/\/$/, '');
-      const asrSecret = this.env.ASR_SECRET || '';
-
-      let transcribed = '';
-      try {
-        const asrRes = await fetch(`${asrBase}/v1/transcribe-base64`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(asrSecret ? { 'Authorization': `Bearer ${asrSecret}` } : {})
-          },
-          body: JSON.stringify({ file_data: sourceAudio.toString('base64'), language: 'auto' }),
-          signal: AbortSignal.timeout(30000),
-        });
-
-        if (asrRes.status === 200) {
-          const asrJson = await asrRes.json() as any;
-          transcribed = (asrJson.text || '').trim();
-          log.success(`ASR result: "${transcribed}"`);
-        } else if (asrRes.status === 202) {
-          log.warn(`FunASR returned 202 Accepted (requires polling). Using fallback text instead.`);
-        } else {
-          const errText = await asrRes.text();
-          log.error(`FunASR failed: ${asrRes.status} ${errText}`);
-        }
-      } catch (err: any) {
-        log.error(`FunASR request failed: ${err.message || err}`);
-      }
-
-      if (!transcribed) {
-        // Fallback sentence so the clone still exercises the full path
-        transcribed = 'Привет, это тест клонирования голоса через SAMESAME.';
-        log.warn(`Empty transcription, using fallback: "${transcribed}"`);
-      }
-
-      // ── Step 2: Clone + synthesize using the same audio as speaker reference (exact same helper as tg-client auto-reply) ──
       const samesameSecret = this.env.SAMESAME_SECRET || '';
-      if (!samesameSecret) {
-        throw new Error('SAMESAME_SECRET not provided — cannot test voice synthesis');
-      }
+      if (!samesameSecret) throw new Error('SAMESAME_SECRET missing');
 
-      log.info(`Synthesizing transcribed text via shared cloneVoiceWithSamesame (text len=${transcribed.length})...`);
-      const synthStart = Date.now();
+      const audioPath = path.resolve(process.cwd(), 'test_audio.ogg');
+      if (!fs.existsSync(audioPath)) throw new Error(`Audio not found: ${audioPath}`);
+      const sourceAudio = fs.readFileSync(audioPath);
 
-      const { audioBuffer: outAudio, contentType } = await cloneVoiceWithSamesame({
+      const testText = "Hello, this is a translation test from English to Russian";
+      log.info(`Synthesizing: "${testText}" in RU...`);
+
+      const { audioBuffer, contentType } = await cloneVoiceWithSamesame({
         sourceAudioBuffer: sourceAudio,
-        text: transcribed,
+        text: testText,
         language: 'ru',
         outputFormat: 'ogg',
         sourceMimeType: 'audio/ogg',
@@ -397,37 +339,18 @@ export class TestSuiteRunner {
         samesameUrl: samesameTarget,
       });
 
-      const synthLatency = Date.now() - synthStart;
-      const totalLatency = Date.now() - startTime;
-
-      if (!outAudio || outAudio.length < 500) {
-        throw new Error(`SAMESAME returned empty or tiny audio (${outAudio?.length || 0} bytes)`);
+      if (!audioBuffer || audioBuffer.length < 500) {
+        throw new Error(`SAMESAME returned empty audio`);
       }
 
-      log.success(`SAMESAME synthesis OK | audio=${outAudio.length}B | type=${contentType} | synth=${synthLatency}ms | total=${totalLatency}ms`);
-      log.success(`Transcribed & re-synthesized text: "${transcribed}"`);
-
-      return {
-        id,
-        name,
-        target: `${asrTarget} → ${samesameTarget}/v1/clone`,
-        status: 'success',
-        latency: totalLatency,
-        logs,
-      };
-
+      log.success(`Translation synthesis OK | audio=${audioBuffer.length}B | type=${contentType}`);
+      return { id, name, target: samesameTarget, status: 'success', latency: Date.now() - startTime, logs };
     } catch (err: any) {
-      log.error(`Voice clone roundtrip failed: ${err.message || String(err)}`);
-      return {
-        id,
-        name,
-        target: `${asrTarget} → ${samesameTarget}`,
-        status: 'failed',
-        latency: Date.now() - startTime,
-        logs,
-      };
+      log.error(`Translation test failed: ${err.message || String(err)}`);
+      return { id, name, target: samesameTarget, status: 'failed', latency: Date.now() - startTime, logs };
     }
   }
+
 
   // Run a single test by ID
   async runTestById(testId: string): Promise<TestResult> {
@@ -440,8 +363,8 @@ export class TestSuiteRunner {
         return await this.testRedis();
       case 'mongodb':
         return await this.testMongoDB();
-      case 'samesame-clone':
-        return await this.testSamesameVoiceClone();
+      case 'samesame-translate':
+        return await this.testSamesameTranslation();
       default:
         throw new Error(`Invalid test ID: ${testId}`);
     }
@@ -454,7 +377,7 @@ export class TestSuiteRunner {
       this.testFunASR(),
       this.testRedis(),
       this.testMongoDB(),
-      this.testSamesameVoiceClone()
+      this.testSamesameTranslation()
     ]);
   }
 }

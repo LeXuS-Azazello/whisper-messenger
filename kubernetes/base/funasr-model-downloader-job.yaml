@@ -1,12 +1,12 @@
-# samesame Model Downloader Job
-# One-time (or on-demand) Job that downloads the TTS models into the PVC used by the samesame Deployment.
+# funasr Model Downloader Job
+# One-time (or on-demand) Job that downloads the ASR models into the PVC used by the funasr Deployment.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: samesame-model-downloader
+  name: funasr-model-downloader
   namespace: debugging-testcrash-pub
   labels:
-    app: samesame
+    app: funasr
     component: model-downloader
 spec:
   backoffLimit: 3
@@ -14,7 +14,7 @@ spec:
   template:
     metadata:
       labels:
-        app: samesame
+        app: funasr
         component: model-downloader
     spec:
       restartPolicy: OnFailure
@@ -22,9 +22,9 @@ spec:
         - name: dockerhub-pull-secret
       containers:
         - name: downloader
-          image: lexusazazello/voicemsg:samesame-latest
+          image: lexusazazello/voicemsg:funasr-latest
           imagePullPolicy: IfNotPresent
-          command: ["/bin/sh", "-c", "/scripts/download-models.sh"]
+          command: ["/bin/sh", "-c", "/scripts/funasr-download-models.sh"]
           env:
             - name: MODELS_DIR
               value: "/models"
@@ -40,14 +40,12 @@ spec:
                   key: token
             - name: DOWNLOAD_TIMEOUT
               value: "1800"
-            - name: SAMESAME_MODEL_NAME
-              value: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
-            - name: MODELSCOPE_CACHE
-              value: "/models"
-            - name: HF_HOME
-              value: "/models"
-            - name: COQUI_TOS_AGREED
-              value: "1"
+            - name: FUNASR_MODEL_NAME
+              value: "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
+            - name: FUNASR_VAD_MODEL
+              value: "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+            - name: FUNASR_PUNC_MODEL
+              value: "iic/punc_ct-transformer_cn-en-common-vocab471067-large"
           volumeMounts:
             - name: models
               mountPath: /models
@@ -63,8 +61,8 @@ spec:
       volumes:
         - name: models
           persistentVolumeClaim:
-            claimName: samesame-model-cache
+            claimName: funasr-model-pvc
         - name: scripts
           configMap:
-            name: samesame-download-scripts
+            name: funasr-download-scripts
             defaultMode: 0755

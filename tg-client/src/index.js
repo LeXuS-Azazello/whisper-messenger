@@ -1,5 +1,8 @@
-import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => {
-    const express = (await import('express')).default;
+import 'dotenv/config';
+import express from 'express';
+import { MODE, TARGET_USER_ID } from './config.js';
+
+async function init() {
     const app = express();
     app.use(express.json());
 
@@ -8,7 +11,6 @@ import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => 
     });
 
     app.get('/check-access', async (req, res) => {
-        // In debug mode we don't expose the client
         res.json({ accessible: true, note: 'console-only debug mode' });
     });
 
@@ -48,8 +50,6 @@ import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => 
                     console.error('[tg-client] Failed to notify backend:', fetchErr.message);
                 }
                 
-                // Keep the pod alive just long enough for the manager to delete the deployment, 
-                // preventing Kubernetes from immediately crash-loop-restarting it
                 console.log(`[tg-client] Waiting for manager to delete pod...`);
                 await new Promise(resolve => setTimeout(resolve, 30000));
             }
@@ -57,21 +57,17 @@ import('./config.js').then(async ({ default: config, MODE, TARGET_USER_ID }) => 
         });
     }
 
-
-
     const PORT = process.env.PORT || 3001;
     app.listen(PORT, () => {
         console.log(`[tg-client] Running in ${MODE} mode on port ${PORT}`);
     });
 
-    // HMR support for development
     if (process.env.NODE_ENV !== 'production') {
-        // Enable dynamic reloading of telegramClient
         console.log('[tg-client] Development mode — hot reload enabled');
     }
-}).catch(err => {
+}
+
+init().catch(err => {
     console.error('[tg-client] Failed to initialize:', err);
     process.exit(1);
 });
-
-export default 'tg-client';
