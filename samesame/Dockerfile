@@ -46,6 +46,49 @@ if p.exists():
     print("Patched dataset/processor.py")
 PYEOF
 
+# Патч tokenizer/tokenizer.py: убираем зависимость от whisper.tokenizer.Tokenizer
+RUN python3 << 'PYEOF'
+import pathlib
+p = pathlib.Path('cosyvoice/tokenizer/tokenizer.py')
+if p.exists():
+    t = p.read_text()
+    # Заменяем импорт whisper на заглушку
+    t = t.replace(
+        'from whisper.tokenizer import Tokenizer',
+        '''class Tokenizer:
+    """Stub for whisper.tokenizer.Tokenizer to avoid dependency."""
+    def __init__(self, encoding, num_languages=99, language=None, task=None):
+        self.encoding = encoding
+        self.num_languages = num_languages
+        self.language = language
+        self.task = task'''
+    )
+    p.write_text(t)
+    print("Patched tokenizer/tokenizer.py: whisper.tokenizer.Tokenizer replaced with stub")
+else:
+    print("WARNING: tokenizer/tokenizer.py not found")
+PYEOF
+
+# Патч cli/cosyvoice.py: убираем whisper если есть
+RUN python3 << 'PYEOF'
+import pathlib
+for f in pathlib.Path('cosyvoice').rglob('*.py'):
+    try:
+        t = f.read_text()
+        changed = False
+        if 'import whisper' in t and 'whisper.log_mel_spectrogram' not in t:
+            t = t.replace('import whisper', '# import whisper  # patched')
+            changed = True
+        if 'from whisper' in t and 'whisper.tokenizer' not in t:
+            t = t.replace('from whisper', '# from whisper  # patched')
+            changed = True
+        if changed:
+            f.write_text(t)
+            print(f"Patched {f}")
+    except:
+        pass
+PYEOF
+
 # PyTorch CPU
 RUN pip install --no-cache-dir --upgrade pip "setuptools<70.0.0" wheel
 RUN pip install --no-cache-dir torch==2.3.1+cpu torchaudio==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
