@@ -38,12 +38,8 @@ except Exception as e:
     sys.exit(1)
 
 # Инициализация легковесного Whisper для мгновенного распознавания референса
-try:
-    from faster_whisper import WhisperModel
-    whisper_model = WhisperModel("tiny", device="cpu", compute_type="float32")
-except Exception as e:
-    print(f"[samesame-cosy] WARNING: faster-whisper not found, installing via pip is recommended: {e}")
-    whisper_model = None
+# REMOVED: faster-whisper is now forbidden inside the service.
+whisper_model = None
 
 SAMPLE_RATE = cosyvoice.sample_rate
 SAMESAME_SECRET = os.environ.get("SAMESAME_SECRET")

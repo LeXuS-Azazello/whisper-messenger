@@ -47,8 +47,8 @@ export function ProfilePane({ user }: PaneProps) {
                         <p class="card-description" style={{ marginBottom: '12px' }}>
                             Choose the language your voice messages will be translated to. This setting applies to all your connected messengers.
                         </p>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <select id="preferred-translation-lang" class="input-field" style={{ maxWidth: '320px' }} data-user-id={user.userId}>
+                        <div id="translation-settings-card" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <select id="translation-lang-select" class="input-field" style={{ maxWidth: '320px' }} data-user-id={user.userId}>
                                 <option value="translate_off">🚫 Disabled (default)</option>
                                 <option value="ru">Русский (Russian)</option>
                                 <option value="en">English</option>
@@ -64,9 +64,9 @@ export function ProfilePane({ user }: PaneProps) {
                                 <option value="fr">Français (French)</option>
                                 <option value="es">Español (Spanish)</option>
                             </select>
-                            <button id="save-lang-btn" class="btn btn-primary">Save</button>
+                            <button id="translation-save-btn" class="btn btn-primary">Save</button>
                         </div>
-                        <p id="lang-save-status" style={{ fontSize: '12px', marginTop: '8px', color: '#64748b' }}></p>
+                        <span id="translation-status-badge" class="status-tag inactive" style={{ marginLeft: '8px' }}>DISABLED</span>
                     </div>
                 </div>
             </div>

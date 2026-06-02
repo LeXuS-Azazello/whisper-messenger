@@ -62,6 +62,7 @@ export interface Env {
   // Mail Worker Config
   MAIL_WORKER_URL?: string;
   MAIL_API_TOKEN?: string;
+  TRANSCRIPTION_TIMEOUT_MS: number | string;
 
   // Cloudflare Config
 

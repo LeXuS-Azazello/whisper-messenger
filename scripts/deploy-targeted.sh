@@ -2,11 +2,9 @@
 #
 # Targeted deploy for specific services only.
 # Usage:
-#   ./scripts/deploy-targeted.sh whisper-service-v2
 #   ./scripts/deploy-targeted.sh tg-client samesame
-#   npm run deploy whisper-service-v2 tg-client
+#   npm run deploy tg-client samesame
 #
-
 set -euo pipefail
 
 SERVICES=("$@")

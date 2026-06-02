@@ -61,21 +61,21 @@ echo "----------------------------------------"
 echo "Verifying downloads inside $MODELS_DIR..."
 echo "----------------------------------------"
 
-# Исправленная верификация: ищем папки внутри $MODELS_DIR
-if [ -d "$MODELS_DIR/$MODEL_NAME" ] && [ "$(ls -A "$MODELS_DIR/$MODEL_NAME")" ]; then
-    echo "✅ Main model verification: OK ($MODELS_DIR/$MODEL_NAME)"
+# Верификация: ModelScope хранит кэш в $MODELS_DIR/hub/
+if [ -d "$MODELS_DIR/hub/$MODEL_NAME" ] && [ "$(ls -A "$MODELS_DIR/hub/$MODEL_NAME")" ]; then
+    echo "✅ Main model verification: OK ($MODELS_DIR/hub/$MODEL_NAME)"
 else
     echo "❌ Main model verification: FAILED" && exit 1
 fi
 
-if [ -d "$MODELS_DIR/$VAD_MODEL_NAME" ] && [ "$(ls -A "$MODELS_DIR/$VAD_MODEL_NAME")" ]; then
-    echo "✅ VAD model verification: OK ($MODELS_DIR/$VAD_MODEL_NAME)"
+if [ -d "$MODELS_DIR/hub/$VAD_MODEL_NAME" ] && [ "$(ls -A "$MODELS_DIR/hub/$VAD_MODEL_NAME")" ]; then
+    echo "✅ VAD model verification: OK ($MODELS_DIR/hub/$VAD_MODEL_NAME)"
 else
     echo "❌ VAD model verification: FAILED" && exit 1
 fi
 
-if [ -d "$MODELS_DIR/$PUNC_MODEL_NAME" ] && [ "$(ls -A "$MODELS_DIR/$PUNC_MODEL_NAME")" ]; then
-    echo "✅ Punc model verification: OK ($MODELS_DIR/$PUNC_MODEL_NAME)"
+if [ -d "$MODELS_DIR/hub/$PUNC_MODEL_NAME" ] && [ "$(ls -A "$MODELS_DIR/hub/$PUNC_MODEL_NAME")" ]; then
+    echo "✅ Punc model verification: OK ($MODELS_DIR/hub/$PUNC_MODEL_NAME)"
 else
     echo "❌ Punc model verification: FAILED" && exit 1
 fi

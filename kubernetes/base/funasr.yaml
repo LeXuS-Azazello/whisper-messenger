@@ -4,7 +4,7 @@ metadata:
   name: funasr
   namespace: debugging-testcrash-pub
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: funasr
@@ -37,20 +37,20 @@ spec:
             - name: FUNASR_NCPU
               value: "4" # Добавлено: под лимиты CPU
             - name: FUNASR_MODEL_PATH
-              value: "/models/FunAudioLLM/Fun-ASR-MLT-Nano-2512"
+              value: "/models/hub/FunAudioLLM/Fun-ASR-MLT-Nano-2512"
             - name: FUNASR_VAD_MODEL_PATH
-              value: "/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+              value: "/models/hub/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
             - name: FUNASR_PUNC_MODEL_PATH
-              value: "/models/iic/punc_ct-transformer_cn-en-common-vocab471067-large"
+              value: "/models/hub/iic/punc_ct-transformer_cn-en-common-vocab471067-large"
             - name: FUNASR_DISABLE_UPDATE
               value: "true"
           resources:
             requests:
-              cpu: "2"      # Увеличено, чтобы старт и обработка были быстрее
-              memory: "4Gi" # Nano модели редко требуют 8Gi на старте
+              cpu: "2"
+              memory: "6Gi"
             limits:
               cpu: "4"
-              memory: "8Gi"
+              memory: "12Gi"
           volumeMounts:
             - name: models
               mountPath: "/models"

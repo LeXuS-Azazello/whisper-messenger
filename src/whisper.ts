@@ -25,8 +25,9 @@ export async function transcribeAudio(
 
   const secret = env.WHISPER_SECRET || "";
 
+  const timeoutMs = parseInt(String(env.TRANSCRIPTION_TIMEOUT_MS || '600000'), 10);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     let response;
@@ -34,7 +35,7 @@ export async function transcribeAudio(
     if (isFunASR) {
       const formData = new FormData();
       formData.append("file", new Blob([audio], { type: 'audio/wav' }), "audio.wav");
-      formData.append("model", "paraformer");
+      formData.append("model", "FunAudioLLM/Fun-ASR-Nano-2512");
       formData.append("response_format", "json");
 
       response = await fetch(`${url}/v1/audio/transcriptions`, {
@@ -128,7 +129,7 @@ export async function transcribeAudio(
       detectedLanguage,
       translated: translatedText,
       targetLanguage: targetLanguage || null,
-      model: "funasr-mlt-nano"
+      model: "FunAudioLLM/Fun-ASR-Nano-2512"
     };
   } catch (e) {
     clearTimeout(timeoutId);

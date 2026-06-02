@@ -45,10 +45,10 @@ spec:
           resources:
             requests:
               cpu: "1.5"
-              memory: "4Gi"
+              memory: "6Gi"
             limits:
-              cpu: "1.5"
-              memory: "8Gi"
+              cpu: "2"
+              memory: "12Gi"
           volumeMounts:
             - mountPath: "/models"
               name: models

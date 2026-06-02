@@ -24,8 +24,22 @@ RUN pip install --no-cache-dir modelscope
 RUN git clone --depth 1 https://github.com/FunAudioLLM/CosyVoice.git . \
   && git submodule update --init --recursive
 
-# Безопасный патч импорта torchaudio для CPU окружений (без ломающих Docker переносов строк)
-RUN sed -i '1i\try:\n    import torchaudio.compliance.kaldi as kaldi\nexcept Exception:\n    kaldi = None' cosyvoice/cli/frontend.py
+# # Патч frontend.py: заменяем whisper на torchaudio spectrogram
+
+# RUN python3 << 'PYEOF'
+# import pathlib
+# p = pathlib.Path('cosyvoice/cli/frontend.py')
+# t = p.read_text()
+# # Заменяем импорт whisper на torchaudio спектрограммы
+# t = t.replace('import whisper', 'import torchaudio.transforms as T')
+# # Заменяем вызов whisper.log_mel_spectrogram(...)
+# t = t.replace(
+#     'feat = whisper.log_mel_spectrogram(speech, n_mels=128)',
+#     'mel_transform = T.MelSpectrogram(sample_rate=16000, n_mels=128, n_fft=400, hop_length=160)\n        feat = mel_transform(speech).log2().unsqueeze(0)'
+# )
+# p.write_text(t)
+# print("Patched frontend.py: whisper -> torchaudio")
+# PYEOF
 
 # Обновляем базовый менеджер пакетов
 RUN pip install --no-cache-dir --upgrade pip "setuptools<70.0.0" wheel
@@ -35,32 +49,18 @@ RUN pip install --no-cache-dir torch==2.3.1+cpu torchaudio==2.3.1+cpu -f https:/
 
 # Очистка зависимостей CosyVoice от GPU/тяжелого мусора и установка
 RUN sed -i '/--extra-index-url/d' requirements.txt && \
-    sed -i '/onnxruntime-gpu/d' requirements.txt && \
     sed -i '/tensorrt-cu12/d' requirements.txt && \
     sed -i '/deepspeed/d' requirements.txt && \
     sed -i '/torch/d' requirements.txt && \
     sed -i '/torchaudio/d' requirements.txt && \
     sed -i '/openai-whisper/d' requirements.txt && \
-    pip install --no-cache-dir onnxruntime && \
     pip install --no-cache-dir -r requirements.txt
 
 # Установка пакетов, необходимых для нашего быстрого скрипта озвучки
 RUN pip install --no-cache-dir faster-whisper soundfile fastapi uvicorn pydantic
 
-# Создаем ПРАВИЛЬНЫЙ download_model.py прямо внутри образа
-RUN echo 'import os, sys\n\
-os.environ["CUDA_VISIBLE_DEVICES"] = ""\n\
-MODELS_DIR = sys.argv[1] if len(sys.argv) > 1 else "/models"\n\
-MODEL_NAME = os.environ.get("SAMESAME_MODEL_NAME", "FunAudioLLM/Fun-CosyVoice3-0.5B-2512")\n\
-TARGET_DIR = os.path.join(MODELS_DIR, MODEL_NAME)\n\
-print(f"Downloading model {MODEL_NAME} to {TARGET_DIR}...")\n\
-try:\n\
-    from modelscope import snapshot_download\n\
-    snapshot_download(MODEL_NAME, local_dir=TARGET_DIR)\n\
-    print("Download complete successfully.")\n\
-except Exception as e:\n\
-    print(f"Error downloading model via modelscope: {e}")\n\
-    sys.exit(1)' > /app/download_model.py
+# Install whisper package to satisfy CosyVoice3 dependency
+RUN pip install --no-cache-dir git+https://github.com/openai/whisper.git
 
 # Копируем ваш app.py (когда вы собираете контейнер локально)
 COPY app.py ./
@@ -76,4 +76,4 @@ ENV HF_HOME=/models
 EXPOSE 8002
 
 # Запуск приложения (модуль app теперь железно лежит в /app/app.py)
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8002"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8002", "--workers", "2"]

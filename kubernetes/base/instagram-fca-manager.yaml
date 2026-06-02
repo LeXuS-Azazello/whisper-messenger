@@ -20,48 +20,39 @@ data:
             "name": "instagram-fca-client",
             "image": "lexusazazello/instagram-fca-client:latest",
             "imagePullPolicy": "IfNotPresent",
-              "env": [
-                {
-                  "name": "FUNASR_URL",
-                  "value": "http://funasr:50001"
-                },
-                {
-                  "name": "WHISPER_SECRET",
-                  "valueFrom": {
-                    "secretKeyRef": {
-                      "name": "voicemsg-secrets",
-                      "key": "MANAGER_SECRET"
-                    }
-                  }
-                },
-                {
-                  "name": "MANAGER_URL",
-                  "value": "http://instagram-fca-manager:3005"
-                },
-                {
-                  "name": "SECRET",
-                  "valueFrom": {
-                    "secretKeyRef": {
-                      "name": "voicemsg-secrets",
-                      "key": "MANAGER_SECRET"
-                    }
-                  }
-                },
-                {
-                  "name": "REDIS_URL",
-                  "value": "redis://redis:6379"
-                }
-              ],
-              "resources": {
-                "requests": {
-                  "cpu": "200m",
-                  "memory": "256Mi"
-                },
-                "limits": {
-                  "cpu": "1",
-                  "memory": "1Gi"
-                }
-              }
+               "env": [
+                 {
+                   "name": "FUNASR_URL",
+                   "value": "http://funasr:50001"
+                 },
+                 {
+                   "name": "MANAGER_URL",
+                   "value": "http://instagram-fca-manager:3005"
+                 },
+                 {
+                   "name": "SECRET",
+                   "valueFrom": {
+                     "secretKeyRef": {
+                       "name": "voicemsg-secrets",
+                       "key": "MANAGER_SECRET"
+                     }
+                   }
+                 },
+                 {
+                   "name": "REDIS_URL",
+                   "value": "redis://redis:6379"
+                 }
+               ],
+               "resources": {
+                 "requests": {
+                   "cpu": "200m",
+                   "memory": "256Mi"
+                 },
+                 "limits": {
+                   "cpu": "1",
+                   "memory": "1Gi"
+                 }
+               }
           }
         ],
         "imagePullSecrets": [

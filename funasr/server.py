@@ -6,7 +6,15 @@ import numpy as np
 import torch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from funasr import AutoModel
+# Import AutoModelVLLM if available for acceleration
+try:
+    from funasr import AutoModelVLLM as AutoModel
+    VLLM_ENABLED = True
+    print("[funasr] Using AutoModelVLLM for acceleration")
+except ImportError:
+    from funasr import AutoModel
+    VLLM_ENABLED = False
+    print("[funasr] AutoModelVLLM not found, falling back to standard AutoModel")
 
 # Оптимизация потоков Torch под K8s Limits (cpu limits: "4")
 CPU_CORES = int(os.getenv("FUNASR_NCPU", "4"))
@@ -26,12 +34,18 @@ automodel_kwargs = dict(
     device=device,
     disable_update=True,
     hub="ms",
-    ncpu=CPU_CORES,  # Передаем количество ядер в модель
+    ncpu=CPU_CORES,
 )
+
+# vLLM specific optimizations if enabled
+if VLLM_ENABLED:
+    # Batch acceleration and Tensor Parallel placeholders (adjusted for CPU)
+    automodel_kwargs["batch_size"] = int(os.getenv("FUNASR_BATCH_SIZE", "8"))
+    automodel_kwargs["tp_size"] = 1 # CPU typically 1
 
 # Подгрузка локальных путей, если они есть
 if MODEL_PATH and os.path.isdir(MODEL_PATH):
-    automodel_kwargs["model"] = MODEL_PATH  # В FunASR локальный путь часто передается прямо в model
+    automodel_kwargs["model"] = MODEL_PATH
 if VAD_MODEL_PATH and os.path.isdir(VAD_MODEL_PATH):
     automodel_kwargs["vad_model"] = VAD_MODEL_PATH
 else:

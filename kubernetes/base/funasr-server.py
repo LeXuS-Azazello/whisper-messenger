@@ -4,6 +4,7 @@ import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from funasr import AutoModel
+import torch
 
 app = FastAPI(title="FunASR MLT-Nano 2512 Service")
 
@@ -18,7 +19,7 @@ automodel_kwargs = dict(
     device=device,
     disable_update=True,
     vad_model="fsmn-vad",
-    vad_kwargs={"max_single_segment_time": 30000},
+    vad_kwargs={"max_single_segment_time": 60000},
     punc_model="ct-punc",
     hub="ms",
 )
@@ -31,11 +32,18 @@ if PUNC_MODEL_PATH and os.path.isdir(PUNC_MODEL_PATH):
 
 funasr = AutoModel(**automodel_kwargs)
 
+# Try to compile model for faster CPU inference
+try:
+    if hasattr(funasr, 'model') and hasattr(funasr.model, 'model'):
+        print("[funasr] Applying torch.compile() for CPU acceleration...")
+        funasr.model.model = torch.compile(funasr.model.model, mode="reduce-overhead")
+        print("[funasr] torch.compile() applied successfully")
+except Exception as e:
+    print(f"[funasr] torch.compile() skipped: {e}")
+
 @app.get("/ready")
 def ready():
-    # Check if the model is loaded and accessible
     try:
-        # A simple check to see if the model object exists and is initialized
         if funasr:
             return {"ready": True}
     except Exception as e:
@@ -49,12 +57,12 @@ class TranscribeRequest(BaseModel):
 
 @app.post("/v1/transcribe-base64")
 async def transcribe(req: TranscribeRequest):
+    import tempfile, subprocess
+    
     try:
         file_bytes = base64.b64decode(req.file_data)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid base64 data")
-
-    import tempfile, subprocess
 
     suffix = ".mp4" if "video" in req.mime_type else ".ogg"
     fd_in, path_in = tempfile.mkstemp(suffix=suffix)
@@ -65,20 +73,20 @@ async def transcribe(req: TranscribeRequest):
     try:
         start_time = time.time()
 
-        print(f"[funasr] Processing {req.mime_type} file via ffmpeg...")
+        # Convert to WAV 16kHz mono
         subprocess.run([
             "ffmpeg", "-y", "-i", path_in,
             "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
             path_wav
         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
+        # Offline ASR: process entire audio in one go, maximize batch size
         generate_kwargs = dict(
             input=path_wav,
             language=req.language,
             use_itn=True,
             merge_vad=True,
-            merge_length_s=15,
-            batch_size_s=60,
+            batch_size_s=600,       # 10 min per batch — process longer audio in fewer passes
         )
         result = funasr.generate(**generate_kwargs)
 

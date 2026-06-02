@@ -4,9 +4,9 @@ import sys
 # Читаем переменные окружения, переданные из Kubernetes Job
 MODELS_DIR = os.getenv("MODELS_DIR", "/models")
 MODELS_TO_DOWNLOAD = {
-    "model": os.getenv("FUNASR_MODEL_NAME", "FunAudioLLM/Fun-ASR-MLT-Nano-2512"),
-    "vad": os.getenv("FUNASR_VAD_MODEL", "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"),
-    "punc": os.getenv("FUNASR_PUNC_MODEL", "iic/punc_ct-transformer_cn-en-common-vocab471067-large")
+    "model": "FunAudioLLM/Fun-ASR-MLT-Nano-2512",
+    "vad": "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
+    "punc": "iic/punc_ct-transformer_cn-en-common-vocab471067-large"
 }
 
 def download_repo(repo_id: str, target_dir: str):

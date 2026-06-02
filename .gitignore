@@ -11,9 +11,7 @@ whisper-server/venv/
 audio_test.ogg
 
 # Models and large files
-*.onnx
 *.tar.bz2
-whisper-service-v2/local-sherpa-turbo/
 *.bin
 *.pt
 

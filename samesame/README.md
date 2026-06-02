@@ -10,13 +10,13 @@
 4. Возвращает `audio/wav` или `audio/ogg`.
 
 ## 📢 Recent Changes (May 2026)
-- Switched to **FunAudioLLM/CosyVoice2‑0.5B** (CPU‑optimized) instead of XTTS.
+- Switched to **Fun-CosyVoice3-0.5B-2512** (CPU‑optimized) instead of XTTS.
 - Models download via dedicated Job;
 - `samesame` now reports **Model ready** when model on mounted storage is available.
 
 Особенности текущей реализации:
 1. **CPU Оптимизация**: Работает только на CPU, на процессорах без GPU. Для ускорения инференса используется принудительное выделение потоков, VAD и все возможные примочки.  (`OMP_NUM_THREADS="4"` и `torch.set_num_threads(4)`).
-2. Модели скачиваются на shared storage **только** через dedicated Kubernetes Job и не качаются в случае уже скачаного. (`samesame-downloader-job.yaml`) в PVC. Никогда не на локальной машине. 
+2. Модели скачиваются специальным downloader. все остальные никто не качает никакие модели вообще! только загрузчиком! на shared storage **только** через dedicated Kubernetes Job и не качаются в случае уже скачаного. (`samesame-downloader-job.yaml`) в PVC. Никогда не на локальной машине. 
 ## API
 
 ### Health
