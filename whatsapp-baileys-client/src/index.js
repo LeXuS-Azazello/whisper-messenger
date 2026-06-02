@@ -3,7 +3,7 @@
  *
  * Restores Baileys session from WA_SESSION env var (base64 zip) or existing
  * /app/sessions PVC, connects to WhatsApp, listens for audio/video messages,
- * transcribes via whisper-service, and replies with the transcription.
+ * transcribes, and replies with the transcription.
  *
  * HTTP server on :3001 exposes /health and /test-wa for the manager.
  */

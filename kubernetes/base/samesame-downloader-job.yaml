@@ -23,7 +23,7 @@ spec:
       containers:
         - name: downloader
           image: lexusazazello/voicemsg:samesame-latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ["/bin/sh", "-c", "/scripts/download-models.sh"]
           env:
             - name: MODELS_DIR
@@ -48,6 +48,8 @@ spec:
               value: "/models"
             - name: COQUI_TOS_AGREED
               value: "1"
+            - name: MODELSCOPE_TOKEN
+              value: "ms-3183349c-0a5f-4d6d-9d3e-b44646d0ea7e"
           volumeMounts:
             - name: models
               mountPath: /models

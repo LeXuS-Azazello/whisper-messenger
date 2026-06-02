@@ -18,22 +18,24 @@ spec:
       containers:
         - name: funasr-api
           image: lexusazazello/voicemsg:funasr-latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 50001
           readinessProbe:
             httpGet:
               path: /ready
               port: 50001
-            initialDelaySeconds: 120
-            periodSeconds: 15
+            initialDelaySeconds: 30 # Уменьшено со 120 до 30 секунд
+            periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 20
+            failureThreshold: 10
           env:
             - name: FUNASR_MODEL
               value: "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
             - name: FUNASR_DEVICE
               value: "cpu"
+            - name: FUNASR_NCPU
+              value: "4" # Добавлено: под лимиты CPU
             - name: FUNASR_MODEL_PATH
               value: "/models/FunAudioLLM/Fun-ASR-MLT-Nano-2512"
             - name: FUNASR_VAD_MODEL_PATH
@@ -44,11 +46,11 @@ spec:
               value: "true"
           resources:
             requests:
-              cpu: "1"
-              memory: "8Gi"
+              cpu: "2"      # Увеличено, чтобы старт и обработка были быстрее
+              memory: "4Gi" # Nano модели редко требуют 8Gi на старте
             limits:
               cpu: "4"
-              memory: "16Gi"
+              memory: "8Gi"
           volumeMounts:
             - name: models
               mountPath: "/models"

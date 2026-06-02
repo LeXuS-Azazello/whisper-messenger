@@ -38,7 +38,7 @@ spec:
             - name: SAMESAME_MODEL_NAME
               value: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
           image: lexusazazello/voicemsg:samesame-latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           name: samesame
           ports:
             - containerPort: 8002
