@@ -275,6 +275,12 @@ h2 { margin-bottom: 1rem; }
     border-color: var(--primary);
 }
 
+select.input-field,
+.input-field option {
+    background: rgba(15, 23, 42, 0.95);
+    color: #F1F5F9;
+}
+
 .error-msg {
     color: var(--danger);
     margin-bottom: 1rem;

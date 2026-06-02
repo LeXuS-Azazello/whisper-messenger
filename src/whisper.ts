@@ -106,7 +106,7 @@ export async function transcribeAudio(
     const detectedLanguage = result.language || result.detected_language || "unknown";
     let translatedText = result.translated || null;
 
-    if (targetLanguage && targetLanguage !== "off" && !translatedText) {
+    if (targetLanguage && targetLanguage !== "off" && targetLanguage !== "translate_off" && !translatedText) {
       const isSameLanguage = detectedLanguage && targetLanguage
         && (detectedLanguage.toLowerCase().startsWith(targetLanguage.toLowerCase())
           || targetLanguage.toLowerCase().startsWith(detectedLanguage.toLowerCase()));

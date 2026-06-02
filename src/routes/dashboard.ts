@@ -25,8 +25,9 @@ async function handleTranslationSettingsGet(env: Env, userId: string): Promise<R
 async function handleTranslationSettingsPost(env: Env, req: Request, userId: string): Promise<Response> {
   try {
     const { lang } = await req.json() as any;
-    const safe = (lang || 'off').toLowerCase().trim();
-    if (!VALID_LANGS.includes(safe)) {
+    const raw = (lang || 'off').toLowerCase().trim();
+    const safe = raw === 'translate_off' ? 'off' : raw;
+    if (safe !== 'off' && !VALID_LANGS.includes(safe)) {
       return Response.json({ error: `Invalid lang. Use one of: ${VALID_LANGS.join(', ')}` }, { status: 400 });
     }
     await env.STATS.put(`translate_lang_${userId}`, safe);

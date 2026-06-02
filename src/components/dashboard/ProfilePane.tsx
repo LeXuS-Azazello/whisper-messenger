@@ -49,23 +49,20 @@ export function ProfilePane({ user }: PaneProps) {
                         </p>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                             <select id="preferred-translation-lang" class="input-field" style={{ maxWidth: '320px' }} data-user-id={user.userId}>
-                                <option value="">Follow Telegram language</option>
-                                <option value="rus_Cyrl">Русский (Russian)</option>
-                                <option value="eng_Latn">English</option>
-                                <option value="tha_Thai">ไทย (Thai)</option>
-                                <option value="zho_Hans">简体中文 (Chinese Simplified)</option>
-                                <option value="zho_Hant">繁體中文 (Chinese Traditional)</option>
-                                <option value="arb_Arab">العربية (Arabic)</option>
-                                <option value="heb_Hebr">עברית (Hebrew)</option>
-                                <option value="jpn_Jpan">日本語 (Japanese)</option>
-                                <option value="kor_Hang">한국어 (Korean)</option>
-                                <option value="hin_Deva">हिन्दी (Hindi)</option>
-                                <option value="ben_Beng">বাংলা (Bengali)</option>
-                                <option value="tam_Taml">தமிழ் (Tamil)</option>
-                                <option value="vie_Latn">Tiếng Việt (Vietnamese)</option>
-                                <option value="deu_Latn">Deutsch (German)</option>
-                                <option value="fra_Latn">Français (French)</option>
-                                <option value="spa_Latn">Español (Spanish)</option>
+                                <option value="translate_off">🚫 Disabled (default)</option>
+                                <option value="ru">Русский (Russian)</option>
+                                <option value="en">English</option>
+                                <option value="th">ไทย (Thai)</option>
+                                <option value="zh">简体中文 (Chinese Simplified)</option>
+                                <option value="zh-TW">繁體中文 (Chinese Traditional)</option>
+                                <option value="ar">العربية (Arabic)</option>
+                                <option value="he">עברית (Hebrew)</option>
+                                <option value="ja">日本語 (Japanese)</option>
+                                <option value="ko">한국어 (Korean)</option>
+                                <option value="hi">हिन्दी (Hindi)</option>
+                                <option value="de">Deutsch (German)</option>
+                                <option value="fr">Français (French)</option>
+                                <option value="es">Español (Spanish)</option>
                             </select>
                             <button id="save-lang-btn" class="btn btn-primary">Save</button>
                         </div>

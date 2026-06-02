@@ -214,28 +214,37 @@ def clone_voice(req: CloneRequest, authorization: Optional[str] = Header(None)):
         # Transcribe prompt with FunASR to get prompt_text for zero_shot
         prompt_text, prompt_lang = transcribe_prompt_with_funasr(temp_in)
 
-        # Prepend the language tag to force CosyVoice2 to synthesize in that language
+        # CosyVoice3 format: <|LANG|>text<|endofprompt|>
+        # Both zero_shot and cross_lingual require this tag in the text
         cosy_tag = lang
-        if lang == 'uk': cosy_tag = 'ru' # Fallback Ukrainian to Russian phonetics for CosyVoice
-        if cosy_tag in ['ru', 'en', 'zh', 'ja', 'ko', 'de', 'es', 'fr', 'it']:
-            req_text_with_tag = f"<|{cosy_tag}|>{req.text}"
+        if lang == 'uk':
+            cosy_tag = 'ru'
+        valid_cosy_tags = {'ru', 'en', 'zh', 'ja', 'ko', 'de', 'es', 'fr', 'it'}
+        eos_tag = '<|endofprompt|>'
+        if cosy_tag in valid_cosy_tags:
+            req_text_with_tag = f'<|{cosy_tag}|>{req.text}{eos_tag}'
         else:
-            req_text_with_tag = req.text
+            req_text_with_tag = f'<|en|>{req.text}{eos_tag}'
 
         # If FunASR didn't return a language, detect it from the transcribed text
         if prompt_text and not prompt_lang:
             prompt_lang = detect_language_from_text(prompt_text)
-            
-        # Decide inference strategy: always use zero_shot when target language is allowed
-        # (zero_shot gives best quality). If Whisper failed to detect language, fallback to cross_lingual.
+
+        # Format prompt_text with language tag for CosyVoice3 zero_shot
+        if prompt_text:
+            prompt_cosy_tag = prompt_lang if prompt_lang in valid_cosy_tags else cosy_tag
+            prompt_text_tagged = f'<|{prompt_cosy_tag}|>{prompt_text}{eos_tag}'
+        else:
+            prompt_text_tagged = prompt_text
+
         tts_audios = []
         if prompt_text and (prompt_lang == lang or not prompt_lang):
-            print(f"[samesame-cosy] Strategy: zero_shot (lang={lang})")
+            print(f'[samesame-cosy] Strategy: zero_shot (lang={lang})')
             output = cosyvoice.inference_zero_shot(
-                req_text_with_tag, prompt_text, temp_in, stream=False
+                req_text_with_tag, prompt_text_tagged, temp_in, stream=False
             )
         else:
-            print(f"[samesame-cosy] Strategy: cross_lingual (prompt_lang={prompt_lang} → tts_lang={lang})")
+            print(f'[samesame-cosy] Strategy: cross_lingual (prompt_lang={prompt_lang} -> tts_lang={lang})')
             output = cosyvoice.inference_cross_lingual(
                 req_text_with_tag, temp_in, stream=False
             )

@@ -174,7 +174,7 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
 
 /** Apply translation if needed */
 async function _maybeTranslate(data, target_language) {
-  if (target_language && target_language !== 'off' && !data.translated) {
+  if (target_language && target_language !== 'off' && target_language !== 'translate_off' && !data.translated) {
     const detectedLanguage = data.language || 'unknown';
     const isSameLanguage = detectedLanguage && target_language
       && (detectedLanguage.toLowerCase().startsWith(target_language.toLowerCase())
