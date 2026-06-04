@@ -16,7 +16,7 @@ HUB_DIR = os.path.join(MODELS_DIR, "hub")
 os.makedirs(HUB_DIR, exist_ok=True)
 
 MODELS_TO_DOWNLOAD = [
-    "FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
+    "FunAudioLLM/CosyVoice2-0.5B",
 ]
 
 for model_name in MODELS_TO_DOWNLOAD:

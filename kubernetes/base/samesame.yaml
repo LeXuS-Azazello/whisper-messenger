@@ -15,6 +15,7 @@ spec:
       labels:
         app: samesame
     spec:
+      terminationGracePeriodSeconds: 30
       imagePullSecrets:
         - name: dockerhub-pull-secret
       containers:
@@ -37,6 +38,14 @@ spec:
                   name: voicemsg-secrets
             - name: SAMESAME_MODEL_NAME
               value: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: PROMPT_CACHE_TTL
+              value: "21600"
+            - name: CPU_THREADS
+              value: "2"
           image: lexusazazello/voicemsg:samesame-latest
           imagePullPolicy: Always
           name: samesame
@@ -44,17 +53,39 @@ spec:
             - containerPort: 8002
           resources:
             requests:
-              cpu: "1.5"
-              memory: "6Gi"
+              cpu: "2"
+              memory: "8Gi"
+              ephemeral-storage: "1Gi"
             limits:
               cpu: "2"
-              memory: "12Gi"
+              memory: "10Gi"
+              ephemeral-storage: "3Gi"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            failureThreshold: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            periodSeconds: 20
+            timeoutSeconds: 3
           volumeMounts:
             - mountPath: "/models"
               name: models
             - mountPath: "/app/app.py"
               subPath: "app.py"
               name: app-py
+            - mountPath: "/dev/shm"
+              name: shm
       volumes:
         - name: models
           persistentVolumeClaim:
@@ -62,7 +93,10 @@ spec:
         - name: app-py
           configMap:
             name: samesame-app-py
-
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
 ---
 apiVersion: v1
 kind: Service

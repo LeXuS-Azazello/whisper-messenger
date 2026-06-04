@@ -1,9 +1,11 @@
 import base64
-import os
-import sys
+import hashlib
 import io
+import os
+import re
+import sys
 import time
-import tempfile
+import uuid
 from typing import Optional
 
 from fastapi import FastAPI, Header, HTTPException
@@ -11,15 +13,16 @@ from pydantic import BaseModel
 import torch
 import soundfile as sf
 import torchaudio.functional as F
-
-import torchaudio
 import numpy as np
+from redis import Redis, ConnectionPool
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
-os.environ["OMP_NUM_THREADS"] = "4"
-os.environ["MKL_NUM_THREADS"] = "4"
+CPU_THREADS = int(os.getenv("CPU_THREADS", "2"))
+os.environ["OMP_NUM_THREADS"] = str(CPU_THREADS)
+os.environ["MKL_NUM_THREADS"] = str(CPU_THREADS)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-torch.set_num_threads(4)
+torch.set_num_threads(CPU_THREADS)
 torch.set_num_interop_threads(1)
 
 TTS_MODEL_DIR = os.environ.get("TTS_MODEL_DIR", "/models")
@@ -51,8 +54,6 @@ from cosyvoice.cli.cosyvoice import CosyVoice3
 try:
     cosyvoice = CosyVoice3(MODEL_LOAD_PATH, load_trt=False, fp16=False)
     print(f"[samesame-cosy] CosyVoice3 loaded successfully.")
-    # Warmup
-    print("[samesame] warmup...")
 except Exception as e:
     print(f"[samesame-cosy] FATAL: Failed to load CosyVoice3: {e}")
     sys.exit(1)
@@ -60,6 +61,39 @@ except Exception as e:
 SAMPLE_RATE = cosyvoice.sample_rate
 SAMESAME_SECRET = os.environ.get("SAMESAME_SECRET")
 app = FastAPI(title="Samesame CosyVoice Service")
+
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_TTL = int(os.getenv("PROMPT_CACHE_TTL", "21600"))
+
+pool = ConnectionPool(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    max_connections=20,
+    socket_timeout=3,
+    socket_connect_timeout=3
+)
+
+redis_client = Redis(
+    connection_pool=pool,
+    decode_responses=False
+)
+
+try:
+    warm_file = "/dev/shm/warmup.wav"
+    sf.write(warm_file, np.zeros(16000 * 3), 16000)
+    list(
+        cosyvoice.inference_zero_shot(
+            tts_text="test voice cloning warmup",
+            prompt_text="",
+            prompt_wav=warm_file,
+            text_frontend=False
+        )
+    )
+    os.remove(warm_file)
+    print("[warmup] done")
+except Exception as e:
+    print("[warmup]", e)
 
 
 def detect_language_from_text(text: str) -> str:
@@ -75,18 +109,40 @@ def detect_language_from_text(text: str) -> str:
     return 'en'
 
 
+def split_text(text: str, max_len: int = 150) -> list:
+    parts = []
+    current = ""
+    tokens = re.split(r'([.!?。！？])', text)
+    for token in tokens:
+        if len(current) + len(token) < max_len:
+            current += token
+        else:
+            if current.strip():
+                parts.append(current.strip())
+            current = token
+    if current.strip():
+        parts.append(current.strip())
+    return parts
+
+
 def decode_audio_base64(audio_b64: str, target_sr: int = 16000) -> tuple[torch.Tensor, int]:
     audio_bytes = base64.b64decode(audio_b64)
     audio_stream = io.BytesIO(audio_bytes)
     waveform, orig_sr = sf.read(audio_stream, dtype='float32')
-    if waveform.ndim == 1:
-        waveform = waveform.reshape(1, -1)
-    else:
-        waveform = waveform.T
+    
+    if waveform.ndim > 1:
+        waveform = waveform.mean(axis=1)
+    
+    waveform = waveform.reshape(1, -1)
     tensor = torch.from_numpy(waveform).float()
+    
     if orig_sr != target_sr:
         tensor = F.resample(tensor, orig_sr, target_sr)
     return tensor, target_sr
+
+
+def prompt_cache_filename(audio_b64: str) -> str:
+    return hashlib.sha256(audio_b64.encode()).hexdigest()
 
 
 class CloneRequest(BaseModel):
@@ -101,7 +157,12 @@ class CloneRequest(BaseModel):
 @app.get("/health")
 @app.get("/live")
 def health():
-    return {"status": "ok", "model": MODEL_NAME, "backend": "cosyvoice3"}
+    redis_ok = False
+    try:
+        redis_ok = redis_client.ping()
+    except:
+        pass
+    return {"status": "ok", "model": MODEL_NAME, "backend": "cosyvoice3", "redis": redis_ok}
 
 
 @app.post("/v1/clone")
@@ -122,8 +183,7 @@ def clone_voice(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid base64: {e}")
 
-    # Limit prompt to 60 seconds
-    MAX_PROMPT_SAMPLES = 16000 * 60
+    MAX_PROMPT_SAMPLES = 16000 * 15
     if prompt_speech_16k.shape[-1] > MAX_PROMPT_SAMPLES:
         prompt_speech_16k = prompt_speech_16k[:, :MAX_PROMPT_SAMPLES]
 
@@ -131,43 +191,51 @@ def clone_voice(
     if lang not in {"ru","uk","th","he","en","zh","ja","ko","de","es","fr","it"}:
         lang = "en"
 
-    cosy_tag = "ru" if lang == "uk" else lang
+    FAST_LANGS = {"ru", "en", "uk", "de", "fr", "es", "it"}
+    use_frontend = lang not in FAST_LANGS
 
-    # Split text
-    text = req.text
-    if len(text) > 200:
-        for i, char in enumerate(text):
-            if char in '.!?。！？' and i > 100:
-                text = text[:i+1]
-                break
-    text_chunks = [text] if len(text) <= 200 else [text[:200]]
-
+    text_chunks = split_text(req.text, max_len=150)
     print(f"[cosy] target={lang}, chunks={len(text_chunks)}")
+
+    cache_key = prompt_cache_filename(req.source_audio_base64)
+    cache_file = f"/dev/shm/{cache_key}-{uuid.uuid4().hex}.flac"
+    
+    cached_audio = None
+    try:
+        cached_audio = redis_client.get(cache_key)
+    except Exception as e:
+        print("[redis get]", e)
+
+    if cached_audio:
+        with open(cache_file, "wb") as f:
+            f.write(cached_audio)
+    else:
+        wav_bytes = io.BytesIO()
+        sf.write(wav_bytes, prompt_speech_16k.squeeze(0).cpu().numpy(), 16000, format="FLAC")
+        payload = wav_bytes.getvalue()
+        try:
+            redis_client.setex(cache_key, REDIS_TTL, payload)
+        except Exception as e:
+            print("[redis set]", e)
+        with open(cache_file, "wb") as f:
+            f.write(payload)
 
     try:
         all_audio_chunks = []
-
-        # Write prompt to temp WAV file (CosyVoice3 needs file path)
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
-            tmp_path = tmp.name
-            sf.write(tmp_path, prompt_speech_16k.squeeze(0).cpu().numpy(), 16000)
-
         for chunk_text in text_chunks:
-            # CosyVoice3 requires <|endofprompt|> token in prompt_text
-            prompt_text = f"<|{cosy_tag}|>{chunk_text}<|endofprompt|>"
+            prompt_text_str = req.prompt_text or ""
             print(f"[cosy] synthesizing: {chunk_text[:50]}...")
 
             output = cosyvoice.inference_zero_shot(
                 tts_text=chunk_text,
-                prompt_text=prompt_text,
-                prompt_wav=tmp_path
+                prompt_text=prompt_text_str,
+                prompt_wav=cache_file,
+                text_frontend=use_frontend
             )
 
             for item in output:
                 if "tts_speech" in item:
                     all_audio_chunks.append(item["tts_speech"].squeeze().cpu().numpy())
-
-        os.unlink(tmp_path)
 
         if not all_audio_chunks:
             raise ValueError("empty audio")
@@ -179,6 +247,11 @@ def clone_voice(
         print(f"[cosy] ERROR: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        try:
+            os.remove(cache_file)
+        except:
+            pass
 
     buf = io.BytesIO()
     mime = "audio/ogg"
@@ -194,5 +267,15 @@ def clone_voice(
         "audio_base64": base64.b64encode(buf.getvalue()).decode(),
         "mime_type": mime,
         "duration_seconds": round(len(audio) / SAMPLE_RATE, 2),
-        "latency_ms": int((time.time() - start_time) * 1000)
+        "latency_ms": int((time.time() - start_time) * 1000),
+        "language": lang
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8002
+    )

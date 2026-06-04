@@ -1,0 +1,105 @@
+# XTTS-v2 Voice Cloning Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: xtts
+  name: xtts
+  namespace: debugging-testcrash-pub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: xtts
+  template:
+    metadata:
+      labels:
+        app: xtts
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-pull-secret
+      initContainers:
+        - name: xtts-downloader
+          image: ghcr.io/coqui-ai/tts-cpu:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              TARGET_DIR="/models/tts_models/xtts_v2"
+              mkdir -p "$TARGET_DIR"
+              if [ -f "$TARGET_DIR/.ready" ]; then
+                echo "[xtts-downloader] Model already exists. Skip."
+                exit 0
+              fi
+              echo "[xtts-downloader] Downloading XTTS-v2 model..."
+              python3 -c "
+              from huggingface_hub import snapshot_download
+              snapshot_download(
+                  repo_id='coqui/XTTS-v2',
+                  local_dir='$TARGET_DIR',
+                  local_dir_use_symlinks=False,
+                  resume_download=True
+              )
+              "
+              touch "$TARGET_DIR/.ready"
+              echo "[xtts-downloader] Download complete."
+          env:
+            - name: HF_HOME
+              value: "/models"
+            - name: COQUI_TOS_AGREED
+              value: "1"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+      containers:
+        - env:
+            - name: COQUI_TOS_AGREED
+              value: "1"
+            - name: TTS_HOME
+              value: "/models"
+          image: ghcr.io/coqui-ai/tts-cpu:latest
+          imagePullPolicy: IfNotPresent
+          name: xtts
+          ports:
+            - containerPort: 5002
+          resources:
+            requests:
+              cpu: "1"
+              memory: "4Gi"
+            limits:
+              cpu: "2"
+              memory: "6Gi"
+          volumeMounts:
+            - mountPath: "/models"
+              name: models
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              pip install uvicorn fastapi python-multipart -q && \
+              python3 -c "from TTS.api import TTS; TTS(model_path='/models/tts_models/xtts_v2', gpu=False)" && \
+              python3 TTS/server/server.py --model_path /models/tts_models/xtts_v2 --port 5002 && \
+              sleep infinity
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: samesame-model-cache
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xtts
+  namespace: debugging-testcrash-pub
+spec:
+  selector:
+    app: xtts
+  ports:
+    - port: 5002
+      targetPort: 5002

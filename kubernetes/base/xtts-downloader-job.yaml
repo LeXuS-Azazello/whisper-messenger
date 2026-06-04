@@ -1,12 +1,12 @@
-# samesame Model Downloader Job
-# One-time (or on-demand) Job that downloads the TTS models into the PVC used by the samesame Deployment.
+# XTTS Model Downloader Job
+# One-time (or on-demand) Job that downloads the XTTS model into the PVC used by the xtts Deployment.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: samesame-model-downloader
+  name: xtts-model-downloader
   namespace: debugging-testcrash-pub
   labels:
-    app: samesame
+    app: xtts
     component: model-downloader
 spec:
   backoffLimit: 3
@@ -14,7 +14,7 @@ spec:
   template:
     metadata:
       labels:
-        app: samesame
+        app: xtts
         component: model-downloader
     spec:
       restartPolicy: OnFailure
@@ -22,34 +22,16 @@ spec:
         - name: dockerhub-pull-secret
       containers:
         - name: downloader
-          image: lexusazazello/voicemsg:samesame-latest
-          imagePullPolicy: Always
+          image: ghcr.io/coqui-ai/tts-cpu:latest
+          imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c", "/scripts/download-models.sh"]
           env:
             - name: MODELS_DIR
-              value: "/models"
-            - name: HUGGINGFACE_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: huggingface-token
-                  key: token
-            - name: HUGGING_FACE_HUB_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: huggingface-token
-                  key: token
-            - name: DOWNLOAD_TIMEOUT
-              value: "1800"
-            - name: SAMESAME_MODEL_NAME
-              value: "FunAudioLLM/CosyVoice2-0.5B"
-            - name: MODELSCOPE_CACHE
               value: "/models"
             - name: HF_HOME
               value: "/models"
             - name: COQUI_TOS_AGREED
               value: "1"
-            - name: MODELSCOPE_TOKEN
-              value: "ms-3183349c-0a5f-4d6d-9d3e-b44646d0ea7e"
           volumeMounts:
             - name: models
               mountPath: /models
@@ -68,5 +50,5 @@ spec:
             claimName: samesame-model-cache
         - name: scripts
           configMap:
-            name: samesame-download-scripts
+            name: xtts-download-scripts
             defaultMode: 0755

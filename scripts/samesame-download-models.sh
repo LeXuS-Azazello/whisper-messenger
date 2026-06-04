@@ -26,7 +26,7 @@ MODELS_DIR = '$MODELS_DIR'
 HUB_DIR = os.path.join(MODELS_DIR, 'hub')
 os.makedirs(HUB_DIR, exist_ok=True)
 
-MODELS_TO_DOWNLOAD = ['FunAudioLLM/Fun-CosyVoice3-0.5B-2512']
+MODELS_TO_DOWNLOAD = ['iic/CosyVoice2-0.5B']
 
 for model_name in MODELS_TO_DOWNLOAD:
     target_dir = os.path.join(HUB_DIR, model_name)

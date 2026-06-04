@@ -8,7 +8,8 @@ resources:
   - mongo-express.yaml
   - tg-client-manager.yaml
   - tg-client.yaml
-  - samesame.yaml
+  - xtts.yaml
+  - xtts-downloader-job.yaml
   - huggingface-secret.yaml
   - rbac.yaml
   - cert-manager.yaml
@@ -24,9 +25,9 @@ resources:
 namespace: debugging-testcrash-pub
 
 configMapGenerator:
-  - name: samesame-download-scripts
+  - name: xtts-download-scripts
     files:
-      - download-models.sh=./scripts/samesame-download-models.sh
+      - download-models.sh=./scripts/xtts-download-models.sh
   - name: funasr-download-scripts
     files:
       - funasr-download-models.sh=./scripts/funasr-download-models.sh

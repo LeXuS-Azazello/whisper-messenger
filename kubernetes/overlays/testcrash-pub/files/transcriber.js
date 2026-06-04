@@ -4,7 +4,7 @@ import { telegramLangToNLLB } from './lang.js';
 import { FUNASR_URL, redis } from './config.js';
 
 const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_ATTEMPTS = 360; // ~12 minutes at 2s interval (still generous)
+const MAX_POLL_ATTEMPTS = 1800; // ~1 hour at 2s interval
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -98,7 +98,7 @@ async function _transcribeOnce(url, fileBuffer, mime_type, language, target_lang
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(120000)
+    signal: AbortSignal.timeout(3600000) // 1 hour
   });
 
   const submitMs = Date.now() - tSubmit;

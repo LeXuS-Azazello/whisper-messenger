@@ -165,7 +165,7 @@ async def transcribe(req: TranscribeRequest):
             ["ffmpeg", "-y", "-i", path_in,
              "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
              path_wav],
-            capture_output=True, timeout=120,
+            capture_output=True, timeout=3600,
         )
         if result.returncode != 0:
             raise HTTPException(status_code=500, detail="Audio conversion failed")

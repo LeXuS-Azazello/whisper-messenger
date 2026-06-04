@@ -99,7 +99,7 @@ class CosyVoiceFrontEnd:
         assert speech.shape[1] / 16000 <= 30, 'do not support extract speech token for audio longer than 30s'
         mel_transform = T.MelSpectrogram(
             sample_rate=16000,
-            n_mels=128,  # Fixed: speech_tokenizer_v3.onnx expects 128 mel bins
+            n_mels=80,
             n_fft=400,
             hop_length=160
         )
