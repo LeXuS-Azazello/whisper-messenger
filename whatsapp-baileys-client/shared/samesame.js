@@ -57,7 +57,20 @@ export function parseSamesameRequest(text) {
   }
   return { text: clean, language: null };
 }
-
+/**
+ * Helper to translate SAMESAME text before cloning.
+ */
+export async function translateSamesameText(text, targetLang) {
+  if (!targetLang || targetLang === 'auto') return text;
+  try {
+    const { default: translate } = await import('google-translate-api-x');
+    const res = await translate(text, { to: targetLang });
+    return res.text || text;
+  } catch (e) {
+    console.error('[samesame] translate error:', e.message);
+    return text;
+  }
+}
 /**
  * Call the SAMESAME voice cloning service.
  *

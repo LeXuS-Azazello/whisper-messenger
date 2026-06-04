@@ -416,7 +416,7 @@ async function connectToWhatsApp() {
         auth: state,
         printQRInTerminal: false,
         logger: silentLogger,
-        browser: Browsers.ubuntu('Chrome'),
+        browser: ['Ubuntu', 'Chrome', '20.0.04'],
         syncFullHistory: false,
         markOnlineOnConnect: false,
     });

@@ -23,23 +23,23 @@ export function Sidebar({ user }: SidebarProps) {
             </div>
 
             <nav class="sidebar-nav">
-                <a href="#connections" class="nav-item tab-btn active" data-tab="connections">
+                <a href="/dashboard" class="nav-item tab-btn active" data-tab="connections">
                     <span class="nav-icon">🔌</span>
                     <span class="nav-label">Connections</span>
                 </a>
-                <a href="#stats" class="nav-item tab-btn" data-tab="stats">
+                <a href="/dashboard/stats" class="nav-item tab-btn" data-tab="stats">
                     <span class="nav-icon">📊</span>
                     <span class="nav-label">Statistics</span>
                 </a>
-                <a href="#profile" class="nav-item tab-btn" data-tab="profile">
+                <a href="/dashboard/profile" class="nav-item tab-btn" data-tab="profile">
                     <span class="nav-icon">👤</span>
                     <span class="nav-label">Profile</span>
                 </a>
-                <a href="#referrals" class="nav-item tab-btn" data-tab="referrals">
+                <a href="/dashboard/referrals" class="nav-item tab-btn" data-tab="referrals">
                     <span class="nav-icon">🎁</span>
                     <span class="nav-label">Referrals</span>
                 </a>
-                <a href="#billing" class="nav-item tab-btn" data-tab="billing">
+                <a href="/dashboard/billing" class="nav-item tab-btn" data-tab="billing">
                     <span class="nav-icon">💳</span>
                     <span class="nav-label">Billing</span>
                 </a>

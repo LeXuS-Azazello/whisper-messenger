@@ -170,7 +170,31 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
     return await handleTranslationSettingsGet(env, userId);
   }
 
-  if (req.method === "GET" && pathname === "/dashboard") {
+  if (req.method === "GET" && pathname === "/dashboard/api/stats") {
+    try {
+      const Statistic = (await import("../models/Statistic")).default;
+      const stats = await Statistic.find({ userId }).sort({ createdAt: -1 }).limit(100).lean();
+      
+      const aggregation = await Statistic.aggregate([
+        { $match: { userId } },
+        { 
+          $group: { 
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, 
+            count: { $sum: 1 },
+            chars: { $sum: "$charactersCount" },
+            duration: { $sum: "$durationSeconds" }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+      
+      return Response.json({ success: true, logs: stats, dailyStats: aggregation });
+    } catch (e: any) {
+      return Response.json({ success: false, error: e.message }, { status: 500 });
+    }
+  }
+
+  if (req.method === "GET" && (pathname === "/dashboard" || pathname === "/dashboard/stats" || pathname === "/dashboard/profile" || pathname === "/dashboard/connections" || pathname === "/dashboard/referrals" || pathname === "/dashboard/billing")) {
     return showDashboard(user, env);
   }
 

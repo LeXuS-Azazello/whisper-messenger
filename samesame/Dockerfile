@@ -43,6 +43,7 @@ RUN pip install --no-cache-dir \
     fastapi \
     uvicorn \
     pydantic \
+    redis \
     tiktoken
 
 # Clone repo + submodules

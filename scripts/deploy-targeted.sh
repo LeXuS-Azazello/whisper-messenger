@@ -107,12 +107,16 @@ for svc in "${SERVICES[@]}"; do
       echo ""
       echo "=== Building & deploying whatsapp-baileys-manager ==="
       TAG=$(date +%Y%m%d-%H%M%S)
-      IMAGE="${REPO}/whatsapp-baileys-manager:${TAG}"
+      IMAGE="${REPO}/voicemsg:whatsapp-baileys-manager-${TAG}"
 
       docker build -t "$IMAGE" -f whatsapp-baileys-manager/Dockerfile whatsapp-baileys-manager
-      docker tag "$IMAGE" "${REPO}/whatsapp-baileys-manager:latest"
-      docker push "${REPO}/whatsapp-baileys-manager:latest"
-      docker rmi "$IMAGE" "${REPO}/whatsapp-baileys-manager:latest" || true
+      docker tag "$IMAGE" "${REPO}/voicemsg:whatsapp-baileys-manager-latest"
+      docker push "${REPO}/voicemsg:whatsapp-baileys-manager-latest"
+      docker rmi "$IMAGE" "${REPO}/voicemsg:whatsapp-baileys-manager-latest" || true
+
+      kubectl set image deployment/whatsapp-baileys-manager \
+        manager="${REPO}/voicemsg:whatsapp-baileys-manager-latest" \
+        -n "$NAMESPACE"
 
       kubectl rollout restart deployment/whatsapp-baileys-manager -n "$NAMESPACE"
       ;;

@@ -46,26 +46,26 @@ export const renderDashboard = (user: UserSession, env: Env) => {
 
                 {/* Glassmorphic Bottom Nav Bar for Mobile Screens */}
                 <nav class="bottom-nav">
-                    <button type="button" class="bottom-nav-item tab-btn active" data-tab="connections">
+                    <a href="/dashboard" class="bottom-nav-item tab-btn active" data-tab="connections">
                         <span class="bottom-nav-icon">🔌</span>
                         <span class="bottom-nav-label">Connect</span>
-                    </button>
-                    <button type="button" class="bottom-nav-item tab-btn" data-tab="stats">
+                    </a>
+                    <a href="/dashboard/stats" class="bottom-nav-item tab-btn" data-tab="stats">
                         <span class="bottom-nav-icon">📊</span>
                         <span class="bottom-nav-label">Stats</span>
-                    </button>
-                    <button type="button" class="bottom-nav-item tab-btn" data-tab="profile">
+                    </a>
+                    <a href="/dashboard/profile" class="bottom-nav-item tab-btn" data-tab="profile">
                         <span class="bottom-nav-icon">👤</span>
                         <span class="bottom-nav-label">Profile</span>
-                    </button>
-                    <button type="button" class="bottom-nav-item tab-btn" data-tab="referrals">
+                    </a>
+                    <a href="/dashboard/referrals" class="bottom-nav-item tab-btn" data-tab="referrals">
                         <span class="bottom-nav-icon">🎁</span>
                         <span class="bottom-nav-label">Refs</span>
-                    </button>
-                    <button type="button" class="bottom-nav-item tab-btn" data-tab="billing">
+                    </a>
+                    <a href="/dashboard/billing" class="bottom-nav-item tab-btn" data-tab="billing">
                         <span class="bottom-nav-icon">💳</span>
                         <span class="bottom-nav-label">Billing</span>
-                    </button>
+                    </a>
                 </nav>
 
                 {/* Telegram Connection Modal (global overlay — must live outside tab-panes) */}

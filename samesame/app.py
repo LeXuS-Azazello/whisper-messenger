@@ -88,8 +88,8 @@ try:
     sf.write(warm_file, warm_noise, 16000)
     list(
         cosyvoice.inference_zero_shot(
-            tts_text="test voice cloning warmup",
-            prompt_text="",
+            tts_text="<|en|>test voice cloning warmup",
+            prompt_text="test voice cloning warmup<|endofprompt|>",
             prompt_wav=warm_file,
             text_frontend=False
         )
@@ -210,56 +210,35 @@ def clone_voice(
         prompt_speech_16k = torch.from_numpy(audio_np[start:end]).unsqueeze(0).float()
 
     true_audio_samples = prompt_speech_16k.shape[-1]
-    best_profile_key = f"voice_profile:{req.user_id}" if req.user_id else None
-    GOOD_AUDIO_THRESHOLD = 16000 * 3  # 3 seconds of NON-SILENT speech
-    
-    if best_profile_key:
-        if true_audio_samples >= GOOD_AUDIO_THRESHOLD:
-            # Good quality sample: save it as the new best profile
-            wav_bytes = io.BytesIO()
-            sf.write(wav_bytes, prompt_speech_16k.squeeze(0).cpu().numpy(), 16000, format="WAV")
-            try:
-                redis_client.setex(best_profile_key, 60*60*24*30, wav_bytes.getvalue())
-                print(f"[cosy] Saved new best voice profile for {req.user_id} (len: {true_audio_samples/16000:.2f}s)")
-            except Exception as e:
-                print("[redis save profile error]", e)
-        else:
-            # Short audio: attempt to load previous best profile
-            try:
-                cached_profile = redis_client.get(best_profile_key)
-                if cached_profile:
-                    audio_stream = io.BytesIO(cached_profile)
-                    waveform, _ = sf.read(audio_stream, dtype='float32')
-                    prompt_speech_16k = torch.from_numpy(waveform).reshape(1, -1).float()
-                    print(f"[cosy] Loaded cached best voice profile for {req.user_id} (len: {prompt_speech_16k.shape[-1]/16000:.2f}s)")
-            except Exception as e:
-                print("[redis load profile error]", e)
+    true_audio_samples = prompt_speech_16k.shape[-1]
 
     # Finally limit to 4 seconds for inference stability
     MAX_PROMPT_SAMPLES = 16000 * 4
     if prompt_speech_16k.shape[-1] > MAX_PROMPT_SAMPLES:
         prompt_speech_16k = prompt_speech_16k[:, :MAX_PROMPT_SAMPLES]
 
-    raw_lang = (req.language or "").strip().lower()
+    raw_lang = (req.language or "").strip().lower().replace("_", "-")
     
-    # NLLB to 2-letter mapping fallback if needed
-    if raw_lang.startswith("rus"): lang = "ru"
-    elif raw_lang.startswith("ukr"): lang = "uk"
-    elif raw_lang.startswith("eng"): lang = "en"
-    elif raw_lang.startswith("zho"): lang = "zh"
-    elif raw_lang.startswith("jpn"): lang = "ja"
-    elif raw_lang.startswith("kor"): lang = "ko"
-    elif raw_lang.startswith("spa"): lang = "es"
-    elif raw_lang.startswith("fra"): lang = "fr"
-    elif raw_lang.startswith("deu"): lang = "de"
-    elif raw_lang.startswith("ita"): lang = "it"
-    elif raw_lang.startswith("por"): lang = "pt"
-    elif raw_lang.startswith("tha"): lang = "th"
-    elif raw_lang.startswith("heb"): lang = "he"
-    else: lang = raw_lang[:2]
+    LANG_MAP = {
+        "uk": "uk", "ukr": "uk", "ukrainian": "uk", "uk-ua": "uk",
+        "ru": "ru", "rus": "ru", "russian": "ru", "ru-ru": "ru",
+        "en": "en", "eng": "en", "english": "en", "en-us": "en", "en-gb": "en",
+        "zh": "zh", "zho": "zh", "chi": "zh", "zh-cn": "zh",
+        "ja": "ja", "jpn": "ja", "jp": "ja",
+        "ko": "ko", "kor": "ko",
+        "es": "es", "spa": "es",
+        "fr": "fr", "fra": "fr",
+        "de": "de", "deu": "de",
+        "it": "it", "ita": "it",
+        "pt": "pt", "por": "pt",
+        "th": "th", "tha": "th",
+        "he": "he", "heb": "he",
+    }
+    
+    lang = LANG_MAP.get(raw_lang)
 
     if not lang:
-        lang = "en"
+        lang = raw_lang[:2] if len(raw_lang) >= 2 else "en"
 
     # Strong text-based detection overrides Whisper/NLLB hallucinations
     text_lang = detect_language_from_text(req.text)
@@ -291,7 +270,6 @@ def clone_voice(
     ).hexdigest()
     cache_file = f"/dev/shm/{cache_key}-{uuid.uuid4().hex}.flac"
     
-    req.use_cache = False
     cached_audio = None
 
     if req.use_cache:
@@ -327,7 +305,7 @@ def clone_voice(
             # Fun-CosyVoice3 typically uses <|lang|> tags for control.
             LANG_TOKEN_MAP = {
                 "ru": "<|ru|>",
-                "uk": "<|ru|>",   # Cosy часто лучше работает через ru
+                "uk": "<|uk|>",
                 "en": "<|en|>",
                 "zh": "<|zh|>",
                 "ja": "<|jp|>",
@@ -353,14 +331,13 @@ def clone_voice(
             chunk_with_lang = f"{lang_token}{chunk_text}"
             
             prompt_text_str = req.prompt_text.strip()
-            if prompt_text_str and not prompt_text_str.endswith("<|endofprompt|>"):
-                prompt_text_str = f"{prompt_text_str}<|endofprompt|>"
+            if not prompt_text_str:
+                prompt_text_str = f"{lang_token}{chunk_text}"
+            
+            if not prompt_text_str.endswith("<|endofprompt|>"):
+                prompt_text_str += "<|endofprompt|>"
 
             with torch.inference_mode(), _inference_lock:
-                # Debug stats to verify weights do not change
-                p = next(cosyvoice.model.parameters())
-                print(f"[cosy] weight stats: mean={p.mean().item():.6f}, std={p.std().item():.6f}")
-
                 output = cosyvoice.inference_zero_shot(
                     tts_text=chunk_with_lang,
                     prompt_text=prompt_text_str,
@@ -369,8 +346,8 @@ def clone_voice(
                 )
                 
                 for item in output:
-                if "tts_speech" in item:
-                    all_audio_chunks.append(item["tts_speech"].squeeze().cpu().numpy())
+                    if "tts_speech" in item:
+                        all_audio_chunks.append(item["tts_speech"].squeeze().cpu().numpy())
         print(f"[cosy] infer time: {time.time()-t1:.3f}s")
 
         if not all_audio_chunks:

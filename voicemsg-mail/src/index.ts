@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { renderEmail } from './templates';
+import { EmailMessage } from "cloudflare:email";
 
 export interface Env {
   SEND_EMAIL: {
@@ -84,7 +85,7 @@ app.post('/send', async (c) => {
     // 3. Render email HTML & text
     const { html, text } = renderEmail(template, templateData, domain);
 
-    // 4. Send via MailChannels API (allows sending to ANY email address)
+    // 4. Send via Cloudflare Email Routing
     const fromEmail = (c.env.EMAIL_FROM || `no-reply@${domain}`).trim();
     let fromName = c.env.EMAIL_FROM_NAME || 'Voice Messenger';
     if (typeof fromName !== 'string') {
@@ -95,56 +96,40 @@ app.post('/send', async (c) => {
       fromName = 'Voice Messenger';
     }
 
-    console.log(`[Mail Worker] Sending email via MailChannels to: ${to}, Template: ${template}, Subject: ${subject}`);
+    console.log(`[Mail Worker] Sending email via Cloudflare SEND_EMAIL to: ${to}, Template: ${template}, Subject: ${subject}`);
 
-    const mailChannelsPayload = {
-      personalizations: [
-        {
-          to: [
-            {
-              email: to.trim(),
-              name: to.trim().split('@')[0] || 'Recipient'
-            }
-          ]
-        }
-      ],
-      from: {
-        email: fromEmail,
-        name: fromName
-      },
-      subject: subject,
-      content: [
-        {
-          type: 'text/plain',
-          value: text
-        },
-        {
-          type: 'text/html',
-          value: html
-        }
-      ]
-    };
+    const boundary = "----=_Part_" + crypto.randomUUID();
+    const encodedSubject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`;
+    const encodedFromName = `=?utf-8?B?${btoa(unescape(encodeURIComponent(fromName)))}?=`;
 
-    const mailChannelsResponse = await fetch('https://api.mailchannels.net/tx/v1/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Optional but recommended for production:
-        // 'X-MailChannels-Authorization': 'Bearer your-token-if-needed'
-      },
-      body: JSON.stringify(mailChannelsPayload)
-    });
+    const rawMime = `From: ${encodedFromName} <${fromEmail}>\r\n` +
+      `To: ${to}\r\n` +
+      `Subject: ${encodedSubject}\r\n` +
+      `MIME-Version: 1.0\r\n` +
+      `Content-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Type: text/plain; charset="utf-8"\r\n` +
+      `Content-Transfer-Encoding: 8bit\r\n\r\n` +
+      `${text}\r\n\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Type: text/html; charset="utf-8"\r\n` +
+      `Content-Transfer-Encoding: 8bit\r\n\r\n` +
+      `${html}\r\n\r\n` +
+      `--${boundary}--\r\n`;
 
-    if (!mailChannelsResponse.ok) {
-      const errorText = await mailChannelsResponse.text();
-      console.error('[Mail Worker] MailChannels error:', mailChannelsResponse.status, errorText);
+    const msg = new EmailMessage(fromEmail, to, rawMime);
+
+    try {
+      await c.env.SEND_EMAIL.send(msg);
+    } catch (sendErr: any) {
+      console.error('[Mail Worker] Cloudflare SEND_EMAIL error:', sendErr);
       return c.json({
-        error: 'Failed to send email via MailChannels',
-        details: `Status ${mailChannelsResponse.status}: ${errorText}`
+        error: 'Failed to send email via Cloudflare Email Routing',
+        details: String(sendErr)
       }, 500);
     }
 
-    console.log(`[Mail Worker] Email sent successfully via MailChannels to: ${to}`);
+    console.log(`[Mail Worker] Email sent successfully via Cloudflare SEND_EMAIL to: ${to}`);
 
     return c.json({
       success: true,

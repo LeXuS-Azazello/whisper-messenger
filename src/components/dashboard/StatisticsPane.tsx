@@ -74,36 +74,34 @@ export function StatisticsPane({ user }: PaneProps) {
                         <h3 class="card-title">📊 Daily Transcription Frequency (Last 7 Days)</h3>
                     </div>
                     <div class="card-content">
-                        <div class="bar-chart">
-                            <div class="bar-item">
-                                <div class="bar-value" style="height: 45px;"><span class="bar-text">9</span></div>
-                                <div class="bar-label">Mon</div>
-                            </div>
-                            <div class="bar-item">
-                                <div class="bar-value" style="height: 70px;"><span class="bar-text">14</span></div>
-                                <div class="bar-label">Tue</div>
-                            </div>
-                                <div class="bar-item">
-                                    <div class="bar-value" style="height: 25px;"><span class="bar-text">4</span></div>
-                                    <div class="bar-label">Wed</div>
-                                </div>
-                                <div class="bar-item">
-                                    <div class="bar-value" style="height: 35px;"><span class="bar-text">7</span></div>
-                                    <div class="bar-label">Thu</div>
-                                </div>
-                                <div class="bar-item">
-                                    <div class="bar-value" style="height: 45px;"><span class="bar-text">9</span></div>
-                                    <div class="bar-label">Fri</div>
-                                </div>
-                                <div class="bar-item">
-                                    <div class="bar-value active" style="height: 70px;"><span class="bar-text">14</span></div>
-                                    <div class="bar-label">Sat</div>
-                                </div>
-                                <div class="bar-item">
-                                    <div class="bar-value" style="height: 110px;"><span class="bar-text">22</span></div>
-                                    <div class="bar-label">Sun</div>
-                                </div>
+                        <div class="bar-chart" id="daily-chart-container">
+                            <div style="text-align: center; color: var(--text-dim); padding: 40px;">Loading chart data...</div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid stats-grid-bottom" style={{ marginTop: '1.5rem' }}>
+                <div class="card full-width-card">
+                    <div class="card-header">
+                        <h3 class="card-title">📜 Detailed Processing History</h3>
+                    </div>
+                    <div class="card-content" style={{ overflowX: 'auto' }}>
+                        <table class="history-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                    <th style={{ padding: '12px', color: 'var(--text-dim)' }}>Date</th>
+                                    <th style={{ padding: '12px', color: 'var(--text-dim)' }}>Platform</th>
+                                    <th style={{ padding: '12px', color: 'var(--text-dim)' }}>Type</th>
+                                    <th style={{ padding: '12px', color: 'var(--text-dim)' }}>Input → Output</th>
+                                    <th style={{ padding: '12px', color: 'var(--text-dim)' }}>Characters</th>
+                                    <th style={{ padding: '12px', color: 'var(--text-dim)' }}>Duration (s)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stats-history-table">
+                                <tr><td colSpan={6} style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)' }}>Loading history...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function () {
+function initDashboard() {
     // Basic elements
     const logoutBtn = document.getElementById('logout-btn');
     const mobileLogoutBtn = document.getElementById('mobile-logout-btn');
@@ -824,41 +824,79 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     };
 
+    function switchTab(targetTab) {
+        if (!targetTab) return;
+        
+        // Update active states on buttons
+        tabButtons.forEach(b => {
+            if (b.getAttribute('data-tab') === targetTab) {
+                b.classList.add('active');
+            } else {
+                b.classList.remove('active');
+            }
+        });
+
+        // Update active states on panes
+        tabPanes.forEach(pane => {
+            pane.classList.remove('active');
+        });
+        const targetPane = document.getElementById(`pane-${targetTab}`);
+        if (targetPane) {
+            targetPane.classList.add('active');
+        }
+
+        // Update titles
+        if (sectionTitle && tabMeta[targetTab]) {
+            sectionTitle.textContent = tabMeta[targetTab].title;
+        }
+        if (sectionSubtitle && tabMeta[targetTab]) {
+            sectionSubtitle.textContent = tabMeta[targetTab].subtitle;
+        }
+
+        if (targetTab === 'stats') {
+            fetchStats();
+        }
+
+        // Smooth scroll to top on content change
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
     tabButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
             const targetTab = btn.getAttribute('data-tab');
             if (!targetTab) return;
-
-            // Update active states on buttons
-            tabButtons.forEach(b => {
-                if (b.getAttribute('data-tab') === targetTab) {
-                    b.classList.add('active');
-                } else {
-                    b.classList.remove('active');
-                }
-            });
-
-            // Update active states on panes
-            tabPanes.forEach(pane => {
-                pane.classList.remove('active');
-            });
-            const targetPane = document.getElementById(`pane-${targetTab}`);
-            if (targetPane) {
-                targetPane.classList.add('active');
-            }
-
-            // Update titles
-            if (sectionTitle && tabMeta[targetTab]) {
-                sectionTitle.textContent = tabMeta[targetTab].title;
-            }
-            if (sectionSubtitle && tabMeta[targetTab]) {
-                sectionSubtitle.textContent = tabMeta[targetTab].subtitle;
-            }
-
-            // Smooth scroll to top on content change
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            const href = btn.getAttribute('href') || ('/dashboard' + (targetTab === 'connections' ? '' : '/' + targetTab));
+            history.pushState({ tab: targetTab }, '', href);
+            switchTab(targetTab);
         });
     });
+
+    window.addEventListener('popstate', (e) => {
+        if (e.state && e.state.tab) {
+            switchTab(e.state.tab);
+        } else {
+            // Fallback parsing from URL
+            const path = window.location.pathname;
+            let tab = 'connections';
+            if (path.includes('/stats')) tab = 'stats';
+            if (path.includes('/profile')) tab = 'profile';
+            if (path.includes('/referrals')) tab = 'referrals';
+            if (path.includes('/billing')) tab = 'billing';
+            switchTab(tab);
+        }
+    });
+
+    // Initial load handling
+    const initialPath = window.location.pathname;
+    let initialTab = 'connections';
+    if (initialPath.includes('/stats')) initialTab = 'stats';
+    if (initialPath.includes('/profile')) initialTab = 'profile';
+    if (initialPath.includes('/referrals')) initialTab = 'referrals';
+    if (initialPath.includes('/billing')) initialTab = 'billing';
+    switchTab(initialTab);
+
 
     // Profile Settings: Change Password
     const savePwdBtn = document.getElementById('save-pwd-btn');
@@ -989,6 +1027,55 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 100);
     }
 
+    async function fetchStats() {
+        try {
+            const res = await fetch('/dashboard/api/stats');
+            const data = await res.json();
+            
+            if (data.success) {
+                const tableBody = document.getElementById('stats-history-table');
+                if (tableBody) {
+                    if (data.logs && data.logs.length > 0) {
+                        tableBody.innerHTML = data.logs.map(log => `
+                            <tr style="border-bottom: 1px solid var(--border-color)">
+                                <td style="padding: 12px; color: var(--text-color)">${new Date(log.createdAt).toLocaleString()}</td>
+                                <td style="padding: 12px; color: var(--text-color); text-transform: capitalize;">${log.platform}</td>
+                                <td style="padding: 12px; color: var(--text-color); text-transform: capitalize;">${log.action}</td>
+                                <td style="padding: 12px; color: var(--text-dim)">${log.inputLanguage || '?'} → ${log.outputLanguage || '?'}</td>
+                                <td style="padding: 12px; color: var(--text-color)">${log.charactersCount || 0}</td>
+                                <td style="padding: 12px; color: var(--text-color)">${log.durationSeconds || 0}</td>
+                            </tr>
+                        `).join('');
+                    } else {
+                        tableBody.innerHTML = '<tr><td colspan="6" style="padding: 20px; text-align: center; color: var(--text-dim)">No transcription history yet.</td></tr>';
+                    }
+                }
+
+                const chartContainer = document.getElementById('daily-chart-container');
+                if (chartContainer && data.dailyStats) {
+                    if (data.dailyStats.length > 0) {
+                        const maxCount = Math.max(...data.dailyStats.map(d => d.count), 1);
+                        chartContainer.innerHTML = data.dailyStats.map(d => {
+                            const height = Math.max((d.count / maxCount) * 110, 15); // min 15px
+                            const dateObj = new Date(d._id);
+                            const dayLabel = dateObj.toLocaleDateString(undefined, { weekday: 'short' });
+                            return `
+                                <div class="bar-item">
+                                    <div class="bar-value" style="height: ${height}px;" title="${d.count} requests, ${d.chars} chars"><span class="bar-text">${d.count}</span></div>
+                                    <div class="bar-label">${dayLabel}</div>
+                                </div>
+                            `;
+                        }).join('');
+                    } else {
+                        chartContainer.innerHTML = '<div style="text-align: center; color: var(--text-dim); padding: 40px;">Not enough data for chart</div>';
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to fetch stats:', e);
+        }
+    }
+
     // ─── Translation Settings Card ─────────────────────────────────────────────
     const translationCard = document.getElementById('translation-settings-card');
     if (translationCard) {
@@ -1085,4 +1172,10 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDashboard);
+} else {
+    initDashboard();
+}

@@ -58,7 +58,7 @@ spec:
               value: "true"
           resources:
             requests:
-              cpu: "3"
+              cpu: "4"
               memory: "8Gi"
             limits:
               cpu: "4"

@@ -3,7 +3,18 @@ import { renderDashboard } from "../components/dashboard/Dashboard";
 
 
 
-export async function incrementUserStats(userId: string, env: Env, platform: string = "telegram") {
+export async function incrementUserStats(
+  userId: string, 
+  env: Env, 
+  platform: string = "telegram",
+  stats: {
+    action?: string;
+    inputLanguage?: string;
+    outputLanguage?: string;
+    charactersCount?: number;
+    durationSeconds?: number;
+  } = {}
+) {
   const globalKey = `stats_${platform}`;
   const global = await env.STATS.get(globalKey);
   await env.STATS.put(globalKey, String(parseInt(global || "0", 10) + 1));
@@ -34,6 +45,8 @@ export async function incrementUserStats(userId: string, env: Env, platform: str
 
   try {
     const User = (await import("../models/User")).default;
+    const Statistic = (await import("../models/Statistic")).default;
+    
     const incFields: Record<string, number> = { transcriptionCount: 1 };
     if (platform === "telegram") {
       incFields.tgTranscriptionCount = 1;
@@ -55,10 +68,23 @@ export async function incrementUserStats(userId: string, env: Env, platform: str
       },
       { upsert: true }
     );
+
+    // Save detailed statistic
+    await Statistic.create({
+      userId,
+      platform,
+      action: stats.action || 'transcription',
+      inputLanguage: stats.inputLanguage,
+      outputLanguage: stats.outputLanguage,
+      charactersCount: stats.charactersCount || 0,
+      durationSeconds: stats.durationSeconds || 0
+    });
+
   } catch (e) {
     console.error("[Stats] Failed to update MongoDB:", e);
   }
 }
+
 
 
 export async function handleSaveMeta(env: Env, req: Request, userId: string, user: UserSession): Promise<Response> {
@@ -329,6 +355,8 @@ export async function handleDeleteAccount(env: Env, req: Request, userId: string
     const User = (await import("../models/User")).default;
     const MessengerSession = (await import("../models/MessengerSession")).default;
 
+    const userDoc = await User.findOne({ userId });
+
     await MessengerSession.deleteMany({ userId });
     await User.deleteOne({ userId });
 
@@ -344,6 +372,18 @@ const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager:3
       headers: { "Content-Type": "application/json", "x-manager-secret": secret },
       body: JSON.stringify({ userId })
     }).catch(e => console.error("[Dashboard] Manager delete call failed during account deletion:", e));
+
+    const email = userDoc?.email;
+    if (email && email.includes("@")) {
+      const htmlBody = `
+        <h2>Account Deleted</h2>
+        <p>Your Voice Messenger account has been successfully deleted along with all your data.</p>
+        <p>We are sorry to see you go!</p>
+      `;
+      sendEmail(env, email, "Account Deleted", htmlBody, 'generic', {
+        name: userDoc?.firstName || email.split("@")[0]
+      }).catch(err => console.error('[Email] Failed to send deletion confirmation:', err));
+    }
 
     return Response.json({ success: true }, {
       headers: {

@@ -517,6 +517,19 @@ export async function handleResetPassword(env: Env, body: any, url: URL): Promis
   console.log(`[Auth] Password reset successful for user: ${userId}`);
   await logError("auth", `User ${userId} reset password`, env);
 
+  const publicOrigin = getPublicOrigin(env, url.origin);
+  const email = user.email || "";
+  if (email && email.includes("@")) {
+    const htmlBody = `
+      <h2>Password Updated</h2>
+      <p>Your Voice Messenger account password has been successfully updated.</p>
+      <p>If you did not make this change, please contact support immediately.</p>
+    `;
+    sendEmail(env, email, "Password Updated", htmlBody, 'generic', {
+      name: user.firstName || email.split("@")[0]
+    }).catch(err => console.error('[Email] Failed to send password update confirmation:', err));
+  }
+
   return Response.json({ success: true });
 }
 

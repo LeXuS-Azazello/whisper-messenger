@@ -3,6 +3,40 @@ import base64
 import os
 import subprocess
 import tempfile
+import numpy as np
+import torch
+from threading import Lock
+
+NCPU = int(os.getenv("FUNASR_NCPU", "4"))
+torch.set_num_threads(NCPU)
+torch.set_num_interop_threads(1)
+os.environ["OMP_WAIT_POLICY"] = "PASSIVE"
+os.environ["KMP_BLOCKTIME"] = "0"
+
+model_lock = Lock()
+
+def decode_audio(file_bytes):
+    proc = subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-hide_banner",
+            "-loglevel", "error",
+            "-i", "pipe:0",
+            "-ac", "1",
+            "-ar", "16000",
+            "-f", "f32le",
+            "pipe:1",
+        ],
+        input=file_bytes,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True
+    )
+    audio = np.frombuffer(proc.stdout, dtype=np.float32)
+    if audio.size == 0:
+        raise RuntimeError("empty audio")
+    return audio
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -79,15 +113,7 @@ if MODEL_PATH and os.path.isdir(MODEL_PATH):
     _model_ready = True
     print(f"[funasr] Model found at {MODEL_PATH}")
 else:
-    print(f"[funasr] Model not found at {MODEL_PATH}, waiting...")
-    for i in range(60):
-        time.sleep(5)
-        if MODEL_PATH and os.path.isdir(MODEL_PATH):
-            _model_ready = True
-            print(f"[funasr] Model appeared at {MODEL_PATH} after {i*5}s")
-            break
-    if not _model_ready:
-        print(f"[funasr] WARNING: Model still not found, AutoModel will attempt download")
+    raise RuntimeError(f"model missing at {MODEL_PATH}")
 
 from funasr import AutoModel
 
@@ -114,11 +140,12 @@ print(f"[funasr] Model loaded: {MODEL_NAME}, device={device}")
 # Warmup for faster first request
 try:
     dummy = np.zeros(16000 * 3, dtype=np.float32)
-    funasr.generate(
-        input=dummy,
-        language="auto",
-        batch_size_s=60
-    )
+    with model_lock:
+        funasr.generate(
+            input=dummy,
+            language="auto",
+            batch_size_s=15
+        )
     print("[funasr] warmup done")
 except Exception as e:
     print(f"[funasr] warmup skipped: {e}")
@@ -138,6 +165,8 @@ class TranscribeRequest(BaseModel):
     file_data: str
     mime_type: str = "audio/ogg"
     language: str = "auto"
+    enable_vad: bool = True
+    enable_punc: bool = True
 
 
 @app.post("/v1/transcribe-base64")
@@ -148,29 +177,29 @@ async def transcribe(req: TranscribeRequest):
         raise HTTPException(status_code=400, detail="Invalid base64 data")
 
     try:
-        start_time = time.time()
+        t0 = time.time()
 
-        audio_stream = io.BytesIO(file_bytes)
-        waveform, sr = sf.read(audio_stream, dtype="float32")
+        audio_np = decode_audio(file_bytes)
+        
+        t_decode = time.time()
 
-        if waveform.ndim > 1:
-            waveform = waveform.mean(axis=1)
+        generate_kwargs = {
+            "input": audio_np,
+            "language": req.language,
+            "use_itn": True,
+            "batch_size_s": 15,
+        }
+        
+        if req.enable_vad:
+            generate_kwargs["merge_vad"] = True
+            
+        if not req.enable_punc:
+            generate_kwargs["punc_model"] = None
 
-        audio = torch.from_numpy(waveform)
+        with model_lock:
+            result_list = funasr.generate(**generate_kwargs)
 
-        if sr != 16000:
-            audio = F.resample(audio, sr, 16000)
-
-        audio_np = audio.numpy()
-
-        generate_kwargs = dict(
-            input=audio_np,
-            language=req.language,
-            use_itn=True,
-            merge_vad=True,
-            batch_size_s=60,
-        )
-        result_list = funasr.generate(**generate_kwargs)
+        t_model = time.time()
 
         text = ""
         if isinstance(result_list, list) and len(result_list) > 0:
@@ -182,8 +211,13 @@ async def transcribe(req: TranscribeRequest):
         elif isinstance(result_list, dict):
             text = result_list.get("text", "")
 
-        latency_ms = int((time.time() - start_time) * 1000)
-        return {"text": text, "model": MODEL_NAME, "latency_ms": latency_ms}
+        return {
+            "text": text,
+            "model": MODEL_NAME,
+            "decode_ms": int((t_decode - t0) * 1000),
+            "infer_ms": int((t_model - t_decode) * 1000),
+            "latency_ms": int((t_model - t0) * 1000)
+        }
 
     except HTTPException:
         raise

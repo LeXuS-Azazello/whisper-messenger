@@ -37,7 +37,7 @@ export async function qrStart(req, res) {
         const sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
-            browser: Browsers.ubuntu('Chrome')
+            browser: ['Ubuntu', 'Chrome', '20.0.04']
         });
 
         sock.ev.on('creds.update', saveCreds);
@@ -49,6 +49,12 @@ export async function qrStart(req, res) {
                     lastDisconnect?.error?.output?.statusCode,
                     lastDisconnect?.error
                 );
+                if (!session.responded) {
+                    session.responded = true;
+                    res.status(500).json({ error: lastDisconnect?.error?.message || 'Connection closed by WhatsApp' });
+                    try { sock.logout(); } catch (e) {}
+                    authSessions.delete(tempId);
+                }
             }
             if (qr) {
                 try {
@@ -106,7 +112,7 @@ export async function pairingStart(req, res) {
         const sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
-            browser: Browsers.ubuntu('Chrome')
+            browser: ['Ubuntu', 'Chrome', '20.0.04']
         });
 
         sock.ev.on('creds.update', saveCreds);
@@ -121,9 +127,16 @@ export async function pairingStart(req, res) {
         session.client = sock;
 
         await new Promise((resolve, reject) => {
-            sock.ev.on('connection.update', ({ qr, connection }) => {
-                if (qr) resolve();
-                if (connection === 'close') reject(new Error('Connection closed before initialization'));
+            const timeoutId = setTimeout(() => reject(new Error('Connection timed out waiting for init')), 15000);
+            sock.ev.on('connection.update', ({ qr, connection, lastDisconnect }) => {
+                if (qr || connection === 'open') {
+                    clearTimeout(timeoutId);
+                    resolve();
+                }
+                if (connection === 'close') {
+                    clearTimeout(timeoutId);
+                    reject(new Error(lastDisconnect?.error?.message || 'Connection closed before initialization'));
+                }
             });
         });
 

@@ -40,6 +40,7 @@ export async function handleWaInit(env: Env, userId: string): Promise<Response> 
     const data = await res.json();
     return Response.json(data, { status: res.status });
   } catch (e: any) {
+    console.error("handleWaInit EXCEPTION:", e.stack || e);
     return Response.json({ error: e.message }, { status: 500 });
   }
 }
