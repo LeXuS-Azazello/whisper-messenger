@@ -73,10 +73,9 @@ class CosyVoiceFrontEnd:
                 self.en_tn_model = EnNormalizer()
                 self.text_frontend = 'wetext'
                 logging.info('use wetext frontend')
-except Exception:
+            except Exception:
                 self.text_frontend = ''
                 logging.info('no frontend is avaliable')
-
 
     def _extract_text_token(self, text):
         if isinstance(text, Generator):
@@ -95,12 +94,12 @@ except Exception:
             for i in range(text_token.shape[1]):
                 yield text_token[:, i: i + 1]
 
-def _extract_speech_token(self, prompt_wav):
+    def _extract_speech_token(self, prompt_wav):
         speech = load_wav(prompt_wav, 16000)
         assert speech.shape[1] / 16000 <= 30, 'do not support extract speech token for audio longer than 30s'
         mel_transform = T.MelSpectrogram(
             sample_rate=16000,
-            n_mels=80,
+            n_mels=128,  # Fixed: speech_tokenizer_v3.onnx expects 128 mel bins
             n_fft=400,
             hop_length=160
         )
@@ -189,7 +188,7 @@ def _extract_speech_token(self, prompt_wav):
                 token_len = min(int(speech_feat.shape[1] / 2), speech_token.shape[1])
                 speech_feat, speech_feat_len[:] = speech_feat[:, :2 * token_len], 2 * token_len
                 # speech_token, speech_token_len[:] = speech_token[:, :token_len], token_len
-                speech_feat % speech_token = 2
+                # speech_feat % speech_token = 2  # patched: not valid Python
             embedding = self._extract_spk_embedding(prompt_wav)
             model_input = {'prompt_text': prompt_text_token, 'prompt_text_len': prompt_text_token_len,
                            'llm_prompt_speech_token': speech_token, 'llm_prompt_speech_token_len': speech_token_len,

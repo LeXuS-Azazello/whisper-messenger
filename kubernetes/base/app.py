@@ -153,7 +153,8 @@ def clone_voice(
             sf.write(tmp_path, prompt_speech_16k.squeeze(0).cpu().numpy(), 16000)
 
         for chunk_text in text_chunks:
-            prompt_text = f"<|{cosy_tag}|>{chunk_text}"
+            # CosyVoice3 requires <|endofprompt|> token in prompt_text
+            prompt_text = f"<|{cosy_tag}|>{chunk_text}<|endofprompt|>"
             print(f"[cosy] synthesizing: {chunk_text[:50]}...")
 
             output = cosyvoice.inference_zero_shot(
