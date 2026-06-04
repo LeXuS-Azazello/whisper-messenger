@@ -81,7 +81,8 @@ redis_client = Redis(
 
 try:
     warm_file = "/dev/shm/warmup.wav"
-    sf.write(warm_file, np.zeros(16000 * 3), 16000)
+    warm_noise = np.random.normal(0, 0.001, 16000 * 3)
+    sf.write(warm_file, warm_noise, 16000)
     list(
         cosyvoice.inference_zero_shot(
             tts_text="test voice cloning warmup",
@@ -269,7 +270,6 @@ def clone_voice(
         all_audio_chunks = []
         t1 = time.time()
         for chunk_text in text_chunks:
-            prompt_text_str = req.prompt_text or chunk_text[:80]
             print(f"[cosy] synthesizing: {chunk_text[:50]}...")
             
             # Inject language token so the model doesn't hallucinate (e.g. Russian -> Chinese)
@@ -291,9 +291,27 @@ def clone_voice(
                 "he": "<|en|>",  # fallback
             }
 
-            lang_token = LANG_TOKEN_MAP.get(lang, "<|en|>")
+            # If user didn't provide prompt text, we MUST construct one to avoid cross-lingual hallucination (defaulting to Chinese)
+            # A known hack is to use the chunk_text as the prompt_text transcript.
+            # Fun-CosyVoice3-0.5B-2512 requires <|lang|> tags.
+            # The previous working code used <|lang|>chunk_text<|endofprompt|> for prompt_text
+            # and just chunk_text for tts_text, OR maybe <|lang|> for tts_text too.
+            # Let's use the explicit <|lang|> for tts_text, and if no prompt_text is provided, pass a generic one or the chunk itself.
+            
+            lang_token = LANG_TOKEN_MAP.get(lang, f"<|{lang}|>")
+            
             chunk_with_lang = f"{lang_token}{chunk_text}"
-            prompt_text_str = req.prompt_text or f"{lang_token}{chunk_text[:60]}"
+            
+            prompt_text_str = req.prompt_text.strip()
+            if not prompt_text_str:
+                # Fallback to the old hack to avoid Chinese hallucination
+                # CosyVoice3 requires <|endofprompt|> token in prompt_text if we use the hack
+                prompt_text_str = f"{lang_token}{chunk_text}<|endofprompt|>"
+            else:
+                # If provided, also ensure it has the language token if needed?
+                # Actually, if user provided it, they might not have added <|endofprompt|>
+                if not prompt_text_str.endswith("<|endofprompt|>"):
+                    prompt_text_str = f"{prompt_text_str}<|endofprompt|>"
 
             output = cosyvoice.inference_zero_shot(
                 tts_text=chunk_with_lang,

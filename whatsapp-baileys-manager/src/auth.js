@@ -83,7 +83,8 @@ export async function qrStart(req, res) {
             }
         }, 120000);
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        console.error('[auth] qrStart ERROR:', e.stack);
+        res.status(500).json({ error: e.message, stack: e.stack });
     }
 }
 
@@ -139,7 +140,8 @@ export async function pairingStart(req, res) {
         });
 
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        console.error('[auth] pairingStart ERROR:', e.stack);
+        res.status(500).json({ error: e.message, stack: e.stack });
     }
 }
 
