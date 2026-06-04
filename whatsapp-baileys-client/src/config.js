@@ -5,7 +5,7 @@ import Redis from 'ioredis';
 export const API_ID = 0; // Placeholder for compatibility
 export const API_HASH = ''; // Placeholder for compatibility
 
-export const SECRET = (process.env.MANAGER_SECRET || 'changeme').trim();
+export const SECRET = process.env.MANAGER_SECRET?.trim();
 export const PORT = parseInt(process.env.PORT || '3000', 10);
 export const TARGET_USER_ID = process.env.TARGET_USER_ID || '';
 export const WORKER_URL = process.env.WORKER_URL || '';

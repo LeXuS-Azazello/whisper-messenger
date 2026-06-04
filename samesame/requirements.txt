@@ -1,7 +1,9 @@
-fastapi
-uvicorn[standard]
-TTS
-soundfile
+torch==2.3.1
+torchaudio==2.3.1
 numpy
-transformers<4.40.0
-torchcodec
+soundfile
+librosa
+modelscope
+omegaconf
+fastapi
+uvicorn

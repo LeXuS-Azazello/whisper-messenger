@@ -35,8 +35,11 @@ async function init() {
             if (isRevoked) {
                 console.log(`[tg-client] Session for ${TARGET_USER_ID} is revoked/invalid. Notifying backend...`);
                 try {
-                    const managerUrl = process.env.MANAGER_URL || process.env.WORKER_URL || 'http://tg-client-manager:3000';
-                    const managerSecret = process.env.MANAGER_SECRET || process.env.BRIDGE_SECRET || 'changeme';
+const managerUrl = process.env.MANAGER_URL || process.env.WORKER_URL || 'http://tg-client-manager:3000';
+                        if (!process.env.MANAGER_SECRET && !process.env.BRIDGE_SECRET) {
+                            throw new Error('MANAGER_SECRET or BRIDGE_SECRET environment variable must be set');
+                        }
+                        const managerSecret = process.env.MANAGER_SECRET || process.env.BRIDGE_SECRET;
                     await fetch(`${managerUrl}/internal/access-revoked`, {
                         method: 'POST',
                         headers: { 

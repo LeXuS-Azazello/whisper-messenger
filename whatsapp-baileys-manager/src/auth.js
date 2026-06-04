@@ -41,7 +41,15 @@ export async function qrStart(req, res) {
         });
 
         sock.ev.on('creds.update', saveCreds);
+        const { connection, lastDisconnect } = update;
 
+        if(connection === 'close') {
+        console.log(
+            'disconnect',
+            lastDisconnect?.error?.output?.statusCode,
+            lastDisconnect?.error
+        );
+        }
         sock.ev.on('connection.update', async (update) => {
             const { connection, qr } = update;
             if (qr) {
@@ -75,7 +83,7 @@ export async function qrStart(req, res) {
                 try { sock.logout(); } catch (e) { }
                 authSessions.delete(tempId);
             }
-        }, 15000);
+        }, 120000);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -98,7 +106,7 @@ export async function pairingStart(req, res) {
         const sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
-            browser: Browsers.ubuntu('Chrome')
+            browser: Browsers.macOS('Desktop')
         });
 
         sock.ev.on('creds.update', saveCreds);
@@ -112,7 +120,14 @@ export async function pairingStart(req, res) {
 
         session.client = sock;
 
-        const code = await sock.requestPairingCode(phone.replace(/[^0-9]/g, ''));
+        await new Promise((resolve) => {
+            sock.ev.on('connection.update', ({ qr }) => {
+                resolve();
+            });
+        });
+
+        const code = await sock.requestPairingCode(phone);
+
         session.pairingCode = code;
         session.responded = true;
 
@@ -139,7 +154,8 @@ export async function qrCheck(req, res) {
         const targetUserId = userId || 'unknown';
         console.log(`[auth] WhatsApp Auth successful for ${targetUserId}`);
 
-        try { s.client.logout(); } catch (e) { }
+        try { s.client.end?.(); } catch {}
+        await new Promise(r => setTimeout(r, 3000));
 
         const packed = packBaileysSession(s.id);
         if (packed) {

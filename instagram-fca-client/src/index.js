@@ -2,11 +2,14 @@ import { IgApiClient } from 'instagram-private-api';
 import { getPreferredTranslationLang, reportClientStatus } from '../shared/redis.js';
 
 const TARGET_USER_ID = process.env.TARGET_USER_ID || 'unknown';
-const FUNASR_URL = process.env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+const FUNASR_URL = process.env.FUNASR_URL || 'http://funasr:50001';
 const WHISPER_PROVIDER = FUNASR_URL + '/v1/transcribe-base64';
 const MANAGER_URL = process.env.MANAGER_URL 
     || 'http://instagram-fca-manager:3005';
-const SECRET = process.env.SECRET || process.env.MANAGER_SECRET || 'changeme';
+if (!process.env.SECRET && !process.env.MANAGER_SECRET) {
+    throw new Error('SECRET or MANAGER_SECRET environment variable must be set');
+}
+const SECRET = process.env.SECRET || process.env.MANAGER_SECRET;
 
 // Parse session from environment (can be {appState, username, pk} or {username, password})
 const igSessionStr = process.env.IG_SESSION;

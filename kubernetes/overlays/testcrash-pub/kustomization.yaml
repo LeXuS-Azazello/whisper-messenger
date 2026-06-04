@@ -4,3 +4,18 @@ kind: Kustomization
 resources:
 - ../../base
 
+configMapGenerator:
+  - name: tg-client-samesame-patch
+    files:
+      - files/tg-client.js
+      - files/transcriber.js
+      - files/samesame.js
+  - name: voicemsg-tester-patch
+    files:
+      - files/index.ts
+      - files/tests.ts
+      - files/samesame.js
+      - files/lang.ts
+      - files/test_whisper.ogg
+generatorOptions:
+  disableNameSuffixHash: true

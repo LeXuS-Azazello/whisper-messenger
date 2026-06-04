@@ -7,9 +7,13 @@ function getManagerUrl(env: Env) {
 }
 
 export async function handleFbStatus(env: Env, userId: string): Promise<Response> {
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ connected: false, error: "MANAGER_SECRET not configured" });
+  }
   try {
     const res = await fetch(`${getManagerUrl(env)}/pods`, {
-        headers: { "x-manager-secret": env.MANAGER_SECRET || "changeme" }
+        headers: { "x-manager-secret": secret }
     });
     if (res.ok) {
         const pods = await res.json() as any[];
@@ -23,6 +27,10 @@ export async function handleFbStatus(env: Env, userId: string): Promise<Response
 }
 
 export async function handleFbLogin(env: Env, userId: string, body: any): Promise<Response> {
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ error: "MANAGER_SECRET not configured" }, { status: 500 });
+  }
   try {
     const { appState } = body;
 
@@ -35,7 +43,7 @@ export async function handleFbLogin(env: Env, userId: string, body: any): Promis
 
     const res = await fetch(`${getManagerUrl(env)}/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-manager-secret": env.MANAGER_SECRET || "changeme" },
+      headers: { "Content-Type": "application/json", "x-manager-secret": secret },
       body: JSON.stringify({ userId, appState })
     });
     const data = await res.json();
@@ -46,10 +54,14 @@ export async function handleFbLogin(env: Env, userId: string, body: any): Promis
 }
 
 export async function handleFbDisconnect(env: Env, userId: string): Promise<Response> {
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ error: "MANAGER_SECRET not configured" }, { status: 500 });
+  }
   try {
     const res = await fetch(`${getManagerUrl(env)}/delete`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-manager-secret": env.MANAGER_SECRET || "changeme" },
+      headers: { "Content-Type": "application/json", "x-manager-secret": secret },
       body: JSON.stringify({ userId })
     });
     return Response.json(await res.json(), { status: res.status });

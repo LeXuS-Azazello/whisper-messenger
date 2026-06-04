@@ -4,6 +4,32 @@ import { transcribeAudio } from "./whisper";
 import { incrementUserStats } from "./routes/dashboard";
 import { logError } from "./logger";
 
+const ALLOWED_AUDIO_HOSTS = new Set([
+  "voicemsg.net",
+  "t.me",
+  "cdn.telegram.org",
+  "whatsapp.com",
+  "facebook.com",
+  "instagram.com",
+  "fbcdn.net",
+  "scontent.cdninstagram.com",
+]);
+
+function isAudioUrlAllowed(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^api\./, '').replace(/^video\./, '');
+    for (const allowed of ALLOWED_AUDIO_HOSTS) {
+      if (host === allowed || host.endsWith('.' + allowed)) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 async function getManagerUrl(env: Env): Promise<string> {
   return (env.MANAGER_URL || "").trim() || `http://tg-client-manager:3000`;
 }
@@ -26,6 +52,11 @@ export default async function queue(batch: any, env: Env) {
       if (platform === "telegram") {
         await sendTelegramTypingOn(Number(senderId), env);
         await sendTelegramMessage(Number(senderId), transcribingMessage, env);
+      }
+
+      // SSRF protection: validate audioUrl
+      if (!isAudioUrlAllowed(audioUrl)) {
+        throw new Error(`Blocked: audioUrl host not in allowlist`);
       }
 
       // Download audio

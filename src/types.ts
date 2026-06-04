@@ -58,6 +58,7 @@ export interface Env {
   SMTP_HOST?: string;
   SMTP_PORT?: string;
   SMTP_SECURE?: string;
+  ASR_SECRET?: string;
 
   // Mail Worker Config
   MAIL_WORKER_URL?: string;

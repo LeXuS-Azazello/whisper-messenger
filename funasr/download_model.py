@@ -3,6 +3,7 @@ import sys
 
 # Читаем переменные окружения, переданные из Kubernetes Job
 MODELS_DIR = os.getenv("MODELS_DIR", "/models")
+HUB_DIR = os.path.join(MODELS_DIR, "hub")
 MODELS_TO_DOWNLOAD = {
     "model": "FunAudioLLM/Fun-ASR-MLT-Nano-2512",
     "vad": "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
@@ -16,10 +17,9 @@ def download_repo(repo_id: str, target_dir: str):
     # Пытаемся через ModelScope
     try:
         from modelscope import snapshot_download as ms_download
-        # Для ModelScope cache_dir создает структуру cache_dir/repo_id
-        # Чтобы пути совпали, передаем базовую директорию верхнего уровня
-        base_dir = os.path.dirname(target_dir)
-        ms_download(repo_id, cache_dir=base_dir)
+        # Для ModelScope cache_dir создает структуру cache_dir/organization/repo
+        # Чтобы пути совпали с ожиданиями server.py, используем hub подпапку
+        ms_download(repo_id, cache_dir=HUB_DIR)
         print(f" Успешно скачано через ModelScope: {repo_id}")
         return
     except Exception as e:
@@ -36,20 +36,21 @@ def download_repo(repo_id: str, target_dir: str):
         sys.exit(1)
 
 def main():
+    os.makedirs(HUB_DIR, exist_ok=True)
     for mode, repo in MODELS_TO_DOWNLOAD.items():
         if not repo:
             print(f"Пропуск {mode}: переменная окружения не задана.")
             continue
             
         # Формируем финальный путь, который ожидает основной Деплоймент
-        # Например: /models/FunAudioLLM/Fun-ASR-MLT-Nano-2512
-        target_path = os.path.join(MODELS_DIR, repo)
+        # Например: /models/hub/FunAudioLLM/Fun-ASR-MLT-Nano-2512
+        target_path = os.path.join(HUB_DIR, repo)
         
         # Проверяем, возможно модель уже скачана (для перезапусков Job)
         if os.path.isdir(target_path) and any(os.listdir(target_path)):
             print(f"Модель {repo} уже существует в {target_path}. Пропуск.")
             continue
-            
+        
         download_repo(repo, target_path)
 
 if __name__ == "__main__":

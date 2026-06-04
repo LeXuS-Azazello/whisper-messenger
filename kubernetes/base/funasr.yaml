@@ -4,7 +4,7 @@ metadata:
   name: funasr
   namespace: debugging-testcrash-pub
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: funasr
@@ -25,11 +25,13 @@ spec:
             httpGet:
               path: /ready
               port: 50001
-            initialDelaySeconds: 30 # Уменьшено со 120 до 30 секунд
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 10
+            initialDelaySeconds: 180
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 60
           env:
+            - name: FUNASR_WORKERS
+              value: "1"
             - name: FUNASR_MODEL
               value: "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
             - name: FUNASR_DEVICE
@@ -37,20 +39,20 @@ spec:
             - name: FUNASR_NCPU
               value: "4" # Добавлено: под лимиты CPU
             - name: FUNASR_MODEL_PATH
-              value: "/models/hub/FunAudioLLM/Fun-ASR-MLT-Nano-2512"
+              value: "/models/FunAudioLLM/Fun-ASR-MLT-Nano-2512"
             - name: FUNASR_VAD_MODEL_PATH
-              value: "/models/hub/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+              value: "/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
             - name: FUNASR_PUNC_MODEL_PATH
-              value: "/models/hub/iic/punc_ct-transformer_cn-en-common-vocab471067-large"
+              value: "/models/iic/punc_ct-transformer_cn-en-common-vocab471067-large"
             - name: FUNASR_DISABLE_UPDATE
               value: "true"
           resources:
             requests:
-              cpu: "2"
-              memory: "6Gi"
+              cpu: "1"
+              memory: "10Gi"
             limits:
-              cpu: "4"
-              memory: "12Gi"
+              cpu: "2"
+              memory: "32Gi"
           volumeMounts:
             - name: models
               mountPath: "/models"

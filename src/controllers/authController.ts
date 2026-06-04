@@ -105,7 +105,11 @@ async function sendEmailMailChannelsFallback(env: Env, to: string, subject: stri
 }
 
 export async function createSessionResponse(userId: string, env: Env, returnJson: boolean = false): Promise<Response> {
-  const signedSession = await createSignedSession(userId, env.SESSION_SECRET || "default_session_secret");
+  const sessionSecret = env.SESSION_SECRET?.trim();
+  if (!sessionSecret) {
+    throw new Error("SESSION_SECRET not configured");
+  }
+  const signedSession = await createSignedSession(userId, sessionSecret);
   const isSecure = (env.WORKER_URL || "").trim().startsWith("https://");
   const cookie = `session=${signedSession}; Path=/; HttpOnly; SameSite=Lax;${isSecure ? " Secure;" : ""} Max-Age=${SESSION_MAX_AGE}`;
 

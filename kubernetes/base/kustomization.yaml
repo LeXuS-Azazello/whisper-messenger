@@ -26,15 +26,15 @@ namespace: debugging-testcrash-pub
 configMapGenerator:
   - name: samesame-download-scripts
     files:
-      - download-models.sh=scripts/samesame-download-models.sh
+      - download-models.sh=./scripts/samesame-download-models.sh
   - name: funasr-download-scripts
     files:
-      - funasr-download-models.sh=scripts/funasr-download-models.sh
+      - funasr-download-models.sh=./scripts/funasr-download-models.sh
   - name: funasr-server
     files:
-      - server.py=funasr-server.py
+      - server.py=./funasr-server.py
   - name: samesame-app-py
     files:
-      - app.py=samesame-app.py
+      - app.py=./app.py
 generatorOptions:
   disableNameSuffixHash: true

@@ -231,9 +231,9 @@ export async function spawnPod(userId, session, username = '', tgId = '', tgLogi
     // Add dynamic config from Redis as Environment Variables
     console.log(`[/spawn] Step 9: Loading dynamic configurations from Redis...`);
     try {
-        const asrProvider = await redis.get('config_local_funasr_url') || process.env.ASR_PROVIDER || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+        const asrProvider = await redis.get('config_local_funasr_url') || process.env.ASR_PROVIDER || 'http://funasr:50001';
         const asrSecret = await redis.get('config_asr_secret') || process.env.ASR_SECRET || '';
-        const samesameUrl = await redis.get('config_samesame_url') || process.env.SAMESAME_URL || 'http://samesame.debugging-testcrash-pub.svc.cluster.local:8002';
+        const samesameUrl = await redis.get('config_samesame_url') || process.env.SAMESAME_URL || 'http://samesame:8002';
         const samesameSecret = await redis.get('config_samesame_secret') || process.env.SAMESAME_SECRET || '';
 
         container.env.push({ name: 'ASR_PROVIDER', value: asrProvider });

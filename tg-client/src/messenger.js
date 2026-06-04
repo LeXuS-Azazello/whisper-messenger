@@ -46,7 +46,11 @@ export async function deleteMessage(client, chatId, messageId) {
 
 export async function updateManagerStats(userId) {
     const managerApi = MANAGER_URL || 'http://tg-client-manager:3000';
-    const secret = MANAGER_SECRET || 'changeme';
+    if (!MANAGER_SECRET) {
+        console.error('[messenger] MANAGER_SECRET not set, cannot update stats');
+        return;
+    }
+    const secret = MANAGER_SECRET;
     fetch(`${managerApi}/internal/stats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-manager-secret': secret },

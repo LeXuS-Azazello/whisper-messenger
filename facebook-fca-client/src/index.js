@@ -3,15 +3,14 @@ import 'dotenv/config';
 import { getPreferredTranslationLang, reportClientStatus } from '../shared/redis.js';
 
 const TARGET_USER_ID = process.env.TARGET_USER_ID || 'unknown';
-let FUNASR_URL = process.env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
-// removed WHISPER_PROVIDER auto-correct block
-
-
-
-WHISPER_PROVIDER = FUNASR_URL + '/v1/transcribe-base64';
+const FUNASR_URL = process.env.FUNASR_URL || 'http://funasr:50001';
+const WHISPER_PROVIDER = FUNASR_URL + '/v1/transcribe-base64';
 const MANAGER_URL = process.env.MANAGER_URL 
     || 'http://facebook-fca-manager:3003';
-const SECRET = process.env.SECRET || process.env.MANAGER_SECRET || 'changeme';
+if (!process.env.SECRET && !process.env.MANAGER_SECRET) {
+    throw new Error('SECRET or MANAGER_SECRET environment variable must be set');
+}
+const SECRET = process.env.SECRET || process.env.MANAGER_SECRET;
 
 const login = typeof fcaLogin === 'function' ? fcaLogin : (fcaLogin.default || fcaLogin);
 

@@ -14,7 +14,7 @@ import { verifySession } from "./session";
  * Uses MANAGER_URL env var, falls back to internal K8s service name.
  */
 function getManagerUrl(env: Env): string {
-  return (env.MANAGER_URL || "").trim() || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`;
+  return (env.MANAGER_URL || "").trim() || `http://tg-client-manager:3000`;
 }
 
 function getPublicOrigin(env: Env, fallbackOrigin: string): string {
@@ -53,10 +53,10 @@ async function performDiagnostic(env: Env) {
     }
   };
 
-  results.services.funasr = await checkService("funasr", "http://funasr:50001/ready");
-  results.services.samesame = await checkService("samesame", "http://samesame:8002/health");
-  results.services.redis = await checkService("redis", "redis://redis:6379"); // Note: fetch won't work for redis, this is a placeholder
-  results.services.mongodb = await checkService("mongodb", "mongodb://mongodb:27017"); // Note: fetch won't work for mongodb, this is a placeholder
+results.services.funasr = await checkService("funasr", "http://funasr:50001/ready");
+   results.services.samesame = await checkService("samesame", "http://samesame:8002/health");
+   results.services.redis = await checkService("redis", "http://redis:6379");
+   results.services.mongodb = await checkService("mongodb", "http://mongodb:27017");
 
   return results;
 }
@@ -188,7 +188,11 @@ export default {
         const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;
         if (sessionCookie) {
-          currentUserId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
+          const sessionSecret = env.SESSION_SECRET?.trim();
+          if (!sessionSecret) {
+            return new Response("SESSION_SECRET not configured", { status: 500 });
+          }
+          currentUserId = await verifySession(sessionCookie, sessionSecret);
         }
 
         return await handlePublicAuth(env, req, currentUserId, ctx);
@@ -199,7 +203,11 @@ export default {
         const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;
         if (sessionCookie) {
-          currentUserId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
+          const sessionSecret = env.SESSION_SECRET?.trim();
+          if (!sessionSecret) {
+            return new Response("SESSION_SECRET not configured", { status: 500 });
+          }
+          currentUserId = await verifySession(sessionCookie, sessionSecret);
         }
 
         if (!currentUserId) {
@@ -215,7 +223,11 @@ export default {
         const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;
         if (sessionCookie) {
-          currentUserId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
+          const sessionSecret = env.SESSION_SECRET?.trim();
+          if (!sessionSecret) {
+            return new Response("SESSION_SECRET not configured", { status: 500 });
+          }
+          currentUserId = await verifySession(sessionCookie, sessionSecret);
         }
 
         if (!currentUserId) {
@@ -231,7 +243,11 @@ export default {
         const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;
         if (sessionCookie) {
-          currentUserId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
+          const sessionSecret = env.SESSION_SECRET?.trim();
+          if (!sessionSecret) {
+            return new Response("SESSION_SECRET not configured", { status: 500 });
+          }
+          currentUserId = await verifySession(sessionCookie, sessionSecret);
         }
 
         if (!currentUserId) {
@@ -247,7 +263,11 @@ export default {
         const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
         let currentUserId: string | null = null;
         if (sessionCookie) {
-          currentUserId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
+          const sessionSecret = env.SESSION_SECRET?.trim();
+          if (!sessionSecret) {
+            return new Response("SESSION_SECRET not configured", { status: 500 });
+          }
+          currentUserId = await verifySession(sessionCookie, sessionSecret);
         }
 
         if (!currentUserId) {
@@ -290,7 +310,11 @@ export default {
       if (pathname === "/") {
         const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];
         if (sessionCookie) {
-          const userId = await verifySession(sessionCookie, env.SESSION_SECRET || "default_session_secret");
+          const sessionSecret = env.SESSION_SECRET?.trim();
+          if (!sessionSecret) {
+            return new Response("SESSION_SECRET not configured", { status: 500 });
+          }
+          const userId = await verifySession(sessionCookie, sessionSecret);
           if (userId) {
             return new Response(null, {
               status: 302,

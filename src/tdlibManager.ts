@@ -11,12 +11,17 @@ export const authSessions = new Map<string, any>();
 tdl.configure({ tdjson: getTdjson() });
 
 export function createTdClient(userId: string, options: any = {}) {
+    const apiId = process.env.TELEGRAM_APP_ID;
+    const apiHash = process.env.TELEGRAM_APP_HASH;
+    if (!apiId || !apiHash) {
+        throw new Error("TELEGRAM_APP_ID and TELEGRAM_APP_HASH must be configured");
+    }
     const dbDir = path.join('/tmp/tdlib', String(userId || 'manager'));
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
     const client = tdl.createClient({
-        apiId: Number(process.env.TELEGRAM_APP_ID || 2222),
-        apiHash: process.env.TELEGRAM_APP_HASH || 'changeme',
+        apiId: Number(apiId),
+        apiHash: apiHash,
         databaseDirectory: dbDir,
         filesDirectory: path.join(dbDir, 'files'),
         skipOldUpdates: true,

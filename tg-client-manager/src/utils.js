@@ -87,7 +87,7 @@ export function auth(req, res, next) {
     return next();
   }
   const s = (req.headers['x-manager-secret'] || req.headers['x-bridge-secret'] || req.query.secret || '').trim();
-  const expected = (SECRET || 'changeme').trim();
+  const expected = SECRET.trim();
   const isMatched = s === expected;
   
   if (!isMatched) {

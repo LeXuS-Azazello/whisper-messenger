@@ -19,16 +19,16 @@ import translate from 'google-translate-api-x';
 import { isSamesameRequest, parseSamesameRequest, cloneVoiceWithSamesame } from '../shared/samesame.js';
 
 const TARGET_USER_ID = process.env.TARGET_USER_ID || 'unknown';
-let ASR_PROVIDER = process.env.ASR_PROVIDER || process.env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+let ASR_PROVIDER = process.env.ASR_PROVIDER || process.env.FUNASR_URL || 'http://funasr:50001';
 if (ASR_PROVIDER === 'funasr') {
-    ASR_PROVIDER = 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+    ASR_PROVIDER = 'http://funasr:50001';
 } else if (!ASR_PROVIDER.startsWith('http://') && !ASR_PROVIDER.startsWith('https://')) {
     ASR_PROVIDER = 'http://' + ASR_PROVIDER;
 }
 ASR_PROVIDER = ASR_PROVIDER.replace(/\/$/, '') + '/v1/transcribe-base64';
 const MANAGER_URL = process.env.MANAGER_URL
-    || 'http://whatsapp-baileys-manager.debugging-testcrash-pub.svc.cluster.local:3002';
-const SECRET = process.env.SECRET || process.env.MANAGER_SECRET || 'changeme';
+    || 'http://whatsapp-baileys-manager:3002';
+const SECRET = process.env.SECRET || process.env.MANAGER_SECRET;
 const SESSION_DIR = '/app/sessions';
 
 const MAX_RETRIES = 3;

@@ -73,7 +73,7 @@ The system follows a **per-user pod** model:
 *   Redis instance reachable within the cluster.
 
 ### Deployment
-The project uses a streamlined deployment script that builds the images, pushes them to the private Harbor registry (`harbor.dev.takatan.cloud`), and updates the Kubernetes manifests.
+The project uses a streamlined deployment script that builds the images, pushes them to the private Harbor registry (`https://hub.docker.com/repository/docker/lexusazazello`), and updates the Kubernetes manifests.
 
 ```bash
 # Deploy to the production namespace

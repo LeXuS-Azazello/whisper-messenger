@@ -1,6 +1,9 @@
 export const MODE = process.env.MODE || 'MANAGER';
 
-export const SECRET = (process.env.SECRET || process.env.MANAGER_SECRET || 'changeme').trim();
+if (!process.env.SECRET && !process.env.MANAGER_SECRET) {
+    throw new Error('SECRET or MANAGER_SECRET environment variable must be set');
+}
+export const SECRET = (process.env.SECRET || process.env.MANAGER_SECRET).trim();
 export const PORT = parseInt(process.env.PORT || '3003', 10);
 export const TARGET_USER_ID = process.env.TARGET_USER_ID || '';
 export const WORKER_URL = process.env.WORKER_URL || '';

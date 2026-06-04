@@ -7,9 +7,13 @@ function getManagerUrl(env: Env) {
 }
 
 export async function handleInstaStatus(env: Env, userId: string): Promise<Response> {
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ connected: false, error: "MANAGER_SECRET not configured" });
+  }
   try {
     const res = await fetch(`${getManagerUrl(env)}/pods`, {
-      headers: { "x-manager-secret": env.MANAGER_SECRET || "changeme" }
+      headers: { "x-manager-secret": secret }
     });
     if (res.ok) {
       const pods = await res.json() as any[];
@@ -23,6 +27,10 @@ export async function handleInstaStatus(env: Env, userId: string): Promise<Respo
 }
 
 export async function handleInstaLogin(env: Env, userId: string, body: any): Promise<Response> {
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ error: "MANAGER_SECRET not configured" }, { status: 500 });
+  }
   try {
     const { username, password, appState } = body;
 
@@ -38,7 +46,7 @@ export async function handleInstaLogin(env: Env, userId: string, body: any): Pro
 
     const res = await fetch(`${getManagerUrl(env)}/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-manager-secret": env.MANAGER_SECRET || "changeme" },
+      headers: { "Content-Type": "application/json", "x-manager-secret": secret },
       body: JSON.stringify(payload)
     });
     const data = await res.json();
@@ -49,10 +57,14 @@ export async function handleInstaLogin(env: Env, userId: string, body: any): Pro
 }
 
 export async function handleInstaDisconnect(env: Env, userId: string): Promise<Response> {
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ error: "MANAGER_SECRET not configured" }, { status: 500 });
+  }
   try {
     const res = await fetch(`${getManagerUrl(env)}/delete`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-manager-secret": env.MANAGER_SECRET || "changeme" },
+      headers: { "Content-Type": "application/json", "x-manager-secret": secret },
       body: JSON.stringify({ userId })
     });
     return Response.json(await res.json(), { status: res.status });

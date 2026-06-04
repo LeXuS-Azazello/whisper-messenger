@@ -15,7 +15,7 @@
     "containers": [
       {
         "name": "tg-client",
-        "image": "hub.docker.com/repository/docker/lexusazazello/tg-client:latest",
+        "image": "lexusazazello/voicemsg:tg-client-latest",
         "imagePullPolicy": "IfNotPresent",
         "env": [
           {

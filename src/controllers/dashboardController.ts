@@ -125,8 +125,14 @@ export async function handleSaveLine(env: Env, req: Request, userId: string, use
     console.error("[DB] LINE settings persist failed:", e);
   }
 
-  const managerUrl = (env.LINE_MANAGER_URL || "").trim() || `http://line-manager.${env.NAMESPACE}.svc.cluster.local:3006`;
-  const secret = (env.MANAGER_SECRET || "changeme").trim();
+  const managerUrl = (env.LINE_MANAGER_URL || "").trim();
+  if (!managerUrl) {
+    return Response.json({ error: "LINE_MANAGER_URL not configured" }, { status: 500 });
+  }
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    throw new Error("MANAGER_SECRET not configured");
+  }
 
   try {
     const res = await fetch(`${managerUrl}/spawn`, {
@@ -177,8 +183,11 @@ export async function handleDisconnectTg(env: Env, userId: string, user: UserSes
   }
 
   // 5. Tell Manager to kill pods and local files
-  const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`;
-  const secret = (env.MANAGER_SECRET || "changeme").trim();
+  const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager:3000`;
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    throw new Error("MANAGER_SECRET not configured");
+  }
 
   await fetch(`${managerUrl}/delete?secret=${secret}`, {
     method: "POST",
@@ -191,8 +200,11 @@ export async function handleDisconnectTg(env: Env, userId: string, user: UserSes
 
 export async function handleTestTg(env: Env, user: UserSession): Promise<Response> {
   if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-  const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`;
-  const secret = (env.MANAGER_SECRET || "changeme").trim();
+  const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager:3000`;
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    throw new Error("MANAGER_SECRET not configured");
+  }
   
   try {
     const res = await fetch(`${managerUrl}/test-tg?secret=${secret}`, {
@@ -214,8 +226,11 @@ export async function handleTestTg(env: Env, user: UserSession): Promise<Respons
 
 export async function handleRestartTg(env: Env, userId: string, user: UserSession): Promise<Response> {
   if (!user.session) return Response.json({ error: "Not connected" }, { status: 400 });
-  const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`;
-  const secret = (env.MANAGER_SECRET || "changeme").trim();
+  const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager:3000`;
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    throw new Error("MANAGER_SECRET not configured");
+  }
 
   try {
     const res = await fetch(`${managerUrl}/spawn?secret=${secret}`, {
@@ -318,8 +333,11 @@ export async function handleDeleteAccount(env: Env, req: Request, userId: string
     await User.deleteOne({ userId });
 
     // 3. Contact Manager to kill pods and local files
-    const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`;
-    const secret = (env.MANAGER_SECRET || "changeme").trim();
+const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager:3000`;
+    const secret = env.MANAGER_SECRET?.trim();
+    if (!secret) {
+      throw new Error("MANAGER_SECRET not configured");
+    }
 
     await fetch(`${managerUrl}/delete?secret=${secret}`, {
       method: "POST",

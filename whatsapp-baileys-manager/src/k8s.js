@@ -141,8 +141,8 @@ export async function spawnPod(userId, session, username = '', waId = '', waLogi
     container.env = Array.from(envMap.values());
     
     try {
-        const provider = await redis.get('config_local_funasr_url') || process.env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001/v1/transcribe-base64';
-        const samesameUrl = await redis.get('config_samesame_url') || process.env.SAMESAME_URL || 'http://samesame.debugging-testcrash-pub.svc.cluster.local:8002';
+        const provider = await redis.get('config_local_funasr_url') || process.env.FUNASR_URL || 'http://funasr:50001/v1/transcribe-base64';
+        const samesameUrl = await redis.get('config_samesame_url') || process.env.SAMESAME_URL || 'http://samesame:8002';
         const samesameSecret = await redis.get('config_samesame_secret') || process.env.SAMESAME_SECRET || '';
         
         container.env.push({ name: 'FUNASR_URL', value: provider });

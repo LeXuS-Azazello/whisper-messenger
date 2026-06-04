@@ -17,7 +17,10 @@ if (!API_HASH) {
 }
 
 
-export const SECRET = (process.env.MANAGER_SECRET || process.env.BRIDGE_SECRET || 'changeme').trim();
+if (!process.env.MANAGER_SECRET && !process.env.BRIDGE_SECRET) {
+    throw new Error('MANAGER_SECRET or BRIDGE_SECRET environment variable must be set');
+}
+export const SECRET = (process.env.MANAGER_SECRET || process.env.BRIDGE_SECRET).trim();
 export const PORT = parseInt(process.env.PORT || '3000', 10);
 export const TARGET_USER_ID = process.env.TARGET_USER_ID || '';
 export const TG_SESSION = process.env.TG_SESSION || '';

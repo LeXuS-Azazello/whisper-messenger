@@ -50,24 +50,28 @@ export async function runDiagnostics(env: Env): Promise<Response> {
 
     // 3. Test Manager (tg-client-manager)
     try {
-        const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
-        const secret = (env.MANAGER_SECRET || "changeme").trim();
-        const start = Date.now();
-        const res = await fetch(`${managerUrl}/health?secret=${secret}`, {
-            headers: { "x-manager-secret": secret },
-            signal: AbortSignal.timeout(5000)
-        });
-        const lat = Date.now() - start;
-        if (res.ok) {
-            const data = await res.json() as any;
-            results.manager = { status: 'healthy', message: `Connected (${data.mode}, Latency: ${lat}ms)` };
-            if (data.k8s) {
-                results.k8s = { status: 'healthy', message: 'K8s API Accessible' };
-            } else {
-                results.k8s = { status: 'unhealthy', message: 'K8s API Access Failed (Check SA permissions)' };
-            }
+const managerUrl = (env.MANAGER_URL || `http://tg-client-manager:3000`).replace(/\/$/, '');
+        const secret = (env.MANAGER_SECRET || "").trim();
+        if (!secret) {
+            results.manager = { status: 'error', message: 'MANAGER_SECRET not configured' };
         } else {
-            results.manager = { status: 'unhealthy', message: `HTTP ${res.status}: ${await res.text()}` };
+            const start = Date.now();
+            const res = await fetch(`${managerUrl}/health?secret=${secret}`, {
+                headers: { "x-manager-secret": secret },
+                signal: AbortSignal.timeout(5000)
+            });
+            const lat = Date.now() - start;
+            if (res.ok) {
+                const data = await res.json() as any;
+                results.manager = { status: 'healthy', message: `Connected (${data.mode}, Latency: ${lat}ms)` };
+                if (data.k8s) {
+                    results.k8s = { status: 'healthy', message: 'K8s API Accessible' };
+                } else {
+                    results.k8s = { status: 'unhealthy', message: 'K8s API Access Failed (Check SA permissions)' };
+                }
+            } else {
+                results.manager = { status: 'unhealthy', message: `HTTP ${res.status}: ${await res.text()}` };
+            }
         }
     } catch (e: any) {
         results.manager = { status: 'error', message: `Fetch failed: ${e.message}. Is MANAGER_URL correct?` };
@@ -75,7 +79,7 @@ export async function runDiagnostics(env: Env): Promise<Response> {
 
     // 4. Test ASR
     try {
-        const asrUrl = env.ASR_PROVIDER || env.FUNASR_URL || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+        const asrUrl = env.ASR_PROVIDER || env.FUNASR_URL || 'http://funasr:50001';
 
         const start = Date.now();
         const res = await fetch(`${asrUrl}/health`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
@@ -103,21 +107,23 @@ export async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
     try {
         // 1. Fetch all users from MongoDB
         const dbUsers = await User.find({}).lean();
-        
+
         // 2. Fetch active pods from tg-client-manager with a safe timeout (5s)
         let activePods: any[] = [];
-        try {
-            const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
-            const secret = (env.MANAGER_SECRET || "changeme").trim();
-            const res = await fetch(`${managerUrl}/pods?secret=${secret}`, {
-                headers: { "x-manager-secret": secret },
-                signal: AbortSignal.timeout(5000)
-            });
-            if (res.ok) {
-                activePods = await res.json() as any[];
+        const managerUrl = (env.MANAGER_URL || `http://tg-client-manager:3000`).replace(/\/$/, '');
+        const secret = env.MANAGER_SECRET?.trim();
+        if (secret) {
+            try {
+                const res = await fetch(`${managerUrl}/pods?secret=${secret}`, {
+                    headers: { "x-manager-secret": secret },
+                    signal: AbortSignal.timeout(5000)
+                });
+                if (res.ok) {
+                    activePods = await res.json() as any[];
+                }
+            } catch (e: any) {
+                console.warn("[Admin] Failed to fetch active pods from manager:", e.message);
             }
-        } catch (e: any) {
-            console.warn("[Admin] Failed to fetch active pods from manager:", e.message);
         }
 
         const podsMap = new Map<string, any>();
@@ -212,8 +218,11 @@ async function proxyToManager(url: string, options: any): Promise<Response> {
 }
 
 export async function getTgStatus(env: Env): Promise<Response> {
-    const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
-    const secret = (env.MANAGER_SECRET || "changeme").trim();
+    const secret = env.MANAGER_SECRET?.trim();
+    if (!secret) {
+        return Response.json({ status: "error", message: "MANAGER_SECRET not configured" }, { status: 500 });
+    }
+    const managerUrl = (env.MANAGER_URL || `http://tg-client-manager:3000`).replace(/\/$/, '');
     return await proxyToManager(`${managerUrl}/health?secret=${secret}`, {
         headers: { "x-manager-secret": secret }
     });
@@ -223,11 +232,13 @@ export async function getTgStatus(env: Env): Promise<Response> {
 // Telegram auth is now 100% client-side via tdweb (TdClient).
 
 export async function tgTestMsg(env: Env, req: Request): Promise<Response> {
+    const secret = env.MANAGER_SECRET?.trim();
+    if (!secret) {
+        return Response.json({ success: false, error: "MANAGER_SECRET not configured" }, { status: 500 });
+    }
     const { userId, message } = await req.json() as any;
-    const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
-    const secret = (env.MANAGER_SECRET || "changeme").trim();
+    const managerUrl = (env.MANAGER_URL || `http://tg-client-manager:3000`).replace(/\/$/, '');
 
-    // Get session for the user if userId is provided, otherwise it uses manager's own
     let session = null;
     if (userId) {
         session = await env.STATS.get(`tg_session_${userId}`);
@@ -250,9 +261,9 @@ export async function getUsersJson(env: Env): Promise<Response> {
 }
 
 export async function getAiConfig(env: Env): Promise<Response> {
-    const provider = env.WHISPER_PROVIDER || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+    const provider = env.WHISPER_PROVIDER || 'http://funasr:50001';
   const localSecret = env.WHISPER_SECRET || "";
-  const xttsUrl = env.XTTS_URL || 'http://xtts.debugging-testcrash-pub.svc.cluster.local:50003';
+  const xttsUrl = env.XTTS_URL || 'http://xtts:50003';
   const xttsSecret = env.XTTS_SECRET || "";
   // Retrieve selected ASR service (funasr or sensevoice)
   const asrService = await env.STATS.get('config_asr_service') || 'funasr';
@@ -288,8 +299,11 @@ export async function updateAiConfig(env: Env, req: Request): Promise<Response> 
 }
 
 export async function handleGetPodLogs(env: Env, podName: string): Promise<Response> {
+    const secret = env.MANAGER_SECRET?.trim();
+    if (!secret) {
+        return new Response("MANAGER_SECRET not configured", { status: 500 });
+    }
     const managerUrl = (env.MANAGER_URL || "http://tg-client-manager:3000").replace(/\/$/, '');
-    const secret = (env.MANAGER_SECRET || "changeme").trim();
 
     try {
         const res = await fetch(`${managerUrl}/internal/logs/${podName}?secret=${secret}`, {
@@ -303,13 +317,15 @@ export async function handleGetPodLogs(env: Env, podName: string): Promise<Respo
 }
 
 export async function userAction(env: Env, req: Request): Promise<Response> {
+    const secret = env.MANAGER_SECRET?.trim();
+    if (!secret) {
+        return Response.json({ success: false, error: "MANAGER_SECRET not configured" }, { status: 500 });
+    }
     const { userId, action } = await req.json() as any;
-    const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
-    const secret = (env.MANAGER_SECRET || "changeme").trim();
+    const managerUrl = (env.MANAGER_URL || `http://tg-client-manager:3000`).replace(/\/$/, '');
 
     if (action === "restart") {
         const session = await env.STATS.get(`tg_session_${userId}`);
-        // First delete
         await proxyToManager(`${managerUrl}/delete?secret=${secret}`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-manager-secret": secret },
@@ -317,7 +333,6 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
         }).catch(() => { });
 
         if (session) {
-            // Then spawn
             return await proxyToManager(`${managerUrl}/spawn?secret=${secret}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-manager-secret": secret },
@@ -375,7 +390,7 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
 
 export async function renderDashboardPage(env: Env, origin: string): Promise<Response> {
     const users = await fetchUsersWithStatus(env);
-    const provider = env.WHISPER_PROVIDER || 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001';
+    const provider = env.WHISPER_PROVIDER || 'http://funasr:50001';
     const checks: HealthChecks = {
         VERIFY_TOKEN: Boolean(env.VERIFY_TOKEN),
         META_PAGE_TOKEN: Boolean(env.META_PAGE_TOKEN),
@@ -391,7 +406,7 @@ export async function renderDashboardPage(env: Env, origin: string): Promise<Res
         ...({
             WHISPER_PROVIDER: provider,
             WHISPER_PROVIDER_NAME: provider.replace('-', ' ').toUpperCase(),
-            XTTS_URL: env.XTTS_URL || 'http://xtts.debugging-testcrash-pub.svc.cluster.local:50003',
+            XTTS_URL: env.XTTS_URL || 'http://xtts:50003',
             XTTS_SECRET: Boolean(env.XTTS_SECRET)
         } as any)
     };
@@ -434,9 +449,9 @@ export async function switchAsrModel(env: Env, req: Request): Promise<Response> 
     // Determine provider URL based on selected model
     let providerUrl: string;
     if (model === "funasr") {
-      providerUrl = `http://funasr.${namespace}.svc.cluster.local:50001`;
+      providerUrl = 'http://funasr:50001';
     } else if (model === "sensevoice") {
-      providerUrl = `http://sensevoice.${namespace}.svc.cluster.local:50000`;
+      providerUrl = 'http://sensevoice:50000';
     } else {
       return Response.json({ success: false, error: "Unsupported ASR model" }, { status: 400 });
     }

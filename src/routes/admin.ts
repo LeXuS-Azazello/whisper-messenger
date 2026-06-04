@@ -50,7 +50,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
         // Secure internal reverse proxy for voicemsg-tester diagnostics dashboard and API
         if (pathname === "/admin/tester" || pathname.startsWith("/admin/tester/")) {
             const namespace = env.NAMESPACE || "debugging-testcrash-pub";
-            const testerUrl = `http://voicemsg-tester.${namespace}.svc.cluster.local:3000`;
+            const testerUrl = `http://voicemsg-tester:3000`;
             const proxyPath = pathname.replace(/^\/admin\/tester/, "") || "/";
             const targetUrl = `${testerUrl}${proxyPath}${url.search}`;
             
@@ -105,7 +105,7 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
             }
 
             const namespace = env.NAMESPACE || "debugging-testcrash-pub";
-            const mongoExpressUrl = `http://mongo-express.${namespace}.svc.cluster.local:8081`;
+            const mongoExpressUrl = `http://mongo-express:8081`;
             // Keep the full pathname because ME_CONFIG_SITE_BASEURL is set to "/admin/mongo/"
             const targetUrl = `${mongoExpressUrl}${url.pathname}${url.search}`;
 

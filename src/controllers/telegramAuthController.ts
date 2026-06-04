@@ -45,7 +45,10 @@ async function saveAuthSessionData(env: Env, data: any, currentUserId: string | 
   await env.STATS.put(`tg_session_${userId}`, data.session, { expirationTtl: SESSION_MAX_AGE });
 
   const managerUrl = env.MANAGER_URL || "http://tg-client-manager:3000";
-  const managerSecret = env.MANAGER_SECRET || "changeme";
+  const managerSecret = env.MANAGER_SECRET?.trim();
+  if (!managerSecret) {
+    throw new Error("MANAGER_SECRET not configured");
+  }
 
   const spawnPromise = fetch(`${managerUrl}/spawn`, {
     method: "POST",

@@ -1,186 +1,116 @@
 import base64
 import os
 import sys
-import tempfile
-import subprocess
-import re
-from typing import Optional
+import io
 import time
+import tempfile
+from typing import Optional
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
-
 import torch
+import soundfile as sf
+import torchaudio.functional as F
 
-# Disable GPU / align CPU multithreading with k8s quota (1.5 CPU)
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-os.environ["OMP_NUM_THREADS"] = "2"
-torch.set_num_threads(2)
+import torchaudio
+import numpy as np
+
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["OMP_NUM_THREADS"] = "4"
+os.environ["MKL_NUM_THREADS"] = "4"
+
+torch.set_num_threads(4)
+torch.set_num_interop_threads(1)
 
 TTS_MODEL_DIR = os.environ.get("TTS_MODEL_DIR", "/models")
 os.environ["MODELSCOPE_CACHE"] = TTS_MODEL_DIR
-MODEL_NAME = os.environ.get("SAMESAME_MODEL_NAME", "iic/CosyVoice2-0.5B")
+MODEL_NAME = os.getenv("SAMESAME_MODEL_NAME", "FunAudioLLM/Fun-CosyVoice3-0.5B-2512")
 
-print("[samesame-cosy] Initializing CosyVoice model: {}".format(MODEL_NAME))
+_local_model_path = os.path.join(TTS_MODEL_DIR, "hub", MODEL_NAME.replace("/", "/"))
+MODEL_LOAD_PATH = _local_model_path if os.path.isdir(_local_model_path) else MODEL_NAME
+
+print(f"[samesame-cosy] Initializing CosyVoice3: {MODEL_LOAD_PATH}")
+
+if not os.path.isdir(_local_model_path):
+    print(f"[samesame-cosy] Model not found at {_local_model_path}, waiting for downloader job...")
+    for i in range(120):
+        time.sleep(5)
+        if os.path.isdir(_local_model_path):
+            print(f"[samesame-cosy] Model appeared after {i*5}s")
+            break
+    else:
+        print(f"[samesame-cosy] FATAL: Model not found after 10 minutes, exiting")
+        sys.exit(1)
+
 sys.path.append("/app/CosyVoice")
 sys.path.append("/app/CosyVoice/third_party/Matcha-TTS")
 
-from cosyvoice.utils.file_utils import load_wav
-import torchaudio
+from cosyvoice.utils.file_utils import logging, load_wav
+from cosyvoice.cli.cosyvoice import CosyVoice3
 
-# CosyVoice2-0.5B uses the CosyVoice2 class
 try:
-    from cosyvoice.cli.cosyvoice import CosyVoice2
-    try:
-        cosyvoice = CosyVoice2(MODEL_NAME, load_jit=True, load_trt=False)
-       # print(f"[samesame-cosy] CosyVoice2 loaded with JIT: {MODEL_NAME}")
-    except Exception as jit_err:
-        # print(f"[samesame-cosy] JIT failed ({jit_err}), falling back to non-JIT...")
-        cosyvoice = CosyVoice2(MODEL_NAME, load_jit=False, load_trt=False)
-       # print(f"[samesame-cosy] CosyVoice2 loaded without JIT: {MODEL_NAME}")
+    cosyvoice = CosyVoice3(MODEL_LOAD_PATH, load_trt=False, fp16=False)
+    print(f"[samesame-cosy] CosyVoice3 loaded successfully.")
+    # Warmup
+    print("[samesame] warmup...")
 except Exception as e:
-    # print(f"[samesame-cosy] CosyVoice2 failed ({e}), falling back to CosyVoice (300M API)...")
-    try:
-        from cosyvoice.cli.cosyvoice import CosyVoice
-        cosyvoice = CosyVoice(MODEL_NAME, load_jit=False)
-        # print(f"[samesame-cosy] CosyVoice (compat) loaded: {MODEL_NAME}")
-    except Exception as e2:
-        # print(f"[samesame-cosy] FATAL: Failed to load any CosyVoice model: {e2}")
-        sys.exit(1)
+    print(f"[samesame-cosy] FATAL: Failed to load CosyVoice3: {e}")
+    sys.exit(1)
 
-def transcribe_prompt_with_sensevoice(audio_path: str) -> tuple[str, str]:
-    """Transcribes the prompt audio using the SenseVoice ASR service in the cluster.
-    Returns a tuple of (text, language_code).
-    """
-    import urllib.request
-    import json
-    import uuid
-    
-    url = os.environ.get("SENSEVOICE_URL", "http://sensevoice:50000/api/v1/asr")
-    print(f"[samesame-cosy] Transcribing prompt audio via SenseVoice ASR at: {url}")
-    
-    try:
-        boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
-        with open(audio_path, 'rb') as f:
-            file_content = f.read()
-
-        parts = []
-        
-        # Add files field
-        parts.append(f"--{boundary}".encode('utf-8'))
-        parts.append(f'Content-Disposition: form-data; name="files"; filename="audio.wav"'.encode('utf-8'))
-        parts.append(b'Content-Type: audio/wav')
-        parts.append(b'')
-        parts.append(file_content)
-        
-        # Add keys field
-        parts.append(f"--{boundary}".encode('utf-8'))
-        parts.append(f'Content-Disposition: form-data; name="keys"'.encode('utf-8'))
-        parts.append(b'')
-        parts.append(b'audio')
-        
-        # Add lang field
-        parts.append(f"--{boundary}".encode('utf-8'))
-        parts.append(f'Content-Disposition: form-data; name="lang"'.encode('utf-8'))
-        parts.append(b'')
-        parts.append(b'auto')
-        
-        # Add use_itn field
-        parts.append(f"--{boundary}".encode('utf-8'))
-        parts.append(f'Content-Disposition: form-data; name="use_itn"'.encode('utf-8'))
-        parts.append(b'')
-        parts.append(b'false')
-        
-        # End boundary
-        parts.append(f"--{boundary}--".encode('utf-8'))
-        
-        body = b'\r\n'.join(parts)
-        
-        req = urllib.request.Request(
-            url,
-            data=body,
-            headers={
-                'Content-Type': f'multipart/form-data; boundary={boundary}',
-                'Content-Length': str(len(body))
-            },
-            method='POST'
-        )
-        
-        with urllib.request.urlopen(req, timeout=30) as response:
-            res_data = response.read().decode('utf-8')
-            result = json.loads(res_data)
-            
-            res_data_list = result.get("result", [])
-            if res_data_list:
-                first_res = res_data_list[0]
-                text = first_res.get("text", "")
-                language = first_res.get("language", "unknown")
-            else:
-                text = ""
-                language = "unknown"
-                
-            # Hallucination cleanup
-            text = re.sub(r'<\|.*?\|>', '', text).strip()
-            if re.match(r'^(嗯|啊|哦|угу|м|да|ну)+[.!?,。]*$', text, re.IGNORECASE) or text in ['嗯', '嗯.', '嗯。']:
-                text = ''
-                
-            print(f"[samesame-cosy] SenseVoice success: lang={language}, text={text[:80]!r}")
-            return text, language
-            
-    except Exception as e:
-        print(f"[samesame-cosy] SenseVoice transcription failed: {e}")
-        return "", "unknown"
-
-
-# CosyVoice2 outputs at 22050 Hz
-SAMPLE_RATE = 22050
-
+SAMPLE_RATE = cosyvoice.sample_rate
 SAMESAME_SECRET = os.environ.get("SAMESAME_SECRET")
 app = FastAPI(title="Samesame CosyVoice Service")
 
 
 def detect_language_from_text(text: str) -> str:
-    """Detect language for supported languages.
-    Returns two‑letter ISO code: 'ru', 'uk', 'th', 'he', 'en'.
-    Prioritises Cyrillic → ru/uk, Thai → th, Hebrew → he, else en.
-    """
-    # Count Cyrillic characters (Russian/Ukrainian)
-    cyrillic = sum(1 for c in text if '\u0400' <= c <= '\u04FF')
+    cyrillic = sum(1 for c in text if '\u0400' <= c <= '\u04ff')
     if cyrillic > max(2, len(text) * 0.15):
-        # Distinguish Ukrainian specific letters
-        uk_specific = set('ґєії')
-        if any(ch.lower() in uk_specific for ch in text):
+        if any(ch.lower() in set('ґєії') for ch in text):
             return 'uk'
         return 'ru'
-    # Thai block
-    thai = sum(1 for c in text if '\u0e00' <= c <= '\u0e7f')
-    if thai > 0:
+    if sum(1 for c in text if '\u0e00' <= c <= '\u0e7f') > 0:
         return 'th'
-    # Hebrew block
-    hebrew = sum(1 for c in text if '\u0590' <= c <= '\u05ff')
-    if hebrew > 0:
+    if sum(1 for c in text if '\u0590' <= c <= '\u05ff') > 0:
         return 'he'
     return 'en'
 
 
+def decode_audio_base64(audio_b64: str, target_sr: int = 16000) -> tuple[torch.Tensor, int]:
+    audio_bytes = base64.b64decode(audio_b64)
+    audio_stream = io.BytesIO(audio_bytes)
+    waveform, orig_sr = sf.read(audio_stream, dtype='float32')
+    if waveform.ndim == 1:
+        waveform = waveform.reshape(1, -1)
+    else:
+        waveform = waveform.T
+    tensor = torch.from_numpy(waveform).float()
+    if orig_sr != target_sr:
+        tensor = F.resample(tensor, orig_sr, target_sr)
+    return tensor, target_sr
+
+
 class CloneRequest(BaseModel):
     source_audio_base64: str
-    source_mime_type: Optional[str] = "audio/ogg"
     text: str
+    prompt_text: Optional[str] = ""
+    prompt_language: Optional[str] = None
     language: Optional[str] = None
     output_format: Optional[str] = "ogg"
-    stream: Optional[bool] = False
 
 
 @app.get("/health")
 @app.get("/live")
 def health():
-    return {"status": "ok", "model": MODEL_NAME, "backend": "cosyvoice2"}
+    return {"status": "ok", "model": MODEL_NAME, "backend": "cosyvoice3"}
 
 
 @app.post("/v1/clone")
-def clone_voice(req: CloneRequest, authorization: Optional[str] = Header(None)):
+def clone_voice(
+    req: CloneRequest,
+    authorization: Optional[str] = Header(None)
+):
     start_time = time.time()
+
     if SAMESAME_SECRET and authorization != f"Bearer {SAMESAME_SECRET}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -188,127 +118,80 @@ def clone_voice(req: CloneRequest, authorization: Optional[str] = Header(None)):
         raise HTTPException(status_code=400, detail="Missing text")
 
     try:
-        audio_bytes = base64.b64decode(req.source_audio_base64)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid base64 in source_audio_base64")
+        prompt_speech_16k, _ = decode_audio_base64(req.source_audio_base64, target_sr=16000)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid base64: {e}")
 
-    # Determine target language (requested or detected)
-    lang = (req.language or "").strip().lower()[:2] if req.language else ""
-    if not lang:
-        lang = detect_language_from_text(req.text)
-    # Whitelist allowed languages; default to English if unsupported
-    allowed_langs = {"ru", "uk", "th", "he", "en"}
-    if lang not in allowed_langs:
-        print(f"[samesame-cosy] Requested language '{lang}' not supported, falling back to 'en'")
+    # Limit prompt to 60 seconds
+    MAX_PROMPT_SAMPLES = 16000 * 60
+    if prompt_speech_16k.shape[-1] > MAX_PROMPT_SAMPLES:
+        prompt_speech_16k = prompt_speech_16k[:, :MAX_PROMPT_SAMPLES]
+
+    lang = (req.language or "").strip().lower()[:2] or detect_language_from_text(req.text)
+    if lang not in {"ru","uk","th","he","en","zh","ja","ko","de","es","fr","it"}:
         lang = "en"
-    print(f"[samesame-cosy] Text lang={lang} (req.language={req.language!r}), text_len={len(req.text)}")
-    print(f"[samesame-cosy] Text preview: {req.text[:80]!r}")
 
-    # Save prompt audio to temp file
-    fd_in, temp_in = tempfile.mkstemp(suffix=".ogg")
-    os.write(fd_in, audio_bytes)
-    os.close(fd_in)
+    cosy_tag = "ru" if lang == "uk" else lang
 
-    temp_out = None
+    # Split text
+    text = req.text
+    if len(text) > 200:
+        for i, char in enumerate(text):
+            if char in '.!?。！？' and i > 100:
+                text = text[:i+1]
+                break
+    text_chunks = [text] if len(text) <= 200 else [text[:200]]
+
+    print(f"[cosy] target={lang}, chunks={len(text_chunks)}")
+
     try:
-        # Load prompt speech at 16 kHz
-        prompt_speech_16k = load_wav(temp_in, 16000)
+        all_audio_chunks = []
 
-        # Truncate prompt audio to 29 seconds max (CosyVoice limit is 30s)
-        MAX_PROMPT_LEN = 16000 * 29
-        if prompt_speech_16k.shape[1] > MAX_PROMPT_LEN:
-            print(f"[samesame-cosy] Truncating prompt audio from {prompt_speech_16k.shape[1]/16000:.1f}s to 29.0s")
-            prompt_speech_16k = prompt_speech_16k[:, :MAX_PROMPT_LEN]
-            # Save truncated audio back to temp_in for Whisper
-            torchaudio.save(temp_in, prompt_speech_16k, 16000)
+        # Write prompt to temp WAV file (CosyVoice3 needs file path)
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+            tmp_path = tmp.name
+            sf.write(tmp_path, prompt_speech_16k.squeeze(0).cpu().numpy(), 16000)
 
-        # Transcribe prompt with SenseVoice to get prompt_text for zero_shot
-        prompt_text, prompt_lang = transcribe_prompt_with_sensevoice(temp_in)
+        for chunk_text in text_chunks:
+            prompt_text = f"<|{cosy_tag}|>{chunk_text}"
+            print(f"[cosy] synthesizing: {chunk_text[:50]}...")
 
-        # Prepend the language tag to force CosyVoice2 to synthesize in that language
-        cosy_tag = lang
-        if lang == 'uk': cosy_tag = 'ru' # Fallback Ukrainian to Russian phonetics for CosyVoice
-        if cosy_tag in ['ru', 'en', 'zh', 'ja', 'ko', 'de', 'es', 'fr', 'it']:
-            req_text_with_tag = f"<|{cosy_tag}|>{req.text}"
-        else:
-            req_text_with_tag = req.text
-
-        # Decide inference strategy: always use zero_shot when target language is allowed
-        # (zero_shot gives best quality). If Whisper failed to detect language, fallback to cross_lingual.
-        tts_audios = []
-        if prompt_text and (prompt_lang == lang or not prompt_lang):
-            print(f"[samesame-cosy] Strategy: zero_shot (lang={lang})")
             output = cosyvoice.inference_zero_shot(
-                req_text_with_tag, prompt_text, temp_in, stream=False
-            )
-        else:
-            print(f"[samesame-cosy] Strategy: cross_lingual (prompt_lang={prompt_lang} → tts_lang={lang})")
-            output = cosyvoice.inference_cross_lingual(
-                req_text_with_tag, temp_in, stream=False
+                tts_text=chunk_text,
+                prompt_text=prompt_text,
+                prompt_wav=tmp_path
             )
 
-        for chunk in output:
-            if "tts_speech" in chunk:
-                tts_audios.append(chunk["tts_speech"])
+            for item in output:
+                if "tts_speech" in item:
+                    all_audio_chunks.append(item["tts_speech"].squeeze().cpu().numpy())
 
-        if not tts_audios:
-            raise ValueError("CosyVoice returned no tts_speech chunks")
+        os.unlink(tmp_path)
 
-        tts_audio = torch.cat(tts_audios, dim=1)
-        print(f"[samesame-cosy] Generated shape={tts_audio.shape}, sr={SAMPLE_RATE}")
+        if not all_audio_chunks:
+            raise ValueError("empty audio")
+
+        audio = np.concatenate(all_audio_chunks) if len(all_audio_chunks) > 1 else all_audio_chunks[0]
 
     except Exception as e:
         import traceback
+        print(f"[cosy] ERROR: {e}")
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"CosyVoice generation failed: {e}")
-    finally:
-        try:
-            os.remove(temp_in)
-        except Exception:
-            pass
+        raise HTTPException(status_code=500, detail=str(e))
 
-    # Save WAV at correct sample rate (CosyVoice2 = 22050 Hz)
-    fd_out, temp_out = tempfile.mkstemp(suffix=".wav")
-    os.close(fd_out)
+    buf = io.BytesIO()
+    mime = "audio/ogg"
 
     try:
-        torchaudio.save(temp_out, tts_audio, SAMPLE_RATE)
+        sf.write(buf, audio, SAMPLE_RATE, format="OGG", subtype="OPUS")
+    except:
+        buf = io.BytesIO()
+        sf.write(buf, audio, SAMPLE_RATE, format="WAV")
+        mime = "audio/wav"
 
-        if req.output_format == "ogg":
-            fd_ogg, temp_ogg = tempfile.mkstemp(suffix=".ogg")
-            os.close(fd_ogg)
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", temp_out,
-                 "-c:a", "libopus", "-b:a", "128k", temp_ogg],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            os.remove(temp_out)
-            temp_out = temp_ogg
-            mime = "audio/ogg"
-        else:
-            mime = "audio/wav"
-
-        with open(temp_out, "rb") as f:
-            out_bytes = f.read()
-
-    finally:
-        try:
-            if temp_out and os.path.exists(temp_out):
-                os.remove(temp_out)
-        except Exception:
-            pass
-
-    latency_ms = int((time.time() - start_time) * 1000)
     return {
-        "content_type": mime,
-        "audio_base64": base64.b64encode(out_bytes).decode("utf-8"),
-        "model": MODEL_NAME,
-        "latency_ms": latency_ms
+        "audio_base64": base64.b64encode(buf.getvalue()).decode(),
+        "mime_type": mime,
+        "duration_seconds": round(len(audio) / SAMPLE_RATE, 2),
+        "latency_ms": int((time.time() - start_time) * 1000)
     }
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8002)

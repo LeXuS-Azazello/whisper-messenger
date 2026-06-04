@@ -6,7 +6,10 @@ export const TARGET_USER_ID = process.env.TARGET_USER_ID || '';
 export const TG_API_ID = parseInt(process.env.TG_API_ID || process.env.TELEGRAM_APP_ID || '0', 10);
 export const TG_API_HASH = process.env.TG_API_HASH || process.env.TELEGRAM_APP_HASH || '';
 export const MANAGER_URL = process.env.MANAGER_URL || process.env.WORKER_URL || '';
-export const MANAGER_SECRET = process.env.MANAGER_SECRET || process.env.BRIDGE_SECRET || 'changeme';
+if (!process.env.MANAGER_SECRET && !process.env.BRIDGE_SECRET) {
+    throw new Error('MANAGER_SECRET or BRIDGE_SECRET environment variable must be set');
+}
+export const MANAGER_SECRET = process.env.MANAGER_SECRET || process.env.BRIDGE_SECRET;
 export const DEVICE_MODEL = process.env.DEVICE_MODEL || 'Desktop Linux';
 export const APP_VERSION = process.env.APP_VERSION || '4.15.2';
 export const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Ubuntu 24.04';

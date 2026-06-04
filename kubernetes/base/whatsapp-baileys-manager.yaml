@@ -17,7 +17,7 @@ data:
         "containers": [
           {
             "name": "wa-baileys-client",
-            "image": "lexusazazello/whatsapp-baileys-client:latest",
+            "image": "lexusazazello/voicemsg:whatsapp-baileys-client-latest",
             "imagePullPolicy": "Always",
             "env": [
               {
@@ -78,7 +78,7 @@ spec:
         - name: dockerhub-pull-secret
       containers:
       - name: manager
-        image: lexusazazello/whatsapp-baileys-manager:latest
+        image: lexusazazello/voicemsg:whatsapp-baileys-manager-latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3002

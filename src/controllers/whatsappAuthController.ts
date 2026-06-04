@@ -7,11 +7,13 @@ function getManagerUrl(env: Env) {
 }
 
 export async function handleWaStatus(env: Env, userId: string): Promise<Response> {
-  // Placeholder: since WhatsApp Baileys manager doesn't have a /status endpoint yet,
-  // we'll check if a pod exists, or just query the manager if we add the endpoint.
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ connected: false, error: "MANAGER_SECRET not configured" });
+  }
   try {
     const res = await fetch(`${getManagerUrl(env)}/pods`, {
-        headers: { "x-manager-secret": env.MANAGER_SECRET || "changeme" }
+        headers: { "x-manager-secret": secret }
     });
     if (res.ok) {
         const pods = await res.json() as any[];
@@ -25,10 +27,14 @@ export async function handleWaStatus(env: Env, userId: string): Promise<Response
 }
 
 export async function handleWaInit(env: Env, userId: string): Promise<Response> {
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ error: "MANAGER_SECRET not configured" }, { status: 500 });
+  }
   try {
     const res = await fetch(`${getManagerUrl(env)}/auth/qr-start`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-manager-secret": env.MANAGER_SECRET || "changeme" },
+      headers: { "Content-Type": "application/json", "x-manager-secret": secret },
       body: JSON.stringify({ userId })
     });
     const data = await res.json();
@@ -39,19 +45,19 @@ export async function handleWaInit(env: Env, userId: string): Promise<Response> 
 }
 
 export async function handleWaQR(env: Env, userId: string): Promise<Response> {
-  // In the new flow, the dashboard polls qr-check with the token returned from init
-  // To keep compatibility with existing dashboard (which might just call /qr), 
-  // we need the dashboard to pass the token. Wait, dashboard.js does: fetch('/dashboard/whatsapp-web/qr')
-  // We'll need to adapt this. For now, just return 404 so dashboard fails gracefully if token is missing.
   return Response.json({ error: "Use /qr-check with token" }, { status: 400 });
 }
 
 export async function handleWaQRCheck(env: Env, userId: string, token?: string): Promise<Response> {
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ error: "MANAGER_SECRET not configured" }, { status: 500 });
+  }
   try {
     if (!token) return Response.json({ error: 'Missing token' }, { status: 400 });
     const url = `${getManagerUrl(env)}/auth/qr-check?token=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId || 'unknown')}`;
     const res = await fetch(url, {
-      headers: { "x-manager-secret": env.MANAGER_SECRET || "changeme" }
+      headers: { "x-manager-secret": secret }
     });
     const data = await res.json();
     return Response.json(data, { status: res.status });
@@ -61,10 +67,14 @@ export async function handleWaQRCheck(env: Env, userId: string, token?: string):
 }
 
 export async function handleWaDisconnect(env: Env, userId: string): Promise<Response> {
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ error: "MANAGER_SECRET not configured" }, { status: 500 });
+  }
   try {
     const res = await fetch(`${getManagerUrl(env)}/delete`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-manager-secret": env.MANAGER_SECRET || "changeme" },
+      headers: { "Content-Type": "application/json", "x-manager-secret": secret },
       body: JSON.stringify({ userId })
     });
     return Response.json(await res.json(), { status: res.status });
@@ -74,6 +84,10 @@ export async function handleWaDisconnect(env: Env, userId: string): Promise<Resp
 }
 
 export async function handleTestWa(env: Env, req: Request, userId: string): Promise<Response> {
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ success: false, error: "MANAGER_SECRET not configured" });
+  }
   try {
     const { testRecipient } = await req.json() as any;
     if (!testRecipient) {
@@ -86,7 +100,7 @@ export async function handleTestWa(env: Env, req: Request, userId: string): Prom
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-manager-secret": env.MANAGER_SECRET || "changeme"
+        "x-manager-secret": secret
       },
       body: JSON.stringify({
         userId,
@@ -108,12 +122,16 @@ export async function handleTestWa(env: Env, req: Request, userId: string): Prom
 }
 
 export async function handleWaSendCode(env: Env, userId: string, body: any): Promise<Response> {
+  const secret = env.MANAGER_SECRET?.trim();
+  if (!secret) {
+    return Response.json({ error: "MANAGER_SECRET not configured" }, { status: 500 });
+  }
   try {
     const res = await fetch(`${getManagerUrl(env)}/auth/pairing-start`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json", 
-        "x-manager-secret": env.MANAGER_SECRET || "changeme" 
+        "x-manager-secret": secret
       },
       body: JSON.stringify({ userId, phone: body.phone })
     });

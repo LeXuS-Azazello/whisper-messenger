@@ -10,7 +10,7 @@ export async function handleConfig(env: Env, _req: Request, url: URL): Promise<R
   }
 
   // Try STATS KV first, then fall back to env or defaults
-  const provider = env.ASR_PROVIDER || env.FUNASR_URL || "http://funasr.debugging-testcrash-pub.svc.cluster.local:50001";
+  const provider = env.ASR_PROVIDER || env.FUNASR_URL || "http://funasr:50001";
   const localSecret = env.ASR_SECRET || "";
 
   return Response.json({
@@ -146,8 +146,11 @@ export async function handleAccessRevoked(env: Env, req: Request): Promise<Respo
       await env.STATS.delete(`tg_session_${userId}`);
       
       // Tell Manager to delete the pod
-      const managerUrl = (env.MANAGER_URL || `http://tg-client-manager.${env.NAMESPACE}.svc.cluster.local:3000`).replace(/\/$/, '');
-      const managerSecret = (env.MANAGER_SECRET || "changeme").trim();
+      const managerUrl = (env.MANAGER_URL || `http://tg-client-manager:3000`).replace(/\/$/, '');
+      const managerSecret = env.MANAGER_SECRET?.trim();
+      if (!managerSecret) {
+        throw new Error("MANAGER_SECRET not configured");
+      }
       await fetch(`${managerUrl}/delete?secret=${managerSecret}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-manager-secret": managerSecret },

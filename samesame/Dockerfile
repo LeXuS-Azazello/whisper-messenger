@@ -1,118 +1,135 @@
 FROM python:3.10-slim
 
-ENV TORCH_DISABLE_CUDA=1
-ENV TORCHAUDIO_DISABLE_CUDA=1
-ENV CUDA_VISIBLE_DEVICES=""
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Системные зависимости
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg libsndfile1 git build-essential unzip curl \
-    && rm -rf /var/lib/apt/lists/*
+ENV DEBIAN_FRONTEND=noninteractive \
+    TORCH_DISABLE_CUDA=1 \
+    TORCHAUDIO_DISABLE_CUDA=1 \
+    CUDA_VISIBLE_DEVICES="" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HF_HOME=/models \
+    TTS_MODEL_DIR=/models \
+    PYTHONPATH="/app:/app/third_party/Matcha-TTS"
 
 WORKDIR /app
 
-# ModelScope для загрузки моделей
-RUN pip install --no-cache-dir modelscope
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsndfile1 \
+    git \
+    curl \
+    build-essential \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Клонируем CosyVoice
-RUN git clone --depth 1 https://github.com/FunAudioLLM/CosyVoice.git . \
-    && git submodule update --init --recursive
+# Upgrade pip first
+RUN pip install --no-cache-dir --upgrade \
+    pip \
+    "setuptools<70" \
+    wheel
 
-# Патч frontend.py: убираем whisper, заменяем на torchaudio
-RUN python3 << 'PYEOF'
-import pathlib
-p = pathlib.Path('cosyvoice/cli/frontend.py')
-t = p.read_text()
-t = t.replace('import whisper', 'import torch\nimport torchaudio.transforms as T')
-old = 'feat = whisper.log_mel_spectrogram(speech, n_mels=128)'
-if old in t:
-    new = 'mel_transform = T.MelSpectrogram(sample_rate=16000, n_mels=128, n_fft=400, hop_length=160)\n        feat = mel_transform(speech)\n        feat = torch.clamp(feat, min=1e-5).log2().unsqueeze(0)'
-    t = t.replace(old, new)
-    print("Patched frontend.py: whisper -> torchaudio")
-else:
-    print("WARNING: patch target not found in frontend.py")
-p.write_text(t)
-PYEOF
+# CPU-only PyTorch
+RUN pip install --no-cache-dir \
+    torch==2.3.1+cpu \
+    torchaudio==2.3.1+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
 
-# Патч dataset/processor.py: убираем whisper
-RUN python3 << 'PYEOF'
-import pathlib
-p = pathlib.Path('cosyvoice/dataset/processor.py')
-if p.exists():
-    t = p.read_text()
-    t = t.replace('import whisper', '# import whisper  # patched')
-    p.write_text(t)
-    print("Patched dataset/processor.py")
-PYEOF
+# Required tools
+RUN pip install --no-cache-dir \
+    modelscope \
+    soundfile \
+    fastapi \
+    uvicorn \
+    pydantic \
+    tiktoken
 
-# Патч tokenizer/tokenizer.py: убираем зависимость от whisper.tokenizer.Tokenizer
-RUN python3 << 'PYEOF'
-import pathlib
-p = pathlib.Path('cosyvoice/tokenizer/tokenizer.py')
-if p.exists():
-    t = p.read_text()
-    # Заменяем импорт whisper на заглушку
-    t = t.replace(
-        'from whisper.tokenizer import Tokenizer',
-        '''class Tokenizer:
-    """Stub for whisper.tokenizer.Tokenizer to avoid dependency."""
-    def __init__(self, encoding, num_languages=99, language=None, task=None):
-        self.encoding = encoding
-        self.num_languages = num_languages
-        self.language = language
-        self.task = task'''
-    )
-    p.write_text(t)
-    print("Patched tokenizer/tokenizer.py: whisper.tokenizer.Tokenizer replaced with stub")
-else:
-    print("WARNING: tokenizer/tokenizer.py not found")
-PYEOF
+# Clone repo + submodules
+RUN git clone --recursive --depth 1 \
+    https://github.com/FunAudioLLM/CosyVoice.git .
 
-# Патч cli/cosyvoice.py: убираем whisper если есть
-RUN python3 << 'PYEOF'
-import pathlib
-for f in pathlib.Path('cosyvoice').rglob('*.py'):
-    try:
-        t = f.read_text()
-        changed = False
-        if 'import whisper' in t and 'whisper.log_mel_spectrogram' not in t:
-            t = t.replace('import whisper', '# import whisper  # patched')
-            changed = True
-        if 'from whisper' in t and 'whisper.tokenizer' not in t:
-            t = t.replace('from whisper', '# from whisper  # patched')
-            changed = True
-        if changed:
-            f.write_text(t)
-            print(f"Patched {f}")
-    except:
-        pass
-PYEOF
+# Verify required dirs exist
+RUN test -d third_party/Matcha-TTS
 
-# PyTorch CPU
-RUN pip install --no-cache-dir --upgrade pip "setuptools<70.0.0" wheel
-RUN pip install --no-cache-dir torch==2.3.1+cpu torchaudio==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
-
-# Зависимости CosyVoice (без GPU-мусора и без whisper)
+# Remove problematic deps from requirements
 RUN sed -i '/--extra-index-url/d' requirements.txt && \
     sed -i '/tensorrt-cu12/d' requirements.txt && \
     sed -i '/deepspeed/d' requirements.txt && \
     sed -i '/torch/d' requirements.txt && \
     sed -i '/torchaudio/d' requirements.txt && \
     sed -i '/openai-whisper/d' requirements.txt && \
-    sed -i '/whisper/d' requirements.txt && \
-    pip install --no-cache-dir -r requirements.txt
+    sed -i '/whisper/d' requirements.txt
 
-# Наш сервис
-RUN pip install --no-cache-dir soundfile fastapi uvicorn pydantic
+# Install project deps
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем app.py
-COPY app.py ./
+# Override vendored frontend.py (whisper-free, fixed ONNX dims)
+COPY cosyvoice-cli-frontend.py /app/cosyvoice/cli/frontend.py
 
-ENV PYTHONPATH="/app:/app/third_party/Matcha-TTS"
-ENV SAMESAME_SECRET=changeme
-ENV TTS_MODEL_DIR=/models
-ENV HF_HOME=/models
+# ---------- PATCH processor.py ----------
+RUN python3 <<'PYEOF'
+from pathlib import Path
+
+p = Path("cosyvoice/dataset/processor.py")
+
+if p.exists():
+    txt = p.read_text(encoding="utf-8")
+    txt = txt.replace(
+        "import whisper",
+        "# import whisper (patched)"
+    )
+    p.write_text(txt, encoding="utf-8")
+    print("processor.py patched")
+PYEOF
+
+# ---------- PATCH tokenizer.py ----------
+RUN python3 <<'PYEOF'
+from pathlib import Path
+
+p = Path("cosyvoice/tokenizer/tokenizer.py")
+
+if p.exists():
+    txt = p.read_text(encoding="utf-8")
+
+    target = "from whisper.tokenizer import Tokenizer"
+
+    if target in txt:
+        replacement = '''
+class Tokenizer:
+    def __init__(
+        self,
+        encoding,
+        num_languages=99,
+        language=None,
+        task=None
+    ):
+        self.encoding = encoding
+        self.num_languages = num_languages
+        self.language = language
+        self.task = task
+'''
+
+        txt = txt.replace(target, replacement)
+
+    p.write_text(txt, encoding="utf-8")
+    print("tokenizer.py patched")
+PYEOF
+
+# Create model cache dir
+RUN mkdir -p /models
+
+# Copy API
+COPY app.py /app/app.py
+
+# Cleanup build garbage
+RUN apt-get purge -y build-essential && \
+    apt-get autoremove -y && \
+    rm -rf /root/.cache/pip
+
+ENV SAMESAME_SECRET=""
 
 EXPOSE 8002
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
+CMD curl -f http://localhost:8002/docs || exit 1
+
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8002"]

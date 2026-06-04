@@ -21,7 +21,7 @@ export async function transcribeAudio(
   const isSenseVoice = service === 'sensevoice';
   const isFunASR = service === 'funasr';
   // Resolve base URL according to selected service if not explicitly set
-  const url = await env.STATS.get('config_local_funasr_url') || env.ASR_PROVIDER || (service === 'sensevoice' ? 'http://sensevoice.debugging-testcrash-pub.svc.cluster.local:50000' : 'http://funasr.debugging-testcrash-pub.svc.cluster.local:50001');
+  const url = await env.STATS.get('config_local_funasr_url') || env.ASR_PROVIDER || (service === 'sensevoice' ? 'http://sensevoice:50000' : 'http://funasr:50001');
 
   const secret = env.WHISPER_SECRET || "";
 
