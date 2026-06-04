@@ -1,23 +1,45 @@
 import { createClient, getLangLabel, logError } from './utils.js';
 import translate from 'google-translate-api-x';
+
 import {
     TARGET_USER_ID,
     redis
 } from './config.js';
-import { downloadTelegramFile, handleFileUpdate } from './downloader.js';
-import { transcribePath, splitTextIntoChunks } from './transcriber.js';
-import { safeSendMessage, deleteMessage, updateManagerStats } from './messenger.js';
-import { isSamesameRequest, parseSamesameRequest, cloneVoiceWithSamesame } from '../shared/samesame.js';
+
+import {
+    downloadTelegramFile,
+    handleFileUpdate
+} from './downloader.js';
+
+import {
+    transcribePath,
+    splitTextIntoChunks
+} from './transcriber.js';
+
+import {
+    safeSendMessage,
+    deleteMessage,
+    updateManagerStats
+} from './messenger.js';
+
+import {
+    isSamesameRequest,
+    parseSamesameRequest,
+    cloneVoiceWithSamesame
+} from '../shared/samesame.js';
 
 import fs from 'fs';
+import crypto from 'crypto';
+
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+
 const execFileAsync = promisify(execFile);
 
 // Trim audio to maxSec seconds using ffmpeg. Returns a Buffer of the trimmed OGG audio.
 async function trimAudioTo28s(inputBuffer, inputMime) {
     const ext = inputMime === 'video/mp4' ? '.mp4' : '.ogg';
-    const tmpIn  = `/tmp/samesame_in_${Date.now()}${ext}`;
+    const tmpIn = `/tmp/samesame_in_${Date.now()}${ext}`;
     const tmpOut = `/tmp/samesame_trim_${Date.now()}.ogg`;
     try {
         fs.writeFileSync(tmpIn, inputBuffer);
@@ -31,8 +53,8 @@ async function trimAudioTo28s(inputBuffer, inputMime) {
         const trimmed = fs.readFileSync(tmpOut);
         return trimmed;
     } finally {
-        try { fs.unlinkSync(tmpIn);  } catch (_) {}
-        try { fs.unlinkSync(tmpOut); } catch (_) {}
+        try { fs.unlinkSync(tmpIn); } catch (_) { }
+        try { fs.unlinkSync(tmpOut); } catch (_) { }
     }
 }
 
@@ -45,6 +67,35 @@ let oldMessagesProcessed = 0;
 export const pendingUploads = new Map();
 export const botGeneratedMsgIds = new Set();
 
+const processedMessages = new Set();
+
+function alreadyProcessed(messageId) {
+    if (!messageId) return false;
+
+    if (processedMessages.has(messageId)) {
+        return true;
+    }
+
+    processedMessages.add(messageId);
+
+    if (processedMessages.size > 5000) {
+        const first = processedMessages.values().next().value;
+        processedMessages.delete(first);
+    }
+
+    return false;
+}
+
+function extractReplyId(msg) {
+    return (
+        msg.reply_to_message_id ||
+        msg.reply_to?.message_id ||
+        msg.reply_to?.origin?.message_id ||
+        msg.replyTo?.message_id ||
+        msg.reply_to?.message?.id ||
+        null
+    );
+}
 const incomingQueue = [];
 let isProcessingQueue = false;
 
@@ -65,43 +116,41 @@ async function processIncomingQueue() {
 
 export async function handleNewMessage(message) {
     if (!message || !message.content) return;
+
+    if (alreadyProcessed(message.id)) {
+        return;
+    }
+
     const chat_id = message.chat_id;
     const type = message.content['_'];
 
-    const isGroup = (typeof chat_id === 'number' && chat_id < 0) || (typeof chat_id === 'string' && chat_id.startsWith('-'));
+    const isGroup =
+        (typeof chat_id === 'number' && chat_id < 0) ||
+        (typeof chat_id === 'string' && chat_id.startsWith('-'));
+
     if (isGroup) return;
 
-    if (type === 'messageVoiceNote' || type === 'messageVideoNote') {
+    if (
+        type === 'messageVoiceNote' ||
+        type === 'messageVideoNote'
+    ) {
         incomingQueue.push(message);
-        processIncomingQueue();
-    }
 
-    // SAMESAME voice cloning via reply (e.g. "!SAMESAME! hello" as reply to voice)
-    if (type === 'messageText') {
-        const text = message.content.text?.text || '';
-
-        // Handle /lang command from the target user
-        const isSelfChat = myUserId && Number(chat_id) === Number(myUserId);
-        const myId = myUserId || (TARGET_USER_ID ? Number(TARGET_USER_ID) : null);
-        if (message.is_outgoing || isSelfChat || Number(message.sender_id?.user_id) === myId) {
-            if (text.startsWith('/lang')) {
-                const parts = text.split(/\s+/);
-                const langOpt = parts[1] ? parts[1].toLowerCase() : 'auto';
-
-                await redis.set(`translate_lang_${TARGET_USER_ID}`, langOpt);
-
-                let reply = `✅ Translation target set to: ${langOpt}`;
-                if (langOpt === 'off') reply = `✅ Translation disabled.`;
-                else if (langOpt === 'auto') reply = `✅ Translation set to auto (Telegram system language).`;
-
-                await safeSendMessage(client, chat_id, message.id, reply);
-                return;
-            }
+        if (!isProcessingQueue) {
+            processIncomingQueue().catch(console.error);
         }
 
-        handleSamesameReplyIfNeeded(message).catch(err => {
-            console.error('[samesame] Failed to handle possible SAMESAME request:', err.message);
-        });
+        return;
+    }
+
+    if (type === 'messageText') {
+        handleSamesameReplyIfNeeded(message)
+            .catch(err => {
+                console.error(
+                    '[samesame]',
+                    err.message
+                );
+            });
     }
 }
 
@@ -177,12 +226,57 @@ async function processSingleMessage(message) {
                 console.error(`[tg-client] Failed to read transcription_lang:`, err.message);
             }
 
-            const result = await transcribePath(
-                transcriptionPath,
-                transcriptionMime,
-                asrLang
+            const totalStart = Date.now();
+
+            const stat = fs.statSync(transcriptionPath);
+
+            console.log(
+                `[tg-client] audio size ${(stat.size / 1024 / 1024).toFixed(2)}MB`
             );
-            console.timeEnd(`[tg-client] Transcribe msg ${message_id}`);
+
+            const audioBuffer =
+                await fs.promises.readFile(transcriptionPath);
+
+            const hash = crypto
+                .createHash('sha256')
+                .update(audioBuffer)
+                .digest('hex');
+
+            const cacheKey =
+                `asr:${hash}:${asrLang}`;
+
+            let result;
+
+            const cached =
+                await redis.get(cacheKey);
+
+            if (cached) {
+
+                result = JSON.parse(cached);
+
+                console.log(
+                    `[tg-client] cache hit ${message_id}`
+                );
+
+            } else {
+
+                result = await transcribePath(
+                    transcriptionPath,
+                    transcriptionMime,
+                    asrLang
+                );
+
+                await redis.set(
+                    cacheKey,
+                    JSON.stringify(result),
+                    'EX',
+                    60 * 60 * 24 * 30
+                );
+            }
+
+            console.log(
+                `[tg-client] total ${(Date.now() - totalStart) / 1000}s`
+            );
 
             const transcribeDuration = ((Date.now() - transcribeStart) / 1000).toFixed(1);
 
@@ -271,7 +365,7 @@ async function processSingleMessage(message) {
                 try { await client.invoke({ '_': 'deleteFile', file_id: Number(file_id) }); } catch { }
             }
             if (tempWavPath) {
-                try { fs.unlinkSync(tempWavPath); } catch (_) {}
+                try { fs.unlinkSync(tempWavPath); } catch (_) { }
             }
         }
     }
@@ -348,28 +442,54 @@ export async function sendTestMessage(messageText) {
  * Uses the shared module so the same logic can be reused in WhatsApp / FB / IG clients.
  */
 async function handleSamesameReplyIfNeeded(message) {
-    // console.log('[samesame] handleSamesameReplyIfNeeded called for text message', {
-    //     hasReplyTo: !!(message?.reply_to_message_id || message?.reply_to?.message_id || message?.replyTo?.message_id),
-    //     textPreview: (message?.content?.text?.text || '').substring(0, 60),
-    //     isOutgoing: message?.is_outgoing,
-    //     chatId: message?.chat_id
-    // });
 
-    if (!message || !message.content || message.content['_'] !== 'messageText') return;
-
-    const text = message.content.text?.text || '';
-    if (!isSamesameRequest(text)) return;
-
-    let replyToId = message.reply_to_message_id || message.reply_to?.message_id || message.replyTo?.message_id;
-    if (!replyToId) {
-        console.log('[samesame] no reply_to_message_id in any known location, skipping');
+    if (
+        !message ||
+        !message.content ||
+        message.content['_'] !== 'messageText'
+    ) {
         return;
     }
 
-    const chatId = message.chat_id;
-    const { text: cleanText, language } = parseSamesameRequest(text);
+    const text =
+        message.content.text?.text || '';
+
+    if (!isSamesameRequest(text)) {
+        return;
+    }
+
+    const replyToId =
+        extractReplyId(message);
+
+    if (!replyToId) {
+
+        await safeSendMessage(
+            client,
+            message.chat_id,
+            message.id,
+            'Ответь на голосовое сообщение.'
+        );
+
+        return;
+    }
+
+    const chatId =
+        message.chat_id;
+
+    const {
+        text: cleanText,
+        language
+    } = parseSamesameRequest(text);
+
     if (!cleanText) {
-        await safeSendMessage(client, chatId, message.id, '⚠️ После !SAMESAME! нужно написать текст, который нужно произнести.');
+
+        await safeSendMessage(
+            client,
+            chatId,
+            message.id,
+            'После !SAMESAME! нужен текст.'
+        );
+
         return;
     }
 
@@ -381,8 +501,24 @@ async function handleSamesameReplyIfNeeded(message) {
             message_id: replyToId
         });
 
-        if (!replied || !replied.content) {
-            await safeSendMessage(client, chatId, message.id, 'Не удалось получить сообщение, на которое ты ответил.');
+        const validTypes = new Set([
+            'messageVoiceNote',
+            'messageVideoNote'
+        ]);
+
+        if (
+            !replied ||
+            !replied.content ||
+            !validTypes.has(replied.content['_'])
+        ) {
+
+            await safeSendMessage(
+                client,
+                chatId,
+                message.id,
+                'Ответь именно на голосовое.'
+            );
+
             return;
         }
 
@@ -420,7 +556,20 @@ async function handleSamesameReplyIfNeeded(message) {
         let audioBuffer = null;
         for (let attempt = 0; attempt < 10; attempt++) {
             try {
-                audioBuffer = fs.readFileSync(audioPath);
+                const stat =
+                    fs.statSync(audioPath);
+
+                if (
+                    stat.size >
+                    100 * 1024 * 1024
+                ) {
+                    throw new Error(
+                        'Voice too large'
+                    );
+                }
+
+                audioBuffer =
+                    await fs.promises.readFile(audioPath);
                 break;
             } catch (e) {
                 if (attempt === 9) throw e;

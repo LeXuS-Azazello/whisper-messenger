@@ -1,143 +1,216 @@
-# 🎙️ Voice Messenger
+# GKE MCP Server and Gemini CLI Extension
 
-> **Multi-tenant voice-to-text platform connecting Telegram, WhatsApp (Baileys), Facebook Messenger (FCA), and Instagram (FCA) to high-quality offline ASR via FunASR (Fun-ASR-MLT-Nano) and TTS via Samesame (CosyVoice 3.0).**
+Enable MCP-compatible AI agents to interact with Google Kubernetes Engine.
 
-## 📢 Recent Changes (May 2026)
-- **Updated FunASR to 1.3.9** with AutoModel support, fixing tokenizer import issues and enabling VAD, punctuation, and auto-language detection.
-- Switched `samesame` Docker base image to `python:3.10‑slim` and removed Miniconda, fixing build errors.
-- Updated `samesame` to use **FunAudioLLM/CosyVoice3-0** (CPU‑optimized) instead of XTTS.
-- Adjusted resource requests for `samesame` (CPU 1 → 1.5, RAM 4 Gi → 8 Gi) to fit namespace quotas.
-- All services now start cleanly; `samesame` reports **Model ready** and health checks return `200 OK`.
+<img src="https://raw.githubusercontent.com/GoogleCloudPlatform/gke-mcp/main/assets/gke-mcp-gemini-cli-demo.gif" alt="A demonstration of using the GKE MCP server with the Gemini CLI" width="600">
 
+## Installation
 
+Choose a way to install the MCP Server and then connect your AI to it.
 
----
+### Use as a Gemini CLI Extension
 
-## 🚀 Overview
+1. Install [Gemini CLI](https://github.com/google-gemini/gemini-cli?tab=readme-ov-file#-installation).
 
-Voice Messenger is a multi-tenant system that automatically transcribes voice messages from personal chats on major messaging platforms. 
+2. Install the extension
 
-It uses a **per-user Kubernetes pod architecture**: for every connected account (Telegram, WhatsApp, Facebook, Instagram) the system spawns a dedicated lightweight client pod that runs 24/7 and forwards voice messages to the central ASR service.
-
-### 🌟 Currently Supported Platforms
-- **Telegram** — personal accounts via tdlib (per-user pods)
-- **WhatsApp** — personal accounts via Baileys (per-user pods, 3 connection methods: QR, Phone Pairing, wa.me)
-- **Facebook Messenger** — personal accounts via FCA (per-user pods)
-- **Instagram** — Direct messages via FCA (per-user pods)
-
-**ASR backend**: Fun-ASR-Nano или Fun-ASR-MLT-Nano, (Russian, Hebrew, Arabic, Thai, many langs).
-
----
-
-## 🏗️ Architecture
-
-The system follows a **per-user pod** model:
-
-- Every connected messenger account (Telegram, WhatsApp, FB, IG) gets its own dedicated Kubernetes pod running the client library (tdlib or Baileys/FCA).
-- These pods are created and supervised by the corresponding **manager** (tg-client-manager, whatsapp-baileys-manager, facebook-fca-manager, instagram-fca-manager).
-- Voice messages are sent to **FunASR-Nano** (API + BullMQ worker) for transcription.
-- Results are delivered back to the user via the original platform or the web dashboard.
-
-
-### 🧱 Core Components
-
-| Component                    | Purpose                                      | Per-user pods? |
-|-----------------------------|----------------------------------------------|----------------|
-| `src/` (Frontend + Hono)    | Web dashboard, auth, webhooks, UI            | No             |
-| `*-manager/` (4 managers)   | Kubernetes controllers that spawn & manage per-user client pods | No (shared) |
-| `*-client/` folders         | Actual messenger clients (tdlib, Baileys, FCA) running inside user pods | Yes |
-| `funasr`                    | ASR service (FunASR-MLT-Nano)    | Shared |
-| `samesame`                  | Premium voice cloning (FunAudioLLM/CosyVoice3-0.5B + CPU optimized)     | Shared |
-| `kubernetes/`               | Kustomize manifests for all services         | —              |
-
----
-
-## 🛠️ Technology Stack
-
-| Layer          | Technologies                                      |
-|----------------|---------------------------------------------------|
-| **Backend**    | TypeScript, Node.js, Hono                         |
-| **Frontend**   | Preact + TSX (modern dashboard with per-messenger cards) |
-| **Database**   | Redis (BullMQ queues, sessions, user settings), MongoDB |
-| **ASR & TTS**  | funasr (Fun-ASR-MLT-Nano) & samesame (CosyVoice 3.0) |
-| **Infrastructure** | Kubernetes + Kustomize, Docker, Harbor registry |
-| **Deployment** | `npm run deploy:k8s` (builds + pushes + updates images) |
-
----
-
-## 🚦 Getting Started
-
-### Prerequisites
-*   A Kubernetes cluster with `kubectl` configured.
-*   `kube-dc` CLI for cluster access.
-*   Redis instance reachable within the cluster.
-
-### Deployment
-The project uses a streamlined deployment script that builds the images, pushes them to the private Harbor registry (`https://hub.docker.com/repository/docker/lexusazazello`), and updates the Kubernetes manifests.
-
-```bash
-# Deploy to the production namespace
-npm run deploy:k8s
+```sh
+gemini extensions install https://github.com/GoogleCloudPlatform/gke-mcp.git
 ```
 
-## 🔌 System Endpoints
+### Use in MCP Clients / Other AIs
 
-| Service                  | Endpoint (internal)                                      | Role |
-|--------------------------|----------------------------------------------------------|------|
-| **Frontend**             | `https://voicemsg.net`                                   | Main dashboard & landing |
-| **funasr**               | `http://funasr:50001`                                    | ASR API (transcribe-base64) |
-| **samesame**             | `http://samesame:8002`                                   | Premium voice cloning (CosyVoice3.0) (`/v1/clone`) |
-| **Managers**             | tg-client-manager:3000, whatsapp-baileys-manager:3002, facebook-fca-manager:3003, instagram-fca-manager:3005 | Per-user pod orchestration |
+#### Quick Install (Linux & macOS only)
 
----
-
-## 📦 WhatsApp Integration
-
-**Production stack**: `whatsapp-baileys-manager` + `whatsapp-baileys-client` (Baileys library).
-
-- Runs as per-user pods
-- Supports three connection methods in the dashboard: QR code, Phone Pairing Code, Direct wa.me link
-- Legacy `whatsapp-client*` (whatsapp-web.js) folders are deprecated and are being removed
-
-> Rule: Only `whatsapp-baileys-*` is actively maintained.
-
----
-
-## 📂 Project Structure
-
-```text
-.
-├── src/                              # Preact dashboard + Hono backend
-│   └── components/dashboard/         # ConnectionsPane + per-messenger cards
-├── tg-client-manager/                # Spawns & manages per-user Telegram pods (see README)
-├── tg-client/                        # tdlib client (runs inside user pods) (see README)
-├── whatsapp-baileys-manager/         # WhatsApp (Baileys) manager
-├── whatsapp-baileys-client/          # Baileys client (per-user pods)
-├── facebook-fca-manager/             # Facebook Messenger (FCA)
-├── facebook-fca-client/
-├── instagram-fca-manager/            # Instagram Direct (FCA)
-├── instagram-fca-client/
-├── funasr/                           # ASR (API + Fun-ASR-Nano или Fun-ASR-MLT-Nano)
-├── samesame/                         # Premium voice cloning (CosyVoice3.0 + CPU optimized) (see README)
-├── kubernetes/                       # Kustomize manifests (base + overlays) (see README)
-└── scripts/deploy.sh                 # Full build + push + rollout + auto model downloaders
+```sh
+curl -sSL https://raw.githubusercontent.com/GoogleCloudPlatform/gke-mcp/main/install.sh | bash
 ```
 
-### 📚 Detailed Documentation
-*   [**Kubernetes Manifests & Architecture**](kubernetes/README.md)
-*   [**SAMESAME Voice Cloning**](samesame/README.md)
-*   [**Telegram Client**](tg-client/README.md)
-*   [**Telegram Client Manager**](tg-client-manager/README.md)
+#### Manual Install
 
----
+If you haven't already installed Go, follow [these instructions](https://go.dev/doc/install).
 
-## 🛡️ Key Design Decisions
+Once Go is installed, run the following command to install gke-mcp:
 
-- **Per-user isolation** — every account runs in its own Kubernetes pod (no shared sessions).
-- **Zero persistent audio** — voice messages are processed in memory only.
-- **FunASR-Nano** — stable ASR under load (Russian, Hebrew, Arabic, Thai, many langs).
-- **Modern dashboard** — clean Preact UI with dedicated connection cards for each messenger.
+```sh
+go install github.com/GoogleCloudPlatform/gke-mcp@latest
+```
 
----
+The `gke-mcp` binary will be installed in the directory specified by the `GOBIN` environment variable. If `GOBIN` is not set, it defaults to `$GOPATH/bin` and, if `GOPATH` is also not set, it falls back to `$HOME/go/bin`.
 
-*Updated 2026-05 — FunASR-Nano + samesame (voice cloning via CosyVoice 3.0 with CPU multi-threading).* 
+You can find the exact location by running `go env GOBIN`. If the command returns an empty value, run `go env GOPATH` to find the installation directory.
+
+For additional help, refer to the troubleshoot section: [gke-mcp: command not found](TROUBLESHOOTING.md#gke-mcp-command-not-found-on-macos-or-linux).
+
+### Add the MCP Server to your AI
+
+For detailed instructions on how to connect the GKE MCP Server to various AI clients, including Cursor, Visual Studio Code, Claude Desktop, and Claude Code, please refer to our dedicated [installation guide](docs/installation_guide/).
+
+## MCP Tools
+
+- `cluster_toolkit_download`: Download the Cluster Toolkit Git repository.
+- `list_clusters`: List GKE clusters.
+- `get_cluster`: Get detailed information about a single GKE cluster.
+- `create_cluster`: Create a new GKE cluster (defaults to Autopilot).
+- `get_kubeconfig`: Configure kubeconfig for a GKE cluster.
+- `update_cluster`: Update a GKE cluster.
+- `get_node_sos_report`: Generate and download an SOS report from a GKE node.
+- `delete_cluster`: Delete a GKE cluster (if enabled).
+- `list_node_pools`: List node pools in a GKE cluster.
+- `get_node_pool`: Get details for a GKE node pool.
+- `create_node_pool`: Create a new node pool in a GKE cluster.
+- `update_node_pool`: Update a GKE node pool.
+- `delete_node_pool`: Delete a GKE node pool (if enabled).
+- `gke_deploy`: Deploy a workload to a GKE cluster using a configuration file.
+- `query_logs`: Query Google Cloud Platform logs using Logging Query Language (LQL).
+- `get_log_schema`: Get the schema for a specific GKE log type.
+- `list_monitored_resource_descriptors`: List monitored resource descriptors for GKE.
+- `list_recommendations`: List recommendations for GKE clusters.
+- `get_k8s_changelog`: Get Kubernetes changelog for upgrades.
+- `get_gke_release_notes`: Get GKE release notes.
+- `generate_manifest`: Generate a Kubernetes manifest using Vertex AI.
+- `get_k8s_resource`: Gets one or more Kubernetes resources from a cluster.
+- `list_k8s_events`: Retrieves events from a Kubernetes cluster.
+- `get_k8s_version`: Retrieves the Kubernetes server version for a given cluster.
+- `apply_k8s_manifest`: Applies a Kubernetes manifest to a cluster using server-side apply.
+- `get_k8s_logs`: Gets logs from a Kubernetes container in a pod.
+- `delete_k8s_resource`: Delete a Kubernetes resource from a cluster.
+
+## MCP Prompts
+
+Prompts provide guided workflows and expert knowledge templates.
+
+- `gke:cost`: Answer natural language questions about GKE-related costs.
+- `gke:deploy`: Deploys a workload to a GKE cluster using a configuration file.
+- `gke:upgrade-risk-report`: GKE control plane upgrade risk report, analyzing the potential risks of upgrading from its current version to the target version. Performs pre-upgrade checks, API deprecations scans, and more.
+- `gke:upgrades-best-practices-risk-report`: GKE control plane upgrade best practices, applied for the specified cluster. Helps making upgrades uneventful.
+
+## MCP Context
+
+In addition to the tools above, a lot of value is provided through the bundled context instructions.
+
+- **Cost**: The provided instructions allows the AI to answer many questions related to GKE costs, including queries related to clusters, namespaces, and Kubernetes workloads.
+
+- **GKE Known Issues**: The provided instructions allows the AI to fetch the latest GKE Known issues and check whether the cluster is affected by one of these known issues.
+
+## Supported MCP Transports
+
+By default, `gke-mcp` uses the [stdio](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#stdio) transport. Additionally, the [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http) transport is supported as well.
+
+You can set the transport mode using the following options:
+
+`--server-mode`: transport to use for the server: stdio (default) or http
+
+`--server-host`: server host to use when server-mode is http; defaults to `127.0.0.1`
+
+`--server-port`: server port to use when server-mode is http; defaults to 8080
+
+```sh
+gke-mcp --server-mode http --server-host 127.0.0.1 --server-port 8080
+```
+
+> [!WARNING]
+> By default, the HTTP server binds to `127.0.0.1`, which limits access to the local machine.
+> If you explicitly set `--server-host 0.0.0.0` or another non-loopback address, the server may become reachable from other machines on your network.
+> Please ensure you have a firewall and/or other security measures in place if the server is not intended to be private.
+
+### Connecting Gemini CLI to the HTTP Server
+
+To connect Gemini CLI to the `gke-mcp` HTTP server, you need to configure the CLI to point to the correct endpoint. You can do this by updating your `~/.gemini/settings.json` file. For a basic setup without authentication, the file should look like this:
+
+```json
+{
+  "mcpServers": {
+    "gke": {
+      "httpUrl": "http://127.0.0.1:8080/mcp"
+    }
+  }
+}
+```
+
+This configuration tells Gemini CLI how to reach the gke-mcp server running on your local machine at port 8080.
+
+## Skills
+
+Skills provide specialized capabilities and workflows to your AI agent.
+
+### Available Skills
+
+- `custom-golden-image-discovery`: Discover golden base images for GKE custom nodes.
+- `gke-ai-troubleshooting-skill-creation-guide`: Guide for building high-quality GKE troubleshooting skills.
+- `gke-ai-troubleshooting-tpu-connection-failure-vbar-oom`: Diagnose and prevent TPU connection failures and OOMs.
+- `gke-app-onboarding`: Workflows for containerizing and deploying applications to GKE.
+- `gke-backup-dr`: Configure Backup for GKE and disaster recovery.
+- `gke-cluster-creator`: Create GKE clusters using predefined templates.
+- `gke-cluster-lifecycle`: Manage lifecycle and upgrades of GKE clusters.
+- `gke-compute-class-creator`: Create GKE ComputeClass resources.
+- `gke-cost-analysis`: Answer questions about GKE-related costs.
+- `gke-cost-optimization`: Optimize costs for GKE clusters.
+- `gke-inference-quickstart`: Deploy optimized AI/ML inference workloads on GKE.
+- `gke-multi-tenancy`: Implement multi-tenancy and governance in GKE.
+- `gke-networking-edge`: Configure edge networking, ingress, and security on GKE.
+- `gke-observability`: Set up and audit observability on GKE.
+- `gke-productionize`: Prepare applications and clusters for production.
+- `gke-reliability`: Ensure high availability and reliability of GKE workloads.
+- `gke-storage`: Manage storage in GKE clusters.
+- `gke-workload-scaling`: Scale GKE workloads using HPA and VPA.
+- `gke-workload-security`: Audit and harden the security of GKE workloads.
+
+### Installing Skills
+
+There are several ways to install these skills:
+
+1. **Automatic Detection**: When you install the MCP server as a
+   [Gemini CLI Extension](#use-as-a-gemini-cli-extension), the CLI automatically
+   detects and enables all skills located in the `skills/` folder.
+
+2. **Standalone Individual Skill**: Install a specific skill without the full
+   MCP extension:
+
+   ```sh
+   gemini skills install https://github.com/GoogleCloudPlatform/gke-mcp --path skills/<skill-name>
+   ```
+
+   Replace `<skill-name>` with the name of a skill from the `skills/` directory
+   (e.g., `gke-cost-analysis`).
+
+3. **Standalone Bulk Link**: To enable all skills at once without installing
+   the full MCP extension:
+   ```sh
+   git clone https://github.com/GoogleCloudPlatform/gke-mcp.git
+   gemini skills link ./gke-mcp/skills
+   ```
+
+## Development
+
+To compile the binary and update the `gemini-cli` extension with your local changes, follow these steps:
+
+1. Remove the global gke-mcp configuration
+
+   ```sh
+   rm -rf ~/.gemini/extensions/gke-mcp
+   ```
+
+1. Build the binary from the root of the project:
+
+   ```sh
+   go build -o gke-mcp .
+   ```
+
+1. Run the installation command to update the extension manifest:
+
+   ```sh
+   ./gke-mcp install gemini-cli --developer
+   ```
+
+   This will make `gemini-cli` use your locally compiled binary.
+
+## Disclaimers
+
+- The Google Cloud Platform Terms of Service (available at [https://cloud.google.com/terms/](https://cloud.google.com/terms/)) and the Data Processing and Security Terms (available at [https://cloud.google.com/terms/data-processing-terms](https://cloud.google.com/terms/data-processing-terms)) do not apply to any component of the GKE MCP Server software.
+- This tool is provided for education and experimentation, and is not an officially supported Google product. It is maintained on a best-effort basis, and may change without notice.
+- This project interacts with Large Language Models and comes with inherent risks.
+  - **Use at Your Own Risk:** This software is experimental, non-deterministic, and provided "AS IS" with NO GUARANTEES or warranties.
+  - **NOT FOR PRODUCTION USE.**
+  - **Data Sensitivity:** Avoid using untrusted data. NEVER input secrets, API keys, or sensitive information.
+  - **Verify Outputs:** LLM responses can be unpredictable and may be inaccurate. Always verify results.

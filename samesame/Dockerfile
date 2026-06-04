@@ -8,7 +8,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/models \
     TTS_MODEL_DIR=/models \
-    PYTHONPATH="/app:/app/third_party/Matcha-TTS"
+    PYTHONPATH="/app:/app/third_party/Matcha-TTS" \
+    TORCH_SDPA=True \
+    TORCH_SDPA_ALLOW_FP8=True
 
 WORKDIR /app
 
@@ -130,6 +132,6 @@ ENV SAMESAME_SECRET=""
 EXPOSE 8002
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
-CMD curl -f http://localhost:8002/docs || exit 1
+    CMD curl -f http://localhost:8002/docs || exit 1
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8002"]

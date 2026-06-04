@@ -45,6 +45,7 @@ class CosyVoiceFrontEnd:
         option = onnxruntime.SessionOptions()
         option.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         option.intra_op_num_threads = 1
+        
         self.campplus_session = onnxruntime.InferenceSession(campplus_model, sess_options=option, providers=["CPUExecutionProvider"])
         self.speech_tokenizer_session = onnxruntime.InferenceSession(speech_tokenizer_model, sess_options=option,
                                                                      providers=["CUDAExecutionProvider" if torch.cuda.is_available() else
@@ -94,41 +95,152 @@ class CosyVoiceFrontEnd:
             for i in range(text_token.shape[1]):
                 yield text_token[:, i: i + 1]
 
+    
     def _extract_speech_token(self, prompt_wav):
+
         speech = load_wav(prompt_wav, 16000)
-        assert speech.shape[1] / 16000 <= 30, 'do not support extract speech token for audio longer than 30s'
+
+        assert (
+            speech.shape[1] / 16000 <= 30
+        ), "audio >30 sec"
+
+        # ограничим prompt
+        max_samples = 16000 * 12
+
+        if speech.shape[1] > max_samples:
+            speech = speech[:, :max_samples]
+
         mel_transform = T.MelSpectrogram(
             sample_rate=16000,
-            n_mels=80,
             n_fft=400,
-            hop_length=160
+            win_length=400,
+            hop_length=160,
+            n_mels=128,
+            center=False
         )
-        feat = mel_transform(speech)
-        feat = torch.clamp(feat, min=1e-5).log2()  # Shape: (n_mels, time)
-        # Ensure 3D: (1, n_mels, time)
+
+        feat = mel_transform(
+            speech
+        )
+
+        feat = torch.clamp(
+            feat,
+            min=1e-5
+        ).log()
+
+        # mel output:
+        # [1,128,T]
+
         if feat.dim() == 2:
             feat = feat.unsqueeze(0)
-        speech_token = self.speech_tokenizer_session.run(None,
-                                                          {self.speech_tokenizer_session.get_inputs()[0].name:
-                                                           feat.detach().cpu().numpy(),
-                                                           self.speech_tokenizer_session.get_inputs()[1].name:
-                                                           np.array([feat.shape[2] if feat.dim() == 3 else feat.shape[1]], dtype=np.int32)})[0].flatten().tolist()
-        speech_token = torch.tensor([speech_token], dtype=torch.int32).to(self.device)
-        speech_token_len = torch.tensor([speech_token.shape[1]], dtype=torch.int32).to(self.device)
-        return speech_token, speech_token_len
 
+        print(
+            "[cosy] tokenizer input:",
+            feat.shape
+        )
+
+        feat_len = np.array(
+            [feat.shape[2]],
+            dtype=np.int32
+        )
+
+        speech_token = self.speech_tokenizer_session.run(
+            None,
+            {
+                self.speech_tokenizer_session
+                    .get_inputs()[0]
+                    .name:
+                        feat.cpu()
+                            .numpy()
+                            .astype(np.float32),
+
+                self.speech_tokenizer_session
+                    .get_inputs()[1]
+                    .name:
+                        feat_len
+            }
+        )[0]
+
+        speech_token = torch.tensor(
+            speech_token,
+            dtype=torch.int32
+        )
+
+        if speech_token.dim() == 1:
+            speech_token = speech_token.unsqueeze(0)
+
+        speech_token_len = torch.tensor(
+            [speech_token.shape[1]],
+            dtype=torch.int32
+        ).to(self.device)
+
+        return (
+            speech_token.to(self.device),
+            speech_token_len
+        )
+        
     def _extract_spk_embedding(self, prompt_wav):
-        speech = load_wav(prompt_wav, 16000)
-        feat = kaldi.fbank(speech,
-                           num_mel_bins=80,
-                           dither=0,
-                           sample_frequency=16000)
-        feat = feat - feat.mean(dim=0, keepdim=True)
-        embedding = self.campplus_session.run(None,
-                                              {self.campplus_session.get_inputs()[0].name: feat.unsqueeze(dim=0).cpu().numpy()})[0].flatten().tolist()
-        embedding = torch.tensor([embedding]).to(self.device)
-        return embedding
 
+        speech = load_wav(
+            prompt_wav,
+            16000
+        )
+
+        max_samples = 16000 * 12
+
+        if speech.shape[1] > max_samples:
+            speech = speech[:, :max_samples]
+
+        feat = kaldi.fbank(
+            speech,
+            num_mel_bins=80,   # <-- ВАЖНО: 80, не 128
+            frame_length=25,
+            frame_shift=10,
+            dither=0,
+            sample_frequency=16000
+        )
+
+        feat = feat - feat.mean(
+            dim=0,
+            keepdim=True
+        )
+
+        print(
+            "[cosy] campplus raw:",
+            feat.shape
+        )
+
+        # kaldi already gives:
+        # [T,80]
+
+        feat = feat.unsqueeze(0)
+
+        # -> [1,T,80]
+
+        print(
+            "[cosy] campplus input:",
+            feat.shape
+        )
+
+        embedding = self.campplus_session.run(
+            None,
+            {
+                self.campplus_session
+                    .get_inputs()[0]
+                    .name:
+                        feat.cpu()
+                            .numpy()
+                            .astype(np.float32)
+            }
+        )[0]
+
+        return torch.tensor(
+            embedding,
+            dtype=torch.float32
+        ).flatten().unsqueeze(0).to(
+            self.device
+        )
+    
     def _extract_speech_feat(self, prompt_wav):
         speech = load_wav(prompt_wav, 24000)
         speech_feat = self.feat_extractor(speech).squeeze(dim=0).transpose(0, 1).to(self.device)

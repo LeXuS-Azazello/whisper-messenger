@@ -106,7 +106,12 @@ def detect_language_from_text(text: str) -> str:
         return 'th'
     if sum(1 for c in text if '\u0590' <= c <= '\u05ff') > 0:
         return 'he'
-    return 'en'
+    latin = sum(ch.isascii() and ch.isalpha() for ch in text)
+
+    if latin > max(3, len(text) * 0.25):
+        return "en"
+
+    return "en"
 
 
 def split_text(text: str, max_len: int = 150) -> list:
@@ -152,6 +157,7 @@ class CloneRequest(BaseModel):
     prompt_language: Optional[str] = None
     language: Optional[str] = None
     output_format: Optional[str] = "ogg"
+    use_cache: Optional[bool] = False
 
 
 @app.get("/health")
@@ -171,7 +177,7 @@ def clone_voice(
     authorization: Optional[str] = Header(None)
 ):
     start_time = time.time()
-
+    timings = {}
     if SAMESAME_SECRET and authorization != f"Bearer {SAMESAME_SECRET}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -179,9 +185,9 @@ def clone_voice(
         raise HTTPException(status_code=400, detail="Missing text")
 
     try:
-        t0 = time.time()
+        t = time.time()
         prompt_speech_16k, _ = decode_audio_base64(req.source_audio_base64, target_sr=16000)
-        print(f"[cosy] decode time: {time.time()-t0:.3f}s")
+        timings["decode_ms"] = int((time.time()-t)*1000)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid base64: {e}")
 
@@ -191,43 +197,71 @@ def clone_voice(
 
     # Trim silence
     audio_np = prompt_speech_16k.squeeze(0).cpu().numpy()
-    mask = np.abs(audio_np) > 0.01
+    mask = np.abs(audio_np) > 0.005
     if np.any(mask):
         indices = np.where(mask)[0]
         start = indices[0]
         end = indices[-1] + 1
         prompt_speech_16k = torch.from_numpy(audio_np[start:end]).unsqueeze(0).float()
 
-    lang = (req.language or "").strip().lower()[:2] or detect_language_from_text(req.text)
-    if lang not in {"ru","uk","th","he","en","zh","ja","ko","de","es","fr","it"}:
+    raw_lang = (req.language or "").strip().lower()
+    
+    # NLLB to 2-letter mapping fallback if needed
+    if raw_lang.startswith("rus"): lang = "ru"
+    elif raw_lang.startswith("ukr"): lang = "uk"
+    elif raw_lang.startswith("eng"): lang = "en"
+    elif raw_lang.startswith("zho"): lang = "zh"
+    elif raw_lang.startswith("jpn"): lang = "ja"
+    elif raw_lang.startswith("kor"): lang = "ko"
+    elif raw_lang.startswith("spa"): lang = "es"
+    elif raw_lang.startswith("fra"): lang = "fr"
+    elif raw_lang.startswith("deu"): lang = "de"
+    elif raw_lang.startswith("ita"): lang = "it"
+    elif raw_lang.startswith("por"): lang = "pt"
+    elif raw_lang.startswith("tha"): lang = "th"
+    elif raw_lang.startswith("heb"): lang = "he"
+    else: lang = raw_lang[:2]
+
+    if not lang:
+        lang = detect_language_from_text(req.text)
+
+    if lang not in {"ru","uk","th","he","en","zh","ja","ko","de","es","fr","it","pt"}:
         lang = "en"
 
     FAST_LANGS = {"ru", "uk", "en", "de", "fr", "es", "it", "pt"}
     use_frontend = lang not in FAST_LANGS
 
-    text_chunks = split_text(req.text, max_len=250)
+    text_chunks = split_text(req.text, max_len=180)
     print(f"[cosy] target={lang}, chunks={len(text_chunks)}")
 
-    cache_key = prompt_cache_filename(req.source_audio_base64)
+    cache_key = hashlib.sha256(
+        prompt_speech_16k.squeeze().numpy().tobytes()
+    ).hexdigest()
     cache_file = f"/dev/shm/{cache_key}-{uuid.uuid4().hex}.flac"
     
     cached_audio = None
     try:
-        cached_audio = redis_client.get(cache_key)
-    except Exception as e:
-        print("[redis get]", e)
+        cached_audio = None
+
+    if req.use_cache:
+        try:
+            cached_audio = redis_client.get(cache_key)
+        except Exception as e:
+            print("[redis get]", e)
 
     if cached_audio:
         with open(cache_file, "wb") as f:
             f.write(cached_audio)
     else:
         wav_bytes = io.BytesIO()
-        sf.write(wav_bytes, prompt_speech_16k.squeeze(0).cpu().numpy(), 16000, format="FLAC")
+        sf.write(wav_bytes, prompt_speech_16k.squeeze(0).cpu().numpy(), 16000, format="WAV")
         payload = wav_bytes.getvalue()
         try:
-            redis_client.setex(cache_key, REDIS_TTL, payload)
+            if req.use_cache:
+                redis_client.setex(cache_key, REDIS_TTL, payload)
         except Exception as e:
             print("[redis set]", e)
+        
         with open(cache_file, "wb") as f:
             f.write(payload)
 
@@ -237,9 +271,32 @@ def clone_voice(
         for chunk_text in text_chunks:
             prompt_text_str = req.prompt_text or chunk_text[:80]
             print(f"[cosy] synthesizing: {chunk_text[:50]}...")
+            
+            # Inject language token so the model doesn't hallucinate (e.g. Russian -> Chinese)
+            # Use 'jp' for Japanese instead of 'ja' if that's what CosyVoice expects internally, but 'ja' works if we allow it.
+            # Fun-CosyVoice3 typically uses <|lang|> tags for control.
+            LANG_TOKEN_MAP = {
+                "ru": "<|ru|>",
+                "uk": "<|ru|>",   # Cosy часто лучше работает через ru
+                "en": "<|en|>",
+                "zh": "<|zh|>",
+                "ja": "<|jp|>",
+                "ko": "<|ko|>",
+                "de": "<|de|>",
+                "fr": "<|fr|>",
+                "es": "<|es|>",
+                "it": "<|it|>",
+                "pt": "<|pt|>",
+                "th": "<|th|>",
+                "he": "<|en|>",  # fallback
+            }
+
+            lang_token = LANG_TOKEN_MAP.get(lang, "<|en|>")
+            chunk_with_lang = f"{lang_token}{chunk_text}"
+            prompt_text_str = req.prompt_text or f"{lang_token}{chunk_text[:60]}"
 
             output = cosyvoice.inference_zero_shot(
-                tts_text=chunk_text,
+                tts_text=chunk_with_lang,
                 prompt_text=prompt_text_str,
                 prompt_wav=cache_file,
                 text_frontend=use_frontend
@@ -267,18 +324,27 @@ def clone_voice(
             pass
 
     buf = io.BytesIO()
-    mime = "audio/wav"
-
     t2 = time.time()
-    sf.write(buf, audio, SAMPLE_RATE, format="WAV")
+    mime="audio/ogg"
+
+    sf.write(
+        buf,
+        audio,
+        SAMPLE_RATE,
+        format="OGG",
+        subtype="OPUS"
+    )
     print(f"[cosy] encode time: {time.time()-t2:.3f}s")
+    timings["encode_ms"] = int((time.time()-t2)*1000)
+    timings["total_ms"] = int((time.time()-start_time)*1000)
 
     return {
         "audio_base64": base64.b64encode(buf.getvalue()).decode(),
         "mime_type": mime,
         "duration_seconds": round(len(audio) / SAMPLE_RATE, 2),
         "latency_ms": int((time.time() - start_time) * 1000),
-        "language": lang
+        "language": lang,
+        "timings": timings
     }
 
 

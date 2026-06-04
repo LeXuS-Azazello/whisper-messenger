@@ -50,7 +50,6 @@ export async function qrStart(req, res) {
                     lastDisconnect?.error
                 );
             }
-            const { connection, qr } = update;
             if (qr) {
                 try {
                     session.qrUrl = qr;
@@ -91,6 +90,7 @@ export async function qrStart(req, res) {
 export async function pairingStart(req, res) {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: 'Phone number required' });
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
 
     const tempId = `wa-pair-${Date.now()}`;
     try {
@@ -119,13 +119,14 @@ export async function pairingStart(req, res) {
 
         session.client = sock;
 
-        await new Promise((resolve) => {
-            sock.ev.on('connection.update', ({ qr }) => {
-                resolve();
+        await new Promise((resolve, reject) => {
+            sock.ev.on('connection.update', ({ qr, connection }) => {
+                if (qr) resolve();
+                if (connection === 'close') reject(new Error('Connection closed before initialization'));
             });
         });
 
-        const code = await sock.requestPairingCode(phone);
+        const code = await sock.requestPairingCode(cleanPhone);
 
         session.pairingCode = code;
         session.responded = true;
