@@ -6,6 +6,8 @@ import re
 import sys
 import time
 import uuid
+import gc
+import threading
 from typing import Optional
 
 from fastapi import FastAPI, Header, HTTPException
@@ -53,6 +55,7 @@ from cosyvoice.cli.cosyvoice import CosyVoice3
 
 try:
     cosyvoice = CosyVoice3(MODEL_LOAD_PATH, load_trt=False, fp16=False)
+    _inference_lock = threading.Lock()
     print(f"[samesame-cosy] CosyVoice3 loaded successfully.")
 except Exception as e:
     print(f"[samesame-cosy] FATAL: Failed to load CosyVoice3: {e}")
@@ -159,6 +162,7 @@ class CloneRequest(BaseModel):
     language: Optional[str] = None
     output_format: Optional[str] = "ogg"
     use_cache: Optional[bool] = False
+    user_id: Optional[str] = None
 
 
 @app.get("/health")
@@ -177,6 +181,10 @@ def clone_voice(
     req: CloneRequest,
     authorization: Optional[str] = Header(None)
 ):
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     start_time = time.time()
     timings = {}
     if SAMESAME_SECRET and authorization != f"Bearer {SAMESAME_SECRET}":
@@ -192,11 +200,7 @@ def clone_voice(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid base64: {e}")
 
-    MAX_PROMPT_SAMPLES = 16000 * 8
-    if prompt_speech_16k.shape[-1] > MAX_PROMPT_SAMPLES:
-        prompt_speech_16k = prompt_speech_16k[:, :MAX_PROMPT_SAMPLES]
-
-    # Trim silence
+    # Trim silence first to evaluate true speech length
     audio_np = prompt_speech_16k.squeeze(0).cpu().numpy()
     mask = np.abs(audio_np) > 0.005
     if np.any(mask):
@@ -204,6 +208,37 @@ def clone_voice(
         start = indices[0]
         end = indices[-1] + 1
         prompt_speech_16k = torch.from_numpy(audio_np[start:end]).unsqueeze(0).float()
+
+    true_audio_samples = prompt_speech_16k.shape[-1]
+    best_profile_key = f"voice_profile:{req.user_id}" if req.user_id else None
+    GOOD_AUDIO_THRESHOLD = 16000 * 3  # 3 seconds of NON-SILENT speech
+    
+    if best_profile_key:
+        if true_audio_samples >= GOOD_AUDIO_THRESHOLD:
+            # Good quality sample: save it as the new best profile
+            wav_bytes = io.BytesIO()
+            sf.write(wav_bytes, prompt_speech_16k.squeeze(0).cpu().numpy(), 16000, format="WAV")
+            try:
+                redis_client.setex(best_profile_key, 60*60*24*30, wav_bytes.getvalue())
+                print(f"[cosy] Saved new best voice profile for {req.user_id} (len: {true_audio_samples/16000:.2f}s)")
+            except Exception as e:
+                print("[redis save profile error]", e)
+        else:
+            # Short audio: attempt to load previous best profile
+            try:
+                cached_profile = redis_client.get(best_profile_key)
+                if cached_profile:
+                    audio_stream = io.BytesIO(cached_profile)
+                    waveform, _ = sf.read(audio_stream, dtype='float32')
+                    prompt_speech_16k = torch.from_numpy(waveform).reshape(1, -1).float()
+                    print(f"[cosy] Loaded cached best voice profile for {req.user_id} (len: {prompt_speech_16k.shape[-1]/16000:.2f}s)")
+            except Exception as e:
+                print("[redis load profile error]", e)
+
+    # Finally limit to 4 seconds for inference stability
+    MAX_PROMPT_SAMPLES = 16000 * 4
+    if prompt_speech_16k.shape[-1] > MAX_PROMPT_SAMPLES:
+        prompt_speech_16k = prompt_speech_16k[:, :MAX_PROMPT_SAMPLES]
 
     raw_lang = (req.language or "").strip().lower()
     
@@ -224,7 +259,23 @@ def clone_voice(
     else: lang = raw_lang[:2]
 
     if not lang:
-        lang = detect_language_from_text(req.text)
+        lang = "en"
+
+    # Strong text-based detection overrides Whisper/NLLB hallucinations
+    text_lang = detect_language_from_text(req.text)
+    if text_lang in {"ru", "uk", "th", "he"}:
+        lang = text_lang
+    elif lang in {"ja", "zh", "ko"}:
+        # Verify if text actually contains CJK characters (Hiragana, Katakana, Kanji/Hanzi, Hangul)
+        has_cjk = any(
+            (0x3040 <= ord(c) <= 0x309f) or # Hiragana
+            (0x30a0 <= ord(c) <= 0x30ff) or # Katakana
+            (0x4e00 <= ord(c) <= 0x9faf) or # CJK Unified Ideographs
+            (0xac00 <= ord(c) <= 0xd7af)    # Hangul Syllables
+            for c in req.text
+        )
+        if not has_cjk:
+            lang = text_lang
 
     if lang not in {"ru","uk","th","he","en","zh","ja","ko","de","es","fr","it","pt"}:
         lang = "en"
@@ -240,9 +291,8 @@ def clone_voice(
     ).hexdigest()
     cache_file = f"/dev/shm/{cache_key}-{uuid.uuid4().hex}.flac"
     
+    req.use_cache = False
     cached_audio = None
-    try:
-        cached_audio = None
 
     if req.use_cache:
         try:
@@ -303,24 +353,22 @@ def clone_voice(
             chunk_with_lang = f"{lang_token}{chunk_text}"
             
             prompt_text_str = req.prompt_text.strip()
-            if not prompt_text_str:
-                # Fallback to the old hack to avoid Chinese hallucination
-                # CosyVoice3 requires <|endofprompt|> token in prompt_text if we use the hack
-                prompt_text_str = f"{lang_token}{chunk_text}<|endofprompt|>"
-            else:
-                # If provided, also ensure it has the language token if needed?
-                # Actually, if user provided it, they might not have added <|endofprompt|>
-                if not prompt_text_str.endswith("<|endofprompt|>"):
-                    prompt_text_str = f"{prompt_text_str}<|endofprompt|>"
+            if prompt_text_str and not prompt_text_str.endswith("<|endofprompt|>"):
+                prompt_text_str = f"{prompt_text_str}<|endofprompt|>"
 
-            output = cosyvoice.inference_zero_shot(
-                tts_text=chunk_with_lang,
-                prompt_text=prompt_text_str,
-                prompt_wav=cache_file,
-                text_frontend=use_frontend
-            )
+            with torch.inference_mode(), _inference_lock:
+                # Debug stats to verify weights do not change
+                p = next(cosyvoice.model.parameters())
+                print(f"[cosy] weight stats: mean={p.mean().item():.6f}, std={p.std().item():.6f}")
 
-            for item in output:
+                output = cosyvoice.inference_zero_shot(
+                    tts_text=chunk_with_lang,
+                    prompt_text=prompt_text_str,
+                    prompt_wav=cache_file,
+                    text_frontend=use_frontend
+                )
+                
+                for item in output:
                 if "tts_speech" in item:
                     all_audio_chunks.append(item["tts_speech"].squeeze().cpu().numpy())
         print(f"[cosy] infer time: {time.time()-t1:.3f}s")

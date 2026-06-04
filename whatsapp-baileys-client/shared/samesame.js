@@ -75,6 +75,7 @@ export async function cloneVoiceWithSamesame({
   sourceAudioBuffer,
   text,
   language = null,
+  userId = null,
   outputFormat = DEFAULT_OUTPUT_FORMAT,
   sourceMimeType = 'audio/ogg',
   samesameUrl = DEFAULT_SAMESAME_URL,
@@ -97,6 +98,7 @@ export async function cloneVoiceWithSamesame({
     source_mime_type: sourceMimeType,
     text: text.trim(),
     language: language ? telegramLangToNLLB(language) || language : undefined,
+    user_id: userId,
     output_format: outputFormat,
     stream: false
   };

@@ -25,7 +25,8 @@ import {
 import {
     isSamesameRequest,
     parseSamesameRequest,
-    cloneVoiceWithSamesame
+    cloneVoiceWithSamesame,
+    translateSamesameText
 } from '../shared/samesame.js';
 
 import fs from 'fs';
@@ -476,10 +477,20 @@ async function handleSamesameReplyIfNeeded(message) {
     const chatId =
         message.chat_id;
 
-    const {
+    let {
         text: cleanText,
         language
     } = parseSamesameRequest(text);
+
+    if (language) {
+        console.time(`[tg-client] SAMESAME Translate to ${language}`);
+        const translated = await translateSamesameText(cleanText, language);
+        if (translated && translated !== cleanText) {
+            console.log(`[samesame] translated: ${cleanText} -> ${translated}`);
+            cleanText = translated;
+        }
+        console.timeEnd(`[tg-client] SAMESAME Translate to ${language}`);
+    }
 
     if (!cleanText) {
 
@@ -523,7 +534,9 @@ async function handleSamesameReplyIfNeeded(message) {
         }
 
         const repliedType = replied.content['_'];
-        console.log('[samesame] replied message fetched, type=', repliedType);
+        const rawSenderId = replied.sender_id?.user_id || replied.sender_id?.chat_id || chatId;
+        const senderId = `tg:${rawSenderId}`;
+        console.log('[samesame] replied message fetched, type=', repliedType, 'senderId=', senderId);
 
         let fileId = null;
         let mime = 'audio/ogg';
@@ -597,6 +610,7 @@ async function handleSamesameReplyIfNeeded(message) {
                 sourceAudioBuffer: promptBuffer,
                 text: cleanText,
                 language,
+                userId: senderId,
                 sourceMimeType: 'audio/ogg',  // always ogg after ffmpeg trim
                 samesameSecret: process.env.SAMESAME_SECRET,
                 samesameUrl: process.env.SAMESAME_URL

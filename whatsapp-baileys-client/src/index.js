@@ -376,11 +376,13 @@ async function handleSamesameReplyIfNeeded(msg) {
 
         const samesameUrl = process.env.SAMESAME_URL || 'http://samesame:8002';
         const samesameSecret = process.env.SAMESAME_SECRET;
+        const senderId = `wa:${quotedContext.participant || jid}`;
 
         const { audioBuffer: resultBuffer } = await cloneVoiceWithSamesame({
             sourceAudioBuffer: buffer,
             text: cleanText,
             language,
+            userId: senderId,
             sourceMimeType: mime,
             samesameSecret,
             samesameUrl

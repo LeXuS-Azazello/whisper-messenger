@@ -22,9 +22,24 @@ function normalizeResult(data, fallbackModel = 'funasr-service') {
   }
   let m = data.model || data.used_model;
   if (!m || m === 'unknown model') m = fallbackModel;
+  
+  let rawText = data.text || '';
+  let lang = data.language || data.detected_language || data.detectedLanguage || 'auto';
+  
+  // Try to parse language from SenseVoice tags if missing
+  if (!lang || lang === 'auto' || lang === 'unknown') {
+      const match = rawText.match(/<\|(ru|en|zh|ja|ko|de|fr|es|it|pt|uk|th|he|vi|id|ar|tr|pl|nl|hi|fa|ur)\|>/i);
+      if (match) {
+          lang = match[1].toLowerCase();
+      }
+  }
+  
+  // Clean all SenseVoice control tags like <|en|>, <|NORMAL|>, <|withitn|>
+  let cleanText = rawText.replace(/<\|.*?\|>/g, '').trim();
+
   return {
-    text: data.text || '',
-    language: data.language || data.detected_language || data.detectedLanguage || 'auto',
+    text: cleanText,
+    language: lang,
     translated: data.translated || null,
     target_language: data.target_language || null,
     model: m,
