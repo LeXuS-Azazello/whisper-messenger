@@ -41,16 +41,15 @@ export async function qrStart(req, res) {
         });
 
         sock.ev.on('creds.update', saveCreds);
-        const { connection, lastDisconnect } = update;
-
-        if(connection === 'close') {
-        console.log(
-            'disconnect',
-            lastDisconnect?.error?.output?.statusCode,
-            lastDisconnect?.error
-        );
-        }
         sock.ev.on('connection.update', async (update) => {
+            const { connection, qr, lastDisconnect } = update;
+            if(connection === 'close') {
+                console.log(
+                    'disconnect',
+                    lastDisconnect?.error?.output?.statusCode,
+                    lastDisconnect?.error
+                );
+            }
             const { connection, qr } = update;
             if (qr) {
                 try {

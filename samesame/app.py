@@ -17,7 +17,7 @@ import numpy as np
 from redis import Redis, ConnectionPool
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
-CPU_THREADS = int(os.getenv("CPU_THREADS", "2"))
+CPU_THREADS = int(os.getenv("CPU_THREADS", "4"))
 os.environ["OMP_NUM_THREADS"] = str(CPU_THREADS)
 os.environ["MKL_NUM_THREADS"] = str(CPU_THREADS)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -64,7 +64,7 @@ app = FastAPI(title="Samesame CosyVoice Service")
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
-REDIS_TTL = int(os.getenv("PROMPT_CACHE_TTL", "21600"))
+REDIS_TTL = int(os.getenv("PROMPT_CACHE_TTL", "1800"))
 
 pool = ConnectionPool(
     host=REDIS_HOST,
@@ -179,22 +179,33 @@ def clone_voice(
         raise HTTPException(status_code=400, detail="Missing text")
 
     try:
+        t0 = time.time()
         prompt_speech_16k, _ = decode_audio_base64(req.source_audio_base64, target_sr=16000)
+        print(f"[cosy] decode time: {time.time()-t0:.3f}s")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid base64: {e}")
 
-    MAX_PROMPT_SAMPLES = 16000 * 15
+    MAX_PROMPT_SAMPLES = 16000 * 8
     if prompt_speech_16k.shape[-1] > MAX_PROMPT_SAMPLES:
         prompt_speech_16k = prompt_speech_16k[:, :MAX_PROMPT_SAMPLES]
+
+    # Trim silence
+    audio_np = prompt_speech_16k.squeeze(0).cpu().numpy()
+    mask = np.abs(audio_np) > 0.01
+    if np.any(mask):
+        indices = np.where(mask)[0]
+        start = indices[0]
+        end = indices[-1] + 1
+        prompt_speech_16k = torch.from_numpy(audio_np[start:end]).unsqueeze(0).float()
 
     lang = (req.language or "").strip().lower()[:2] or detect_language_from_text(req.text)
     if lang not in {"ru","uk","th","he","en","zh","ja","ko","de","es","fr","it"}:
         lang = "en"
 
-    FAST_LANGS = {"ru", "en", "uk", "de", "fr", "es", "it"}
+    FAST_LANGS = {"ru", "uk", "en", "de", "fr", "es", "it", "pt"}
     use_frontend = lang not in FAST_LANGS
 
-    text_chunks = split_text(req.text, max_len=150)
+    text_chunks = split_text(req.text, max_len=250)
     print(f"[cosy] target={lang}, chunks={len(text_chunks)}")
 
     cache_key = prompt_cache_filename(req.source_audio_base64)
@@ -222,8 +233,9 @@ def clone_voice(
 
     try:
         all_audio_chunks = []
+        t1 = time.time()
         for chunk_text in text_chunks:
-            prompt_text_str = req.prompt_text or ""
+            prompt_text_str = req.prompt_text or chunk_text[:80]
             print(f"[cosy] synthesizing: {chunk_text[:50]}...")
 
             output = cosyvoice.inference_zero_shot(
@@ -236,6 +248,7 @@ def clone_voice(
             for item in output:
                 if "tts_speech" in item:
                     all_audio_chunks.append(item["tts_speech"].squeeze().cpu().numpy())
+        print(f"[cosy] infer time: {time.time()-t1:.3f}s")
 
         if not all_audio_chunks:
             raise ValueError("empty audio")
@@ -254,14 +267,11 @@ def clone_voice(
             pass
 
     buf = io.BytesIO()
-    mime = "audio/ogg"
+    mime = "audio/wav"
 
-    try:
-        sf.write(buf, audio, SAMPLE_RATE, format="OGG", subtype="OPUS")
-    except:
-        buf = io.BytesIO()
-        sf.write(buf, audio, SAMPLE_RATE, format="WAV")
-        mime = "audio/wav"
+    t2 = time.time()
+    sf.write(buf, audio, SAMPLE_RATE, format="WAV")
+    print(f"[cosy] encode time: {time.time()-t2:.3f}s")
 
     return {
         "audio_base64": base64.b64encode(buf.getvalue()).decode(),

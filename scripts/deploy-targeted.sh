@@ -22,7 +22,7 @@ if [ -f .env ]; then
   set -u
 fi
 
-DOCKER_HUB_HOST="${DOCKER_HUB_HOST:-hub.docker.com}"
+DOCKER_HUB_HOST="${DOCKER_HUB_HOST:-}"
 DOCKER_HUB_USERNAME="${DOCKER_HUB_USERNAME:-}"
 DOCKER_HUB_PASSWORD="${DOCKER_HUB_PASSWORD:-}"
 if [ -n "$DOCKER_HUB_HOST" ]; then
@@ -121,15 +121,15 @@ for svc in "${SERVICES[@]}"; do
       echo ""
       echo "=== Building & deploying samesame ==="
       TAG=$(date +%Y%m%d-%H%M%S)
-      IMAGE="${REPO}/samesame:${TAG}"
+      IMAGE="${REPO}/voicemsg:samesame-${TAG}"
 
       docker build -t "$IMAGE" -f samesame/Dockerfile samesame
-      docker tag "$IMAGE" "${REPO}/samesame:latest"
-      docker push "${REPO}/samesame:latest"
-      docker rmi "$IMAGE" "${REPO}/samesame:latest" || true
+      docker tag "$IMAGE" "${REPO}/voicemsg:samesame-latest"
+      docker push "${REPO}/voicemsg:samesame-latest"
+      docker rmi "$IMAGE" "${REPO}/voicemsg:samesame-latest" || true
 
       kubectl set image deployment/samesame \
-        samesame="${REPO}/samesame:latest" \
+        samesame="${REPO}/voicemsg:samesame-latest" \
         -n "$NAMESPACE"
 
       kubectl rollout restart deployment/samesame -n "$NAMESPACE" || true

@@ -1,27 +1,23 @@
 /**
+ * Language mapping for SAMESAME - inline to avoid import issues
+ */
+function telegramLangToNLLB(code) {
+  if (!code) return null;
+  const map = {
+    ru: 'rus_Cyrl', uk: 'ukr_Cyrl', en: 'eng_Latn', de: 'deu_Latn', fr: 'fra_Latn',
+    es: 'spa_Latn', it: 'ita_Latn', ja: 'jpn_Jpan', ko: 'kor_Hang', zh: 'zho_Hans',
+    th: 'tha_Thai', he: 'heb_Hebr'
+  };
+  const key = code.toLowerCase().split('_')[0];
+  return map[key] || null;
+}
+
+/**
  * shared/samesame.js
  *
  * Reusable logic for SAMESAME voice cloning.
  * Can be imported from any messenger client (Telegram, WhatsApp, FB, IG).
- *
- * Usage example (in any client):
- *
- *   import { isSamesameRequest, parseSamesameRequest, cloneVoiceWithSamesame } from '../../shared/samesame.js';
- *
- *   if (isSamesameRequest(text) && repliedVoiceBuffer) {
- *     const { text: cleanText, language } = parseSamesameRequest(text);
- *     const { audioBuffer, contentType } = await cloneVoiceWithSamesame({
- *       sourceAudioBuffer: repliedVoiceBuffer,
- *       text: cleanText,
- *       language,
- *       samesameSecret: process.env.SAMESAME_SECRET
- *     });
- *     // send audioBuffer back as voice message
- *   }
  */
-
-
-import { telegramLangToNLLB } from '../../src/lang.js';
 
 const DEFAULT_SAMESAME_URL = 'http://samesame:8002';
 const DEFAULT_OUTPUT_FORMAT = 'ogg';

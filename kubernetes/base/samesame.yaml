@@ -45,7 +45,7 @@ spec:
             - name: PROMPT_CACHE_TTL
               value: "21600"
             - name: CPU_THREADS
-              value: "2"
+              value: "4"
           image: lexusazazello/voicemsg:samesame-latest
           imagePullPolicy: Always
           name: samesame
@@ -53,11 +53,11 @@ spec:
             - containerPort: 8002
           resources:
             requests:
-              cpu: "2"
+              cpu: "4"
               memory: "8Gi"
               ephemeral-storage: "1Gi"
             limits:
-              cpu: "2"
+              cpu: "4"
               memory: "10Gi"
               ephemeral-storage: "3Gi"
           startupProbe:

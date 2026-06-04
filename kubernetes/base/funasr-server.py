@@ -1,8 +1,11 @@
 import time
 import base64
 import os
-import subprocess
-import tempfile
+import io
+import numpy as np
+import torch
+import torchaudio.functional as F
+import soundfile as sf
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -96,7 +99,7 @@ automodel_kwargs = dict(
     device=device,
     disable_update=True,
     vad_model="fsmn-vad",
-    vad_kwargs={"max_single_segment_time": 60000},
+    vad_kwargs={"max_single_segment_time": 30000},
     punc_model="ct-punc",
     hub="ms",
 )
@@ -109,16 +112,19 @@ if PUNC_MODEL_PATH and os.path.isdir(PUNC_MODEL_PATH):
 
 funasr = AutoModel(**automodel_kwargs)
 
-# torch.compile for faster CPU inference
-try:
-    if hasattr(funasr, 'model') and hasattr(funasr.model, 'model'):
-        import torch
-        funasr.model.model = torch.compile(funasr.model.model, mode="reduce-overhead")
-        print("[funasr] torch.compile() applied")
-except Exception as e:
-    print(f"[funasr] torch.compile() skipped: {e}")
-
 print(f"[funasr] Model loaded: {MODEL_NAME}, device={device}")
+
+# Warmup for faster first request
+try:
+    dummy = np.zeros(16000 * 3, dtype=np.float32)
+    funasr.generate(
+        input=dummy,
+        language="auto",
+        batch_size_s=120
+    )
+    print("[funasr] warmup done")
+except Exception as e:
+    print(f"[funasr] warmup skipped: {e}")
 
 
 @app.get("/ready")
@@ -144,38 +150,28 @@ async def transcribe(req: TranscribeRequest):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid base64 data")
 
-    if "video" in req.mime_type:
-        suffix = ".mp4"
-    elif "wav" in req.mime_type:
-        suffix = ".wav"
-    elif "mp3" in req.mime_type:
-        suffix = ".mp3"
-    else:
-        suffix = ".ogg"
-
     try:
         start_time = time.time()
 
-        fd_in, path_in = tempfile.mkstemp(suffix=suffix)
-        os.write(fd_in, file_bytes)
-        os.close(fd_in)
+        audio_stream = io.BytesIO(file_bytes)
+        waveform, sr = sf.read(audio_stream, dtype="float32")
 
-        path_wav = path_in + ".wav"
-        result = subprocess.run(
-            ["ffmpeg", "-y", "-i", path_in,
-             "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
-             path_wav],
-            capture_output=True, timeout=3600,
-        )
-        if result.returncode != 0:
-            raise HTTPException(status_code=500, detail="Audio conversion failed")
+        if waveform.ndim > 1:
+            waveform = waveform.mean(axis=1)
+
+        audio = torch.from_numpy(waveform)
+
+        if sr != 16000:
+            audio = F.resample(audio, sr, 16000)
+
+        audio_np = audio.numpy()
 
         generate_kwargs = dict(
-            input=path_wav,
+            input=audio_np,
             language=req.language,
             use_itn=True,
             merge_vad=True,
-            batch_size_s=600,
+            batch_size_s=120,
         )
         result_list = funasr.generate(**generate_kwargs)
 
@@ -197,7 +193,3 @@ async def transcribe(req: TranscribeRequest):
     except Exception as e:
         print(f"[funasr] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        for p in [path_in, path_wav]:
-            if p and os.path.exists(p):
-                os.remove(p)

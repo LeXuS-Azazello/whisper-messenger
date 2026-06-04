@@ -37,7 +37,17 @@ spec:
             - name: FUNASR_DEVICE
               value: "cpu"
             - name: FUNASR_NCPU
-              value: "4" # Добавлено: под лимиты CPU
+              value: "4"
+            - name: OMP_NUM_THREADS
+              value: "4"
+            - name: MKL_NUM_THREADS
+              value: "4"
+            - name: OPENBLAS_NUM_THREADS
+              value: "4"
+            - name: NUMEXPR_NUM_THREADS
+              value: "4"
+            - name: TOKENIZERS_PARALLELISM
+              value: "false"
             - name: FUNASR_MODEL_PATH
               value: "/models/FunAudioLLM/Fun-ASR-MLT-Nano-2512"
             - name: FUNASR_VAD_MODEL_PATH
@@ -48,11 +58,11 @@ spec:
               value: "true"
           resources:
             requests:
-              cpu: "1"
-              memory: "10Gi"
+              cpu: "3"
+              memory: "8Gi"
             limits:
-              cpu: "2"
-              memory: "32Gi"
+              cpu: "4"
+              memory: "12Gi"
           volumeMounts:
             - name: models
               mountPath: "/models"

@@ -3,7 +3,7 @@ import Redis from 'ioredis';
 import fs from 'fs';
 import path from 'path';
 import { sampleAudioBase64 } from './sample_audio';
-import { cloneVoiceWithSamesame } from '../shared/samesame.js';
+import { cloneVoiceWithSamesame } from '../../shared/samesame.js';
 
 export interface TestLog {
   timestamp: string;
@@ -363,7 +363,7 @@ export class TestSuiteRunner {
         return await this.testRedis();
       case 'mongodb':
         return await this.testMongoDB();
-      case 'samesame-translate':
+      case 'samesame-clone':
         return await this.testSamesameTranslation();
       default:
         throw new Error(`Invalid test ID: ${testId}`);
