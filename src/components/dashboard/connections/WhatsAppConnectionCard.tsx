@@ -38,14 +38,6 @@ export function WhatsAppConnectionCard({ user, env }: { user: UserSession; env: 
                         </div>
                     </button>
 
-                    <button type="button" class="wa-method-card" data-method="wame" id="wa-method-wame"
-                        {...{ onclick: "window.setWaMethod && window.setWaMethod('wame')" } as any}>
-                        <div class="wa-method-icon">🔗</div>
-                        <div class="wa-method-content">
-                            <div class="wa-method-title">Direct wa.me Link</div>
-                            <div class="wa-method-subtitle">Generate a ready link to open directly in WhatsApp</div>
-                        </div>
-                    </button>
                 </div>
 
                 {/* Panels - always in DOM, visibility toggled by dashboard.js */}
@@ -91,24 +83,6 @@ export function WhatsAppConnectionCard({ user, env }: { user: UserSession; env: 
                     <div style={{ textAlign: 'center' }}>
                         <button class="btn btn-primary" id="wa-get-code-btn">Get Pairing Code</button>
                         <button class="btn btn-danger" id="disconnect-wa-web-code-btn" style={{ marginLeft: '8px' }}>Disconnect</button>
-                    </div>
-                </div>
-
-                <div class="wa-panel" id="wa-wame-panel" style={{ display: 'none', textAlign: 'center' }}>
-                    <p style={{ color: 'var(--text-dim)', marginBottom: '12px' }}>Click the button below to generate a direct wa.me link</p>
-                    <button class="btn btn-primary" id="wa-generate-wame-btn" style={{ minWidth: '220px' }}>
-                        Generate wa.me Link
-                    </button>
-
-                    <div id="wa-wame-link-display" style={{ display: 'none', marginTop: '20px', padding: '16px', background: 'rgba(37, 211, 102, 0.08)', borderRadius: '12px' }}>
-                        <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '6px' }}>Open this link on your phone:</div>
-                        <a id="wa-wame-link" href="#" target="_blank" style={{ fontSize: '15px', color: '#25D366', fontWeight: 600, wordBreak: 'break-all' }}></a>
-                        <div style={{ marginTop: '10px' }}>
-                            <button class="btn btn-secondary btn-xs" onClick={() => {
-                                const link = document.getElementById('wa-wame-link') as HTMLAnchorElement;
-                                if (link) navigator.clipboard.writeText(link.href);
-                            }}>Copy Link</button>
-                        </div>
                     </div>
                 </div>
             </div>

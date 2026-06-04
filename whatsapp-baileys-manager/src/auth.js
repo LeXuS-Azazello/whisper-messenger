@@ -106,7 +106,7 @@ export async function pairingStart(req, res) {
         const sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
-            browser: Browsers.macOS('Desktop')
+            browser: Browsers.ubuntu('Chrome')
         });
 
         sock.ev.on('creds.update', saveCreds);
