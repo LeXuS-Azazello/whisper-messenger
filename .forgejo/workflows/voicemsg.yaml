@@ -21,7 +21,7 @@ jobs:
         password: ${{ secrets.HAJIME_PASSWD }}
     env:
       DOCKER_HOST: tcp://172.18.0.1:2375
-      REPO_URL: https://forge.dev.takatan.cloud
+      REPO_URL: forge.dev.takatan.cloud
       IMG: forge.dev.takatan.cloud/lexus/voicemsg-net
     steps:
 
