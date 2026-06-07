@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'kubernetes/base/frontend.yml'
+      - 'kubernetes/base/frontend.yaml'
       - 'src/*'
 jobs:
   build:
@@ -32,3 +32,16 @@ jobs:
         run: |
           echo "${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
           docker push ${{ env.IMG }}:frontend-${{ github.sha }} && docker push ${{ env.IMG }}:frontend-latest
+
+      - name: Trigger Kubernetes Rollout
+        env:
+          DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
+        run: |
+          # Login and configure kubectl
+          kube-dc login --domain kube-dc.cloud --org debugging
+
+          # Switch to project context
+          kube-dc use kube-dc.cloud/debugging/testcrash-pub
+
+          # Trigger restart
+          kubectl rollout restart deployment frontend -n debugging-testcrash-pub
