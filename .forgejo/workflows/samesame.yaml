@@ -1,0 +1,35 @@
+name: "[main-samesame] Build and push"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.forgejo/workflows/samesame.yaml'
+      - 'kubernetes/base/samesame.yml'
+      - 'samesame/**'
+jobs:
+  build:
+    runs-on: kube
+    container:
+      image: forge.dev.takatan.cloud/takatan/docker-builder:latest
+      credentials:
+        username: lexus
+        password: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
+    env:
+      DOCKER_HOST: tcp://172.18.0.1:2375
+      REPO_URL: https://forge.dev.takatan.cloud
+      IMG: forge.dev.takatan.cloud/lexus/voicemsg-net
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build Docker image
+        run: |
+          docker build -f samesame/Dockerfile -t ${{ env.IMG }}:samesame-latest -t ${{ env.IMG }}:samesame-${{ github.sha }} samesame
+
+      - name: Log in to Registry and push
+        run: |
+          echo "${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
+          docker push ${{ env.IMG }}:samesame-${{ github.sha }} && docker push ${{ env.IMG }}:samesame-latest
