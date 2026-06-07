@@ -1,7 +1,7 @@
 import { Env, UserSession } from "../types";
 import { getPublicOrigin, createSessionResponse } from "./authController";
-import User from "../object-object-models/User";
-import MessengerSession from "../object-object-models/MessengerSession";
+import User from "../object-models/User";
+import MessengerSession from "../object-models/MessengerSession";
 import { authSessions, createTdClient, packSession } from "../tdlibManager";
 import QRCode from 'qrcode';
 

@@ -2,8 +2,8 @@ import { Env, UserSession } from "../types";
 import { logError } from "../logger";
 import { createSignedSession } from "../session";
 import { renderAuthPage } from "../components/auth/Auth";
-import User from "../object-object-models/User";
-import MessengerSession from "../object-object-models/MessengerSession";
+import User from "../object-models/User";
+import MessengerSession from "../object-models/MessengerSession";
 
 const SESSION_MAX_AGE = 31536000;
 const EMAIL_VERIFY_TTL = 900;

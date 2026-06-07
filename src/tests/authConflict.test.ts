@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleGoogleCallback, handleEmailVerify, handleRegister, handleLogin } from '../controllers/authController';
-import User from '../object-object-models/User';
+import User from '../object-models/User';
 import { Env } from '../types';
 
-vi.mock('../object-object-models/User', () => {
+vi.mock('../object-models/User', () => {
   const mockSave = vi.fn().mockResolvedValue(true);
 
   // A constructor/function mock that acts as a class
