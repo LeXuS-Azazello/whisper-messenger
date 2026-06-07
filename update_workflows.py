@@ -3,7 +3,7 @@ import os
 workflows = {
     'samesame.yaml': 'kubectl rollout restart deployment samesame -n debugging-testcrash-pub',
     'funasr.yaml': 'kubectl rollout restart deployment funasr -n debugging-testcrash-pub',
-    'voicemsg.yaml': 'kubectl rollout restart deployment frontend -n debugging-testcrash-pub',
+    'voicemsg.yaml': 'kubectl rollout restart deployment echo-frontend -n debugging-testcrash-pub',
     'whatsapp-baileys-manager.yaml': 'kubectl rollout restart deployment whatsapp-baileys-manager -n debugging-testcrash-pub',
     'tg-client-manager.yaml': 'kubectl rollout restart deployment tg-client-manager -n debugging-testcrash-pub',
     'facebook-fca-manager.yaml': 'kubectl rollout restart deployment facebook-fca-manager -n debugging-testcrash-pub',

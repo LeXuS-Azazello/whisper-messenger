@@ -59,4 +59,4 @@ jobs:
           export KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig.yaml
 
           # Trigger restart
-          kubectl rollout restart deployment frontend -n debugging-testcrash-pub
+          kubectl rollout restart deployment echo-frontend -n debugging-testcrash-pub
