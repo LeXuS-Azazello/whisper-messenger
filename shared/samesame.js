@@ -177,6 +177,7 @@ export async function cloneVoiceWithSamesame({
     audioBuffer,
     outputPath: data.output_path,
     contentType: data.content_type || data.mime_type || 'audio/ogg',
-    model: data.model || 'samesame-cosyvoice'
+    model: data.model || 'samesame-cosyvoice',
+    duration: data.duration_seconds || data.duration || null
   };
 }
