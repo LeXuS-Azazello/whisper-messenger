@@ -81,9 +81,6 @@ spec:
           volumeMounts:
             - mountPath: "/models"
               name: models
-            - mountPath: "/app/app.py"
-              subPath: "app.py"
-              name: app-py
             - mountPath: "/dev/shm"
               name: shm
             - mountPath: "/temporaly-media-msg"
@@ -92,9 +89,6 @@ spec:
         - name: models
           persistentVolumeClaim:
             claimName: samesame-model-cache
-        - name: app-py
-          configMap:
-            name: samesame-app-py
         - name: shm
           emptyDir:
             medium: Memory

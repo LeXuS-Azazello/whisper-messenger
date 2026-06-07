@@ -32,8 +32,5 @@ configMapGenerator:
   - name: funasr-download-scripts
     files:
       - funasr-download-models.sh=./scripts/funasr-download-models.sh
-  - name: samesame-app-py
-    files:
-      - app.py=./app.py
 generatorOptions:
   disableNameSuffixHash: true
