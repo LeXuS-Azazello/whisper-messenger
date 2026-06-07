@@ -478,6 +478,9 @@ async function handleSamesameReplyIfNeeded(message) {
         return;
     }
     let statusAction = null;
+    let fileId = null;
+    let mime = 'audio/ogg';
+
     try {
         // Fetch the message we are replying to
         const replied = await client.invoke({
@@ -511,9 +514,6 @@ async function handleSamesameReplyIfNeeded(message) {
         const rawSenderId = replied.sender_id?.user_id || replied.sender_id?.chat_id || chatId;
         const senderId = `tg:${rawSenderId}`;
         console.log('[samesame] replied message fetched, type=', repliedType, 'senderId=', senderId);
-
-        let fileId = null;
-        let mime = 'audio/ogg';
 
         if (repliedType === 'messageVoiceNote') {
             fileId = replied.content.voice_note?.voice?.id;

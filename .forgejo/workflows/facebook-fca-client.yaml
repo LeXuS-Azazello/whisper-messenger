@@ -30,7 +30,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f facebook-fca-client/Dockerfile -t ${{ env.IMG }}:facebook-fca-client-latest -t ${{ env.IMG }}:facebook-fca-client-${{ forgejo.run_number }} facebook-fca-client
+          docker build -f facebook-fca-client/Dockerfile -t ${{ env.IMG }}:facebook-fca-client-latest -t ${{ env.IMG }}:facebook-fca-client-${{ forgejo.run_number }} .
 
       - name: Log in to Registry and push
         run: |

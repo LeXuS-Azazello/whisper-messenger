@@ -30,7 +30,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f whatsapp-baileys-client/Dockerfile -t ${{ env.IMG }}:whatsapp-baileys-client-latest -t ${{ env.IMG }}:whatsapp-baileys-client-${{ forgejo.run_number }} whatsapp-baileys-client
+          docker build -f whatsapp-baileys-client/Dockerfile -t ${{ env.IMG }}:whatsapp-baileys-client-latest -t ${{ env.IMG }}:whatsapp-baileys-client-${{ forgejo.run_number }} .
 
       - name: Log in to Registry and push
         run: |

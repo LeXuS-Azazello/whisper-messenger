@@ -30,7 +30,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f instagram-fca-client/Dockerfile -t ${{ env.IMG }}:instagram-fca-client-latest -t ${{ env.IMG }}:instagram-fca-client-${{ forgejo.run_number }} instagram-fca-client
+          docker build -f instagram-fca-client/Dockerfile -t ${{ env.IMG }}:instagram-fca-client-latest -t ${{ env.IMG }}:instagram-fca-client-${{ forgejo.run_number }} .
 
       - name: Log in to Registry and push
         run: |
