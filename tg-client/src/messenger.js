@@ -42,7 +42,7 @@ export function startChatAction(client, chatId, action = 'chatActionTyping') {
                 'action': { '_': action }
             });
         } catch (e) {
-            // Ignore errors
+            console.error('[messenger] sendChatAction failed:', e.message);
         }
     };
     

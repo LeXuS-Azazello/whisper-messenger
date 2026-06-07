@@ -63,6 +63,17 @@ except Exception as e:
 
 SAMPLE_RATE = cosyvoice.sample_rate
 SAMESAME_SECRET = os.environ.get("SAMESAME_SECRET")
+import logging
+
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if "GET /health" in msg or "GET /live" in msg or "GET /ready" in msg:
+            return False
+        return True
+
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
 app = FastAPI(title="Samesame CosyVoice Service")
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")

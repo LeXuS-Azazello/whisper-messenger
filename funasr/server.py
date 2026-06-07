@@ -50,6 +50,17 @@ def decode_audio(file_bytes=None, file_path=None):
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+import logging
+
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if "GET /health" in msg or "GET /live" in msg or "GET /ready" in msg:
+            return False
+        return True
+
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
 app = FastAPI()
 
 # Set ModelScope cache before any funasr imports
