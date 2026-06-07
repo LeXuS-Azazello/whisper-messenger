@@ -12,7 +12,7 @@ import threading
 from typing import Optional
 
 from fastapi import FastAPI, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator, root_validator
 import torch
 import soundfile as sf
 import torchaudio.functional as F
@@ -131,6 +131,7 @@ def detect_language_from_audio_snippet(prompt_tensor: torch.Tensor, sr: int = 16
                 f"{FUNASR_URL}/v1/transcribe-base64",
                 json={
                     "file_path": snippet_path,
+                    "mime_type": "audio/wav",
                     "enable_vad": False,
                     "enable_punc": False,
                     "language": "auto"
@@ -209,17 +210,25 @@ def prompt_cache_filename(audio_b64: str) -> str:
     return hashlib.sha256(audio_b64.encode()).hexdigest()
 
 
+from pydantic import BaseModel, Field, validator
+
 class CloneRequest(BaseModel):
-    source_audio_base64: Optional[str] = None
-    source_audio_path: Optional[str] = None
+    source_audio_base64: Optional[str] = Field(default=None)
+    source_audio_path: Optional[str] = Field(default=None)
     text: str
-    prompt_language: Optional[str] = None
-    language: Optional[str] = None
-    output_format: Optional[str] = "ogg"
-    use_cache: Optional[bool] = False
-    user_id: Optional[str] = None
-    source_mime_type: Optional[str] = None
-    stream: Optional[bool] = False
+    prompt_language: Optional[str] = Field(default=None)
+    language: Optional[str] = Field(default=None)
+    output_format: Optional[str] = Field(default="ogg")
+    use_cache: Optional[bool] = Field(default=False)
+    user_id: Optional[str] = Field(default=None)
+    source_mime_type: Optional[str] = Field(default=None)
+    stream: Optional[bool] = Field(default=False)
+
+    @root_validator(pre=True)
+    def check_audio_source(cls, values):
+        if not values.get("source_audio_base64") and not values.get("source_audio_path"):
+            raise ValueError("Either source_audio_base64 or source_audio_path must be provided")
+        return values
 
 
 @app.get("/health")
@@ -254,19 +263,8 @@ def clone_voice(
         t = time.time()
         if req.source_audio_path and os.path.isfile(req.source_audio_path):
             input_path = req.source_audio_path
-            if not input_path.lower().endswith(".wav"):
-                converted_path = f"{TEMP_DIR}/samesame_in_{uuid.uuid4().hex}.wav"
-                subprocess.run(
-                    ["ffmpeg", "-y", "-i", input_path, "-ac", "1", "-ar", "16000", converted_path],
-                    check=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                waveform, orig_sr = sf.read(converted_path, dtype='float32')
-                os.remove(converted_path)
-            else:
-                waveform, orig_sr = sf.read(input_path, dtype='float32')
-
+            # Directly read supported audio formats (wav, ogg, oga, etc.) using soundfile
+            waveform, orig_sr = sf.read(input_path, dtype='float32')
             if waveform.ndim > 1:
                 waveform = waveform.mean(axis=1)
             waveform = waveform.reshape(1, -1)

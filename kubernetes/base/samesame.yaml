@@ -57,12 +57,12 @@ spec:
             - containerPort: 8002
           resources:
             requests:
-              cpu: "2"
-              memory: "3Gi"
+              cpu: "4"
+              memory: "8Gi"
               ephemeral-storage: "1Gi"
             limits:
-              cpu: "3"
-              memory: "6Gi"
+              cpu: "5"
+              memory: "10Gi"
               ephemeral-storage: "3Gi"
           startupProbe:
             httpGet:
