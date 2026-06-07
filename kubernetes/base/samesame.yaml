@@ -50,7 +50,7 @@ spec:
               value: "http://funasr:8000"
             - name: SAMESAME_TEMP_DIR
               value: "/temporaly-media-msg"
-          image: lexus/voicemsg-net:samesame-latest
+          image: forge.dev.takatan.cloud/lexus/voicemsg-net:samesame-latest
           imagePullPolicy: Always
           name: samesame
           ports:

@@ -17,7 +17,7 @@ data:
         "containers": [
           {
             "name": "wa-baileys-client",
-            "image": "lexus/voicemsg-net:whatsapp-baileys-client-latest",
+            "image": "forge.dev.takatan.cloud/lexus/voicemsg-net:whatsapp-baileys-client-latest",
             "imagePullPolicy": "Always",
             "env": [
               {
@@ -78,7 +78,7 @@ spec:
         - name: forgejo-pull-secret
       containers:
       - name: manager
-        image: lexus/voicemsg-net:whatsapp-baileys-manager-latest
+        image: forge.dev.takatan.cloud/lexus/voicemsg-net:whatsapp-baileys-manager-latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3002

@@ -17,7 +17,7 @@ spec:
       - name: forgejo-pull-secret
       containers:
       - name: manager
-        image: lexus/voicemsg-net:tg-client-manager-latest
+        image: forge.dev.takatan.cloud/lexus/voicemsg-net:tg-client-manager-latest
         imagePullPolicy: IfNotPresent
         command: ["node", "index.js"]
         ports:
@@ -59,7 +59,7 @@ spec:
         - name: MONGODB_URI
           value: "mongodb://mongodb:27017/voicemsg"
         - name: TG_CLIENT_IMAGE
-          value: "lexus/voicemsg-net:tg-client-latest"
+          value: "forge.dev.takatan.cloud/lexus/voicemsg-net:tg-client-latest"
         resources:
           requests:
             cpu: "200m"

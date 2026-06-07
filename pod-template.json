@@ -15,7 +15,7 @@
     "containers": [
       {
         "name": "tg-client",
-        "image": "lexus/voicemsg-net:tg-client-latest",
+        "image": "forge.dev.takatan.cloud/lexus/voicemsg-net:tg-client-latest",
         "imagePullPolicy": "IfNotPresent",
         "env": [
           {
