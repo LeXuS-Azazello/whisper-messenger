@@ -46,13 +46,9 @@ jobs:
           if ! command -v kubectl >/dev/null 2>&1; then
             curl -sLO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
-            if command -v sudo >/dev/null 2>&1; then
-              sudo mv kubectl /usr/local/bin/
-            else
-              mkdir -p /usr/local/bin
-              mv kubectl /usr/local/bin/
-              export PATH=$PATH:/usr/local/bin
-            fi
+            mkdir -p $GITHUB_WORKSPACE/bin
+            mv kubectl $GITHUB_WORKSPACE/bin/
+            export PATH=$GITHUB_WORKSPACE/bin:$PATH
           fi
           
           # Use the checked-in kubeconfig instead of interactive login
