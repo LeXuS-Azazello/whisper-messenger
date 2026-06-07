@@ -18,7 +18,7 @@ jobs:
       image: forge.dev.takatan.cloud/takatan/docker-builder:latest
       credentials:
         username: lexus
-        password: ${{ secrets.FORGE_TOKEN }}
+        password: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
     env:
       DOCKER_HOST: tcp://172.18.0.1:2375
       REPO_URL: https://forge.dev.takatan.cloud
@@ -30,9 +30,9 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f modelscope-runner/Dockerfile -t ${{ env.IMG }}:modelscope-runner-latest -t ${{ env.IMG }}:modelscope-runner-${{ github.sha }} modelscope-runner
+          docker build -f modelscope-runner/Dockerfile -t ${{ env.IMG }}:modelscope-runner-latest -t ${{ env.IMG }}:modelscope-runner-${{ forgejo.run_number }} modelscope-runner
 
       - name: Log in to Registry and push
         run: |
-          echo "${{ secrets.FORGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
-          docker push ${{ env.IMG }}:modelscope-runner-${{ github.sha }} && docker push ${{ env.IMG }}:modelscope-runner-latest
+          echo "${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
+          docker push ${{ env.IMG }}:modelscope-runner-${{ forgejo.run_number }} && docker push ${{ env.IMG }}:modelscope-runner-latest

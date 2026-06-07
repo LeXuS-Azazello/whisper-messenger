@@ -18,7 +18,7 @@ jobs:
       image: forge.dev.takatan.cloud/takatan/docker-builder:latest
       credentials:
         username: lexus
-        password: ${{ secrets.FORGE_TOKEN }}
+        password: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
     env:
       DOCKER_HOST: tcp://172.18.0.1:2375
       REPO_URL: https://forge.dev.takatan.cloud
@@ -30,16 +30,16 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f Dockerfile -t ${{ env.IMG }}:frontend-latest -t ${{ env.IMG }}:frontend-${{ github.sha }} .
+          docker build -f Dockerfile -t ${{ env.IMG }}:frontend-latest -t ${{ env.IMG }}:frontend-${{ forgejo.run_number }} .
 
       - name: Log in to Registry and push
         run: |
-          echo "${{ secrets.FORGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
-          docker push ${{ env.IMG }}:frontend-${{ github.sha }} && docker push ${{ env.IMG }}:frontend-latest
+          echo "${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
+          docker push ${{ env.IMG }}:frontend-${{ forgejo.run_number }} && docker push ${{ env.IMG }}:frontend-latest
 
       - name: Trigger Kubernetes Rollout
         env:
-          FORGE_TOKEN: ${{ secrets.FORGE_TOKEN }}
+          DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
         run: |
           # Ensure kubectl is installed
           if ! command -v kubectl >/dev/null 2>&1; then
