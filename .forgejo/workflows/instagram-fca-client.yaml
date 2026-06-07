@@ -38,8 +38,6 @@ jobs:
           docker push ${{ env.IMG }}:instagram-fca-client-${{ forgejo.run_number }} && docker push ${{ env.IMG }}:instagram-fca-client-latest
 
       - name: Trigger Kubernetes Rollout
-        env:
-          DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.HAJIME_PASSWD }}
         run: |
           
           

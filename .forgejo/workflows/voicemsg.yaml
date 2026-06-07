@@ -38,8 +38,6 @@ jobs:
           docker push ${{ env.IMG }}:frontend-${{ forgejo.run_number }} && docker push ${{ env.IMG }}:frontend-latest
 
       - name: Trigger Kubernetes Rollout
-        env:
-          DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.HAJIME_PASSWD }}
         run: |
          
           # Use the checked-in kubeconfig instead of interactive login

@@ -39,8 +39,6 @@ jobs:
           docker push ${{ env.IMG }}:samesame-${{ forgejo.run_number }} && docker push ${{ env.IMG }}:samesame-latest
 
       - name: Trigger Kubernetes Rollout
-        env:
-          DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.HAJIME_PASSWD }}
         run: |
           
           

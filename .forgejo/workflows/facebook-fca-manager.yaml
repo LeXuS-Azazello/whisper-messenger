@@ -39,8 +39,6 @@ jobs:
           docker push ${{ env.IMG }}:facebook-fca-manager-${{ forgejo.run_number }} && docker push ${{ env.IMG }}:facebook-fca-manager-latest
 
       - name: Trigger Kubernetes Rollout
-        env:
-          DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.HAJIME_PASSWD }}
         run: |
           
           
