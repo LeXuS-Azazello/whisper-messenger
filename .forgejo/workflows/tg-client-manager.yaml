@@ -37,7 +37,8 @@ jobs:
         run: |
           echo "${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
           docker push ${{ env.IMG }}:tg-client-manager-${{ github.sha }} && docker push ${{ env.IMG }}:tg-client-manager-latest
-
+        env:
+          DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
       - name: Trigger Kubernetes Rollout
         run: |
           # Use the checked-in kubeconfig instead of interactive login
