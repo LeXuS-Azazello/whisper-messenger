@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import time
+import subprocess
 import uuid
 import gc
 import threading
@@ -215,6 +216,8 @@ class CloneRequest(BaseModel):
     output_format: Optional[str] = "ogg"
     use_cache: Optional[bool] = False
     user_id: Optional[str] = None
+    source_mime_type: Optional[str] = None
+    stream: Optional[bool] = False
 
 
 @app.get("/health")
@@ -248,7 +251,20 @@ def clone_voice(
     try:
         t = time.time()
         if req.source_audio_path and os.path.isfile(req.source_audio_path):
-            waveform, orig_sr = sf.read(req.source_audio_path, dtype='float32')
+            input_path = req.source_audio_path
+            if not input_path.lower().endswith(".wav"):
+                converted_path = f"{TEMP_DIR}/samesame_in_{uuid.uuid4().hex}.wav"
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", input_path, "-ac", "1", "-ar", "16000", converted_path],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                waveform, orig_sr = sf.read(converted_path, dtype='float32')
+                os.remove(converted_path)
+            else:
+                waveform, orig_sr = sf.read(input_path, dtype='float32')
+
             if waveform.ndim > 1:
                 waveform = waveform.mean(axis=1)
             waveform = waveform.reshape(1, -1)
@@ -424,6 +440,22 @@ def clone_voice(
         format="WAV"
     )
     mime = "audio/wav"
+
+    if req.output_format and req.output_format.lower() in ["ogg", "oga"]:
+        ogg_path = f"{TEMP_DIR}/samesame_out_{uuid.uuid4().hex}.ogg"
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", output_path, "-c:a", "libopus", "-b:a", "32k", ogg_path],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            os.remove(output_path)
+            output_path = ogg_path
+            mime = "audio/ogg"
+        except subprocess.CalledProcessError as e:
+            print(f"[samesame] ffmpeg encode error: {e}")
+            # fallback to wav
     
     print(f"[cosy] encode time: {time.time()-t2:.3f}s")
     timings["encode_ms"] = int((time.time()-t2)*1000)
