@@ -73,11 +73,11 @@ class EndpointFilter(logging.Filter):
             return False
         return True
 
+app = FastAPI(title="Samesame CosyVoice Service")
+
 @app.on_event("startup")
 def setup_logging():
     logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
-
-app = FastAPI(title="Samesame CosyVoice Service")
 
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))

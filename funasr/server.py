@@ -59,11 +59,11 @@ class EndpointFilter(logging.Filter):
             return False
         return True
 
+app = FastAPI()
+
 @app.on_event("startup")
 def setup_logging():
     logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
-
-app = FastAPI()
 
 # Set ModelScope cache before any funasr imports
 os.environ["MODELSCOPE_CACHE"] = "/models"
