@@ -1,0 +1,48 @@
+name: "[main-tg-client-manager] Build and push"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.forgejo/workflows/tg-client-manager.yaml'
+      - 'kubernetes/base/tg-client-manager.yaml'
+      - 'tg-client-manager/**'
+jobs:
+  build:
+    runs-on: kube
+    container:
+      image: forge.dev.takatan.cloud/takatan/docker-builder:latest
+      credentials:
+        username: lexus
+        password: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
+    env:
+      DOCKER_HOST: tcp://172.18.0.1:2375
+      REPO_URL: https://forge.dev.takatan.cloud
+      IMG: forge.dev.takatan.cloud/lexus/voicemsg-net
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build Docker image
+        run: |
+          docker build -f tg-client-manager/Dockerfile -t ${{ env.IMG }}:tg-client-manager-latest -t ${{ env.IMG }}:tg-client-manager-${{ github.sha }} tg-client-manager
+
+      - name: Log in to Registry and push
+        run: |
+          echo "${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
+          docker push ${{ env.IMG }}:tg-client-manager-${{ github.sha }} && docker push ${{ env.IMG }}:tg-client-manager-latest
+
+      - name: Trigger Kubernetes Rollout
+        env:
+          DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
+        run: |
+          # Login and configure kubectl
+          kube-dc login --domain kube-dc.cloud --org debugging
+
+          # Switch to project context
+          kube-dc use kube-dc.cloud/debugging/testcrash-pub
+
+          # Trigger restart
+          kubectl rollout restart deployment tg-client-manager -n debugging-testcrash-pub
