@@ -29,6 +29,7 @@ Voice Messenger is a multi-tenant voice-to-text connecting Meta (FB/Insta), What
 
 - **Kubernetes Configs (`kubernetes/`)**: Infrastructure definitions ingress controllers.
 - **Shared Storage**: `temporaly-media-msg` PVC is used to share downloaded voice notes across `tg-client`, `whatsapp-baileys-client`, `samesame`, and `funasr`. Always pass `file_path` over HTTP instead of Base64 to save memory.
+- **NO FFMPEG IN CLIENTS**: Client pods (`tg-client`, `whatsapp-baileys-client`, etc.) must remain maximally lightweight. Do not install or use `ffmpeg` in client Dockerfiles. All heavy processing (like trimming audio or format conversion) must be delegated to the backend services (`samesame`, `funasr`).
 
 
 

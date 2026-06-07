@@ -171,11 +171,12 @@ export async function cloneVoiceWithSamesame({
   }
 
   const data = await response.json();
-  const audioBuffer = Buffer.from(data.audio_base64, 'base64');
+  const audioBuffer = data.audio_base64 ? Buffer.from(data.audio_base64, 'base64') : null;
 
   return {
     audioBuffer,
-    contentType: data.content_type || 'audio/ogg',
+    outputPath: data.output_path,
+    contentType: data.content_type || data.mime_type || 'audio/ogg',
     model: data.model || 'samesame-cosyvoice'
   };
 }

@@ -389,7 +389,7 @@ async function handleSamesameReplyIfNeeded(msg) {
         const senderId = `wa:${quotedContext.participant || jid}`;
 
         try {
-            const { audioBuffer: resultBuffer } = await cloneVoiceWithSamesame({
+            const { outputPath, audioBuffer: resultBuffer } = await cloneVoiceWithSamesame({
                 sourceAudioPath: sourcePath,
                 text: cleanText,
                 language,
@@ -400,11 +400,16 @@ async function handleSamesameReplyIfNeeded(msg) {
             });
 
             // Send the cloned voice back as audio (voice note)
+            const audioData = outputPath ? { url: outputPath } : resultBuffer;
             await sock.sendMessage(jid, {
-                audio: resultBuffer,
+                audio: audioData,
                 mimetype: 'audio/ogg; codecs=opus',
                 ptt: true
             }, { quoted: msg });
+            
+            if (outputPath) {
+                try { fs.unlinkSync(outputPath); } catch (_) { }
+            }
         } finally {
             try { fs.unlinkSync(sourcePath); } catch (_) { }
         }

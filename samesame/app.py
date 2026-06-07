@@ -424,7 +424,6 @@ def clone_voice(
         format="WAV"
     )
     mime = "audio/wav"
-    audio_b64 = base64.b64encode(open(output_path, "rb").read()).decode()
     
     print(f"[cosy] encode time: {time.time()-t2:.3f}s")
     timings["encode_ms"] = int((time.time()-t2)*1000)
@@ -432,7 +431,6 @@ def clone_voice(
 
     return {
         "output_path": output_path,
-        "audio_base64": audio_b64,
         "mime_type": mime,
         "duration_seconds": round(len(audio) / SAMPLE_RATE, 2),
         "latency_ms": timings["total_ms"],
