@@ -31,12 +31,12 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f tg-client-manager/Dockerfile -t ${{ env.IMG }}:tg-client-manager-${{ forgejo.run_number }} tg-client-manager
+          docker build -f tg-client-manager/Dockerfile -t ${{ env.IMG }}:tg-client-manager-latest -t ${{ env.IMG }}:tg-client-manager-${{ forgejo.run_number }} tg-client-manager
 
       - name: Log in to Registry and push
         run: |
           echo "${{ secrets.HAJIME_PASSWD }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
-          docker push ${{ env.IMG }}:tg-client-manager-${{ forgejo.run_number }} 
+          docker push ${{ env.IMG }}:tg-client-manager-${{ forgejo.run_number }} && docker push ${{ env.IMG }}:tg-client-manager-latest
 
       - name: Trigger Kubernetes Rollout
         run: | 
