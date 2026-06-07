@@ -17,10 +17,10 @@ kube-dc use kube-dc.cloud/debugging/testcrash-pub
 
 
 # Repository Guidelines
-Do not start local. Only use my remote kubernetes on my server
-Only use one domain "voicemsg.net" else kubernetes services use by internal IP
-DO NOT build heavy services or ML models (e.g., `whisper-service`) on the local machine. Local disk space is highly limited. If changes are made to heavy services, deploy them using remote build pipelines or only build lightweight managers/frontends locally.
-
+- **ALL BUILDS AND DEPLOYMENTS ARE AUTOMATED:** Do not build *anything* on the local machine. Forgejo CI/CD handles all Docker builds, pushes, and Kubernetes rollouts automatically upon pushing to the `main` branch.
+- **Local disk space is highly limited**, which is why local builds are strictly forbidden.
+- Only use my remote Kubernetes on my server.
+- Only use one domain "voicemsg.net" else kubernetes services use by internal IP.
 
 
 

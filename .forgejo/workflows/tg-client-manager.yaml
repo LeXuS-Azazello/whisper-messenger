@@ -38,6 +38,18 @@ jobs:
         env:
           DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
         run: |
+          # Install kube-dc CLI
+          if command -v sudo >/dev/null 2>&1; then
+            sudo mkdir -p /usr/local/bin
+            sudo curl -sL https://github.com/kube-dc/kube-dc-public/releases/latest/download/kube-dc_linux_amd64 -o /usr/local/bin/kube-dc
+            sudo chmod +x /usr/local/bin/kube-dc
+          else
+            mkdir -p /usr/local/bin
+            curl -sL https://github.com/kube-dc/kube-dc-public/releases/latest/download/kube-dc_linux_amd64 -o /usr/local/bin/kube-dc
+            chmod +x /usr/local/bin/kube-dc
+          fi
+          export PATH=$PATH:/usr/local/bin
+
           # Login and configure kubectl
           kube-dc login --domain kube-dc.cloud --org debugging
 

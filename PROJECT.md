@@ -28,4 +28,4 @@
 ### Samesame Issue
 - inference_zero_shot падает с ONNX ошибкой: `Invalid rank for input: feats Got: 4 Expected: 3`
 - Исправлен патч в `samesame/cosyvoice-cli-frontend.py` (n_mels 128 → 80)
-- **Нужно пересобрать Docker образ**
+- **Образ теперь собирается и деплоится автоматически через Forgejo CI/CD!**
