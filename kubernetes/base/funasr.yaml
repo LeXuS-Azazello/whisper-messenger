@@ -14,10 +14,10 @@ spec:
         app: funasr
     spec:
       imagePullSecrets:
-        - name: dockerhub-pull-secret
+        - name: forgejo-pull-secret
       containers:
         - name: funasr-api
-          image: lexusazazello/voicemsg:funasr-latest
+          image: forge.dev.takatan.cloud/lexus/voicemsg-net:funasr-latest
           imagePullPolicy: Always
           ports:
             - containerPort: 50001

@@ -19,7 +19,7 @@ spec:
     spec:
       restartPolicy: OnFailure
       imagePullSecrets:
-        - name: dockerhub-pull-secret
+        - name: forgejo-pull-secret
       containers:
         - name: downloader
           image: ghcr.io/coqui-ai/tts-cpu:latest

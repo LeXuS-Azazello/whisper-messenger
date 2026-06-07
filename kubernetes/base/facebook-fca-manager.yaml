@@ -66,10 +66,10 @@ spec:
     spec:
       serviceAccountName: voicemsg-client-manager
       imagePullSecrets:
-        - name: dockerhub-pull-secret
+        - name: forgejo-pull-secret
       containers:
       - name: manager
-        image: lexusazazello/facebook-fca-manager:latest
+        image: forge.dev.takatan.cloud/lexus/voicemsg-net:facebook-fca-manager-latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3003

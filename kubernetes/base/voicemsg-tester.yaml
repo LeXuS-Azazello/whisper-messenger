@@ -13,10 +13,10 @@ spec:
         app: voicemsg-tester
     spec:
       imagePullSecrets:
-      - name: dockerhub-pull-secret
+      - name: forgejo-pull-secret
       containers:
       - name: tester
-        image: lexusazazello/voicemsg-tester:latest
+        image: forge.dev.takatan.cloud/lexus/voicemsg-net:voicemsg-tester-latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000

@@ -25,7 +25,7 @@ spec:
         app: redis
     spec:
       imagePullSecrets:
-      - name: dockerhub-pull-secret
+      - name: forgejo-pull-secret
       containers:
       - name: redis
         image: redis:7-alpine

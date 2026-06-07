@@ -17,7 +17,7 @@ spec:
         app: xtts
     spec:
       imagePullSecrets:
-        - name: dockerhub-pull-secret
+        - name: forgejo-pull-secret
       initContainers:
         - name: xtts-downloader
           image: ghcr.io/coqui-ai/tts-cpu:latest

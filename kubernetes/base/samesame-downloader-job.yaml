@@ -19,10 +19,10 @@ spec:
     spec:
       restartPolicy: OnFailure
       imagePullSecrets:
-        - name: dockerhub-pull-secret
+        - name: forgejo-pull-secret
       containers:
         - name: downloader
-          image: lexusazazello/voicemsg:samesame-latest
+          image: forge.dev.takatan.cloud/lexus/voicemsg-net:samesame-latest
           imagePullPolicy: Always
           command: ["/bin/sh", "-c", "/scripts/download-models.sh"]
           env:

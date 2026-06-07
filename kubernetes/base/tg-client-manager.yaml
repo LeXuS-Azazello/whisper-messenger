@@ -14,10 +14,10 @@ spec:
     spec:
       serviceAccountName: tg-client-manager-sa
       imagePullSecrets:
-      - name: dockerhub-pull-secret
+      - name: forgejo-pull-secret
       containers:
       - name: manager
-        image: lexusazazello/voicemsg:tg-client-manager-latest
+        image: forge.dev.takatan.cloud/lexus/voicemsg-net:tg-client-manager-latest
         imagePullPolicy: IfNotPresent
         command: ["node", "index.js"]
         ports:
