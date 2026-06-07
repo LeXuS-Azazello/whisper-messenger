@@ -601,9 +601,8 @@ async function handleSamesameReplyIfNeeded(message) {
 
             // Call the shared SAMESAME service (pass correct mime for voice vs video note)
             console.time(`[tg-client] SAMESAME clone request msg ${message.id}`);
-            const promptBuffer = fs.readFileSync(promptAudioPath);
             const { audioBuffer: resultBuffer, model: usedModel, duration: samesameDuration } = await cloneVoiceWithSamesame({
-                sourceAudioBuffer: promptBuffer,
+                sourceAudioPath: promptAudioPath,
                 text: cleanText,
                 language,
                 userId: senderId,

@@ -389,9 +389,8 @@ async function handleSamesameReplyIfNeeded(msg) {
         const senderId = `wa:${quotedContext.participant || jid}`;
 
         try {
-            const promptBuffer = fs.readFileSync(sourcePath);
             const { audioBuffer: resultBuffer } = await cloneVoiceWithSamesame({
-                sourceAudioBuffer: promptBuffer,
+                sourceAudioPath: sourcePath,
                 text: cleanText,
                 language,
                 userId: senderId,
