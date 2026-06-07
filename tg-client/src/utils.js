@@ -22,7 +22,7 @@ if (customPath && fs.existsSync(customPath)) {
 tdl.configure({ tdjson: tdjsonPath });
 
 export function createClient(userId, options = {}) {
-    const dbDir = path.join('/app/tdlib-data', String(userId));
+    const dbDir = path.join('/temporaly-media-msg', String(userId));
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
     return tdl.createClient({
@@ -50,7 +50,7 @@ export function createClient(userId, options = {}) {
 
 export function unpackSession(userId, base64) {
     if (!base64 || base64.length < 100) return null;
-    const dbDir = path.join('/app/tdlib-data', String(userId));
+    const dbDir = path.join('/temporaly-media-msg', String(userId));
     try {
         if (fs.existsSync(dbDir)) fs.rmSync(dbDir, { recursive: true, force: true });
         fs.mkdirSync(dbDir, { recursive: true });

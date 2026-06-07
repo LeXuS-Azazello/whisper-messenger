@@ -86,6 +86,8 @@ spec:
               name: app-py
             - mountPath: "/dev/shm"
               name: shm
+            - mountPath: "/temporaly-media-msg"
+              name: temp-media
       volumes:
         - name: models
           persistentVolumeClaim:
@@ -97,6 +99,9 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 1Gi
+        - name: temp-media
+          persistentVolumeClaim:
+            claimName: temporaly-media-msg
 ---
 apiVersion: v1
 kind: Service

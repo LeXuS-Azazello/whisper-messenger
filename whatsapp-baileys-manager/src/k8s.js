@@ -124,13 +124,15 @@ export async function spawnPod(userId, session, username = '', waId = '', waLogi
 
     const pvcName = `wa-baileys-pvc-${sanitizedId}`;
     if (!podManifest.spec.volumes) podManifest.spec.volumes = [];
-    podManifest.spec.volumes = podManifest.spec.volumes.filter(v => v.name !== 'baileys-storage');
+    podManifest.spec.volumes = podManifest.spec.volumes.filter(v => v.name !== 'baileys-storage' && v.name !== 'temp-media');
     podManifest.spec.volumes.push({ name: 'baileys-storage', persistentVolumeClaim: { claimName: pvcName } });
+    podManifest.spec.volumes.push({ name: 'temp-media', persistentVolumeClaim: { claimName: 'temporaly-media-msg' } });
 
     const container = podManifest.spec.containers[0];
     if (!container.volumeMounts) container.volumeMounts = [];
-    container.volumeMounts = container.volumeMounts.filter(vm => vm.name !== 'baileys-storage');
+    container.volumeMounts = container.volumeMounts.filter(vm => vm.name !== 'baileys-storage' && vm.name !== 'temp-media');
     container.volumeMounts.push({ name: 'baileys-storage', mountPath: '/app/sessions' });
+    container.volumeMounts.push({ name: 'temp-media', mountPath: '/temporaly-media-msg' });
 
     const envMap = new Map();
     (container.env || []).forEach(e => envMap.set(e.name, e));

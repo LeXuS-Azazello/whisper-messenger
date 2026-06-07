@@ -24,6 +24,13 @@ This project is integrated with **Forgejo Actions**. Every time you push code to
 - **facebook-fca-manager**: Facebook lifecycle manager
 - **instagram-fca-manager**: Instagram lifecycle manager
 
+### Shared Media Storage Architecture
+To eliminate memory overhead and speed up inference, `tg-client`, `whatsapp-baileys-client`, `samesame`, and `funasr` share a `1Gi` Kubernetes PersistentVolumeClaim (`temporaly-media-msg`). 
+- Messengers download audio and write it to `/temporaly-media-msg`.
+- Services pass the `file_path` (`source_audio_path` / `file_path`) over HTTP instead of inflating payloads with Base64.
+- `funasr` reads the audio via OS page cache and processes it natively via `ffmpeg` subprocess.
+- Telegram client automatically cleans up the shared volume files (`fs.unlinkSync` and `deleteFile` TDLib API) to keep it under 1GB.
+
 ## Local Environment
 
 Since all heavy-lifting is done remotely:

@@ -222,33 +222,40 @@ async function processAudio(msg) {
         return;
     }
 
-    // Transcribe with retries
-    const base64Audio = buffer.toString('base64');
+    // Write to temporaly-media-msg
+    const ext = mimeType === 'video/mp4' ? '.mp4' : '.ogg';
+    const filePath = `/temporaly-media-msg/wa_in_${TARGET_USER_ID}_${Date.now()}${ext}`;
+    fs.writeFileSync(filePath, buffer);
+
     let transcription = '';
     let detectedLang = '';
     let lastErr;
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        try {
-            const response = await fetch(ASR_PROVIDER, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    file_data: base64Audio,
-                    mime_type: mimeType,
-                    language: 'auto',
-                }),
-                signal: AbortSignal.timeout(300_000),
-            });
-            if (!response.ok) throw new Error(`ASR HTTP ${response.status}`);
-            const data = await response.json();
-            transcription = data.text || '';
-            detectedLang = data.language || '';
-            break;
-        } catch (e) {
-            lastErr = e;
-            console.error(`[WA-Client] ASR attempt ${attempt}/${MAX_RETRIES}: ${e.message}`);
-            if (attempt < MAX_RETRIES) await sleep(RETRY_DELAYS_MS[attempt - 1] ?? 6000);
+    try {
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                const response = await fetch(ASR_PROVIDER, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_path: filePath,
+                        mime_type: mimeType,
+                        language: 'auto',
+                    }),
+                    signal: AbortSignal.timeout(300_000),
+                });
+                if (!response.ok) throw new Error(`ASR HTTP ${response.status}`);
+                const data = await response.json();
+                transcription = data.text || '';
+                detectedLang = data.language || '';
+                break;
+            } catch (e) {
+                lastErr = e;
+                console.error(`[WA-Client] ASR attempt ${attempt}/${MAX_RETRIES}: ${e.message}`);
+                if (attempt < MAX_RETRIES) await sleep(RETRY_DELAYS_MS[attempt - 1] ?? 6000);
+            }
         }
+    } finally {
+        try { fs.unlinkSync(filePath); } catch (_) { }
     }
 
     // Delete status placeholder
@@ -373,27 +380,34 @@ async function handleSamesameReplyIfNeeded(msg) {
         if (!buffer) throw new Error('Failed to download source audio');
 
         const mime = mediaMsg.audioMessage ? (mediaMsg.audioMessage.mimetype || 'audio/ogg') : (mediaMsg.videoMessage?.mimetype || 'video/mp4');
+        const ext = mime === 'video/mp4' ? '.mp4' : '.ogg';
+        const sourcePath = `/temporaly-media-msg/wa_samesame_${TARGET_USER_ID}_${Date.now()}${ext}`;
+        fs.writeFileSync(sourcePath, buffer);
 
         const samesameUrl = process.env.SAMESAME_URL || 'http://samesame:8002';
         const samesameSecret = process.env.SAMESAME_SECRET;
         const senderId = `wa:${quotedContext.participant || jid}`;
 
-        const { audioBuffer: resultBuffer } = await cloneVoiceWithSamesame({
-            sourceAudioBuffer: buffer,
-            text: cleanText,
-            language,
-            userId: senderId,
-            sourceMimeType: mime,
-            samesameSecret,
-            samesameUrl
-        });
+        try {
+            const { audioBuffer: resultBuffer } = await cloneVoiceWithSamesame({
+                sourceAudioPath: sourcePath,
+                text: cleanText,
+                language,
+                userId: senderId,
+                sourceMimeType: mime,
+                samesameSecret,
+                samesameUrl
+            });
 
-        // Send the cloned voice back as audio (voice note)
-        await sock.sendMessage(jid, {
-            audio: resultBuffer,
-            mimetype: 'audio/ogg; codecs=opus',
-            ptt: true
-        }, { quoted: msg });
+            // Send the cloned voice back as audio (voice note)
+            await sock.sendMessage(jid, {
+                audio: resultBuffer,
+                mimetype: 'audio/ogg; codecs=opus',
+                ptt: true
+            }, { quoted: msg });
+        } finally {
+            try { fs.unlinkSync(sourcePath); } catch (_) { }
+        }
 
     } catch (err) {
         console.error('[WA-Client] SAMESAME error:', err);

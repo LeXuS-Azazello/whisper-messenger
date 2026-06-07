@@ -75,7 +75,8 @@ export async function translateSamesameText(text, targetLang) {
  * Call the SAMESAME voice cloning service.
  *
  * @param {Object} options
- * @param {Buffer} options.sourceAudioBuffer - The original voice message audio (as Buffer)
+ * @param {Buffer} [options.sourceAudioBuffer] - The original voice message audio (as Buffer)
+ * @param {string} [options.sourceAudioPath] - The original voice message audio path on a shared volume
  * @param {string} options.text - The text to synthesize in the cloned voice
  * @param {string} [options.language] - Optional language code
  * @param {string} [options.outputFormat] - 'ogg' | 'wav' (default 'ogg')
@@ -94,8 +95,8 @@ export async function cloneVoiceWithSamesame({
   samesameUrl = DEFAULT_SAMESAME_URL,
   samesameSecret
 }) {
-  if (!sourceAudioBuffer || !Buffer.isBuffer(sourceAudioBuffer)) {
-    throw new Error('sourceAudioBuffer must be a Buffer');
+  if (!sourceAudioBuffer && !sourceAudioPath) {
+    throw new Error('sourceAudioBuffer or sourceAudioPath is required');
   }
   if (!text || typeof text !== 'string' || text.trim().length === 0) {
     throw new Error('text is required for voice cloning');
@@ -104,10 +105,7 @@ export async function cloneVoiceWithSamesame({
     throw new Error('SAMESAME_SECRET is not configured');
   }
 
-  const base64Audio = sourceAudioBuffer.toString('base64');
-
   const payload = {
-    source_audio_base64: base64Audio,
     source_mime_type: sourceMimeType,
     text: text.trim(),
     language: language ? telegramLangToNLLB(language) || language : undefined,
@@ -115,6 +113,12 @@ export async function cloneVoiceWithSamesame({
     output_format: outputFormat,
     stream: false
   };
+
+  if (sourceAudioPath) {
+    payload.source_audio_path = sourceAudioPath;
+  } else if (sourceAudioBuffer) {
+    payload.source_audio_base64 = sourceAudioBuffer.toString('base64');
+  }
 
   const url = `${samesameUrl.replace(/\/$/, '')}/v1/clone`;
 

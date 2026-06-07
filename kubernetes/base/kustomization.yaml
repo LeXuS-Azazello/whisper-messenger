@@ -8,6 +8,7 @@ resources:
   - mongo-express.yaml
   - tg-client-manager.yaml
   - tg-client.yaml
+  - temporaly-media-msg.yaml
   - xtts.yaml
   - xtts-downloader-job.yaml
   - huggingface-secret.yaml
@@ -31,9 +32,6 @@ configMapGenerator:
   - name: funasr-download-scripts
     files:
       - funasr-download-models.sh=./scripts/funasr-download-models.sh
-  - name: funasr-server
-    files:
-      - server.py=./funasr-server.py
   - name: samesame-app-py
     files:
       - app.py=./app.py

@@ -15,20 +15,29 @@ os.environ["KMP_BLOCKTIME"] = "0"
 
 model_lock = Lock()
 
-def decode_audio(file_bytes):
+def decode_audio(file_bytes=None, file_path=None):
+    cmd = [
+        "ffmpeg",
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel", "error",
+    ]
+    if file_path:
+        cmd.extend(["-i", file_path])
+        input_data = None
+    else:
+        cmd.extend(["-i", "pipe:0"])
+        input_data = file_bytes
+
+    cmd.extend([
+        "-ac", "1",
+        "-ar", "16000",
+        "-f", "f32le",
+        "pipe:1",
+    ])
     proc = subprocess.run(
-        [
-            "ffmpeg",
-            "-nostdin",
-            "-hide_banner",
-            "-loglevel", "error",
-            "-i", "pipe:0",
-            "-ac", "1",
-            "-ar", "16000",
-            "-f", "f32le",
-            "pipe:1",
-        ],
-        input=file_bytes,
+        cmd,
+        input=input_data,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=True
@@ -162,7 +171,8 @@ def ready():
 
 
 class TranscribeRequest(BaseModel):
-    file_data: str
+    file_data: str = None
+    file_path: str = None
     mime_type: str = "audio/ogg"
     language: str = "auto"
     enable_vad: bool = True
@@ -172,14 +182,15 @@ class TranscribeRequest(BaseModel):
 @app.post("/v1/transcribe-base64")
 async def transcribe(req: TranscribeRequest):
     try:
-        file_bytes = base64.b64decode(req.file_data)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid base64 data")
-
-    try:
         t0 = time.time()
 
-        audio_np = decode_audio(file_bytes)
+        if req.file_path and os.path.isfile(req.file_path):
+            audio_np = decode_audio(file_path=req.file_path)
+        elif req.file_data:
+            file_bytes = base64.b64decode(req.file_data)
+            audio_np = decode_audio(file_bytes=file_bytes)
+        else:
+            raise HTTPException(status_code=400, detail="Missing file_data or file_path")
         
         t_decode = time.time()
 

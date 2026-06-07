@@ -92,7 +92,7 @@ async function pollJobUntilDone(jobId, baseUrl, headers, fallbackModel = 'funasr
 
 
 /** Single-attempt transcription against a specific URL. Returns normalized result. */
-async function _transcribeOnce(url, fileBuffer, mime_type, language, target_language) {
+async function _transcribeOnce(url, file_path, mime_type, language, target_language) {
   const defaultModelName = 'funasr-mlt-nano';
 
   const headers = {
@@ -100,9 +100,8 @@ async function _transcribeOnce(url, fileBuffer, mime_type, language, target_lang
   };
 
   const tSubmit = Date.now();
-  const base64Data = fileBuffer.toString('base64');
   const payload = {
-    file_data: base64Data,
+    file_path: file_path,
     mime_type: mime_type,
     language: language === 'auto' ? 'auto' : telegramLangToNLLB(language) || language
   };
@@ -161,14 +160,14 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
   url = url.replace(/\/$/, '');
 
   const tRead = Date.now();
-  const fileBuffer = fs.readFileSync(file_path);
+  // We no longer read into a buffer, we just pass the path
   const readMs = Date.now() - tRead;
 
-  console.log(`[transcriber] file read ${readMs}ms | size=${fileBuffer.length}B | url=${url}`);
+  console.log(`[transcriber] file read skipped (using path) | path=${file_path} | url=${url}`);
 
   // ── Attempt 1: primary ASR backend ──
   try {
-    const result = await _transcribeOnce(url, fileBuffer, mime_type, language, target_language);
+    const result = await _transcribeOnce(url, file_path, mime_type, language, target_language);
     return await _maybeTranslate(result, target_language);
   } catch (err1) {
     console.warn(`[transcriber] primary ASR failed (${url}): ${err1.message}`);
@@ -177,7 +176,7 @@ export async function transcribePath(file_path, mime_type, language = 'auto', ta
     await sleep(2500);
     try {
       console.log(`[transcriber] retry primary ASR...`);
-      const result = await _transcribeOnce(url, fileBuffer, mime_type, language, target_language);
+      const result = await _transcribeOnce(url, file_path, mime_type, language, target_language);
       return await _maybeTranslate(result, target_language);
     } catch (err2) {
       console.warn(`[transcriber] retry primary ASR failed: ${err2.message}`);

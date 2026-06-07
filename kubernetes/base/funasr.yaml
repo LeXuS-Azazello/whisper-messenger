@@ -66,16 +66,15 @@ spec:
           volumeMounts:
             - name: models
               mountPath: "/models"
-            - name: funasr-server-patch
-              mountPath: "/app/server.py"
-              subPath: "server.py"
+            - name: temp-media
+              mountPath: "/temporaly-media-msg"
       volumes:
         - name: models
           persistentVolumeClaim:
             claimName: funasr-model-pvc
-        - name: funasr-server-patch
-          configMap:
-            name: funasr-server
+        - name: temp-media
+          persistentVolumeClaim:
+            claimName: temporaly-media-msg
 ---
 apiVersion: v1
 kind: Service

@@ -38,25 +38,21 @@ import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
 
-// Trim audio to maxSec seconds using ffmpeg. Returns a Buffer of the trimmed OGG audio.
-async function trimAudioTo28s(inputBuffer, inputMime) {
-    const ext = inputMime === 'video/mp4' ? '.mp4' : '.ogg';
-    const tmpIn = `/tmp/samesame_in_${Date.now()}${ext}`;
-    const tmpOut = `/tmp/samesame_trim_${Date.now()}.ogg`;
+// Trim audio to maxSec seconds using ffmpeg. Returns path of the trimmed OGG audio.
+async function trimAudioTo28s(inputPath, inputMime) {
+    const tmpOut = `/temporaly-media-msg/samesame_trim_${Date.now()}.ogg`;
     try {
-        fs.writeFileSync(tmpIn, inputBuffer);
         // extract audio, trim to 28s, re-encode as opus ogg
         await execFileAsync('ffmpeg', [
-            '-y', '-i', tmpIn,
+            '-y', '-i', inputPath,
             '-t', '28',
             '-vn', '-c:a', 'libopus', '-b:a', '32k',
             tmpOut
         ]);
-        const trimmed = fs.readFileSync(tmpOut);
-        return trimmed;
-    } finally {
-        try { fs.unlinkSync(tmpIn); } catch (_) { }
+        return tmpOut;
+    } catch (e) {
         try { fs.unlinkSync(tmpOut); } catch (_) { }
+        throw e;
     }
 }
 
@@ -589,23 +585,24 @@ async function handleSamesameReplyIfNeeded(message) {
         }
 
         let tempOut = null;
+        let promptAudioPath = null;
         try {
 
             console.log('[samesame] calling cloneVoiceWithSamesame with text len=', cleanText.length, 'mime=', mime);
 
             // CosyVoice rejects prompt audio longer than 30s — trim to 28s via ffmpeg
-            let promptBuffer = audioBuffer;
             try {
-                promptBuffer = await trimAudioTo28s(audioBuffer, mime);
-                console.log(`[samesame] Trimmed prompt audio to 28s (original=${audioBuffer.length}B, trimmed=${promptBuffer.length}B)`);
+                promptAudioPath = await trimAudioTo28s(audioPath, mime);
+                console.log(`[samesame] Trimmed prompt audio to 28s: ${promptAudioPath}`);
             } catch (trimErr) {
-                console.warn('[samesame] Could not trim audio, using original:', trimErr.message);
+                console.warn('[samesame] Could not trim audio, using original path:', trimErr.message);
+                promptAudioPath = audioPath;
             }
 
             // Call the shared SAMESAME service (pass correct mime for voice vs video note)
             console.time(`[tg-client] SAMESAME clone request msg ${message.id}`);
             const { audioBuffer: resultBuffer, model: usedModel, duration: samesameDuration } = await cloneVoiceWithSamesame({
-                sourceAudioBuffer: promptBuffer,
+                sourceAudioPath: promptAudioPath,
                 text: cleanText,
                 language,
                 userId: senderId,
@@ -617,7 +614,7 @@ async function handleSamesameReplyIfNeeded(message) {
             console.log('[samesame] clone result buffer size:', resultBuffer.length);
 
             // Send the cloned voice back (as voice note)
-            tempOut = `/tmp/samesame-${Date.now()}.ogg`;
+            tempOut = `/temporaly-media-msg/samesame-${Date.now()}.ogg`;
             fs.writeFileSync(tempOut, resultBuffer);
 
             console.time(`[tg-client] Send SAMESAME Voice Reply msg ${message.id}`);
@@ -647,6 +644,7 @@ async function handleSamesameReplyIfNeeded(message) {
                 tempOut = null; // Do not delete in finally block
             }
         } finally {
+            if (promptAudioPath && promptAudioPath !== audioPath) { try { fs.unlinkSync(promptAudioPath); } catch (_) { } }
             if (tempOut) { try { fs.unlinkSync(tempOut); } catch (_) { } }
         }
 

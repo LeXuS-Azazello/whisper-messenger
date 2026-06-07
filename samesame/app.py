@@ -155,7 +155,8 @@ def prompt_cache_filename(audio_b64: str) -> str:
 
 
 class CloneRequest(BaseModel):
-    source_audio_base64: str
+    source_audio_base64: Optional[str] = None
+    source_audio_path: Optional[str] = None
     text: str
     prompt_text: Optional[str] = ""
     prompt_language: Optional[str] = None
@@ -195,10 +196,22 @@ def clone_voice(
 
     try:
         t = time.time()
-        prompt_speech_16k, _ = decode_audio_base64(req.source_audio_base64, target_sr=16000)
+        if req.source_audio_path and os.path.isfile(req.source_audio_path):
+            waveform, orig_sr = sf.read(req.source_audio_path, dtype='float32')
+            if waveform.ndim > 1:
+                waveform = waveform.mean(axis=1)
+            waveform = waveform.reshape(1, -1)
+            tensor = torch.from_numpy(waveform).float()
+            if orig_sr != 16000:
+                tensor = F.resample(tensor, orig_sr, 16000)
+            prompt_speech_16k = tensor
+        elif req.source_audio_base64:
+            prompt_speech_16k, _ = decode_audio_base64(req.source_audio_base64, target_sr=16000)
+        else:
+            raise HTTPException(status_code=400, detail="Missing audio data or path")
         timings["decode_ms"] = int((time.time()-t)*1000)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid base64: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid audio data: {e}")
 
     # Trim silence first to evaluate true speech length
     audio_np = prompt_speech_16k.squeeze(0).cpu().numpy()

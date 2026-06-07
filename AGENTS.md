@@ -28,6 +28,7 @@ kube-dc use kube-dc.cloud/debugging/testcrash-pub
 Voice Messenger is a multi-tenant voice-to-text connecting Meta (FB/Insta), WhatsApp, and Telegram to FunASR (MLT-Nano).
 
 - **Kubernetes Configs (`kubernetes/`)**: Infrastructure definitions ingress controllers.
+- **Shared Storage**: `temporaly-media-msg` PVC is used to share downloaded voice notes across `tg-client`, `whatsapp-baileys-client`, `samesame`, and `funasr`. Always pass `file_path` over HTTP instead of Base64 to save memory.
 
 
 
