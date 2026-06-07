@@ -30,7 +30,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f tg-client/Dockerfile -t ${{ env.IMG }}:tg-client-latest -t ${{ env.IMG }}:tg-client-${{ forgejo.run_number }} tg-client
+          docker build -f tg-client/Dockerfile -t ${{ env.IMG }}:tg-client-latest -t ${{ env.IMG }}:tg-client-${{ forgejo.run_number }} --platform=linux/amd64 tg-client
 
       - name: Log in to Registry and push
         run: |
