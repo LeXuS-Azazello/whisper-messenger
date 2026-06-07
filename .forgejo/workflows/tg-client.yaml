@@ -1,5 +1,6 @@
 name: "[main-tg-client] Build and push my telegram"
 on:
+  workflow_dispatch: 
   push:
     branches:
       - main
