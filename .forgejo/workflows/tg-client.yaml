@@ -42,15 +42,6 @@ jobs:
         env:
           DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
         run: |
-          # Ensure kubectl is installed
-          if ! command -v kubectl >/dev/null 2>&1; then
-            curl -sLO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            mkdir -p $GITHUB_WORKSPACE/bin
-            mv kubectl $GITHUB_WORKSPACE/bin/
-            export PATH=$GITHUB_WORKSPACE/bin:$PATH
-          fi
-          
           # Use the checked-in kubeconfig instead of interactive login
           echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > $GITHUB_WORKSPACE/kubeconfig.yaml
           export KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig.yaml
