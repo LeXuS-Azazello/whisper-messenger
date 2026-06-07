@@ -1,0 +1,31 @@
+name = "voicemsg-mail"
+main = "src/index.ts"
+compatibility_date = "2024-02-22"
+
+[[routes]]
+pattern = "voicemsg-mail.voicemsg.net"
+custom_domain = true
+zone_name = "voicemsg.net"
+
+[vars]
+DOMAIN = "voicemsg.net"
+EMAIL_FROM = "no-reply@voicemsg.net"
+EMAIL_FROM_NAME = "Voice Transcribe Messenger"
+MAIL_API_TOKEN = "voicemsg-mail-HAJIME!JORA!PO4T@WORKING_SECRET"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1
+[[send_email]]
+name = "SEND_EMAIL"
