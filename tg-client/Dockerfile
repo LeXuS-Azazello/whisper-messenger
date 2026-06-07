@@ -1,6 +1,6 @@
 FROM node:20-bookworm-slim
 WORKDIR /app
-RUN apt-get update && apt-get install  && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 RUN npm install --omit=dev && npm cache clean --force
 COPY . .
