@@ -43,8 +43,8 @@ jobs:
           DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
         run: |
           # Use the checked-in kubeconfig instead of interactive login
-          echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > $GITHUB_WORKSPACE/kubeconfig.yaml
-          export KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig.yaml
+          echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > ~/.kube/config
+          export KUBECONFIG=~/.kube/config
 
           # Trigger restart
           kubectl delete pod -l app=tg-client-user -n debugging-testcrash-pub
