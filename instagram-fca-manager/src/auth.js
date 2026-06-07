@@ -1,7 +1,7 @@
 import { IgApiClient } from 'instagram-private-api';
 import { redis } from './config.js';
-import User from './models/User.js';
-import MessengerSession from './models/MessengerSession.js';
+import User from './object-models/User.js';
+import MessengerSession from './object-models/MessengerSession.js';
 import { spawnPod } from './k8s.js';
 
 export async function handleLogin(req, res) {

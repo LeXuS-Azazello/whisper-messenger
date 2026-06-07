@@ -2,8 +2,8 @@ import * as k8s from '@kubernetes/client-node';
 import fs from 'fs';
 import { MODE, redis } from './config.js';
 import { withTimeout } from './utils.js';
-import User from './models/User.js';
-import MessengerSession from './models/MessengerSession.js';
+import User from './object-models/User.js';
+import MessengerSession from './object-models/MessengerSession.js';
 
 let k8sApi = null;
 
@@ -54,7 +54,7 @@ export async function spawnPod(userId, session, username = '', fbId = '', fbLogi
     const cleanFbId = fbId ? String(fbId).replace(/[^0-9]/g, '').slice(0, 10) : '0';
 
     const short = Date.now().toString().slice(-6);
-    
+
     // Format: facebook-{username}-{fb-login}-{fb_id}-{short}
     let podName = `facebook-${cleanUsername}-${cleanLogin}-${cleanFbId}-${short}`;
     podName = podName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 63);
@@ -103,14 +103,14 @@ export async function spawnPod(userId, session, username = '', fbId = '', fbLogi
     envMap.set('TARGET_USER_ID', { name: 'TARGET_USER_ID', value: safeUserId });
     envMap.set('FB_SESSION', { name: 'FB_SESSION', value: sessionData });
     envMap.set('MANAGER_URL', { name: 'MANAGER_URL', value: `http://facebook-fca-manager:3003` });
-    
+
     container.env = Array.from(envMap.values());
-    
+
     try {
         const provider = await redis.get('config_local_funasr_url') || process.env.FUNASR_URL || 'http://funasr:50001/v1/transcribe-base64';
         const samesameUrl = await redis.get('config_samesame_url') || process.env.SAMESAME_URL || 'http://samesame:8002';
         const samesameSecret = await redis.get('config_samesame_secret') || process.env.SAMESAME_SECRET || '';
-        
+
         container.env.push({ name: 'FUNASR_URL', value: provider });
         container.env.push({ name: 'SAMESAME_URL', value: samesameUrl });
         container.env.push({ name: 'SAMESAME_SECRET', value: samesameSecret });
@@ -157,7 +157,7 @@ export async function runReconciliation() {
         const activeSessions = await MessengerSession.find({ platform: 'facebook', isActive: true }).catch(() => []);
         const runningPods = await listPods().catch(() => []);
         const runningUserIds = new Set(runningPods.map(p => String(p.userId)));
-        
+
         for (const sess of activeSessions) {
             if (sess?.userId) {
                 const uid = String(sess.userId);

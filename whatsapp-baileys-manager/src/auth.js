@@ -3,8 +3,8 @@ import path from 'path';
 import AdmZip from 'adm-zip';
 import QRCode from 'qrcode';
 import { redis } from './config.js';
-import User from './models/User.js';
-import MessengerSession from './models/MessengerSession.js';
+import User from './object-models/User.js';
+import MessengerSession from './object-models/MessengerSession.js';
 import { makeWASocket, useMultiFileAuthState, Browsers } from 'baileys';
 import { spawnPod } from './k8s.js';
 
@@ -43,7 +43,7 @@ export async function qrStart(req, res) {
         sock.ev.on('creds.update', saveCreds);
         sock.ev.on('connection.update', async (update) => {
             const { connection, qr, lastDisconnect } = update;
-            if(connection === 'close') {
+            if (connection === 'close') {
                 console.log(
                     'disconnect',
                     lastDisconnect?.error?.output?.statusCode,
@@ -52,7 +52,7 @@ export async function qrStart(req, res) {
                 if (!session.responded) {
                     session.responded = true;
                     res.status(500).json({ error: lastDisconnect?.error?.message || 'Connection closed by WhatsApp' });
-                    try { sock.logout(); } catch (e) {}
+                    try { sock.logout(); } catch (e) { }
                     authSessions.delete(tempId);
                 }
             }
@@ -169,7 +169,7 @@ export async function qrCheck(req, res) {
         const targetUserId = userId || 'unknown';
         console.log(`[auth] WhatsApp Auth successful for ${targetUserId}`);
 
-        try { s.client.end?.(); } catch {}
+        try { s.client.end?.(); } catch { }
         await new Promise(r => setTimeout(r, 3000));
 
         const packed = packBaileysSession(s.id);

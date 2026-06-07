@@ -1,7 +1,7 @@
 import fcaLogin from '@vangbanlanhat/fca-unofficial';
 import { redis } from './config.js';
-import User from './models/User.js';
-import MessengerSession from './models/MessengerSession.js';
+import User from './object-models/User.js';
+import MessengerSession from './object-models/MessengerSession.js';
 import { spawnPod } from './k8s.js';
 
 const login = typeof fcaLogin === 'function' ? fcaLogin : (fcaLogin.default || fcaLogin);
@@ -37,15 +37,15 @@ export async function handleLogin(req, res) {
     try {
         login(credentials, loginOpts, async (err, api) => {
             if (err) {
-                    console.error(`[auth-fca] Login failed for user ${userId}:`, err);
-                    const rawMsg = err.error || err.message || 'Login failed';
+                console.error(`[auth-fca] Login failed for user ${userId}:`, err);
+                const rawMsg = err.error || err.message || 'Login failed';
 
-                    if (/JSON|Unexpected|Expected \'\,\' or \'\]\'|position \d+/i.test(String(rawMsg))) {
-                        return res.status(400).json({ error: `Invalid AppState JSON: ${rawMsg}. Make sure you exported the full array from C3C UFC Utility extension (starts with [{\"key\":\"c_user\",...}]).` });
-                    }
-
-                    return res.status(401).json({ error: rawMsg });
+                if (/JSON|Unexpected|Expected \'\,\' or \'\]\'|position \d+/i.test(String(rawMsg))) {
+                    return res.status(400).json({ error: `Invalid AppState JSON: ${rawMsg}. Make sure you exported the full array from C3C UFC Utility extension (starts with [{\"key\":\"c_user\",...}]).` });
                 }
+
+                return res.status(401).json({ error: rawMsg });
+            }
 
             try {
                 // Get AppState

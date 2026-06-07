@@ -12,8 +12,8 @@ import { MODE, PORT, TARGET_USER_ID, redis, MONGODB_URI, SECRET, WORKER_URL } fr
 import { initK8s, spawnPod, deletePods, listPods, runReconciliation, resolveNamespace } from './src/k8s.js';
 import { handleLogin } from './src/auth.js';
 import { auth, checkConnect } from './src/utils.js';
-import User from './src/models/User.js';
-import MessengerSession from './src/models/MessengerSession.js';
+import User from './src/object-models/User.js';
+import MessengerSession from './src/object-models/MessengerSession.js';
 
 dns.setDefaultResultOrder('ipv4first');
 

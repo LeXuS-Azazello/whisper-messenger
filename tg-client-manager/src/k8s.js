@@ -3,8 +3,8 @@ import https from 'https';
 import fs from 'fs';
 import { MODE, API_ID, API_HASH, SECRET, WORKER_URL, DEVICE_MODEL, APP_VERSION, SYSTEM_VERSION, redis } from './config.js';
 import { withTimeout } from './utils.js';
-import User from './models/User.js';
-import MessengerSession from './models/MessengerSession.js';
+import User from './object-models/User.js';
+import MessengerSession from './object-models/MessengerSession.js';
 
 
 let k8sApi = null;
