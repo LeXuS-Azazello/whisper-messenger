@@ -1,0 +1,58 @@
+# RUNorm (Russian) Model Downloader Job
+# One‑time (or on‑demand) Job that downloads the RUNorm‑small text normalizer model
+# into the PVC shared with the samesame Deployment. The model is stored under
+# /models/hub/RUNorm/ so the samesame service can load it without any network I/O.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: runorm-model-downloader
+  namespace: debugging-testcrash-pub
+  labels:
+    app: samesame
+    component: runorm-downloader
+spec:
+  backoffLimit: 3                     # retry up to three times on failure
+  ttlSecondsAfterFinished: 86400      # keep the Job object for a day after completion
+  template:
+    metadata:
+      labels:
+        app: samesame
+        component: runorm-downloader
+    spec:
+      restartPolicy: OnFailure
+      imagePullSecrets:
+        - name: forgejo-pull-secret
+      containers:
+        - name: runorm-downloader
+          image: alpine:3.18
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              mkdir -p /models/hub/RUNorm
+              # Download the model binary
+              wget -q -O /models/hub/RUNorm/runorm.pt \
+                https://huggingface.co/RUNorm/RUNorm-normalizer-small/resolve/main/runorm.pt
+              # (optional) vocabulary file – required by some versions of runorm
+              wget -q -O /models/hub/RUNorm/vocab.txt \
+                https://huggingface.co/RUNorm/RUNorm-normalizer-small/resolve/main/vocab.txt
+              echo "[runorm] model downloaded to /models/hub/RUNorm"
+          env:
+            - name: MODELS_DIR
+              value: "/models"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      resources:
+        requests:
+          cpu: "0.2"
+          memory: "256Mi"
+        limits:
+          cpu: "0.5"
+          memory: "512Mi"
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: samesame-model-cache
