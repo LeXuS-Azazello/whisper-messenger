@@ -83,7 +83,7 @@ spec:
         - name: forgejo-pull-secret
       containers:
         - name: manager
-          image: lexusazazello/voicemsg:instagram-fca-manager-latest
+          image: lexus/voicemsg-net:instagram-fca-manager-latest
           imagePullPolicy: IfNotPresent
           ports:
         - containerPort: 3005

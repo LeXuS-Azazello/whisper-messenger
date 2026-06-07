@@ -15,7 +15,7 @@
     "containers": [
       {
         "name": "tg-client",
-        "image": "lexusazazello/voicemsg:tg-client-latest",
+        "image": "lexus/voicemsg-net:tg-client-latest",
         "imagePullPolicy": "IfNotPresent",
         "env": [
           {

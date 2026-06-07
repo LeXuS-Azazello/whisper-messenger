@@ -17,7 +17,7 @@ spec:
         - name: forgejo-pull-secret
       containers:
         - name: funasr-api
-          image: lexusazazello/voicemsg:funasr-latest
+          image: lexus/voicemsg-net:funasr-latest
           imagePullPolicy: Always
           ports:
             - containerPort: 50001

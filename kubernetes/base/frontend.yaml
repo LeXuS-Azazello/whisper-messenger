@@ -17,7 +17,7 @@ spec:
         - name: forgejo-pull-secret
       containers:
       - name: frontend
-        image: lexusazazello/voicemsg:frontend-latest
+        image: lexus/voicemsg-net:frontend-latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000

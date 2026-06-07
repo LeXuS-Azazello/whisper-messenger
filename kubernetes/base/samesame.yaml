@@ -46,7 +46,11 @@ spec:
               value: "21600"
             - name: CPU_THREADS
               value: "4"
-          image: lexusazazello/voicemsg:samesame-latest
+            - name: FUNASR_URL
+              value: "http://funasr:8000"
+            - name: SAMESAME_TEMP_DIR
+              value: "/temporaly-media-msg"
+          image: lexus/voicemsg-net:samesame-latest
           imagePullPolicy: Always
           name: samesame
           ports:

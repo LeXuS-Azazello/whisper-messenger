@@ -203,6 +203,9 @@ async def transcribe(req: TranscribeRequest):
         
         if req.enable_vad:
             generate_kwargs["merge_vad"] = True
+        else:
+            generate_kwargs["vad_model"] = None
+            generate_kwargs["merge_vad"] = False
             
         if not req.enable_punc:
             generate_kwargs["punc_model"] = None
@@ -213,17 +216,25 @@ async def transcribe(req: TranscribeRequest):
         t_model = time.time()
 
         text = ""
+        detected_lang = None
         if isinstance(result_list, list) and len(result_list) > 0:
             first = result_list[0]
             if isinstance(first, dict):
                 text = first.get("text", "")
+                raw_lang = first.get("language") or first.get("lang") or ""
+                if raw_lang:
+                    detected_lang = raw_lang[:2].lower()
             elif isinstance(first, str):
                 text = first
         elif isinstance(result_list, dict):
             text = result_list.get("text", "")
+            raw_lang = result_list.get("language") or result_list.get("lang") or ""
+            if raw_lang:
+                detected_lang = raw_lang[:2].lower()
 
         return {
             "text": text,
+            "language": detected_lang,
             "model": MODEL_NAME,
             "decode_ms": int((t_decode - t0) * 1000),
             "infer_ms": int((t_model - t_decode) * 1000),
