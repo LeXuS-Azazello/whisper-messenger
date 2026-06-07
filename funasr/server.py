@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import numpy as np
 import torch
+import soundfile as sf
 from threading import Lock
 
 NCPU = int(os.getenv("FUNASR_NCPU", "4"))
@@ -16,6 +17,25 @@ os.environ["KMP_BLOCKTIME"] = "0"
 model_lock = Lock()
 
 def decode_audio(file_bytes=None, file_path=None):
+    """Decode audio either from raw bytes or from a file path.
+    Supports wav, ogg, oga, etc. via soundfile, falling back to ffmpeg for raw bytes.
+    Returns a NumPy float32 array at 16 kHz mono.
+    """
+    if file_path:
+        try:
+            audio, sr = sf.read(file_path, dtype='float32')
+            if audio.ndim > 1:
+                audio = audio.mean(axis=1)
+            # Resample to 16 kHz if needed
+            if sr != 16000:
+                import torch
+                import torchaudio.functional as F
+                audio = torch.from_numpy(audio).float()
+                audio = F.resample(audio, sr, 16000).numpy()
+            return audio
+        except Exception as e:
+            raise RuntimeError(f"soundfile read failed: {e}")
+    # Fallback – use ffmpeg on raw bytes
     cmd = [
         "ffmpeg",
         "-nostdin",
@@ -28,7 +48,6 @@ def decode_audio(file_bytes=None, file_path=None):
     else:
         cmd.extend(["-i", "pipe:0"])
         input_data = file_bytes
-
     cmd.extend([
         "-ac", "1",
         "-ar", "16000",
@@ -40,7 +59,7 @@ def decode_audio(file_bytes=None, file_path=None):
         input=input_data,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        check=True
+        check=True,
     )
     audio = np.frombuffer(proc.stdout, dtype=np.float32)
     if audio.size == 0:
