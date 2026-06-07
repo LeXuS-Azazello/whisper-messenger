@@ -26,7 +26,7 @@ export class WhatsAppBaileysManager {
 
       // Fallback to Mongo if Redis miss (for old users)
       if (!session) {
-        const { default: MessengerSession } = await import('./models/MessengerSession.js');
+        const { default: MessengerSession } = await import('./object-models/MessengerSession.js');
         const doc = await MessengerSession.findOne({ userId, platform: 'whatsapp' }).lean();
         if (doc?.sessionData) session = doc.sessionData;
       }

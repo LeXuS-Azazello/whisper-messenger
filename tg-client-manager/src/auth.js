@@ -1,7 +1,7 @@
 import { createClient, packSession } from './utils.js';
 import { MODE, API_ID, API_HASH, redis } from './config.js';
 import QRCode from 'qrcode';
-import User from './object-models/User.js';
+import User from './object-object-models/User.js';
 import mongoose from 'mongoose';
 import path from 'path';
 

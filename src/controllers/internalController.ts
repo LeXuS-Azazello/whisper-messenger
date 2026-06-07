@@ -1,6 +1,6 @@
 import { Env } from "../types";
-import MessengerSession from "../object-models/MessengerSession";
-import User from "../object-models/User";
+import MessengerSession from "../object-object-models/MessengerSession";
+import User from "../object-object-models/User";
 import AdminVar from "../object-models/AdminVar";
 
 export async function handleConfig(env: Env, _req: Request, url: URL): Promise<Response> {

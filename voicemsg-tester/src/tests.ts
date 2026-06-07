@@ -3,7 +3,7 @@ import Redis from 'ioredis';
 import fs from 'fs';
 import path from 'path';
 import { sampleAudioBase64 } from './sample_audio';
-import { cloneVoiceWithSamesame } from '../../shared/samesame.js';
+import { cloneVoiceWithSamesame } from '../shared/samesame.js';
 
 export interface TestLog {
   timestamp: string;

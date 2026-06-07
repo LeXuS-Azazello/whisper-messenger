@@ -16,8 +16,8 @@ import { sendCode, verifyCode, verifyPassword, qrStart, qrCheck, authSessions, p
 import { auth, checkConnect } from './src/utils.js';
 import * as k8s from '@kubernetes/client-node';
 import mongoose from 'mongoose';
-import User from './src/object-models/User.js';
-import MessengerSession from './src/object-models/MessengerSession.js';
+import User from './src/object-object-models/User.js';
+import MessengerSession from './src/object-object-models/MessengerSession.js';
 
 dns.setDefaultResultOrder('ipv4first');
 

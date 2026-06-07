@@ -2,8 +2,8 @@ import * as k8s from '@kubernetes/client-node';
 import fs from 'fs';
 import { MODE, redis } from './config.js';
 import { withTimeout } from './utils.js';
-import User from './models/User.js';
-import MessengerSession from './models/MessengerSession.js';
+import User from './object-models/User.js';
+import MessengerSession from './object-models/MessengerSession.js';
 
 let k8sApi = null;
 

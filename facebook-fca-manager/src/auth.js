@@ -1,7 +1,7 @@
 import fcaLogin from '@vangbanlanhat/fca-unofficial';
 import { redis } from './config.js';
-import User from './object-models/User.js';
-import MessengerSession from './object-models/MessengerSession.js';
+import User from './object-object-models/User.js';
+import MessengerSession from './object-object-models/MessengerSession.js';
 import { spawnPod } from './k8s.js';
 
 const login = typeof fcaLogin === 'function' ? fcaLogin : (fcaLogin.default || fcaLogin);

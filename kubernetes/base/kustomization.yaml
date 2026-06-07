@@ -9,8 +9,6 @@ resources:
   - tg-client-manager.yaml
   - tg-client.yaml
   - temporaly-media-msg.yaml
-  - xtts.yaml
-  - xtts-downloader-job.yaml
   - huggingface-secret.yaml
   - rbac.yaml
   - cert-manager.yaml

@@ -15,8 +15,8 @@ import { auth, checkConnect, createClient } from './src/utils.js';
 import { initK8s, spawnPod, deletePods, listPods, runReconciliation } from './src/k8s.js';
 import { sendCode, verifyCode, verifyPassword, qrStart, qrCheck, authSessions } from './src/auth.js';
 import mongoose from 'mongoose';
-import User from './src/object-models/User.js';
-import MessengerSession from './src/object-models/MessengerSession.js';
+import User from './src/object-object-models/User.js';
+import MessengerSession from './src/object-object-models/MessengerSession.js';
 
 dns.setDefaultResultOrder('ipv4first');
 

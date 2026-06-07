@@ -6,7 +6,7 @@ import { createSignedSession } from "../session";
 import { sampleAudioBase64 } from "../sample_audio";
 import mongoose from "mongoose";
 import path from "path";
-import User from "../object-models/User";
+import User from "../object-object-models/User";
 
 export async function runDiagnostics(env: Env): Promise<Response> {
     const results: DiagnosticResults = {

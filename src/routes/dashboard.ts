@@ -57,8 +57,8 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
 
   if (!userStats) {
     try {
-      const User = (await import("../object-models/User")).default;
-      const MessengerSession = (await import("../object-models/MessengerSession")).default;
+      const User = (await import("../object-object-models/User")).default;
+      const MessengerSession = (await import("../object-object-models/MessengerSession")).default;
 
       const dbUser = await User.findOne({ userId });
       if (dbUser) {
@@ -117,7 +117,7 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
         await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
       } else {
         // Fallback to MongoDB
-        const MessengerSession = (await import("../object-models/MessengerSession")).default;
+        const MessengerSession = (await import("../object-object-models/MessengerSession")).default;
         const tgSession = await MessengerSession.findOne({ userId, platform: "telegram" });
         if (tgSession?.sessionData) {
           user.session = tgSession.sessionData;
