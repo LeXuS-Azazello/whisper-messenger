@@ -4,8 +4,8 @@ import { renderDashboard } from "../components/dashboard/Dashboard";
 
 
 export async function incrementUserStats(
-  userId: string, 
-  env: Env, 
+  userId: string,
+  env: Env,
   platform: string = "telegram",
   stats: {
     action?: string;
@@ -44,9 +44,9 @@ export async function incrementUserStats(
   }
 
   try {
-    const User = (await import("../models/User")).default;
-    const Statistic = (await import("../models/Statistic")).default;
-    
+    const User = (await import("../object-models/User")).default;
+    const Statistic = (await import("../object-models/Statistic")).default;
+
     const incFields: Record<string, number> = { transcriptionCount: 1 };
     if (platform === "telegram") {
       incFields.tgTranscriptionCount = 1;
@@ -99,7 +99,7 @@ export async function handleSaveMeta(env: Env, req: Request, userId: string, use
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
 
       try {
-        const User = (await import("../models/User")).default;
+        const User = (await import("../object-models/User")).default;
         await User.findOneAndUpdate({ userId }, { $set: { metaToken } });
       } catch (e) { console.error("[DB] Meta token persist failed:", e); }
 
@@ -123,7 +123,7 @@ export async function handleSaveWa(env: Env, req: Request, userId: string, user:
   await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
 
   try {
-    const User = (await import("../models/User")).default;
+    const User = (await import("../object-models/User")).default;
     await User.findOneAndUpdate({ userId }, { $set: { whatsappToken, whatsappPhoneId } });
   } catch (e) { console.error("[DB] WA settings persist failed:", e); }
 
@@ -138,8 +138,8 @@ export async function handleSaveLine(env: Env, req: Request, userId: string, use
   await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
 
   try {
-    const User = (await import("../models/User")).default;
-    const MessengerSession = (await import("../models/MessengerSession")).default;
+    const User = (await import("../object-models/User")).default;
+    const MessengerSession = (await import("../object-models/MessengerSession")).default;
 
     await User.findOneAndUpdate({ userId }, { $set: { lineToken, lineSecret } }, { upsert: true });
     await MessengerSession.findOneAndUpdate(
@@ -198,8 +198,8 @@ export async function handleDisconnectTg(env: Env, userId: string, user: UserSes
 
   // 4. Update MongoDB
   try {
-    const MessengerSession = (await import("../models/MessengerSession")).default;
-    const User = (await import("../models/User")).default;
+    const MessengerSession = (await import("../object-models/MessengerSession")).default;
+    const User = (await import("../object-models/User")).default;
 
     await MessengerSession.deleteMany({ userId, platform: "telegram" });
     await User.findOneAndUpdate({ userId }, { $set: { isActive: false } });
@@ -231,7 +231,7 @@ export async function handleTestTg(env: Env, user: UserSession): Promise<Respons
   if (!secret) {
     throw new Error("MANAGER_SECRET not configured");
   }
-  
+
   try {
     const res = await fetch(`${managerUrl}/test-tg?secret=${secret}`, {
       method: "POST",
@@ -277,7 +277,7 @@ export async function handleRestartTg(env: Env, userId: string, user: UserSessio
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
 
       try {
-        const User = (await import("../models/User")).default;
+        const User = (await import("../object-models/User")).default;
         await User.findOneAndUpdate({ userId }, { $set: { isActive: true } });
       } catch (e) { console.error("[DB] Status update failed:", e); }
     }
@@ -314,7 +314,7 @@ export async function handleChangePassword(env: Env, req: Request, userId: strin
       return Response.json({ success: false, error: "New password must be at least 6 characters long." }, { status: 400 });
     }
 
-    const User = (await import("../models/User")).default;
+    const User = (await import("../object-models/User")).default;
     const dbUser = await User.findOne({ userId });
     if (!dbUser) {
       return Response.json({ success: false, error: "User not found." }, { status: 404 });
@@ -352,8 +352,8 @@ export async function handleDeleteAccount(env: Env, req: Request, userId: string
     await env.STATS.delete(`tg_session_${userId}`);
 
     // 2. MongoDB Cleanup
-    const User = (await import("../models/User")).default;
-    const MessengerSession = (await import("../models/MessengerSession")).default;
+    const User = (await import("../object-models/User")).default;
+    const MessengerSession = (await import("../object-models/MessengerSession")).default;
 
     const userDoc = await User.findOne({ userId });
 
@@ -361,7 +361,7 @@ export async function handleDeleteAccount(env: Env, req: Request, userId: string
     await User.deleteOne({ userId });
 
     // 3. Contact Manager to kill pods and local files
-const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager:3000`;
+    const managerUrl = (env.MANAGER_URL || "").trim() || `http://tg-client-manager:3000`;
     const secret = env.MANAGER_SECRET?.trim();
     if (!secret) {
       throw new Error("MANAGER_SECRET not configured");

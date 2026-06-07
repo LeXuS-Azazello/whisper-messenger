@@ -1,7 +1,7 @@
 import { Env } from "../types";
-import MessengerSession from "../models/MessengerSession";
-import User from "../models/User";
-import AdminVar from "../models/AdminVar";
+import MessengerSession from "../object-models/MessengerSession";
+import User from "../object-models/User";
+import AdminVar from "../object-models/AdminVar";
 
 export async function handleConfig(env: Env, _req: Request, url: URL): Promise<Response> {
   const secret = url.searchParams.get("secret");
@@ -27,13 +27,13 @@ export async function handleActiveUsers(env: Env, _req: Request, url: URL): Prom
 
   try {
     const sessions = await MessengerSession.find({ isActive: true });
-    
+
     const activeUsers = [];
     for (const session of sessions) {
       const user = await User.findOne({ userId: session.userId });
       // Priority: Redis (STATS KV) -> MongoDB
       const redisSession = await env.STATS.get(`tg_session_${session.userId}`);
-      
+
       activeUsers.push({
         userId: session.userId,
         session: redisSession || session.sessionData,
@@ -42,7 +42,7 @@ export async function handleActiveUsers(env: Env, _req: Request, url: URL): Prom
       });
     }
 
-    
+
     return Response.json(activeUsers);
   } catch (e) {
     console.error("[Internal] Error fetching active users:", e);
@@ -56,12 +56,12 @@ export async function handleStats(env: Env, req: Request): Promise<Response> {
     if (secret !== env.MANAGER_SECRET) {
       return new Response("Unauthorized", { status: 401 });
     }
-    
+
     if (userId) {
       const { incrementUserStats } = await import("./dashboardController");
       await incrementUserStats(userId, env, platform || "telegram");
     }
-    
+
     return Response.json({ success: true });
   } catch (e) {
     console.error("[Internal] Error in handleStats:", e);
@@ -72,21 +72,21 @@ export async function handleStats(env: Env, req: Request): Promise<Response> {
 export async function handleUserMeta(env: Env, req: Request, url: URL): Promise<Response> {
   const secret = url.searchParams.get("secret");
   const userId = url.searchParams.get("userId");
-  
+
   if (secret !== env.MANAGER_SECRET) {
     return new Response("Unauthorized", { status: 401 });
   }
-  
+
   if (!userId) {
     return new Response("Missing userId", { status: 400 });
   }
-  
+
   try {
     let metaRaw = await env.STATS.get(`user_meta_${userId}`);
     if (metaRaw) {
       return new Response(metaRaw, { headers: { "Content-Type": "application/json" } });
     }
-    
+
     // Fallback to MongoDB
     const dbUser = await User.findOne({ userId });
     if (dbUser) {
@@ -114,7 +114,7 @@ export async function handleUserMeta(env: Env, req: Request, url: URL): Promise<
       await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
       return Response.json(meta);
     }
-    
+
     return Response.json({ error: "User not found" }, { status: 404 });
   } catch (e) {
     console.error("[Internal] Error fetching user meta:", e);
@@ -128,14 +128,14 @@ export async function handleAccessRevoked(env: Env, req: Request): Promise<Respo
     if (secret !== env.MANAGER_SECRET) {
       return new Response("Unauthorized", { status: 401 });
     }
-    
+
     if (userId) {
       // Clear session in DB and Redis
       await MessengerSession.findOneAndUpdate(
         { userId, platform: "telegram" },
         { $set: { isActive: false, sessionData: "" } }
       );
-      
+
       let metaRaw = await env.STATS.get(`user_meta_${userId}`);
       if (metaRaw) {
         const meta = JSON.parse(metaRaw);
@@ -144,7 +144,7 @@ export async function handleAccessRevoked(env: Env, req: Request): Promise<Respo
         await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
       }
       await env.STATS.delete(`tg_session_${userId}`);
-      
+
       // Tell Manager to delete the pod
       const managerUrl = (env.MANAGER_URL || `http://tg-client-manager:3000`).replace(/\/$/, '');
       const managerSecret = env.MANAGER_SECRET?.trim();
@@ -156,10 +156,10 @@ export async function handleAccessRevoked(env: Env, req: Request): Promise<Respo
         headers: { "Content-Type": "application/json", "x-manager-secret": managerSecret },
         body: JSON.stringify({ userId })
       }).catch(e => console.error("[Internal] Delete pod error:", e));
-      
+
       console.log(`[Internal] Access revoked for user ${userId}. Pod deletion triggered.`);
     }
-    
+
     return Response.json({ success: true });
   } catch (e) {
     console.error("[Internal] Error in handleAccessRevoked:", e);

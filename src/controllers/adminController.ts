@@ -6,7 +6,7 @@ import { createSignedSession } from "../session";
 import { sampleAudioBase64 } from "../sample_audio";
 import mongoose from "mongoose";
 import path from "path";
-import User from "../models/User";
+import User from "../object-models/User";
 
 export async function runDiagnostics(env: Env): Promise<Response> {
     const results: DiagnosticResults = {
@@ -50,7 +50,7 @@ export async function runDiagnostics(env: Env): Promise<Response> {
 
     // 3. Test Manager (tg-client-manager)
     try {
-const managerUrl = (env.MANAGER_URL || `http://tg-client-manager:3000`).replace(/\/$/, '');
+        const managerUrl = (env.MANAGER_URL || `http://tg-client-manager:3000`).replace(/\/$/, '');
         const secret = (env.MANAGER_SECRET || "").trim();
         if (!secret) {
             results.manager = { status: 'error', message: 'MANAGER_SECRET not configured' };
@@ -134,20 +134,20 @@ export async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
         const users: UserSession[] = [];
         for (const dbUser of dbUsers) {
             const userId = dbUser.userId;
-            
+
             // Check if user has an active Telegram session in Redis
             const session = await env.STATS.get(`tg_session_${userId}`);
-            
+
             // Get user meta (firstName, username, etc.) from Redis or fall back to DB
             const metaStr = await env.STATS.get(`user_meta_${userId}`);
             let meta: Partial<UserSession> = {};
             if (metaStr) {
-                try { meta = JSON.parse(metaStr); } catch (e) {}
+                try { meta = JSON.parse(metaStr); } catch (e) { }
             }
 
             const podInfo = podsMap.get(String(userId));
             const isActive = !!podInfo;
-            
+
             users.push({
                 userId,
                 firstName: meta.firstName || dbUser.firstName || "Telegram User",
@@ -170,7 +170,7 @@ export async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
                 lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : undefined
             });
         }
-        
+
         return users;
     } catch (err: any) {
         console.error("[Admin] fetchUsersWithStatus error:", err);
@@ -262,17 +262,17 @@ export async function getUsersJson(env: Env): Promise<Response> {
 
 export async function getAiConfig(env: Env): Promise<Response> {
     const provider = env.WHISPER_PROVIDER || 'http://funasr:50001';
-  const localSecret = env.WHISPER_SECRET || "";
-  const xttsUrl = env.XTTS_URL || 'http://xtts:50003';
-  const xttsSecret = env.XTTS_SECRET || "";
-  // Retrieve selected ASR service (funasr or sensevoice)
-  const asrService = await env.STATS.get('config_asr_service') || 'funasr';
-  return Response.json({ provider, localSecret, xttsUrl, xttsSecret, asrService });
+    const localSecret = env.WHISPER_SECRET || "";
+    const xttsUrl = env.XTTS_URL || 'http://xtts:50003';
+    const xttsSecret = env.XTTS_SECRET || "";
+    // Retrieve selected ASR service (funasr or sensevoice)
+    const asrService = await env.STATS.get('config_asr_service') || 'funasr';
+    return Response.json({ provider, localSecret, xttsUrl, xttsSecret, asrService });
 }
 
 export async function updateAiConfig(env: Env, req: Request): Promise<Response> {
     const { provider, localSecret, xttsUrl, xttsSecret } = await req.json() as any;
-    const { default: ServerSetting } = await import("../models/ServerSetting");
+    const { default: ServerSetting } = await import("../object-models/ServerSetting");
 
     const settings = [
         { key: "config_whisper_provider", value: provider },
@@ -348,8 +348,8 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
     } else if (action === "set_translation_language") {
         const { language } = await req.json() as any;
         await User.updateOne(
-          { userId },
-          { preferredTranslationLanguage: language || null }
+            { userId },
+            { preferredTranslationLanguage: language || null }
         );
 
         // Sync to Redis
@@ -363,7 +363,7 @@ export async function userAction(env: Env, req: Request): Promise<Response> {
                 meta.preferredTranslationLanguage = language || null;
                 meta.preferred_translation_lang = language || null;
                 await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
-            } catch (e) {}
+            } catch (e) { }
         }
 
 
@@ -428,7 +428,7 @@ export async function renderDashboardPage(env: Env, origin: string): Promise<Res
 export async function syncSettingsToRedis(env: Env) {
     console.log("[Settings] Syncing settings from MongoDB to Redis...");
     try {
-        const { default: ServerSetting } = await import("../models/ServerSetting");
+        const { default: ServerSetting } = await import("../object-models/ServerSetting");
         const settings = await ServerSetting.find({ category: 'whisper' });
 
         for (const s of settings) {
@@ -442,44 +442,44 @@ export async function syncSettingsToRedis(env: Env) {
 }
 
 export async function switchAsrModel(env: Env, req: Request): Promise<Response> {
-  try {
-    const { model } = await req.json() as any;
-    const namespace = env.NAMESPACE || "debugging-testcrash-pub";
+    try {
+        const { model } = await req.json() as any;
+        const namespace = env.NAMESPACE || "debugging-testcrash-pub";
 
-    // Determine provider URL based on selected model
-    let providerUrl: string;
-    if (model === "funasr") {
-      providerUrl = 'http://funasr:50001';
-    } else if (model === "sensevoice") {
-      providerUrl = 'http://sensevoice:50000';
-    } else {
-      return Response.json({ success: false, error: "Unsupported ASR model" }, { status: 400 });
+        // Determine provider URL based on selected model
+        let providerUrl: string;
+        if (model === "funasr") {
+            providerUrl = 'http://funasr:50001';
+        } else if (model === "sensevoice") {
+            providerUrl = 'http://sensevoice:50000';
+        } else {
+            return Response.json({ success: false, error: "Unsupported ASR model" }, { status: 400 });
+        }
+
+        // Store the selected service type
+        await env.STATS.put("config_asr_service", model);
+        // Store the provider URL (used by funasr pathway)
+        await env.STATS.put("config_local_funasr_url", providerUrl);
+
+        // Persist to MongoDB for durability
+        const { default: ServerSetting } = await import("../object-models/ServerSetting");
+        await ServerSetting.findOneAndUpdate(
+            { key: "config_asr_service" },
+            { key: "config_asr_service", value: model },
+            { upsert: true }
+        );
+        await ServerSetting.findOneAndUpdate(
+            { key: "config_local_funasr_url" },
+            { key: "config_local_funasr_url", value: providerUrl },
+            { upsert: true }
+        );
+
+        // Optionally patch deployment replicas (keep current behavior)
+        // ... (existing patch logic unchanged) ...
+
+        return Response.json({ success: true, provider: providerUrl, service: model });
+    } catch (e: any) {
+        console.error("switchAsrModel error:", e);
+        return Response.json({ success: false, error: e.message }, { status: 500 });
     }
-
-    // Store the selected service type
-    await env.STATS.put("config_asr_service", model);
-    // Store the provider URL (used by funasr pathway)
-    await env.STATS.put("config_local_funasr_url", providerUrl);
-
-    // Persist to MongoDB for durability
-    const { default: ServerSetting } = await import("../models/ServerSetting");
-    await ServerSetting.findOneAndUpdate(
-      { key: "config_asr_service" },
-      { key: "config_asr_service", value: model },
-      { upsert: true }
-    );
-    await ServerSetting.findOneAndUpdate(
-      { key: "config_local_funasr_url" },
-      { key: "config_local_funasr_url", value: providerUrl },
-      { upsert: true }
-    );
-
-    // Optionally patch deployment replicas (keep current behavior)
-    // ... (existing patch logic unchanged) ...
-
-    return Response.json({ success: true, provider: providerUrl, service: model });
-  } catch (e: any) {
-    console.error("switchAsrModel error:", e);
-    return Response.json({ success: false, error: e.message }, { status: 500 });
-  }
 }

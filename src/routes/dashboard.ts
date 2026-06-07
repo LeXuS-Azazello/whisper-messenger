@@ -57,8 +57,8 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
 
   if (!userStats) {
     try {
-      const User = (await import("../models/User")).default;
-      const MessengerSession = (await import("../models/MessengerSession")).default;
+      const User = (await import("../object-models/User")).default;
+      const MessengerSession = (await import("../object-models/MessengerSession")).default;
 
       const dbUser = await User.findOne({ userId });
       if (dbUser) {
@@ -117,7 +117,7 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
         await env.STATS.put(`user_meta_${userId}`, JSON.stringify(user));
       } else {
         // Fallback to MongoDB
-        const MessengerSession = (await import("../models/MessengerSession")).default;
+        const MessengerSession = (await import("../object-models/MessengerSession")).default;
         const tgSession = await MessengerSession.findOne({ userId, platform: "telegram" });
         if (tgSession?.sessionData) {
           user.session = tgSession.sessionData;
@@ -172,14 +172,14 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
 
   if (req.method === "GET" && pathname === "/dashboard/api/stats") {
     try {
-      const Statistic = (await import("../models/Statistic")).default;
+      const Statistic = (await import("../object-models/Statistic")).default;
       const stats = await Statistic.find({ userId }).sort({ createdAt: -1 }).limit(100).lean();
-      
+
       const aggregation = await Statistic.aggregate([
         { $match: { userId } },
-        { 
-          $group: { 
-            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, 
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
             count: { $sum: 1 },
             chars: { $sum: "$charactersCount" },
             duration: { $sum: "$durationSeconds" }
@@ -187,7 +187,7 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
         },
         { $sort: { _id: 1 } }
       ]);
-      
+
       return Response.json({ success: true, logs: stats, dailyStats: aggregation });
     } catch (e: any) {
       return Response.json({ success: false, error: e.message }, { status: 500 });

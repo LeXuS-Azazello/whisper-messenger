@@ -2,8 +2,8 @@ import { Env, UserSession } from "../types";
 import { logError } from "../logger";
 import { createSignedSession } from "../session";
 import { renderAuthPage } from "../components/auth/Auth";
-import User from "../models/User";
-import MessengerSession from "../models/MessengerSession";
+import User from "../object-models/User";
+import MessengerSession from "../object-models/MessengerSession";
 
 const SESSION_MAX_AGE = 31536000;
 const EMAIL_VERIFY_TTL = 900;
@@ -318,9 +318,9 @@ export async function handleEmailVerify(env: Env, token: string | null, url: URL
     const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
     user = await User.findOneAndUpdate(
       { userId },
-      { 
-        userId, 
-        firstName: email.split("@")[0], 
+      {
+        userId,
+        firstName: email.split("@")[0],
         email,
         isActive: true,
         emailVerified: true
@@ -376,10 +376,10 @@ export async function handleRegister(env: Env, body: any, url: URL): Promise<Res
     const userId = `email_${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
     await User.findOneAndUpdate(
       { userId },
-      { 
-        userId, 
-        firstName, 
-        email, 
+      {
+        userId,
+        firstName,
+        email,
         passwordHash: passwordHashHex,
         emailVerified: false,
         isActive: false
@@ -575,12 +575,12 @@ export async function handleMetaCallback(env: Env, code: string, userId: string,
   // Store Meta session in MongoDB
   await MessengerSession.findOneAndUpdate(
     { userId, platform: "facebook", identifier: pageId },
-    { 
-      userId, 
-      platform: "facebook", 
-      identifier: pageId, 
-      sessionData: pageToken, 
-      isActive: true 
+    {
+      userId,
+      platform: "facebook",
+      identifier: pageId,
+      sessionData: pageToken,
+      isActive: true
     },
     { upsert: true }
   );
@@ -588,12 +588,12 @@ export async function handleMetaCallback(env: Env, code: string, userId: string,
   if (instagramId) {
     await MessengerSession.findOneAndUpdate(
       { userId, platform: "instagram", identifier: instagramId },
-      { 
-        userId, 
-        platform: "instagram", 
-        identifier: instagramId, 
-        sessionData: pageToken, 
-        isActive: true 
+      {
+        userId,
+        platform: "instagram",
+        identifier: instagramId,
+        sessionData: pageToken,
+        isActive: true
       },
       { upsert: true }
     );

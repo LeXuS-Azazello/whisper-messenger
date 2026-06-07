@@ -1,7 +1,7 @@
 import { Env, UserSession } from "../types";
 import { getPublicOrigin, createSessionResponse } from "./authController";
-import User from "../models/User";
-import MessengerSession from "../models/MessengerSession";
+import User from "../object-models/User";
+import MessengerSession from "../object-models/MessengerSession";
 import { authSessions, createTdClient, packSession } from "../tdlibManager";
 import QRCode from 'qrcode';
 
@@ -90,7 +90,7 @@ export async function handleTelegramSendCode(env: Env, req: Request): Promise<Re
 
   let responseData: any = null;
   let responseStatus = 200;
-  
+
   const promise = new Promise<void>((resolve) => {
     client.on('error', (err: any) => {
       console.error(`[/send-code] TDLib client error for ${phoneClean}:`, err);
@@ -126,9 +126,9 @@ export async function handleTelegramSendCode(env: Env, req: Request): Promise<Re
           session.user = me;
           session.status = 'done';
           if (!session.responded) {
-             session.responded = true;
-             responseData = { success: true };
-             resolve();
+            session.responded = true;
+            responseData = { success: true };
+            resolve();
           }
         } else if (type === 'authorizationStateClosing' || type === 'authorizationStateClosed') {
           authSessions.delete(phoneClean);
@@ -170,7 +170,7 @@ export async function handleTelegramVerifyCode(env: Env, req: Request, currentUs
 
   try {
     await s.client.invoke({ _: "checkAuthenticationCode", code: String(code) });
-    
+
     for (let i = 0; i < 20; i++) {
       if (s.status === 'done') break;
       if (s.status === 'password_needed') return Response.json({ success: false, requiresPassword: true });
@@ -204,7 +204,7 @@ export async function handleTelegramVerifyCode(env: Env, req: Request, currentUs
     setTimeout(async () => { try { await s.client.close(); } catch (e) { } }, 1000);
 
     if (!currentUserId) {
-       return await createSessionResponse(finalUserId, env, true);
+      return await createSessionResponse(finalUserId, env, true);
     }
     return Response.json({ success: true, userId: finalUserId });
   } catch (e: any) {
@@ -220,7 +220,7 @@ export async function handleTelegramVerifyPassword(env: Env, req: Request, curre
 
   try {
     await s.client.invoke({ _: "checkAuthenticationPassword", password: password });
-    
+
     for (let i = 0; i < 20; i++) {
       if (s.status === 'done') break;
       await new Promise(r => setTimeout(r, 500));
@@ -253,7 +253,7 @@ export async function handleTelegramVerifyPassword(env: Env, req: Request, curre
     setTimeout(async () => { try { await s.client.close(); } catch (e) { } }, 1000);
 
     if (!currentUserId) {
-       return await createSessionResponse(finalUserId, env, true);
+      return await createSessionResponse(finalUserId, env, true);
     }
     return Response.json({ success: true, userId: finalUserId });
   } catch (e: any) {
@@ -284,13 +284,13 @@ export async function handleTelegramQrStart(env: Env): Promise<Response> {
         } else if (type === 'authorizationStateWaitOtherDeviceConfirmation') {
           session.qrUrl = update.authorization_state.link;
           try {
-             session.qrDataUrl = await QRCode.toDataURL(session.qrUrl);
-          } catch (e) {}
+            session.qrDataUrl = await QRCode.toDataURL(session.qrUrl);
+          } catch (e) { }
           session.status = 'qr_ready';
           if (!session.responded) {
-             session.responded = true;
-             responseData = { qrUrl: session.qrUrl, qrDataUrl: session.qrDataUrl, token: tempId };
-             resolve();
+            session.responded = true;
+            responseData = { qrUrl: session.qrUrl, qrDataUrl: session.qrDataUrl, token: tempId };
+            resolve();
           }
         } else if (type === 'authorizationStateReady') {
           const me = await client.invoke({ _: "getMe" });
@@ -302,7 +302,7 @@ export async function handleTelegramQrStart(env: Env): Promise<Response> {
           authSessions.delete(tempId);
         }
       } catch (err: any) {
-         console.error(`[/qr-start] State handler error:`, err);
+        console.error(`[/qr-start] State handler error:`, err);
       }
     });
   });
@@ -336,7 +336,7 @@ export async function handleTelegramQrCheck(env: Env, token: string | null, curr
   if (!s) return Response.json({ done: false, expired: true });
 
   if (s.status === 'password_needed') {
-      return Response.json({ done: false, requiresPassword: true });
+    return Response.json({ done: false, requiresPassword: true });
   }
 
   if (s.status === 'done') {
@@ -362,7 +362,7 @@ export async function handleTelegramQrCheck(env: Env, token: string | null, curr
     try { await s.client.close(); } catch (e) { }
 
     if (!currentUserId) {
-        return await createSessionResponse(finalUserId, env, true);
+      return await createSessionResponse(finalUserId, env, true);
     }
     return Response.json(resp);
   }
