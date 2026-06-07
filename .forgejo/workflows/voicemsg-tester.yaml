@@ -8,6 +8,10 @@ on:
       - '.forgejo/workflows/voicemsg-tester.yaml'
       - 'kubernetes/base/voicemsg-tester.yaml'
       - 'voicemsg-tester/**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: kube

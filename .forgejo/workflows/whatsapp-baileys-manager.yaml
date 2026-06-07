@@ -8,6 +8,10 @@ on:
       - '.forgejo/workflows/whatsapp-baileys-manager.yaml'
       - 'kubernetes/base/whatsapp-baileys-manager.yaml'
       - 'whatsapp-baileys-manager/**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: kube

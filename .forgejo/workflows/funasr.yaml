@@ -8,6 +8,10 @@ on:
       - '.forgejo/workflows/funasr.yaml'
       - 'kubernetes/base/funasr.yaml'
       - 'funasr/**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: kube

@@ -8,6 +8,10 @@ on:
       - '.forgejo/workflows/instagram-fca-manager.yaml'
       - 'kubernetes/base/instagram-fca-manager.yaml'
       - 'instagram-fca-manager/**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: kube

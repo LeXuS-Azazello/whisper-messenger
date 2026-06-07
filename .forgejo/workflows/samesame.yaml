@@ -8,6 +8,10 @@ on:
       - '.forgejo/workflows/samesame.yaml'
       - 'kubernetes/base/samesame.yaml'
       - 'samesame/**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: kube

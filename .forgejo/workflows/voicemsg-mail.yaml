@@ -8,6 +8,10 @@ on:
       - '.forgejo/workflows/voicemsg-mail.yaml'
       - 'voicemsg-mail/**'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: kube

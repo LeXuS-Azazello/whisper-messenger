@@ -7,6 +7,10 @@ on:
     paths:
       - '.forgejo/workflows/instagram-fca-client.yaml'
       - 'instagram-fca-client/**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: kube

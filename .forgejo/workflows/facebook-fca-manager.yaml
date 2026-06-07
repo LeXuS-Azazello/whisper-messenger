@@ -8,6 +8,10 @@ on:
       - '.forgejo/workflows/facebook-fca-manager.yaml'
       - 'kubernetes/base/facebook-fca-manager.yaml'
       - 'facebook-fca-manager/**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: kube
