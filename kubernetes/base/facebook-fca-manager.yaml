@@ -55,7 +55,7 @@ kind: Deployment
 metadata:
   name: facebook-fca-manager
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: facebook-fca-manager
