@@ -35,12 +35,10 @@ jobs:
 
       - name: Log in to Registry and push
         run: |
-          echo "${{ secrets.FORGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
+          echo "${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
           docker push ${{ env.IMG }}:tg-client-manager-${{ github.sha }} && docker push ${{ env.IMG }}:tg-client-manager-latest
 
       - name: Trigger Kubernetes Rollout
-        env:
-          FORGE_TOKEN: ${{ secrets.FORGE_TOKEN }}
         run: |
           # Use the checked-in kubeconfig instead of interactive login
           mkdir -p ~/.kube
