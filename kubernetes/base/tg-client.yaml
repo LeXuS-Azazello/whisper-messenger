@@ -16,7 +16,7 @@ data:
       },
       "spec": {
         "imagePullSecrets": [
-          { "name": "dockerhub-pull-secret" }
+          { "name": "forgejo-pull-secret" }
         ],
         "containers": [{
           "name": "tg-client",

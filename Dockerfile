@@ -27,3 +27,4 @@ EXPOSE 3000
 
 # Run the compiled JS directly
 CMD ["node", "dist/server.js"]
+LABEL org.opencontainers.image.source=https://forge.dev.takatan.cloud/lexus/voicemsg-net

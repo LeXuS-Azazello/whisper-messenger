@@ -202,12 +202,6 @@ export async function spawnPod(userId, session, username = '', tgId = '', tgLogi
     if (!container.volumeMounts) {
         container.volumeMounts = [];
     }
-    // Remove existing tdlib-storage volume mount if it exists
-    container.volumeMounts = container.volumeMounts.filter(vm => vm.name !== 'tdlib-storage');
-    container.volumeMounts.push({
-        name: 'tdlib-storage',
-        mountPath: '/temporaly-media-msg'
-    });
 
     console.log(`[/spawn] Step 6: Customizing main container. Image: "${container.image}"`);
 

@@ -13,3 +13,4 @@ COPY modelscope-download.sh /modelscope-download.sh
 RUN chmod +x /modelscope-download.sh
 
 CMD ["/modelscope-download.sh", "--model", "FunAudioLLM/Fun-ASR-MLT-Nano-2512", "--cache_dir", "/models"]
+LABEL org.opencontainers.image.source=https://forge.dev.takatan.cloud/lexus/voicemsg-net

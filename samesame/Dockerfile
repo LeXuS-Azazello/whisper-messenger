@@ -136,3 +136,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
     CMD curl -f http://localhost:8002/docs || exit 1
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8002"]
+LABEL org.opencontainers.image.source=https://forge.dev.takatan.cloud/lexus/voicemsg-net

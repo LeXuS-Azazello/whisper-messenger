@@ -9,7 +9,7 @@
   "spec": {
     "imagePullSecrets": [
       {
-        "name": "dockerhub-pull-secret"
+        "name": "forgejo-pull-secret"
       }
     ],
     "containers": [
@@ -107,19 +107,8 @@
             "mountPath": "/app/tdlib-data"
           },
           {
-            "name": "tg-client-patch",
-            "mountPath": "/app/src/telegramClient.js",
-            "subPath": "telegramClient.js"
-          },
-          {
-            "name": "tg-client-patch",
-            "mountPath": "/app/shared/samesame.js",
-            "subPath": "samesame.js"
-          },
-          {
-            "name": "tg-client-patch",
-            "mountPath": "/app/src/transcriber.js",
-            "subPath": "transcriber.js"
+            "name": "temp-media",
+            "mountPath": "/temporaly-media-msg"
           }
         ],
         "resources": {
@@ -140,9 +129,9 @@
         "emptyDir": {}
       },
       {
-        "name": "tg-client-patch",
-        "configMap": {
-          "name": "tg-client-samesame-patch"
+        "name": "temp-media",
+        "persistentVolumeClaim": {
+          "claimName": "temporaly-media-msg"
         }
       }
     ],

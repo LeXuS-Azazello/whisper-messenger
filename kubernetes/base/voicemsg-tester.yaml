@@ -64,23 +64,8 @@ spec:
           limits:
             cpu: "500m"
             memory: "1536Mi"
-        volumeMounts:
-        - name: tester-patch
-          mountPath: /app/src/index.ts
-          subPath: index.ts
-        - name: tester-patch
-          mountPath: /app/src/tests.ts
-          subPath: tests.ts
-        - name: tester-patch
-          mountPath: /app/shared/samesame.js
-          subPath: samesame.js
-        - name: tester-patch
-          mountPath: /app/test_audio.ogg
-          subPath: test_audio.ogg
-      volumes:
-      - name: tester-patch
-        configMap:
-          name: voicemsg-tester-patch
+
+
 ---
 apiVersion: v1
 kind: Service

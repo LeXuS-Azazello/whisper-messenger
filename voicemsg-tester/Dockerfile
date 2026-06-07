@@ -19,3 +19,4 @@ EXPOSE 3000
 
 # Start server using tsx
 CMD ["npm", "start"]
+LABEL org.opencontainers.image.source=https://forge.dev.takatan.cloud/lexus/voicemsg-net

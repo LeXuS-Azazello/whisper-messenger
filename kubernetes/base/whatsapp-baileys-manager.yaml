@@ -52,7 +52,7 @@ data:
         ],
         "imagePullSecrets": [
           {
-          "name": "dockerhub-pull-secret"
+          "name": "forgejo-pull-secret"
           }
         ],
         "restartPolicy": "Never"
