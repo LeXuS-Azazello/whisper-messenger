@@ -17,7 +17,7 @@ spec:
       - name: forgejo-pull-secret
       containers:
       - name: manager
-        image: forge.dev.takatan.cloud/lexus/voicemsg-net:tg-client-manager-latest
+        image: lexusazazello/voicemsg:tg-client-manager-latest
         imagePullPolicy: IfNotPresent
         command: ["node", "index.js"]
         ports:

@@ -46,7 +46,7 @@ spec:
               value: "21600"
             - name: CPU_THREADS
               value: "4"
-          image: forge.dev.takatan.cloud/lexus/voicemsg-net:samesame-latest
+          image: lexusazazello/voicemsg:samesame-latest
           imagePullPolicy: Always
           name: samesame
           ports:
