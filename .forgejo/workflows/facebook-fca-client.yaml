@@ -55,7 +55,8 @@ jobs:
           fi
           
           # Use the checked-in kubeconfig instead of interactive login
-          export KUBECONFIG=$GITHUB_WORKSPACE/voicemsg-clr-kubeconfig.yaml
+          echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > $GITHUB_WORKSPACE/kubeconfig.yaml
+          export KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig.yaml
 
           # Trigger restart
           kubectl delete pod -l app=facebook-fca-client -n debugging-testcrash-pub
