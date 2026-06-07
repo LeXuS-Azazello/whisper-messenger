@@ -9,7 +9,7 @@
   "spec": {
     "imagePullSecrets": [
       {
-         "name": "dockerhub-pull-secret"
+        "name": "dockerhub-pull-secret"
       }
     ],
     "containers": [

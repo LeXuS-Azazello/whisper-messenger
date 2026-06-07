@@ -22,7 +22,7 @@ spec:
         - name: forgejo-pull-secret
       containers:
         - name: downloader
-          image: forge.dev.takatan.cloud/lexus/voicemsg-net:samesame-latest
+          image: lexusazazello/voicemsg:samesame-latest
           imagePullPolicy: Always
           command: ["/bin/sh", "-c", "/scripts/download-models.sh"]
           env:
