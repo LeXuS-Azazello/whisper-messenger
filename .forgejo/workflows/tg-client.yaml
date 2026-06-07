@@ -21,7 +21,7 @@ jobs:
         password: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
     env:
       DOCKER_HOST: tcp://172.18.0.1:2375
-      REPO_URL: https://forge.dev.takatan.cloud
+      REPO_URL: forge.dev.takatan.cloud
       IMG: forge.dev.takatan.cloud/lexus/voicemsg-net
     steps:
 
@@ -35,7 +35,8 @@ jobs:
       - name: Log in to Registry and push
         run: |
           echo "${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
-          docker push ${{ env.IMG }}:tg-client-${{ github.sha }} && docker push ${{ env.IMG }}:tg-client-latest
+          docker push ${{ env.IMG }}:tg-client-${{ github.sha }} 
+          docker push ${{ env.IMG }}:tg-client-latest
 
       - name: Trigger Kubernetes Rollout
         env:
