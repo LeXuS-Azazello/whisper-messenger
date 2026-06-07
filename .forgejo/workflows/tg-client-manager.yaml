@@ -1,4 +1,4 @@
-ame: "[main-tg-client-manager] Build and push"
+name: "[main-tg-client-manager] Build and push"
 
 on:
   push:
@@ -8,6 +8,10 @@ on:
       - '.forgejo/workflows/tg-client-manager.yaml'
       - 'kubernetes/base/tg-client-manager.yaml'
       - 'tg-client-manager/**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: kube
@@ -15,7 +19,7 @@ jobs:
       image: forge.dev.takatan.cloud/takatan/docker-builder:latest
       credentials:
         username: lexus
-        password: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
+        password: ${{ secrets.FORGE_TOKEN }}
     env:
       DOCKER_HOST: tcp://172.18.0.1:2375
       REPO_URL: https://forge.dev.takatan.cloud
@@ -31,18 +35,25 @@ jobs:
 
       - name: Log in to Registry and push
         run: |
-          echo "${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
+          echo "${{ secrets.FORGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
           docker push ${{ env.IMG }}:tg-client-manager-${{ github.sha }} && docker push ${{ env.IMG }}:tg-client-manager-latest
 
       - name: Trigger Kubernetes Rollout
         env:
-          DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
+          FORGE_TOKEN: ${{ secrets.FORGE_TOKEN }}
         run: |
-          # Login and configure kubectl
-          kube-dc login --domain kube-dc.cloud --org debugging
-
-          # Switch to project context
-          kube-dc use kube-dc.cloud/debugging/testcrash-pub
+          # Ensure kubectl is installed
+          if ! command -v kubectl >/dev/null 2>&1; then
+            curl -sLO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mkdir -p $GITHUB_WORKSPACE/bin
+            mv kubectl $GITHUB_WORKSPACE/bin/
+            export PATH=$GITHUB_WORKSPACE/bin:$PATH
+          fi
+          
+          # Use the checked-in kubeconfig instead of interactive login
+          echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > $GITHUB_WORKSPACE/kubeconfig.yaml
+          export KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig.yaml
 
           # Trigger restart
           kubectl rollout restart deployment tg-client-manager -n debugging-testcrash-pub
