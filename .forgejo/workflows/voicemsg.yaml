@@ -1,10 +1,12 @@
-name: "[main] Build and push"
+name: "[main-frontend] Build and push"
 
 on:
   push:
     branches:
       - main
-
+    paths:
+      - 'kubernetes/base/frontend.yml'
+      - 'src/*'
 jobs:
   build:
     runs-on: kube
@@ -24,9 +26,9 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ${{ env.IMG }}:latest  -t ${{ env.IMG }}:${{ github.sha }} .
+          docker build -f Dockerfile -t ${{ env.IMG }}:frontend-latest -t ${{ env.IMG }}:frontend-${{ github.sha }} .
 
       - name: Log in to Registry and push
         run: |
           echo "${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
-          docker push ${{ env.IMG }}:${{ github.sha }} && docker push ${{ env.IMG }}:latest
+          docker push ${{ env.IMG }}:frontend-${{ github.sha }} && docker push ${{ env.IMG }}:frontend-latest
