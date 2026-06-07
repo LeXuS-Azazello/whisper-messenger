@@ -42,23 +42,21 @@ jobs:
         env:
           DOCKER_FORGE_PACKAGE_TOKEN: ${{ secrets.DOCKER_FORGE_PACKAGE_TOKEN }}
         run: |
-          # Install kube-dc CLI
-          if command -v sudo >/dev/null 2>&1; then
-            sudo mkdir -p /usr/local/bin
-            sudo curl -sL https://github.com/kube-dc/kube-dc-public/releases/latest/download/kube-dc_linux_amd64 -o /usr/local/bin/kube-dc
-            sudo chmod +x /usr/local/bin/kube-dc
-          else
-            mkdir -p /usr/local/bin
-            curl -sL https://github.com/kube-dc/kube-dc-public/releases/latest/download/kube-dc_linux_amd64 -o /usr/local/bin/kube-dc
-            chmod +x /usr/local/bin/kube-dc
+          # Ensure kubectl is installed
+          if ! command -v kubectl >/dev/null 2>&1; then
+            curl -sLO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            if command -v sudo >/dev/null 2>&1; then
+              sudo mv kubectl /usr/local/bin/
+            else
+              mkdir -p /usr/local/bin
+              mv kubectl /usr/local/bin/
+              export PATH=$PATH:/usr/local/bin
+            fi
           fi
-          export PATH=$PATH:/usr/local/bin
-
-          # Login and configure kubectl
-          kube-dc login --domain kube-dc.cloud --org debugging
-
-          # Switch to project context
-          kube-dc use kube-dc.cloud/debugging/testcrash-pub
+          
+          # Use the checked-in kubeconfig instead of interactive login
+          export KUBECONFIG=$GITHUB_WORKSPACE/voicemsg-clr-kubeconfig.yaml
 
           # Trigger restart
           kubectl rollout restart deployment tg-client-manager -n debugging-testcrash-pub
