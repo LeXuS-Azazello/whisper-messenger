@@ -29,6 +29,42 @@ export async function safeSendMessage(client, chatId, replyToMessageId, text, at
     }
 }
 
+export function startChatAction(client, chatId, action = 'chatActionTyping') {
+    let active = true;
+    
+    const send = async () => {
+        if (!active) return;
+        try {
+            await client.invoke({
+                '_': 'sendChatAction',
+                'chat_id': chatId,
+                'message_thread_id': 0,
+                'action': { '_': action }
+            });
+        } catch (e) {
+            // Ignore errors
+        }
+    };
+    
+    send();
+    const interval = setInterval(send, 4000);
+    
+    return {
+        stop: () => {
+            active = false;
+            clearInterval(interval);
+            try {
+                client.invoke({
+                    '_': 'sendChatAction',
+                    'chat_id': chatId,
+                    'message_thread_id': 0,
+                    'action': { '_': 'chatActionCancel' }
+                }).catch(() => {});
+            } catch (e) {}
+        }
+    };
+}
+
 export async function deleteMessage(client, chatId, messageId) {
     if (!messageId) return;
     try {

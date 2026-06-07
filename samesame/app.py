@@ -331,19 +331,23 @@ def clone_voice(
             chunk_with_lang = f"{lang_token}{chunk_text}"
             
             prompt_text_str = req.prompt_text.strip()
-            if not prompt_text_str:
-                prompt_text_str = f"{lang_token}{chunk_text}"
             
-            if not prompt_text_str.endswith("<|endofprompt|>"):
-                prompt_text_str += "<|endofprompt|>"
-
             with torch.inference_mode(), _inference_lock:
-                output = cosyvoice.inference_zero_shot(
-                    tts_text=chunk_with_lang,
-                    prompt_text=prompt_text_str,
-                    prompt_wav=cache_file,
-                    text_frontend=use_frontend
-                )
+                if prompt_text_str:
+                    if not prompt_text_str.endswith("<|endofprompt|>"):
+                        prompt_text_str += "<|endofprompt|>"
+                    output = cosyvoice.inference_zero_shot(
+                        tts_text=chunk_with_lang,
+                        prompt_text=prompt_text_str,
+                        prompt_wav=cache_file,
+                        text_frontend=use_frontend
+                    )
+                else:
+                    output = cosyvoice.inference_cross_lingual(
+                        tts_text=chunk_with_lang,
+                        prompt_wav=cache_file,
+                        text_frontend=use_frontend
+                    )
                 
                 for item in output:
                     if "tts_speech" in item:

@@ -37,7 +37,7 @@ export async function qrStart(req, res) {
         const sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
-            browser: ['Ubuntu', 'Chrome', '20.0.04']
+            browser: Browsers.macOS('Desktop')
         });
 
         sock.ev.on('creds.update', saveCreds);
@@ -112,7 +112,7 @@ export async function pairingStart(req, res) {
         const sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
-            browser: ['Ubuntu', 'Chrome', '20.0.04']
+            browser: Browsers.macOS('Desktop')
         });
 
         sock.ev.on('creds.update', saveCreds);

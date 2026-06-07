@@ -6,6 +6,8 @@ import re
 import sys
 import time
 import uuid
+import gc
+import threading
 from typing import Optional
 
 from fastapi import FastAPI, Header, HTTPException
@@ -53,6 +55,7 @@ from cosyvoice.cli.cosyvoice import CosyVoice3
 
 try:
     cosyvoice = CosyVoice3(MODEL_LOAD_PATH, load_trt=False, fp16=False)
+    _inference_lock = threading.Lock()
     print(f"[samesame-cosy] CosyVoice3 loaded successfully.")
 except Exception as e:
     print(f"[samesame-cosy] FATAL: Failed to load CosyVoice3: {e}")
@@ -81,11 +84,12 @@ redis_client = Redis(
 
 try:
     warm_file = "/dev/shm/warmup.wav"
-    sf.write(warm_file, np.zeros(16000 * 3), 16000)
+    warm_noise = np.random.normal(0, 0.001, 16000 * 3)
+    sf.write(warm_file, warm_noise, 16000)
     list(
         cosyvoice.inference_zero_shot(
-            tts_text="test voice cloning warmup",
-            prompt_text="",
+            tts_text="<|en|>test voice cloning warmup",
+            prompt_text="test voice cloning warmup<|endofprompt|>",
             prompt_wav=warm_file,
             text_frontend=False
         )
@@ -106,7 +110,12 @@ def detect_language_from_text(text: str) -> str:
         return 'th'
     if sum(1 for c in text if '\u0590' <= c <= '\u05ff') > 0:
         return 'he'
-    return 'en'
+    latin = sum(ch.isascii() and ch.isalpha() for ch in text)
+
+    if latin > max(3, len(text) * 0.25):
+        return "en"
+
+    return "en"
 
 
 def split_text(text: str, max_len: int = 150) -> list:
@@ -152,6 +161,8 @@ class CloneRequest(BaseModel):
     prompt_language: Optional[str] = None
     language: Optional[str] = None
     output_format: Optional[str] = "ogg"
+    use_cache: Optional[bool] = False
+    user_id: Optional[str] = None
 
 
 @app.get("/health")
@@ -170,8 +181,12 @@ def clone_voice(
     req: CloneRequest,
     authorization: Optional[str] = Header(None)
 ):
-    start_time = time.time()
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
+    start_time = time.time()
+    timings = {}
     if SAMESAME_SECRET and authorization != f"Bearer {SAMESAME_SECRET}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -179,55 +194,103 @@ def clone_voice(
         raise HTTPException(status_code=400, detail="Missing text")
 
     try:
-        t0 = time.time()
+        t = time.time()
         prompt_speech_16k, _ = decode_audio_base64(req.source_audio_base64, target_sr=16000)
-        print(f"[cosy] decode time: {time.time()-t0:.3f}s")
+        timings["decode_ms"] = int((time.time()-t)*1000)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid base64: {e}")
 
-    MAX_PROMPT_SAMPLES = 16000 * 8
-    if prompt_speech_16k.shape[-1] > MAX_PROMPT_SAMPLES:
-        prompt_speech_16k = prompt_speech_16k[:, :MAX_PROMPT_SAMPLES]
-
-    # Trim silence
+    # Trim silence first to evaluate true speech length
     audio_np = prompt_speech_16k.squeeze(0).cpu().numpy()
-    mask = np.abs(audio_np) > 0.01
+    mask = np.abs(audio_np) > 0.005
     if np.any(mask):
         indices = np.where(mask)[0]
         start = indices[0]
         end = indices[-1] + 1
         prompt_speech_16k = torch.from_numpy(audio_np[start:end]).unsqueeze(0).float()
 
-    lang = (req.language or "").strip().lower()[:2] or detect_language_from_text(req.text)
-    if lang not in {"ru","uk","th","he","en","zh","ja","ko","de","es","fr","it"}:
+    true_audio_samples = prompt_speech_16k.shape[-1]
+    true_audio_samples = prompt_speech_16k.shape[-1]
+
+    # Finally limit to 4 seconds for inference stability
+    MAX_PROMPT_SAMPLES = 16000 * 4
+    if prompt_speech_16k.shape[-1] > MAX_PROMPT_SAMPLES:
+        prompt_speech_16k = prompt_speech_16k[:, :MAX_PROMPT_SAMPLES]
+
+    raw_lang = (req.language or "").strip().lower().replace("_", "-")
+    
+    LANG_MAP = {
+        "uk": "uk", "ukr": "uk", "ukrainian": "uk", "uk-ua": "uk",
+        "ru": "ru", "rus": "ru", "russian": "ru", "ru-ru": "ru",
+        "en": "en", "eng": "en", "english": "en", "en-us": "en", "en-gb": "en",
+        "zh": "zh", "zho": "zh", "chi": "zh", "zh-cn": "zh",
+        "ja": "ja", "jpn": "ja", "jp": "ja",
+        "ko": "ko", "kor": "ko",
+        "es": "es", "spa": "es",
+        "fr": "fr", "fra": "fr",
+        "de": "de", "deu": "de",
+        "it": "it", "ita": "it",
+        "pt": "pt", "por": "pt",
+        "th": "th", "tha": "th",
+        "he": "he", "heb": "he",
+    }
+    
+    lang = LANG_MAP.get(raw_lang)
+
+    if not lang:
+        lang = raw_lang[:2] if len(raw_lang) >= 2 else "en"
+
+    # Strong text-based detection overrides Whisper/NLLB hallucinations
+    text_lang = detect_language_from_text(req.text)
+    if text_lang in {"ru", "uk", "th", "he"}:
+        lang = text_lang
+    elif lang in {"ja", "zh", "ko"}:
+        # Verify if text actually contains CJK characters (Hiragana, Katakana, Kanji/Hanzi, Hangul)
+        has_cjk = any(
+            (0x3040 <= ord(c) <= 0x309f) or # Hiragana
+            (0x30a0 <= ord(c) <= 0x30ff) or # Katakana
+            (0x4e00 <= ord(c) <= 0x9faf) or # CJK Unified Ideographs
+            (0xac00 <= ord(c) <= 0xd7af)    # Hangul Syllables
+            for c in req.text
+        )
+        if not has_cjk:
+            lang = text_lang
+
+    if lang not in {"ru","uk","th","he","en","zh","ja","ko","de","es","fr","it","pt"}:
         lang = "en"
 
     FAST_LANGS = {"ru", "uk", "en", "de", "fr", "es", "it", "pt"}
     use_frontend = lang not in FAST_LANGS
 
-    text_chunks = split_text(req.text, max_len=250)
+    text_chunks = split_text(req.text, max_len=180)
     print(f"[cosy] target={lang}, chunks={len(text_chunks)}")
 
-    cache_key = prompt_cache_filename(req.source_audio_base64)
+    cache_key = hashlib.sha256(
+        prompt_speech_16k.squeeze().numpy().tobytes()
+    ).hexdigest()
     cache_file = f"/dev/shm/{cache_key}-{uuid.uuid4().hex}.flac"
     
     cached_audio = None
-    try:
-        cached_audio = redis_client.get(cache_key)
-    except Exception as e:
-        print("[redis get]", e)
+
+    if req.use_cache:
+        try:
+            cached_audio = redis_client.get(cache_key)
+        except Exception as e:
+            print("[redis get]", e)
 
     if cached_audio:
         with open(cache_file, "wb") as f:
             f.write(cached_audio)
     else:
         wav_bytes = io.BytesIO()
-        sf.write(wav_bytes, prompt_speech_16k.squeeze(0).cpu().numpy(), 16000, format="FLAC")
+        sf.write(wav_bytes, prompt_speech_16k.squeeze(0).cpu().numpy(), 16000, format="WAV")
         payload = wav_bytes.getvalue()
         try:
-            redis_client.setex(cache_key, REDIS_TTL, payload)
+            if req.use_cache:
+                redis_client.setex(cache_key, REDIS_TTL, payload)
         except Exception as e:
             print("[redis set]", e)
+        
         with open(cache_file, "wb") as f:
             f.write(payload)
 
@@ -235,19 +298,60 @@ def clone_voice(
         all_audio_chunks = []
         t1 = time.time()
         for chunk_text in text_chunks:
-            prompt_text_str = req.prompt_text or chunk_text[:80]
             print(f"[cosy] synthesizing: {chunk_text[:50]}...")
+            
+            # Inject language token so the model doesn't hallucinate (e.g. Russian -> Chinese)
+            # Use 'jp' for Japanese instead of 'ja' if that's what CosyVoice expects internally, but 'ja' works if we allow it.
+            # Fun-CosyVoice3 typically uses <|lang|> tags for control.
+            LANG_TOKEN_MAP = {
+                "ru": "<|ru|>",
+                "uk": "<|uk|>",
+                "en": "<|en|>",
+                "zh": "<|zh|>",
+                "ja": "<|jp|>",
+                "ko": "<|ko|>",
+                "de": "<|de|>",
+                "fr": "<|fr|>",
+                "es": "<|es|>",
+                "it": "<|it|>",
+                "pt": "<|pt|>",
+                "th": "<|th|>",
+                "he": "<|en|>",  # fallback
+            }
 
-            output = cosyvoice.inference_zero_shot(
-                tts_text=chunk_text,
-                prompt_text=prompt_text_str,
-                prompt_wav=cache_file,
-                text_frontend=use_frontend
-            )
-
-            for item in output:
-                if "tts_speech" in item:
-                    all_audio_chunks.append(item["tts_speech"].squeeze().cpu().numpy())
+            # If user didn't provide prompt text, we MUST construct one to avoid cross-lingual hallucination (defaulting to Chinese)
+            # A known hack is to use the chunk_text as the prompt_text transcript.
+            # Fun-CosyVoice3-0.5B-2512 requires <|lang|> tags.
+            # The previous working code used <|lang|>chunk_text<|endofprompt|> for prompt_text
+            # and just chunk_text for tts_text, OR maybe <|lang|> for tts_text too.
+            # Let's use the explicit <|lang|> for tts_text, and if no prompt_text is provided, pass a generic one or the chunk itself.
+            
+            lang_token = LANG_TOKEN_MAP.get(lang, f"<|{lang}|>")
+            
+            chunk_with_lang = f"{lang_token}{chunk_text}"
+            
+            prompt_text_str = req.prompt_text.strip()
+            
+            with torch.inference_mode(), _inference_lock:
+                if prompt_text_str:
+                    if not prompt_text_str.endswith("<|endofprompt|>"):
+                        prompt_text_str += "<|endofprompt|>"
+                    output = cosyvoice.inference_zero_shot(
+                        tts_text=chunk_with_lang,
+                        prompt_text=prompt_text_str,
+                        prompt_wav=cache_file,
+                        text_frontend=use_frontend
+                    )
+                else:
+                    output = cosyvoice.inference_cross_lingual(
+                        tts_text=chunk_with_lang,
+                        prompt_wav=cache_file,
+                        text_frontend=use_frontend
+                    )
+                
+                for item in output:
+                    if "tts_speech" in item:
+                        all_audio_chunks.append(item["tts_speech"].squeeze().cpu().numpy())
         print(f"[cosy] infer time: {time.time()-t1:.3f}s")
 
         if not all_audio_chunks:
@@ -267,18 +371,27 @@ def clone_voice(
             pass
 
     buf = io.BytesIO()
-    mime = "audio/wav"
-
     t2 = time.time()
-    sf.write(buf, audio, SAMPLE_RATE, format="WAV")
+    mime="audio/ogg"
+
+    sf.write(
+        buf,
+        audio,
+        SAMPLE_RATE,
+        format="OGG",
+        subtype="OPUS"
+    )
     print(f"[cosy] encode time: {time.time()-t2:.3f}s")
+    timings["encode_ms"] = int((time.time()-t2)*1000)
+    timings["total_ms"] = int((time.time()-start_time)*1000)
 
     return {
         "audio_base64": base64.b64encode(buf.getvalue()).decode(),
         "mime_type": mime,
         "duration_seconds": round(len(audio) / SAMPLE_RATE, 2),
         "latency_ms": int((time.time() - start_time) * 1000),
-        "language": lang
+        "language": lang,
+        "timings": timings
     }
 
 

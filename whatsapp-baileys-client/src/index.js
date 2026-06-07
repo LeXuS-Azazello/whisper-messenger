@@ -416,7 +416,7 @@ async function connectToWhatsApp() {
         auth: state,
         printQRInTerminal: false,
         logger: silentLogger,
-        browser: ['Ubuntu', 'Chrome', '20.0.04'],
+        browser: Browsers.macOS('Desktop'),
         syncFullHistory: false,
         markOnlineOnConnect: false,
     });

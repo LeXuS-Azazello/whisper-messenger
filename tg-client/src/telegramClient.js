@@ -19,7 +19,8 @@ import {
 import {
     safeSendMessage,
     deleteMessage,
-    updateManagerStats
+    updateManagerStats,
+    startChatAction
 } from './messenger.js';
 
 import {
@@ -196,12 +197,9 @@ async function processSingleMessage(message) {
     }
 
     if (file_id) {
-        let filePath = null, statusMessage = null, tempWavPath = null;
+        let filePath = null, statusAction = null, tempWavPath = null;
         try {
-            const statusText = type === 'messageVideoNote'
-                ? '📹 Transcribing circle video message...'
-                : '🎤 Transcribing voice message...';
-            statusMessage = await safeSendMessage(client, chat_id, message_id, statusText);
+            statusAction = startChatAction(client, chat_id, 'chatActionTyping');
 
             console.time(`[tg-client] Download msg ${message_id}`);
             const downloadStart = Date.now();
@@ -361,7 +359,7 @@ async function processSingleMessage(message) {
                 console.error('[tg-client] processSingleMessage error cause:', e.cause);
             }
         } finally {
-            if (statusMessage) await deleteMessage(client, chat_id, statusMessage.id);
+            if (statusAction) statusAction.stop();
             if (file_id) {
                 try { await client.invoke({ '_': 'deleteFile', file_id: Number(file_id) }); } catch { }
             }
@@ -503,7 +501,7 @@ async function handleSamesameReplyIfNeeded(message) {
 
         return;
     }
-
+    let statusAction = null;
     try {
         // Fetch the message we are replying to
         const replied = await client.invoke({
@@ -556,7 +554,7 @@ async function handleSamesameReplyIfNeeded(message) {
         }
 
         // Download the original voice
-        const statusMsg = await safeSendMessage(client, chatId, message.id, '🎤 Клонирую голос... (SAMESAME)');
+        statusAction = startChatAction(client, chatId, 'chatActionRecordingVoiceNote');
         console.time(`[tg-client] Download source voice (samesame) msg ${message.id}`);
         const file = await downloadTelegramFile(client, fileId, mime);
         console.timeEnd(`[tg-client] Download source voice (samesame) msg ${message.id}`);
@@ -650,12 +648,13 @@ async function handleSamesameReplyIfNeeded(message) {
             }
         } finally {
             if (tempOut) { try { fs.unlinkSync(tempOut); } catch (_) { } }
-            if (statusMsg) await deleteMessage(client, chatId, statusMsg.id);
         }
 
     } catch (err) {
         console.error('[samesame] clone error:', err);
         await safeSendMessage(client, chatId, message.id, `Ошибка SAMESAME: ${err.message}`);
+    } finally {
+        if (statusAction) statusAction.stop();
     }
 }
 
