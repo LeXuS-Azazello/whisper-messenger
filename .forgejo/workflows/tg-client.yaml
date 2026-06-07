@@ -1,5 +1,4 @@
-name: "[main-tg-client] Build and push"
-
+name: "[main-tg-client] Build and push my telegram"
 on:
   push:
     branches:
