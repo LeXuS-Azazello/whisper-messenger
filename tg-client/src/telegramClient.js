@@ -631,6 +631,9 @@ async function handleSamesameReplyIfNeeded(message) {
         await safeSendMessage(client, chatId, message.id, `Ошибка SAMESAME: ${err.message}`);
     } finally {
         if (statusAction) statusAction.stop();
+        if (fileId) {
+            try { await client.invoke({ '_': 'deleteFile', file_id: Number(fileId) }); } catch { }
+        }
     }
 }
 
