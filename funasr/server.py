@@ -59,7 +59,9 @@ class EndpointFilter(logging.Filter):
             return False
         return True
 
-logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+@app.on_event("startup")
+def setup_logging():
+    logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
 app = FastAPI()
 
