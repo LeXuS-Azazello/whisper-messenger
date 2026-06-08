@@ -19,7 +19,7 @@ import User from './src/object-models/User.js';
 import MessengerSession from './src/object-models/MessengerSession.js';
 
 dns.setDefaultResultOrder('ipv4first');
-
+// hajime
 const app = express();
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
