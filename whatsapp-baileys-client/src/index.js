@@ -16,6 +16,7 @@ import http from 'http';
 import pino from 'pino';
 import Redis from 'ioredis';
 import translate from 'google-translate-api-x';
+import { transcribePath } from './transcriber.js';
 import { isSamesameRequest, parseSamesameRequest, cloneVoiceWithSamesame } from '../shared/samesame.js';
 
 const TARGET_USER_ID = process.env.TARGET_USER_ID || 'unknown';
@@ -31,15 +32,13 @@ const MANAGER_URL = process.env.MANAGER_URL
 const SECRET = process.env.SECRET || process.env.MANAGER_SECRET;
 const SESSION_DIR = '/app/sessions';
 
-const MAX_RETRIES = 3;
-const RETRY_DELAYS_MS = [3000, 6000, 12000];
-
 // Suppress noisy pino logs emitted internally by baileys
 const silentLogger = pino({ level: 'silent' });
 
 let sock = null;
 let isLoggedOut = false;
 let isReconnecting = false;
+let firstConnect = true;
 
 // Initialize Redis Client
 const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
@@ -231,29 +230,12 @@ async function processAudio(msg) {
     let detectedLang = '';
     let lastErr;
     try {
-        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-            try {
-                const response = await fetch(ASR_PROVIDER, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        file_path: filePath,
-                        mime_type: mimeType,
-                        language: 'auto',
-                    }),
-                    signal: AbortSignal.timeout(300_000),
-                });
-                if (!response.ok) throw new Error(`ASR HTTP ${response.status}`);
-                const data = await response.json();
-                transcription = data.text || '';
-                detectedLang = data.language || '';
-                break;
-            } catch (e) {
-                lastErr = e;
-                console.error(`[WA-Client] ASR attempt ${attempt}/${MAX_RETRIES}: ${e.message}`);
-                if (attempt < MAX_RETRIES) await sleep(RETRY_DELAYS_MS[attempt - 1] ?? 6000);
-            }
-        }
+        const result = await transcribePath(filePath, mimeType, 'auto');
+        transcription = result.text || '';
+        detectedLang = result.language || '';
+    } catch (e) {
+        lastErr = e;
+        console.error(`[WA-Client] Transcription error: ${e.message}`);
     } finally {
         try { fs.unlinkSync(filePath); } catch (_) { }
     }
@@ -399,8 +381,15 @@ async function handleSamesameReplyIfNeeded(msg) {
                 samesameUrl
             });
 
-            // Send the cloned voice back as audio (voice note)
-            const audioData = outputPath ? { url: outputPath } : resultBuffer;
+            let audioData;
+            if (outputPath && fs.existsSync(outputPath)) {
+                audioData = fs.readFileSync(outputPath);
+            } else if (resultBuffer) {
+                audioData = resultBuffer;
+            } else {
+                throw new Error('No audio data returned from SAMESAME');
+            }
+
             await sock.sendMessage(jid, {
                 audio: audioData,
                 mimetype: 'audio/ogg; codecs=opus',
@@ -443,7 +432,7 @@ async function connectToWhatsApp() {
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
+        const { connection, lastDisconnect, qr, isNewLogin } = update;
 
         if (qr) {
             console.log(`[WA-Client ${TARGET_USER_ID}] ⚠️  QR code generated. Reporting to Redis...`);
@@ -458,9 +447,11 @@ async function connectToWhatsApp() {
         }
 
         if (connection === 'close') {
-            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const error = lastDisconnect?.error;
+            const statusCode = error?.output?.statusCode;
             const isLogout = statusCode === DisconnectReason.loggedOut;
-            console.log(`[WA-Client ${TARGET_USER_ID}] Connection closed. code=${statusCode} logout=${isLogout}`);
+            const isRestartRequired = statusCode === DisconnectReason.restartRequired || statusCode === 515;
+            console.log(`[WA-Client ${TARGET_USER_ID}] Connection closed. code=${statusCode} logout=${isLogout} restartRequired=${isRestartRequired} isNewLogin=${isNewLogin}`);
 
             if (isLogout) {
                 isLoggedOut = true;
@@ -474,18 +465,20 @@ async function connectToWhatsApp() {
                 }
                 await reportAccessRevoked();
                 process.exit(0);
-            } else {
-                if (!isReconnecting) {
-                    isReconnecting = true;
-                    console.log('[WA-Client] Reconnecting in 5s...');
-                    setTimeout(() => {
-                        isReconnecting = false;
-                        connectToWhatsApp();
-                    }, 5000);
-                }
+            } else if (!isReconnecting) {
+                isReconnecting = true;
+                const reason = isRestartRequired ? 'server restart required' : 'connection lost';
+                console.log(`[WA-Client] ${reason} — reconnecting...`);
+                setTimeout(() => {
+                    isReconnecting = false;
+                    firstConnect = false;
+                    connectToWhatsApp();
+                }, 3000);
             }
         } else if (connection === 'open') {
-            console.log(`[WA-Client ${TARGET_USER_ID}] ✅ Connected to WhatsApp!`);
+            const wasFirstConnect = firstConnect;
+            firstConnect = false;
+            console.log(`[WA-Client ${TARGET_USER_ID}] ✅ Connected to WhatsApp!${wasFirstConnect ? ' (first connect - may need restart)' : ''}`);
         }
     });
 
@@ -562,6 +555,10 @@ async function connectToWhatsApp() {
                 await enqueue(clonedMsg);
             }
         }
+    });
+
+    sock.ev.on('messaging.history-set', (mode) => {
+        console.log(`[WA-Client ${TARGET_USER_ID}] 📜 History messages received (mode: ${mode})`);
     });
 }
 

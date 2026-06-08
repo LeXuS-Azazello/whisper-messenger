@@ -14,10 +14,11 @@ export const APP_VERSION = process.env.APP_VERSION || '1.0.0';
 export const SYSTEM_VERSION = process.env.SYSTEM_VERSION || 'Linux';
 export const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://mongodb:27017/voicemsg';
 
-// === Redis (для preferred_translation_lang и user_meta) ===
+export const FUNASR_URL = process.env.FUNASR_URL || process.env.ASR_PROVIDER || 'http://funasr:50001';
+
 let redisInstance = null;
 
-function getRedis() {
+export function getRedis() {
   if (!redisInstance && process.env.REDIS_URL) {
     redisInstance = new Redis(process.env.REDIS_URL, {
       maxRetriesPerRequest: null,
@@ -70,8 +71,6 @@ export async function getPreferredTranslationLang(userId) {
 }
 
 /* ==================== Status Reporting to Redis (for Dashboard) ==================== */
-
-const TARGET_USER_ID = process.env.TARGET_USER_ID || '';
 
 /**
  * Report QR code to Redis so Dashboard can display it.
