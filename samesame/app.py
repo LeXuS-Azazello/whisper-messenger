@@ -115,7 +115,7 @@ try:
 except Exception as e:
     print("[warmup]", e)
 
-def detect_language_from_audio_snippet(prompt_tensor: torch.Tensor, sr: int = 16000) -> str:
+def detect_language_from_audio_snippet(prompt_tensor: torch.Tensor, fallback_text: str = "", sr: int = 16000) -> str:
     """
     Быстрый детект языка по первым 3 секундам промпта.
     Использует funasr с отключёнными VAD и пунктуацией.
@@ -153,6 +153,9 @@ def detect_language_from_audio_snippet(prompt_tensor: torch.Tensor, sr: int = 16
                 pass
     except Exception as e:
         print(f"[samesame] audio lang detect failed: {e}")
+    
+    if fallback_text:
+        return detect_language_from_text(fallback_text[:200])
     return "en"  # fallback
 
 
@@ -319,7 +322,7 @@ def clone_voice(
 
     if not lang:
         t_lang = time.time()
-        lang = detect_language_from_audio_snippet(prompt_speech_16k)
+        lang = detect_language_from_audio_snippet(prompt_speech_16k, fallback_text=req.text)
         timings["lang_detect_ms"] = int((time.time() - t_lang) * 1000)
 
     if lang not in {"ru","uk","th","he","en","zh","ja","ko","de","es","fr","it","pt"}:
