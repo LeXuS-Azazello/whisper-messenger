@@ -269,17 +269,15 @@ async function processSingleMessage(message) {
 
                 // Handle Translation
                 try {
-                    let targetLang = await redis.get(`translate_lang_${TARGET_USER_ID}`);
-                    if (!targetLang) {
-                        try {
-                            const rawMeta = await redis.get(`user_meta_${TARGET_USER_ID}`);
-                            if (rawMeta) {
-                                const meta = JSON.parse(rawMeta);
-                                targetLang = meta.preferredTranslationLanguage || meta.preferred_translation_lang || null;
-                            }
-                        } catch (err) {
-                            console.error(`[tg-client] Failed to read user_meta for translation:`, err.message);
+                    let targetLang = null;
+                    try {
+                        const rawMeta = await redis.get(`user_meta_${TARGET_USER_ID}`);
+                        if (rawMeta) {
+                            const meta = JSON.parse(rawMeta);
+                            targetLang = meta.preferredTranslationLanguage || meta.preferred_translation_lang || 'off';
                         }
+                    } catch (err) {
+                        console.error(`[tg-client] Failed to read user_meta for translation:`, err.message);
                     }
                     if (!targetLang) targetLang = 'translate_off'; // Default: no translation unless requested
 
@@ -567,34 +565,38 @@ async function handleSamesameReplyIfNeeded(message) {
         let tempOut = null;
         let promptAudioPath = null;
         let promptText = null;
-        try {
-            // Check if we already transcribed this audio (cache hit)
-            if (audioBuffer) {
-                const hash = crypto.createHash('sha256').update(audioBuffer).digest('hex');
-                let asrLang = 'auto';
-                try {
-                    const forcedLang = await redis.get(`transcription_lang_${TARGET_USER_ID}`);
-                    if (forcedLang) asrLang = forcedLang;
-                } catch (err) {}
-                
-                const cached = await redis.get(`asr:${hash}:${asrLang}`);
-                if (cached) {
-                    try {
-                        const parsed = JSON.parse(cached);
-                        if (parsed && parsed.text) {
-                            promptText = parsed.text;
-                            console.log(`[samesame] Found cached transcription to use as promptText: ${promptText.substring(0, 50)}...`);
+            let asrLang = 'auto';
+            let cloneStrategy = 'zero_shot';
+
+            try {
+                const rawMeta = await redis.get(`user_meta_${TARGET_USER_ID}`);
+                if (rawMeta) {
+                    const meta = JSON.parse(rawMeta);
+                    asrLang = meta.asrLanguage || 'auto';
+                    cloneStrategy = meta.cloneStrategy || 'zero_shot';
+                }
+            } catch (err) {
+                console.error(`[tg-client] Failed to read user_meta for samesame:`, err.message);
+            }
+
+            try {
+                // Check if we already transcribed this audio (cache hit)
+                if (audioBuffer) {
+                    const hash = crypto.createHash('sha256').update(audioBuffer).digest('hex');
+                    
+                    const cached = await redis.get(`asr:${hash}:${asrLang}`);
+                    if (cached) {
+                        try {
+                            const parsed = JSON.parse(cached);
+                            if (parsed && parsed.text) {
+                                promptText = parsed.text;
+                                console.log(`[samesame] Found cached transcription to use as promptText: ${promptText.substring(0, 50)}...`);
+                            }
+                        } catch (e) {
+                            console.error('[samesame] Error parsing cached ASR for promptText:', e.message);
                         }
-                    } catch (e) {
-                        console.error('[samesame] Error parsing cached ASR for promptText:', e.message);
                     }
                 }
-            }
-            
-            let cloneStrategy = 'zero_shot';
-            try {
-                const storedStrategy = await redis.get(`clone_strategy_${TARGET_USER_ID}`);
-                if (storedStrategy) cloneStrategy = storedStrategy;
             } catch (err) {}
 
             if (cloneStrategy === 'off') {

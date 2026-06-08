@@ -38,14 +38,14 @@ export function ProfilePane({ user }: PaneProps) {
                     </div>
                 </div>
 
-                {/* Voice & Transcription Settings */}
+                {/* Transcription Settings */}
                 <div class="card" style={{ marginTop: '1.25rem' }}>
                     <div class="card-header">
-                        <h3 class="card-title">🎙️ Voice & Transcription Settings</h3>
+                        <h3 class="card-title">📝 Transcription Settings</h3>
                     </div>
                     <div class="card-content">
                         <p class="card-description" style={{ marginBottom: '16px' }}>
-                            Configure how your voice messages are transcribed, cloned, and translated. These settings apply instantly across all your connected messengers.
+                            By default, transcription always works for incoming voice and video messages. Configure your translation and language preferences here.
                         </p>
                         <div id="voice-settings-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             <div class="input-group">
@@ -55,15 +55,6 @@ export function ProfilePane({ user }: PaneProps) {
                                     <option value="ru">🇷🇺 Русский (Russian)</option>
                                     <option value="en">🇬🇧 English</option>
                                     <option value="uk">🇺🇦 Ukrainian</option>
-                                </select>
-                            </div>
-
-                            <div class="input-group">
-                                <label class="input-label" style={{ display: 'block', marginBottom: '8px' }}>🤖 Voice Cloning Strategy</label>
-                                <select id="clone-strategy-select" class="input-field" style={{ maxWidth: '400px' }} data-user-id={user.userId}>
-                                    <option value="zero_shot">✨ Best Quality (Zero-Shot) - Recommended</option>
-                                    <option value="cross_lingual">⚡ Fast Mode (Cross-Lingual)</option>
-                                    <option value="off">🚫 Disable Voice Cloning (Text Only)</option>
                                 </select>
                             </div>
 
@@ -86,9 +77,31 @@ export function ProfilePane({ user }: PaneProps) {
                                     <option value="es">Español (Spanish)</option>
                                 </select>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Voice Cloning Settings */}
+                <div class="card" style={{ marginTop: '1.25rem' }}>
+                    <div class="card-header">
+                        <h3 class="card-title">🎙️ Voice Cloning Settings</h3>
+                    </div>
+                    <div class="card-content">
+                        <p class="card-description" style={{ marginBottom: '16px' }}>
+                            Voice cloning is triggered manually by replying to a voice message with the keyword <code>!SAMESAME!</code>.
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div class="input-group">
+                                <label class="input-label" style={{ display: 'block', marginBottom: '8px' }}>🤖 Voice Cloning Strategy</label>
+                                <select id="clone-strategy-select" class="input-field" style={{ maxWidth: '400px' }} data-user-id={user.userId}>
+                                    <option value="zero_shot">✨ Best Quality (Zero-Shot) - Recommended</option>
+                                    <option value="cross_lingual">⚡ Fast Mode (Cross-Lingual)</option>
+                                    <option value="off">🚫 Disable Voice Cloning (Text Only)</option>
+                                </select>
+                            </div>
 
                             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '8px' }}>
-                                <button id="voice-settings-save-btn" class="btn btn-primary">Save Settings</button>
+                                <button id="voice-settings-save-btn" class="btn btn-primary">Save All Settings</button>
                                 <span id="voice-settings-status-badge" class="status-tag inactive">NOT SAVED</span>
                             </div>
                         </div>

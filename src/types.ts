@@ -167,6 +167,8 @@ export interface UserSession {
   // Optional translation language preferences (dashboard settings)
   preferred_translation_lang?: string;
   preferredTranslationLanguage?: string;
+  asrLanguage?: string;
+  cloneStrategy?: string;
   firstName: string;
   username?: string;
   email?: string;
