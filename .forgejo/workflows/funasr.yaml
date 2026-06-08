@@ -36,7 +36,7 @@ jobs:
       - name: Build Docker image
         run: |
           docker pull ${{ env.IMG }}:funasr-latest || true
-          docker build --cache-from ${{ env.IMG }}:funasr-latest -f funasr/Dockerfile -t ${{ env.IMG }}:funasr-latest -t ${{ env.IMG }}:funasr-${{ forgejo.run_number }} funasr
+          docker build --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from ${{ env.IMG }}:funasr-latest -f funasr/Dockerfile -t ${{ env.IMG }}:funasr-latest -t ${{ env.IMG }}:funasr-${{ forgejo.run_number }} funasr
 
       - name: Push Docker image
         run: |
