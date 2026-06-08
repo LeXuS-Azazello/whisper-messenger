@@ -274,6 +274,9 @@ async def transcribe(req: TranscribeRequest):
             if raw_lang:
                 detected_lang = raw_lang[:2].lower()
 
+        if detected_lang in ["zh", "zn"]:
+            detected_lang = "ru"
+
         return {
             "text": text,
             "language": detected_lang,
