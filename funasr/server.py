@@ -226,7 +226,9 @@ async def transcribe(req: TranscribeRequest):
     try:
         t0 = time.time()
 
-        if req.file_path and os.path.isfile(req.file_path):
+        if req.file_path:
+            if not os.path.isfile(req.file_path):
+                raise HTTPException(status_code=400, detail=f"File not found: {req.file_path}")
             audio_np = decode_audio(file_path=req.file_path)
         elif req.file_data:
             file_bytes = base64.b64decode(req.file_data)
