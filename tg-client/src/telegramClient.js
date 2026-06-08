@@ -152,7 +152,7 @@ async function processSingleMessage(message) {
         if (!chat || !chat.type || (chat.type['_'] !== 'chatTypePrivate' && chat.type['_'] !== 'chatTypeSecret')) {
             return;
         }
-    } catch {
+    } catch (_) {
         return;
     }
 
@@ -335,7 +335,7 @@ async function processSingleMessage(message) {
         } finally {
             if (statusAction) statusAction.stop();
             if (file_id) {
-                try { await client.invoke({ '_': 'deleteFile', file_id: Number(file_id) }); } catch { }
+                try { await client.invoke({ '_': 'deleteFile', file_id: Number(file_id) }); } catch (_) { }
             }
             if (tempWavPath) {
                 try { fs.unlinkSync(tempWavPath); } catch (_) { }
@@ -696,7 +696,7 @@ async function handleSamesameReplyIfNeeded(message) {
     } finally {
         if (statusAction) statusAction.stop();
         if (fileId) {
-            try { await client.invoke({ '_': 'deleteFile', file_id: Number(fileId) }); } catch { }
+            try { await client.invoke({ '_': 'deleteFile', file_id: Number(fileId) }); } catch (_) { }
         }
     }
 }

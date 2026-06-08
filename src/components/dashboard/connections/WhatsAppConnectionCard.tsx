@@ -60,7 +60,7 @@ export function WhatsAppConnectionCard({ user, env }: { user: UserSession; env: 
                     </div>
 
                     <div style={{ textAlign: 'center' }}>
-                        <button class="btn btn-danger" id="disconnect-wa-web-btn">Disconnect WhatsApp</button>
+                        <button class="btn btn-danger" id="disconnect-wa-web-btn" style={{ display: 'none' }}>Disconnect WhatsApp</button>
                     </div>
                 </div>
 
@@ -82,7 +82,7 @@ export function WhatsAppConnectionCard({ user, env }: { user: UserSession; env: 
 
                     <div style={{ textAlign: 'center' }}>
                         <button class="btn btn-primary" id="wa-get-code-btn">Get Pairing Code</button>
-                        <button class="btn btn-danger" id="disconnect-wa-web-code-btn" style={{ marginLeft: '8px' }}>Disconnect</button>
+                        <button class="btn btn-danger" id="disconnect-wa-web-code-btn" style={{ marginLeft: '8px', display: 'none' }}>Disconnect</button>
                     </div>
                 </div>
             </div>

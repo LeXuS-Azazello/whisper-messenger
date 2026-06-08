@@ -446,18 +446,15 @@ async function connectToWhatsApp() {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
-            // Client pods should never need a new QR — session must already exist
-            console.warn('[WA-Client] ⚠️  QR code generated — session missing or expired! Self-destructing...');
-            isLoggedOut = true;
+            console.log(`[WA-Client ${TARGET_USER_ID}] ⚠️  QR code generated. Reporting to Redis...`);
             try {
-                if (fs.existsSync(SESSION_DIR)) {
-                    fs.rmSync(SESSION_DIR, { recursive: true, force: true });
-                }
+                await redis.set(`wa_qr_${TARGET_USER_ID}`, JSON.stringify({ 
+                    qr, 
+                    info: 'Please scan this QR code in your WhatsApp app' 
+                }), 'EX', 60 * 5); // Expire in 5 mins
             } catch (e) {
-                console.error('[WA-Client] Failed to clean up session dir:', e.message);
+                console.error('[WA-Client] Failed to report QR to Redis:', e.message);
             }
-            await reportAccessRevoked();
-            process.exit(1);
         }
 
         if (connection === 'close') {
@@ -491,6 +488,34 @@ async function connectToWhatsApp() {
             console.log(`[WA-Client ${TARGET_USER_ID}] ✅ Connected to WhatsApp!`);
         }
     });
+
+    // Listen for pairing code requests from manager (via Redis)
+    const pairingCheckInterval = setInterval(async () => {
+        try {
+            const req = await redis.get(`wa_pairing_request_${TARGET_USER_ID}`);
+            if (req) {
+                const phoneNumber = req.trim();
+                console.log(`[WA-Client ${TARGET_USER_ID}] Pairing code requested for: ${phoneNumber}`);
+                
+                // Clear request first
+                await redis.del(`wa_pairing_request_${TARGET_USER_ID}`);
+
+                if (!sock.authState.creds.registered) {
+                    try {
+                        const code = await sock.requestPairingCode(phoneNumber);
+                        console.log(`[WA-Client ${TARGET_USER_ID}] Pairing code generated: ${code}`);
+                        await redis.set(`wa_pairing_${TARGET_USER_ID}`, code, 'EX', 60 * 5);
+                    } catch (e) {
+                        console.error(`[WA-Client ${TARGET_USER_ID}] Failed to request pairing code:`, e.message);
+                    }
+                } else {
+                    console.log(`[WA-Client ${TARGET_USER_ID}] Already registered, no code needed`);
+                }
+            }
+        } catch (e) {
+            console.error('[WA-Client] Pairing check error:', e.message);
+        }
+    }, 3000);
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
