@@ -454,6 +454,22 @@ async function handleSamesameReplyIfNeeded(message) {
         language
     } = parseSamesameRequest(text);
 
+    if (!language) {
+        try {
+            const rawMeta = await redis.get(`user_meta_${TARGET_USER_ID}`);
+            if (rawMeta) {
+                const meta = JSON.parse(rawMeta);
+                const ttsLang = meta.ttsTranslationLanguage;
+                if (ttsLang && ttsLang !== 'translate_off' && ttsLang !== 'off') {
+                    language = ttsLang;
+                    console.log(`[samesame] Using dashboard ttsTranslationLanguage: ${language}`);
+                }
+            }
+        } catch (err) {
+            console.error(`[tg-client] Failed to read ttsTranslationLanguage from user_meta:`, err.message);
+        }
+    }
+
     if (language) {
         console.time(`[tg-client] SAMESAME Translate to ${language}`);
         const translated = await translateSamesameText(cleanText, language);

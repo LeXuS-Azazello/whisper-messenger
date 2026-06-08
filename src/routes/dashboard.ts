@@ -19,6 +19,7 @@ const VALID_LANGS = ['off', 'auto', 'ru', 'uk', 'en', 'de', 'fr', 'es', 'zh', 'j
 
 async function handleVoiceSettingsGet(env: Env, userId: string): Promise<Response> {
   let translate_lang = 'translate_off';
+  let tts_translate_lang = 'translate_off';
   let asr_lang = 'auto';
   let clone_strategy = 'zero_shot';
 
@@ -27,6 +28,7 @@ async function handleVoiceSettingsGet(env: Env, userId: string): Promise<Respons
       if (userStatsStr) {
           const userStats = JSON.parse(userStatsStr);
           translate_lang = userStats.preferredTranslationLanguage || userStats.preferred_translation_lang || 'translate_off';
+          tts_translate_lang = userStats.ttsTranslationLanguage || 'translate_off';
           asr_lang = userStats.asrLanguage || 'auto';
           clone_strategy = userStats.cloneStrategy || 'zero_shot';
       }
@@ -35,7 +37,8 @@ async function handleVoiceSettingsGet(env: Env, userId: string): Promise<Respons
   }
   
   return Response.json({ 
-    translate_lang, 
+    translate_lang,
+    tts_translate_lang,
     asr_lang, 
     clone_strategy,
     validTranslateLangs: VALID_LANGS 
@@ -44,7 +47,7 @@ async function handleVoiceSettingsGet(env: Env, userId: string): Promise<Respons
 
 async function handleVoiceSettingsPost(env: Env, req: Request, userId: string): Promise<Response> {
   try {
-    const { translate_lang, asr_lang, clone_strategy } = await req.json() as any;
+    const { translate_lang, tts_translate_lang, asr_lang, clone_strategy } = await req.json() as any;
     
     const User = (await import("../object-models/User")).default;
     const dbUser = await User.findOne({ userId });
@@ -55,7 +58,7 @@ async function handleVoiceSettingsPost(env: Env, req: Request, userId: string): 
 
     let changed = false;
 
-    // Translation Lang
+    // Incoming Translation Lang
     if (translate_lang !== undefined) {
         const raw = String(translate_lang || 'off').toLowerCase().trim();
         const safe = raw === 'translate_off' ? 'off' : raw;
@@ -63,6 +66,17 @@ async function handleVoiceSettingsPost(env: Env, req: Request, userId: string): 
             return Response.json({ error: `Invalid translate_lang. Use one of: ${VALID_LANGS.join(', ')}` }, { status: 400 });
         }
         dbUser.preferredTranslationLanguage = safe;
+        changed = true;
+    }
+
+    // Outgoing TTS Translation Lang
+    if (tts_translate_lang !== undefined) {
+        const raw = String(tts_translate_lang || 'off').toLowerCase().trim();
+        const safe = raw === 'translate_off' ? 'off' : raw;
+        if (safe !== 'off' && !VALID_LANGS.includes(safe)) {
+            return Response.json({ error: `Invalid tts_translate_lang. Use one of: ${VALID_LANGS.join(', ')}` }, { status: 400 });
+        }
+        dbUser.ttsTranslationLanguage = safe;
         changed = true;
     }
 
@@ -94,6 +108,7 @@ async function handleVoiceSettingsPost(env: Env, req: Request, userId: string): 
         if (userStatsStr) {
             const userStats = JSON.parse(userStatsStr);
             userStats.preferredTranslationLanguage = dbUser.preferredTranslationLanguage || undefined;
+            userStats.ttsTranslationLanguage = dbUser.ttsTranslationLanguage || undefined;
             userStats.asrLanguage = dbUser.asrLanguage;
             userStats.cloneStrategy = dbUser.cloneStrategy;
             await env.STATS.put(`user_meta_${userId}`, JSON.stringify(userStats));

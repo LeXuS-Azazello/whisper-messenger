@@ -1078,21 +1078,28 @@ function initDashboard() {
 
     // ─── Voice & Transcription Settings ─────────────────────────────────────────────
     const voiceSettingsCard = document.getElementById('voice-settings-card');
-    if (voiceSettingsCard) {
+    if (voiceSettingsCard || document.getElementById('clone-strategy-select')) {
         const transLangSelect = document.getElementById('translation-lang-select');
+        const ttsLangSelect = document.getElementById('tts-translation-lang-select');
         const asrLangSelect = document.getElementById('asr-lang-select');
         const cloneStrategySelect = document.getElementById('clone-strategy-select');
         
-        const saveBtn = document.getElementById('voice-settings-save-btn');
         const statusEl = document.getElementById('voice-settings-status-badge');
 
-        function updateVoiceStatusBadge(saved) {
+        function updateVoiceStatusBadge(state) {
             if (!statusEl) return;
-            if (saved) {
-                statusEl.textContent = 'SAVED';
+            statusEl.style.display = 'inline-block';
+            if (state === 'saving') {
+                statusEl.textContent = 'SAVING...';
+                statusEl.className = 'status-tag inactive';
+            } else if (state === 'saved') {
+                statusEl.textContent = '✓ SAVED';
                 statusEl.className = 'status-tag active';
+                setTimeout(() => {
+                    statusEl.style.display = 'none';
+                }, 2000);
             } else {
-                statusEl.textContent = 'NOT SAVED';
+                statusEl.textContent = 'ERROR';
                 statusEl.className = 'status-tag inactive';
             }
         }
@@ -1102,50 +1109,44 @@ function initDashboard() {
             .then(r => r.json())
             .then(data => {
                 if (transLangSelect) transLangSelect.value = data.translate_lang || 'translate_off';
+                if (ttsLangSelect) ttsLangSelect.value = data.tts_translate_lang || 'translate_off';
                 if (asrLangSelect) asrLangSelect.value = data.asr_lang || 'auto';
                 if (cloneStrategySelect) cloneStrategySelect.value = data.clone_strategy || 'zero_shot';
-                
-                updateVoiceStatusBadge(true);
             })
             .catch(err => console.error('[voice-settings] Load error:', err));
 
-        if (saveBtn) {
-            saveBtn.addEventListener('click', () => {
-                const translate_lang = transLangSelect ? transLangSelect.value : undefined;
-                const asr_lang = asrLangSelect ? asrLangSelect.value : undefined;
-                const clone_strategy = cloneStrategySelect ? cloneStrategySelect.value : undefined;
-                
-                const orig = saveBtn.textContent;
-                saveBtn.textContent = 'Saving...';
-                saveBtn.disabled = true;
+        const handleSave = () => {
+            const translate_lang = transLangSelect ? transLangSelect.value : undefined;
+            const tts_translate_lang = ttsLangSelect ? ttsLangSelect.value : undefined;
+            const asr_lang = asrLangSelect ? asrLangSelect.value : undefined;
+            const clone_strategy = cloneStrategySelect ? cloneStrategySelect.value : undefined;
+            
+            updateVoiceStatusBadge('saving');
 
-                fetch('/dashboard/voice-settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ translate_lang, asr_lang, clone_strategy })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        updateVoiceStatusBadge(true);
-                        saveBtn.textContent = '✓ Saved!';
-                        setTimeout(() => {
-                            saveBtn.textContent = orig;
-                            saveBtn.disabled = false;
-                        }, 2000);
-                    } else {
-                        alert('Error: ' + (data.error || 'Unknown'));
-                        saveBtn.textContent = orig;
-                        saveBtn.disabled = false;
-                    }
-                })
-                .catch(() => {
-                    alert('Connection error');
-                    saveBtn.textContent = orig;
-                    saveBtn.disabled = false;
-                });
+            fetch('/dashboard/voice-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ translate_lang, tts_translate_lang, asr_lang, clone_strategy })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    updateVoiceStatusBadge('saved');
+                } else {
+                    updateVoiceStatusBadge('error');
+                    alert('Error: ' + (data.error || 'Unknown'));
+                }
+            })
+            .catch(() => {
+                updateVoiceStatusBadge('error');
+                alert('Connection error');
             });
-        }
+        };
+
+        if (transLangSelect) transLangSelect.addEventListener('change', handleSave);
+        if (ttsLangSelect) ttsLangSelect.addEventListener('change', handleSave);
+        if (asrLangSelect) asrLangSelect.addEventListener('change', handleSave);
+        if (cloneStrategySelect) cloneStrategySelect.addEventListener('change', handleSave);
     }
 }
 

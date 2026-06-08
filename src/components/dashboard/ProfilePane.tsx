@@ -100,9 +100,28 @@ export function ProfilePane({ user }: PaneProps) {
                                 </select>
                             </div>
 
+                            <div class="input-group">
+                                <label class="input-label" style={{ display: 'block', marginBottom: '8px' }}>🌍 Translate Outgoing Cloned Voice</label>
+                                <select id="tts-translation-lang-select" class="input-field" style={{ maxWidth: '400px' }} data-user-id={user.userId}>
+                                    <option value="translate_off">🚫 Same language as typed (Default)</option>
+                                    <option value="ru">Русский (Russian)</option>
+                                    <option value="en">English</option>
+                                    <option value="th">ไทย (Thai)</option>
+                                    <option value="zh">简体中文 (Chinese Simplified)</option>
+                                    <option value="zh-TW">繁體中文 (Chinese Traditional)</option>
+                                    <option value="ar">العربية (Arabic)</option>
+                                    <option value="he">עברית (Hebrew)</option>
+                                    <option value="ja">日本語 (Japanese)</option>
+                                    <option value="ko">한국어 (Korean)</option>
+                                    <option value="hi">हिन्दी (Hindi)</option>
+                                    <option value="de">Deutsch (German)</option>
+                                    <option value="fr">Français (French)</option>
+                                    <option value="es">Español (Spanish)</option>
+                                </select>
+                            </div>
+
                             <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '8px' }}>
-                                <button id="voice-settings-save-btn" class="btn btn-primary">Save All Settings</button>
-                                <span id="voice-settings-status-badge" class="status-tag inactive">NOT SAVED</span>
+                                <span id="voice-settings-status-badge" class="status-tag active" style={{ display: 'none' }}>SAVED</span>
                             </div>
                         </div>
                     </div>

@@ -27,8 +27,8 @@ export interface IUser extends Document {
   whatsappToken?: string;
   whatsappPhoneId?: string;
   lineToken?: string;
-  lineSecret?: string;
   preferredTranslationLanguage?: string; // e.g. 'rus_Cyrl', 'tha_Thai', 'heb_Hebr', 'zho_Hans'
+  ttsTranslationLanguage?: string; // Target language for voice cloning
   asrLanguage?: string;
   cloneStrategy?: string;
   createdAt: Date;
@@ -65,6 +65,7 @@ const UserSchema: Schema = new Schema({
   lineToken: { type: String },
   lineSecret: { type: String },
   preferredTranslationLanguage: { type: String, default: null },
+  ttsTranslationLanguage: { type: String, default: null },
   asrLanguage: { type: String, default: 'auto' },
   cloneStrategy: { type: String, default: 'zero_shot' }
 }, { timestamps: true });
