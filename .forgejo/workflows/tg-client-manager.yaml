@@ -1,5 +1,4 @@
 name: "[main-tg-client-manager] Build and push"
-
 on:
   push:
     branches:
@@ -32,11 +31,12 @@ jobs:
         run: |
           docker build -f tg-client-manager/Dockerfile -t ${{ env.IMG }}:tg-client-manager-latest -t ${{ env.IMG }}:tg-client-manager-${{ forgejo.run_number }} tg-client-manager
 
-      - name: Log in to Registry and push
+      - name: Log in to Registry and push!
         run: |
           echo "${{ secrets.HAJIME_PASSWD }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
           docker push ${{ env.IMG }}:tg-client-manager-${{ forgejo.run_number }} && docker push ${{ env.IMG }}:tg-client-manager-latest
-
+      - name: Hajime
+        run: echo "Hajime"
       - name: Trigger Kubernetes Rollout
         run: | 
           echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > $GITHUB_WORKSPACE/kubeconfig.yaml
