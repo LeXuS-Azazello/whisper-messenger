@@ -96,7 +96,7 @@ redis_client = Redis(
     decode_responses=False
 )
 
-FUNASR_URL = os.getenv("FUNASR_URL", "http://funasr:8000")
+FUNASR_URL = os.getenv("FUNASR_URL", "http://funasr:50001")
 TEMP_DIR = os.getenv("SAMESAME_TEMP_DIR", "/temporaly-media-msg")
 
 try:

@@ -47,7 +47,7 @@ spec:
             - name: CPU_THREADS
               value: "4"
             - name: FUNASR_URL
-              value: "http://funasr:8000"
+              value: "http://funasr:50001"
             - name: SAMESAME_TEMP_DIR
               value: "/temporaly-media-msg"
           image: forge.dev.takatan.cloud/lexus/voicemsg-net:samesame-latest
