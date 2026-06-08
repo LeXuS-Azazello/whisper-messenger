@@ -449,6 +449,8 @@ async function handleSamesameReplyIfNeeded(message) {
     const chatId =
         message.chat_id;
 
+    let statusAction = startChatAction(client, chatId, 'chatActionRecordingVoiceNote');
+
     let {
         text: cleanText,
         language
@@ -489,9 +491,9 @@ async function handleSamesameReplyIfNeeded(message) {
             'После !SAMESAME! нужен текст.'
         );
 
+        if (statusAction) statusAction.stop();
         return;
     }
-    let statusAction = null;
     let fileId = null;
     let mime = 'audio/ogg';
 
@@ -521,6 +523,7 @@ async function handleSamesameReplyIfNeeded(message) {
                 'Ответь именно на голосовое.'
             );
 
+            if (statusAction) statusAction.stop();
             return;
         }
 
@@ -540,11 +543,11 @@ async function handleSamesameReplyIfNeeded(message) {
 
         if (!fileId) {
             await safeSendMessage(client, chatId, message.id, 'Нужно ответить на голосовое сообщение или кружок.');
+            if (statusAction) statusAction.stop();
             return;
         }
 
         // Download the original voice
-        statusAction = startChatAction(client, chatId, 'chatActionRecordingVoiceNote');
         console.time(`[tg-client] Download source voice (samesame) msg ${message.id}`);
         const file = await downloadTelegramFile(client, fileId, mime);
         console.timeEnd(`[tg-client] Download source voice (samesame) msg ${message.id}`);
@@ -581,6 +584,7 @@ async function handleSamesameReplyIfNeeded(message) {
         let tempOut = null;
         let promptAudioPath = null;
         let promptText = null;
+        try {
             let asrLang = 'auto';
             let cloneStrategy = 'zero_shot';
 
@@ -618,7 +622,7 @@ async function handleSamesameReplyIfNeeded(message) {
             if (cloneStrategy === 'off') {
                 console.log(`[samesame] clone_strategy is 'off', sending text only`);
                 await safeSendMessage(client, chatId, message.id, `📝 ${cleanText}`);
-                if (statusAction) await client.invoke({ '_': 'sendChatAction', chat_id: chatId, action: { '_': 'chatActionCancel' } }).catch(() => {});
+                if (statusAction) statusAction.stop();
                 return;
             }
 
@@ -668,7 +672,7 @@ async function handleSamesameReplyIfNeeded(message) {
                     },
                     caption: {
                         '_': 'formattedText',
-                        text: `🤖 ${usedModel || 'Samesame (CosyVoice)'} | ⏱ ${samesameDuration || '?'}s`
+                        text: `🤖 ${usedModel || 'Samesame'} [${cloneStrategy}] | ⏱ ${samesameDuration || '?'}s`
                     },
                     duration: 0,
                     waveform: ''
