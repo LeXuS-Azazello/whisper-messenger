@@ -88,6 +88,7 @@ export async function cloneVoiceWithSamesame({
   sourceAudioBuffer,
   sourceAudioPath,
   text,
+  promptText = null,
   language = null,
   userId = null,
   outputFormat = DEFAULT_OUTPUT_FORMAT,
@@ -108,6 +109,7 @@ export async function cloneVoiceWithSamesame({
   const payload = {
     source_mime_type: sourceMimeType,
     text: text.trim(),
+    prompt_text: promptText,
     language: language ? telegramLangToNLLB(language) || language : undefined,
     user_id: userId,
     output_format: outputFormat,
