@@ -115,48 +115,7 @@ try:
 except Exception as e:
     print("[warmup]", e)
 
-def detect_language_from_audio_snippet(prompt_tensor: torch.Tensor, fallback_text: str = "", sr: int = 16000) -> str:
-    """
-    Быстрый детект языка по первым 3 секундам промпта.
-    Использует funasr с отключёнными VAD и пунктуацией.
-    Сначала берёт language из ответа, как резерв — detect_language_from_text().
-    """
-    try:
-        import requests
-        snippet = prompt_tensor[:, :sr * 3]
-        snippet_path = f"{TEMP_DIR}/lang_detect_{uuid.uuid4().hex}.wav"
-        sf.write(snippet_path, snippet.squeeze(0).numpy(), sr, format="WAV")
-        try:
-            resp = requests.post(
-                f"{FUNASR_URL}/v1/transcribe-base64",
-                json={
-                    "file_path": snippet_path,
-                    "mime_type": "audio/wav",
-                    "enable_vad": False,
-                    "enable_punc": False,
-                    "language": "auto"
-                },
-                timeout=15
-            )
-            if resp.ok:
-                data = resp.json()
-                lang = data.get("language")
-                if lang:
-                    return lang[:2].lower()
-                text_snippet = data.get("text", "")
-                if text_snippet:
-                    return detect_language_from_text(text_snippet)
-        finally:
-            try:
-                os.remove(snippet_path)
-            except:
-                pass
-    except Exception as e:
-        print(f"[samesame] audio lang detect failed: {e}")
-    
-    if fallback_text:
-        return detect_language_from_text(fallback_text[:200])
-    return "en"  # fallback
+# detect_language_from_audio_snippet is removed because we only need the target text language
 
 
 def detect_language_from_text(text: str) -> str:
@@ -322,7 +281,7 @@ def clone_voice(
 
     if not lang:
         t_lang = time.time()
-        lang = detect_language_from_audio_snippet(prompt_speech_16k, fallback_text=req.text)
+        lang = detect_language_from_text(req.text)
         timings["lang_detect_ms"] = int((time.time() - t_lang) * 1000)
 
     if lang not in {"ru","uk","th","he","en","zh","ja","ko","de","es","fr","it","pt"}:
