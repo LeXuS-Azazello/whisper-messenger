@@ -41,7 +41,6 @@ jobs:
 
       - name: Trigger Kubernetes Rollout
         run: |
-         
           # Use the checked-in kubeconfig instead of interactive login
           echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > $GITHUB_WORKSPACE/kubeconfig.yaml
           export KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig.yaml
