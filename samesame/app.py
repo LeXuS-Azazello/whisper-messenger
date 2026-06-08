@@ -105,7 +105,7 @@ try:
     sf.write(warm_file, warm_noise, 16000)
     list(
         cosyvoice.inference_cross_lingual(
-            tts_text="<|en|>test voice cloning warmup",
+            tts_text="<|endofprompt|><|en|>test voice cloning warmup",
             prompt_wav=warm_file,
             text_frontend=False
         )
@@ -396,7 +396,10 @@ def clone_voice(
             
             lang_token = LANG_TOKEN_MAP.get(lang, f"<|{lang}|>")
             
-            chunk_with_lang = f"{lang_token}{chunk_text}"
+            if use_frontend:
+                chunk_with_lang = f"{lang_token}{chunk_text}"
+            else:
+                chunk_with_lang = f"<|endofprompt|>{lang_token}{chunk_text}"
             
             with torch.inference_mode(), _inference_lock:
                 # TODO: re-enable when needed.
