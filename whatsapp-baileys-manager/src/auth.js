@@ -34,51 +34,72 @@ export async function qrStart(req, res) {
 
         const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
-        const sock = makeWASocket({
-            auth: state,
-            printQRInTerminal: false,
-            browser: Browsers.macOS('Desktop')
-        });
+        let sock = null;
 
-        sock.ev.on('creds.update', saveCreds);
-        sock.ev.on('connection.update', async (update) => {
-            const { connection, qr, lastDisconnect } = update;
-            if (connection === 'close') {
-                console.log(
-                    'disconnect',
-                    lastDisconnect?.error?.output?.statusCode,
-                    lastDisconnect?.error
-                );
-                if (!session.responded) {
-                    session.responded = true;
-                    res.status(500).json({ error: lastDisconnect?.error?.message || 'Connection closed by WhatsApp' });
-                    try { sock.logout(); } catch (e) { }
-                    authSessions.delete(tempId);
-                }
+        const connect = () => {
+            if (session.status === 'done' || session.status === 'expired') return;
+
+            // Remove listeners from previous socket if any
+            if (sock) {
+                try { sock.ev.removeAllListeners(); } catch (_) {}
             }
-            if (qr) {
-                try {
-                    session.qrUrl = qr;
-                    session.qrDataUrl = await QRCode.toDataURL(qr);
-                    session.status = 'qr_ready';
-                    if (!session.responded) {
-                        session.responded = true;
-                        res.json({
-                            status: 'starting',
-                            qrUrl: qr,
-                            qrDataUrl: session.qrDataUrl,
-                            token: tempId,
-                            info: "After scanning the code, WhatsApp will forcibly disconnect you, forcing a reconnect such that we can present the authentication credentials. Don't worry, this is not an error"
-                        });
+
+            sock = makeWASocket({
+                auth: state,
+                printQRInTerminal: false,
+                browser: Browsers.macOS('Desktop')
+            });
+
+            session.client = sock;
+
+            sock.ev.on('creds.update', saveCreds);
+            sock.ev.on('connection.update', async (update) => {
+                const { connection, qr, lastDisconnect } = update;
+                if (connection === 'close') {
+                    const statusCode = lastDisconnect?.error?.output?.statusCode;
+                    console.log(
+                        `[auth qrStart] disconnect tempId=${tempId} code=${statusCode}`,
+                        lastDisconnect?.error
+                    );
+                    
+                    const shouldReconnect = statusCode !== 401; // not loggedOut
+                    if (shouldReconnect) {
+                        console.log(`[auth qrStart] Reconnecting/restarting for tempId=${tempId}...`);
+                        connect();
+                    } else {
+                        if (!session.responded) {
+                            session.responded = true;
+                            res.status(500).json({ error: lastDisconnect?.error?.message || 'Connection closed by WhatsApp' });
+                        }
+                        try { sock.logout(); } catch (e) { }
+                        authSessions.delete(tempId);
                     }
-                } catch (e) { }
-            }
-            if (connection === 'open') {
-                session.status = 'done';
-            }
-        });
+                }
+                if (qr) {
+                    try {
+                        session.qrUrl = qr;
+                        session.qrDataUrl = await QRCode.toDataURL(qr);
+                        session.status = 'qr_ready';
+                        if (!session.responded) {
+                            session.responded = true;
+                            res.json({
+                                status: 'starting',
+                                qrUrl: qr,
+                                qrDataUrl: session.qrDataUrl,
+                                token: tempId,
+                                info: "After scanning the code, WhatsApp will forcibly disconnect you, forcing a reconnect such that we can present the authentication credentials. Don't worry, this is not an error"
+                            });
+                        }
+                    } catch (e) { }
+                }
+                if (connection === 'open') {
+                    console.log(`[auth qrStart] WhatsApp connection opened successfully for tempId=${tempId}`);
+                    session.status = 'done';
+                }
+            });
+        };
 
-        session.client = sock;
+        connect();
 
         setTimeout(() => {
             if (!session.responded) {
@@ -109,23 +130,57 @@ export async function pairingStart(req, res) {
 
         const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
-        const sock = makeWASocket({
-            auth: state,
-            printQRInTerminal: false,
-            browser: Browsers.macOS('Desktop')
-        });
+        let sock = null;
 
-        sock.ev.on('creds.update', saveCreds);
+        const connect = () => {
+            if (session.status === 'done' || session.status === 'expired') return;
 
-        sock.ev.on('connection.update', async (update) => {
-            const { connection } = update;
-            if (connection === 'open') {
-                session.status = 'done';
+            // Remove listeners from previous socket if any
+            if (sock) {
+                try { sock.ev.removeAllListeners(); } catch (_) {}
             }
-        });
 
-        session.client = sock;
+            sock = makeWASocket({
+                auth: state,
+                printQRInTerminal: false,
+                browser: Browsers.macOS('Desktop')
+            });
 
+            session.client = sock;
+
+            sock.ev.on('creds.update', saveCreds);
+            sock.ev.on('connection.update', async (update) => {
+                const { connection, lastDisconnect } = update;
+                if (connection === 'close') {
+                    const statusCode = lastDisconnect?.error?.output?.statusCode;
+                    console.log(
+                        `[auth pairingStart] disconnect tempId=${tempId} code=${statusCode}`,
+                        lastDisconnect?.error
+                    );
+                    
+                    const shouldReconnect = statusCode !== 401; // not loggedOut
+                    if (shouldReconnect) {
+                        console.log(`[auth pairingStart] Reconnecting/restarting for tempId=${tempId}...`);
+                        connect();
+                    } else {
+                        if (!session.responded) {
+                            session.responded = true;
+                            res.status(500).json({ error: lastDisconnect?.error?.message || 'Connection closed by WhatsApp' });
+                        }
+                        try { sock.logout(); } catch (e) { }
+                        authSessions.delete(tempId);
+                    }
+                }
+                if (connection === 'open') {
+                    console.log(`[auth pairingStart] WhatsApp connection opened successfully for tempId=${tempId}`);
+                    session.status = 'done';
+                }
+            });
+        };
+
+        connect();
+
+        // Wait for the first init to request pairing code
         await new Promise((resolve, reject) => {
             const timeoutId = setTimeout(() => reject(new Error('Connection timed out waiting for init')), 15000);
             sock.ev.on('connection.update', ({ qr, connection, lastDisconnect }) => {

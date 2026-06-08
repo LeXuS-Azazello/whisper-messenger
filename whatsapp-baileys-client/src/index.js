@@ -469,6 +469,9 @@ async function connectToWhatsApp() {
                 isReconnecting = true;
                 const reason = isRestartRequired ? 'server restart required' : 'connection lost';
                 console.log(`[WA-Client] ${reason} — reconnecting...`);
+                if (sock) {
+                    try { sock.ev.removeAllListeners(); } catch (_) {}
+                }
                 setTimeout(() => {
                     isReconnecting = false;
                     firstConnect = false;
