@@ -17,21 +17,52 @@ export { incrementUserStats };
 
 const VALID_LANGS = ['off', 'auto', 'ru', 'uk', 'en', 'de', 'fr', 'es', 'zh', 'ja', 'ko', 'ar', 'tr', 'pl', 'it', 'pt'];
 
-async function handleTranslationSettingsGet(env: Env, userId: string): Promise<Response> {
-  const lang = await env.STATS.get(`translate_lang_${userId}`) || 'off';
-  return Response.json({ lang, validLangs: VALID_LANGS });
+async function handleVoiceSettingsGet(env: Env, userId: string): Promise<Response> {
+  const translate_lang = await env.STATS.get(`translate_lang_${userId}`) || 'translate_off';
+  const asr_lang = await env.STATS.get(`transcription_lang_${userId}`) || 'auto';
+  const clone_strategy = await env.STATS.get(`clone_strategy_${userId}`) || 'zero_shot';
+  
+  return Response.json({ 
+    translate_lang, 
+    asr_lang, 
+    clone_strategy,
+    validTranslateLangs: VALID_LANGS 
+  });
 }
 
-async function handleTranslationSettingsPost(env: Env, req: Request, userId: string): Promise<Response> {
+async function handleVoiceSettingsPost(env: Env, req: Request, userId: string): Promise<Response> {
   try {
-    const { lang } = await req.json() as any;
-    const raw = (lang || 'off').toLowerCase().trim();
-    const safe = raw === 'translate_off' ? 'off' : raw;
-    if (safe !== 'off' && !VALID_LANGS.includes(safe)) {
-      return Response.json({ error: `Invalid lang. Use one of: ${VALID_LANGS.join(', ')}` }, { status: 400 });
+    const { translate_lang, asr_lang, clone_strategy } = await req.json() as any;
+    
+    // Translation Lang
+    if (translate_lang !== undefined) {
+        const raw = String(translate_lang || 'off').toLowerCase().trim();
+        const safe = raw === 'translate_off' ? 'off' : raw;
+        if (safe !== 'off' && !VALID_LANGS.includes(safe)) {
+            return Response.json({ error: `Invalid translate_lang. Use one of: ${VALID_LANGS.join(', ')}` }, { status: 400 });
+        }
+        await env.STATS.put(`translate_lang_${userId}`, safe);
     }
-    await env.STATS.put(`translate_lang_${userId}`, safe);
-    return Response.json({ success: true, lang: safe });
+
+    // ASR Lang
+    if (asr_lang !== undefined) {
+        const validAsrLangs = ['auto', 'ru', 'en', 'uk'];
+        const safeAsr = String(asr_lang).toLowerCase().trim();
+        if (validAsrLangs.includes(safeAsr)) {
+            await env.STATS.put(`transcription_lang_${userId}`, safeAsr);
+        }
+    }
+
+    // Clone Strategy
+    if (clone_strategy !== undefined) {
+        const validStrategies = ['zero_shot', 'cross_lingual', 'off'];
+        const safeStrategy = String(clone_strategy).toLowerCase().trim();
+        if (validStrategies.includes(safeStrategy)) {
+            await env.STATS.put(`clone_strategy_${userId}`, safeStrategy);
+        }
+    }
+
+    return Response.json({ success: true });
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 });
   }
@@ -163,15 +194,15 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
       return await handleDeleteAccount(env, req, userId);
     }
 
-    if (pathname === "/dashboard/translation-settings") {
-      return await handleTranslationSettingsPost(env, req, userId);
+    if (pathname === "/dashboard/voice-settings") {
+      return await handleVoiceSettingsPost(env, req, userId);
     }
 
     return new Response(`Not found: ${pathname}`, { status: 404 });
   }
 
-  if (req.method === "GET" && pathname === "/dashboard/translation-settings") {
-    return await handleTranslationSettingsGet(env, userId);
+  if (req.method === "GET" && pathname === "/dashboard/voice-settings") {
+    return await handleVoiceSettingsGet(env, userId);
   }
 
   if (req.method === "GET" && pathname === "/dashboard/api/stats") {

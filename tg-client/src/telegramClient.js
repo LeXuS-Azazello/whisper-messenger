@@ -590,6 +590,24 @@ async function handleSamesameReplyIfNeeded(message) {
                     }
                 }
             }
+            
+            let cloneStrategy = 'zero_shot';
+            try {
+                const storedStrategy = await redis.get(`clone_strategy_${TARGET_USER_ID}`);
+                if (storedStrategy) cloneStrategy = storedStrategy;
+            } catch (err) {}
+
+            if (cloneStrategy === 'off') {
+                console.log(`[samesame] clone_strategy is 'off', sending text only`);
+                await safeSendMessage(client, chatId, message.id, `📝 ${cleanText}`);
+                if (statusAction) await client.invoke({ '_': 'sendChatAction', chat_id: chatId, action: { '_': 'chatActionCancel' } }).catch(() => {});
+                return;
+            }
+
+            if (cloneStrategy === 'cross_lingual') {
+                console.log(`[samesame] clone_strategy is 'cross_lingual', forcing promptText to null`);
+                promptText = null;
+            }
 
             console.log('[samesame] calling cloneVoiceWithSamesame with text len=', cleanText.length, 'mime=', mime);
 

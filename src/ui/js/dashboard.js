@@ -1076,83 +1076,58 @@ function initDashboard() {
         }
     }
 
-    // ─── Translation Settings Card ─────────────────────────────────────────────
-    const translationCard = document.getElementById('translation-settings-card');
-    if (translationCard) {
-        const langSelect = document.getElementById('translation-lang-select');
-        const saveBtn = document.getElementById('translation-save-btn');
-        const statusEl = document.getElementById('translation-status-badge');
+    // ─── Voice & Transcription Settings ─────────────────────────────────────────────
+    const voiceSettingsCard = document.getElementById('voice-settings-card');
+    if (voiceSettingsCard) {
+        const transLangSelect = document.getElementById('translation-lang-select');
+        const asrLangSelect = document.getElementById('asr-lang-select');
+        const cloneStrategySelect = document.getElementById('clone-strategy-select');
+        
+        const saveBtn = document.getElementById('voice-settings-save-btn');
+        const statusEl = document.getElementById('voice-settings-status-badge');
 
-        const LANG_LABELS = {
-            'translate_off':  '🚫 Disabled (default)',
-            'messenger_system_lang': '🌐 Auto (detect from Telegram)',
-            'ru':   '🇷🇺 Russian',
-            'uk':   '🇺🇦 Ukrainian',
-            'en':   '🇬🇧 English',
-            'th':   '🇹🇭 Thai',
-            'zh':   '🇨🇳 Chinese Simplified',
-            'zh-TW': '🇹🇼 Chinese Traditional',
-            'ar':   '🇸🇦 Arabic',
-            'he':   '🇮🇱 Hebrew',
-            'ja':   '🇯🇵 Japanese',
-            'ko':   '🇰🇷 Korean',
-            'hi':   '🇮🇳 Hindi',
-            'de':   '🇩🇪 German',
-            'fr':   '🇫🇷 French',
-            'es':   '🇪🇸 Spanish',
-            'tr':   '🇹🇷 Turkish',
-            'pl':   '🇵🇱 Polish',
-            'it':   '🇮🇹 Italian',
-            'pt':   '🇵🇹 Portuguese'
-        };
-
-        function updateTranslationStatusBadge(lang) {
+        function updateVoiceStatusBadge(saved) {
             if (!statusEl) return;
-            if (lang === 'translate_off' || lang === 'off' || !lang) {
-                statusEl.textContent = 'DISABLED';
-                statusEl.className = 'status-tag inactive';
-            } else {
-                statusEl.textContent = 'ACTIVE';
+            if (saved) {
+                statusEl.textContent = 'SAVED';
                 statusEl.className = 'status-tag active';
+            } else {
+                statusEl.textContent = 'NOT SAVED';
+                statusEl.className = 'status-tag inactive';
             }
         }
 
         // Load current setting
-        fetch('/dashboard/translation-settings')
+        fetch('/dashboard/voice-settings')
             .then(r => r.json())
             .then(data => {
-                if (langSelect) {
-                    // Populate options if not already in HTML
-                    if (langSelect.options.length <= 1) {
-                        Object.entries(LANG_LABELS).forEach(([val, label]) => {
-                            const opt = document.createElement('option');
-                            opt.value = val;
-                            opt.textContent = label;
-                            langSelect.appendChild(opt);
-                        });
-                    }
-                    langSelect.value = data.lang || 'translate_off';
-                }
-                updateTranslationStatusBadge(data.lang || 'translate_off');
+                if (transLangSelect) transLangSelect.value = data.translate_lang || 'translate_off';
+                if (asrLangSelect) asrLangSelect.value = data.asr_lang || 'auto';
+                if (cloneStrategySelect) cloneStrategySelect.value = data.clone_strategy || 'zero_shot';
+                
+                updateVoiceStatusBadge(true);
             })
-            .catch(err => console.error('[translation] Load error:', err));
+            .catch(err => console.error('[voice-settings] Load error:', err));
 
-        if (saveBtn && langSelect) {
+        if (saveBtn) {
             saveBtn.addEventListener('click', () => {
-                const lang = langSelect.value;
+                const translate_lang = transLangSelect ? transLangSelect.value : undefined;
+                const asr_lang = asrLangSelect ? asrLangSelect.value : undefined;
+                const clone_strategy = cloneStrategySelect ? cloneStrategySelect.value : undefined;
+                
                 const orig = saveBtn.textContent;
                 saveBtn.textContent = 'Saving...';
                 saveBtn.disabled = true;
 
-                fetch('/dashboard/translation-settings', {
+                fetch('/dashboard/voice-settings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ lang })
+                    body: JSON.stringify({ translate_lang, asr_lang, clone_strategy })
                 })
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        updateTranslationStatusBadge(data.lang);
+                        updateVoiceStatusBadge(true);
                         saveBtn.textContent = '✓ Saved!';
                         setTimeout(() => {
                             saveBtn.textContent = orig;
