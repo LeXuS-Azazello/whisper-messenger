@@ -7,8 +7,8 @@ on:
     paths:
       - '.forgejo/workflows/payment-bot.yaml'
       - 'kubernetes/base/payment-bot.yaml'
+      - 'payment-bot/**'
       - 'src/**'
-      - 'Dockerfile'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -32,7 +32,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f Dockerfile -t ${{ env.IMG }}:payment-bot-latest -t ${{ env.IMG }}:payment-bot-${{ forgejo.run_number }} .
+          docker build -f payment-bot/Dockerfile -t ${{ env.IMG }}:payment-bot-latest -t ${{ env.IMG }}:payment-bot-${{ forgejo.run_number }} .
 
       - name: Log in to Registry and push
         run: |

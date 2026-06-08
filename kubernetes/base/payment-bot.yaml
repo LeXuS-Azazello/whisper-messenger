@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-bot
+  namespace: debugging-testcrash-pub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-bot
+  template:
+    metadata:
+      labels:
+        app: payment-bot
+    spec:
+      imagePullSecrets:
+        - name: forgejo-pull-secret
+      containers:
+      - name: payment-bot
+        image: forge.dev.takatan.cloud/lexus/voicemsg-net:payment-bot-latest
+        imagePullPolicy: Always
+        envFrom:
+        - secretRef:
+            name: voicemsg-secrets
+        env:
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/voicemsg"
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"

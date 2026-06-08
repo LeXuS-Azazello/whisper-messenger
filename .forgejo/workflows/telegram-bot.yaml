@@ -7,8 +7,8 @@ on:
     paths:
       - '.forgejo/workflows/telegram-bot.yaml'
       - 'kubernetes/base/telegram-bot.yaml'
+      - 'telegram-bot/**'
       - 'src/**'
-      - 'Dockerfile'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -32,7 +32,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f Dockerfile -t ${{ env.IMG }}:telegram-bot-latest -t ${{ env.IMG }}:telegram-bot-${{ forgejo.run_number }} .
+          docker build -f telegram-bot/Dockerfile -t ${{ env.IMG }}:telegram-bot-latest -t ${{ env.IMG }}:telegram-bot-${{ forgejo.run_number }} .
 
       - name: Log in to Registry and push
         run: |

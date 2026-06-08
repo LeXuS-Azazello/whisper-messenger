@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegram-bot
+  namespace: debugging-testcrash-pub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telegram-bot
+  template:
+    metadata:
+      labels:
+        app: telegram-bot
+    spec:
+      imagePullSecrets:
+        - name: forgejo-pull-secret
+      containers:
+      - name: telegram-bot
+        image: forge.dev.takatan.cloud/lexus/voicemsg-net:telegram-bot-latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3001
+        envFrom:
+        - secretRef:
+            name: voicemsg-secrets
+        env:
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/voicemsg"
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "300m"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telegram-bot
+  namespace: debugging-testcrash-pub
+spec:
+  type: ClusterIP
+  selector:
+    app: telegram-bot
+  ports:
+  - port: 80
+    targetPort: 3001
+    protocol: TCP
+    name: http

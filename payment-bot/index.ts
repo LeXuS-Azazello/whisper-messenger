@@ -187,7 +187,7 @@ if (BOT_TOKEN !== 'PLACEHOLDER_BOT_TOKEN') {
         if (userId) {
             try {
                 // Use dynamic import to avoid potential circular dependencies early in boot
-                const { default: User } = await import('./object-models/User');
+                const { default: User } = await import('../src/object-models/User');
                 const dbUser = await User.findOne({ userId });
                 
                 if (dbUser) {
