@@ -235,7 +235,7 @@ export async function spawnPod(userId, session, username = '', tgId = '', tgLogi
         container.env.push({ name: 'SAMESAME_URL', value: samesameUrl });
         container.env.push({ name: 'SAMESAME_SECRET', value: samesameSecret });
 
-        console.log(`[/spawn] Redis dynamic config: provider="${provider}", samesameUrl="${samesameUrl}"`);
+        console.log(`[/spawn] Redis dynamic config: asrProvider="${asrProvider}", samesameUrl="${samesameUrl}"`);
     } catch (e) {
         console.warn(`[/spawn] Failed to fetch dynamic config from Redis:`, e.message);
     }
