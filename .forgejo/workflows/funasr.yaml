@@ -19,7 +19,7 @@ jobs:
       image: forge.dev.takatan.cloud/takatan/docker-builder:latest
       credentials:
         username: lexus
-        password: ${{ secrets.HAJIME_PASSWD }}
+        password: ${{ secrets.FORGE_TOKEN }}
     env:
       DOCKER_HOST: tcp://172.18.0.1:2375
       REPO_URL: forge.dev.takatan.cloud
@@ -35,7 +35,7 @@ jobs:
 
       - name: Log in to Registry and push
         run: |
-          echo "${{ secrets.HAJIME_PASSWD }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
+          echo "${{ secrets.FORGE_TOKEN }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
           docker push ${{ env.IMG }}:funasr-${{ forgejo.run_number }} && docker push ${{ env.IMG }}:funasr-latest
 
       - name: Trigger Kubernetes Rollout
