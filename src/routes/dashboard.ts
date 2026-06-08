@@ -72,6 +72,10 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
           emailVerified: dbUser.emailVerified,
           isActive: dbUser.isActive ?? true,
           transcriptionCount: dbUser.transcriptionCount || 0,
+          wordsCount: dbUser.wordsCount || 0,
+          clonedMessagesCount: dbUser.clonedMessagesCount || 0,
+          balance: dbUser.balance || 0,
+          currentPlan: dbUser.currentPlan || "Pay-As-You-Go",
           createdAt: dbUser.createdAt ? dbUser.createdAt.getTime() : Date.now(),
           lastActiveAt: dbUser.lastActiveAt ? dbUser.lastActiveAt.getTime() : Date.now(),
           session: tgSession?.sessionData || "",
@@ -195,7 +199,7 @@ export async function handleUserDashboard(env: Env, req: Request, userId: string
   }
 
   if (req.method === "GET" && (pathname === "/dashboard" || pathname === "/dashboard/stats" || pathname === "/dashboard/profile" || pathname === "/dashboard/connections" || pathname === "/dashboard/referrals" || pathname === "/dashboard/billing")) {
-    return showDashboard(user, env);
+    return await showDashboard(user, env);
   }
 
   return new Response("Not found", { status: 404 });

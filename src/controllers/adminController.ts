@@ -162,6 +162,10 @@ export async function fetchUsersWithStatus(env: Env): Promise<UserSession[]> {
                 podName: podInfo ? podInfo.podName : undefined,
                 lastStartedAt: podInfo && podInfo.startTime ? new Date(podInfo.startTime).getTime() : undefined,
                 transcriptionCount: dbUser.transcriptionCount || 0,
+                wordsCount: dbUser.wordsCount || 0,
+                clonedMessagesCount: dbUser.clonedMessagesCount || 0,
+                balance: dbUser.balance || 0,
+                currentPlan: dbUser.currentPlan || "Pay-As-You-Go",
                 tgTranscriptionCount: dbUser.tgTranscriptionCount || 0,
                 waTranscriptionCount: dbUser.waTranscriptionCount || 0,
                 fbTranscriptionCount: dbUser.fbTranscriptionCount || 0,
@@ -420,9 +424,93 @@ export async function renderDashboardPage(env: Env, origin: string): Promise<Res
 
     const errors = await getErrors(env);
 
-    return new Response(renderAdminDashboard(checks, env, origin, stats, errors, users, false), {
+    const priceTranscription = parseFloat(await env.STATS.get('price_transcription') || "0.01");
+    const priceWord = parseFloat(await env.STATS.get('price_word') || "0.001");
+    const priceClone = parseFloat(await env.STATS.get('price_clone') || "0.05");
+
+    const billingConfig = {
+        priceTranscription,
+        priceWord,
+        priceClone
+    };
+
+    return new Response(renderAdminDashboard(checks, env, origin, stats, errors, users, false, billingConfig), {
         headers: { "Content-Type": "text/html; charset=utf-8" }
     });
+}
+
+export async function renderUserProfilePage(env: Env, userId: string): Promise<Response> {
+    const users = await fetchUsersWithStatus(env);
+    const targetUser = users.find(u => u.userId === userId);
+    
+    if (!targetUser) {
+        return new Response("User not found", { status: 404 });
+    }
+
+    const { renderAdminUserProfile } = await import("../components/admin/AdminUserProfile");
+    return new Response(renderAdminUserProfile(targetUser), {
+        headers: { "Content-Type": "text/html; charset=utf-8" }
+    });
+}
+
+export async function updateBillingConfig(env: Env, req: Request): Promise<Response> {
+    try {
+        const { priceTranscription, priceWord, priceClone } = await req.json() as any;
+        const { default: ServerSetting } = await import("../object-models/ServerSetting");
+
+        const settings = [
+            { key: "price_transcription", value: priceTranscription },
+            { key: "price_word", value: priceWord },
+            { key: "price_clone", value: priceClone }
+        ];
+
+        for (const s of settings) {
+            if (s.value !== undefined && s.value !== null) {
+                await env.STATS.put(s.key, String(s.value));
+                await ServerSetting.findOneAndUpdate(
+                    { key: s.key },
+                    { key: s.key, value: String(s.value) },
+                    { upsert: true }
+                );
+            }
+        }
+        return Response.json({ success: true });
+    } catch (e: any) {
+        return Response.json({ success: false, error: e.message }, { status: 500 });
+    }
+}
+
+export async function updateUserBalance(env: Env, req: Request): Promise<Response> {
+    try {
+        const { userId, action, amount, plan } = await req.json() as any;
+        const dbUser = await User.findOne({ userId });
+        
+        if (!dbUser) return Response.json({ success: false, error: "User not found" }, { status: 404 });
+
+        if (action === 'add_balance') {
+            dbUser.balance = (dbUser.balance || 0) + amount;
+        } else if (action === 'set_plan') {
+            dbUser.currentPlan = plan;
+        }
+
+        await dbUser.save();
+
+        // Also sync to Redis user_meta if needed, but not strictly necessary if we query DB on render
+        // Sync to Redis for fast frontend retrieval if desired
+        const metaStr = await env.STATS.get(`user_meta_${userId}`);
+        if (metaStr) {
+            try {
+                const meta = JSON.parse(metaStr);
+                meta.balance = dbUser.balance;
+                meta.currentPlan = dbUser.currentPlan;
+                await env.STATS.put(`user_meta_${userId}`, JSON.stringify(meta));
+            } catch (e) {}
+        }
+
+        return Response.json({ success: true, balance: dbUser.balance, currentPlan: dbUser.currentPlan });
+    } catch (e: any) {
+        return Response.json({ success: false, error: e.message }, { status: 500 });
+    }
 }
 
 export async function syncSettingsToRedis(env: Env) {

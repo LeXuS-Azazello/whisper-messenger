@@ -11,6 +11,7 @@ import { connectDB } from "./db/mongoose";
 import { syncSettingsToRedis } from "./controllers/adminController";
 import "dotenv/config";
 import dns from "dns";
+import "./paymentBot";
 
 // Fix for Node.js 18+ fetch issues with local hostnames
 dns.setDefaultResultOrder("ipv4first");

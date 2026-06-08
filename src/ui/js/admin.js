@@ -202,6 +202,78 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Billing & Tariffs Logic
+    const savePricesBtn = document.getElementById('save-prices-btn');
+    if (savePricesBtn) {
+        savePricesBtn.addEventListener('click', () => {
+            const priceTranscription = document.getElementById('price-transcription')?.value || 0;
+            const priceWord = document.getElementById('price-word')?.value || 0;
+            const priceClone = document.getElementById('price-clone')?.value || 0;
+
+            savePricesBtn.innerText = 'Saving...';
+            fetch('/admin/billing-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ priceTranscription, priceWord, priceClone })
+            }).then(r => r.json()).then(d => {
+                alert(d.success ? 'Prices saved' : 'Error: ' + d.error);
+                savePricesBtn.innerText = 'Save Prices';
+            }).catch(e => {
+                alert('Save failed: ' + e.message);
+                savePricesBtn.innerText = 'Save Prices';
+            });
+        });
+    }
+
+    const updateBalanceBtn = document.getElementById('update-balance-btn');
+    if (updateBalanceBtn) {
+        updateBalanceBtn.addEventListener('click', () => {
+            const userId = document.getElementById('user-balance-select')?.value;
+            const amount = parseFloat(document.getElementById('add-balance-amount')?.value || 0);
+
+            if (!userId) return alert('Select a user first');
+            if (!amount) return alert('Enter a valid amount');
+
+            updateBalanceBtn.innerText = 'Updating...';
+            fetch('/admin/user-balance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, action: 'add_balance', amount })
+            }).then(r => r.json()).then(d => {
+                alert(d.success ? 'Balance updated successfully. Refreshing...' : 'Error: ' + d.error);
+                updateBalanceBtn.innerText = 'Add/Remove';
+                if (d.success) setTimeout(() => location.reload(), 1000);
+            }).catch(e => {
+                alert('Update failed: ' + e.message);
+                updateBalanceBtn.innerText = 'Add/Remove';
+            });
+        });
+    }
+
+    const updatePlanBtn = document.getElementById('update-plan-btn');
+    if (updatePlanBtn) {
+        updatePlanBtn.addEventListener('click', () => {
+            const userId = document.getElementById('user-balance-select')?.value;
+            const plan = document.getElementById('user-plan-select')?.value;
+
+            if (!userId) return alert('Select a user first');
+
+            updatePlanBtn.innerText = 'Updating...';
+            fetch('/admin/user-balance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, action: 'set_plan', plan })
+            }).then(r => r.json()).then(d => {
+                alert(d.success ? 'Plan updated successfully. Refreshing...' : 'Error: ' + d.error);
+                updatePlanBtn.innerText = 'Set Plan';
+                if (d.success) setTimeout(() => location.reload(), 1000);
+            }).catch(e => {
+                alert('Update failed: ' + e.message);
+                updatePlanBtn.innerText = 'Set Plan';
+            });
+        });
+    }
+
     const switchWhisperBtn = document.getElementById('btn-switch-whisper');
     const switchSensevoiceBtn = document.getElementById('btn-switch-sensevoice');
     const switchFunasrBtn = document.getElementById('btn-switch-funasr');

@@ -16,8 +16,16 @@ export function StatisticsPane({ user }: PaneProps) {
                             <div class="stat-label">Total Transcriptions</div>
                             <div class="stat-value">{user.transcriptionCount || 0}</div>
                         </div>
+                        <div class="stat-highlight" style={{ marginTop: '1rem' }}>
+                            <div class="stat-label">Total Words Processed</div>
+                            <div class="stat-value">{user.wordsCount || 0}</div>
+                        </div>
+                        <div class="stat-highlight" style={{ marginTop: '1rem' }}>
+                            <div class="stat-label">Voice Cloned Messages</div>
+                            <div class="stat-value">{user.clonedMessagesCount || 0}</div>
+                        </div>
                         {user.lastActiveAt && (
-                            <div class="stat-footer">
+                            <div class="stat-footer" style={{ marginTop: '1.5rem' }}>
                                 Last active session: {new Date(user.lastActiveAt).toLocaleString()}
                             </div>
                         )}

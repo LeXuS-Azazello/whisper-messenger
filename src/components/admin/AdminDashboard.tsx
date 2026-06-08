@@ -11,8 +11,9 @@ import { LineAdminCard } from './LineAdminCard';
 import { TranscriptionStatsCard } from './TranscriptionStatsCard';
 import { UserManagementCard } from './UserManagementCard';
 import { AIConfigCard } from './AIConfigCard';
+import { AdminBillingCard } from './AdminBillingCard';
 
-export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: string, stats: any, errors: ErrorLog[], users: UserSession[] = [], tgAuthenticated: boolean = false) => {
+export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: string, stats: any, errors: ErrorLog[], users: UserSession[] = [], tgAuthenticated: boolean = false, billingConfig: any = {}) => {
     return "<!DOCTYPE html>" + render(
         <html lang="en">
             <head>
@@ -76,6 +77,13 @@ export const renderAdminDashboard = (checks: HealthChecks, env: Env, origin: str
                         <AIConfigCard checks={checks} env={env} />
 
                         <TranscriptionStatsCard stats={stats} users={users} />
+
+                        <AdminBillingCard 
+                            users={users} 
+                            priceTranscription={billingConfig.priceTranscription || 0.01}
+                            priceWord={billingConfig.priceWord || 0.001}
+                            priceClone={billingConfig.priceClone || 0.05}
+                        />
 
                         <UserManagementCard users={users} />
 

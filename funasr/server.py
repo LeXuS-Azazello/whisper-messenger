@@ -202,7 +202,7 @@ def ready():
     return {"ready": False, "reason": "Model not initialized"}
 
 
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel, model_validator
 from typing import Optional
 
 class TranscribeRequest(BaseModel):
@@ -213,12 +213,11 @@ class TranscribeRequest(BaseModel):
     enable_vad: bool = True
     enable_punc: bool = True
 
-    @root_validator
-    def check_file_input(cls, values):
-        file_data, file_path = values.get('file_data'), values.get('file_path')
-        if not file_data and not file_path:
+    @model_validator(mode='after')
+    def check_file_input(self):
+        if not self.file_data and not self.file_path:
             raise ValueError('Either file_data (base64) or file_path must be provided.')
-        return values
+        return self
 
 
 @app.post("/v1/transcribe-base64")

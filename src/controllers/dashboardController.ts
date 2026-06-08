@@ -289,9 +289,19 @@ export async function handleRestartTg(env: Env, userId: string, user: UserSessio
   }
 }
 
-export function showDashboard(user: UserSession, env: Env): Response {
+export async function showDashboard(user: UserSession, env: Env): Promise<Response> {
   try {
-    const html = renderDashboard(user, env);
+    const priceTranscription = parseFloat(await env.STATS.get('price_transcription') || "0.01");
+    const priceWord = parseFloat(await env.STATS.get('price_word') || "0.001");
+    const priceClone = parseFloat(await env.STATS.get('price_clone') || "0.05");
+
+    const billingConfig = {
+      priceTranscription,
+      priceWord,
+      priceClone
+    };
+
+    const html = renderDashboard(user, env, billingConfig);
     return new Response(html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",

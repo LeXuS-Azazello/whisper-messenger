@@ -169,6 +169,14 @@ export const renderAuthPage = (
                                         <div class="password-strength-text" id="strength-text"></div>
                                     </div>
 
+                                    {/* Terms and Privacy Checkbox */}
+                                    <div class="terms-checkbox-wrapper" style={{ display: 'flex', alignItems: 'flex-start', marginBlock: '12px 16px', gap: '8px' }}>
+                                        <input type="checkbox" id="register-terms-checkbox" style={{ marginTop: '4px', cursor: 'pointer', accentColor: '#8B5CF6' }} />
+                                        <label htmlFor="register-terms-checkbox" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', lineHeight: '1.4' }}>
+                                            I agree to the <a href="/terms" class="link" style={{ fontSize: '13px', display: 'inline', color: '#8B5CF6' }} target="_blank">Terms of Service</a> and <a href="/privacy" class="link" style={{ fontSize: '13px', display: 'inline', color: '#8B5CF6' }} target="_blank">Privacy Policy</a>
+                                        </label>
+                                    </div>
+
                                     <button class="btn-primary" id="register-btn">
                                         Create Account
                                     </button>

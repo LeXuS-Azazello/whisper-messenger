@@ -8,4 +8,5 @@ export interface DashboardShellProps {
 export interface PaneProps {
     user: UserSession;
     env: Env;
+    billingConfig?: any;
 }

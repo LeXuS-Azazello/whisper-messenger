@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const registerFirstname = document.getElementById('register-firstname-input');
     const registerEmail = document.getElementById('register-email-input');
     const registerPassword = document.getElementById('register-password-input');
+    const registerTermsCheckbox = document.getElementById('register-terms-checkbox');
     const registerBtn = document.getElementById('register-btn');
     const passwordStrength = document.getElementById('password-strength');
     const strengthBar = document.getElementById('strength-bar');
@@ -258,9 +259,15 @@ document.addEventListener('DOMContentLoaded', function () {
             const firstName = registerFirstname.value.trim();
             const email = registerEmail.value.trim();
             const password = registerPassword.value.trim();
+            const termsAgreed = registerTermsCheckbox ? registerTermsCheckbox.checked : false;
 
             if (!firstName || !email || !password) {
                 showAlert('error', 'Please fill out all registration fields.');
+                return;
+            }
+
+            if (!termsAgreed) {
+                showAlert('error', 'You must agree to the Terms of Service and Privacy Policy.');
                 return;
             }
 

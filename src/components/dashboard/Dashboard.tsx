@@ -10,7 +10,7 @@ import { ProfilePane } from './ProfilePane';
 import { ReferralsPane } from './ReferralsPane';
 import { BillingPane } from './BillingPane';
 
-export const renderDashboard = (user: UserSession, env: Env) => {
+export const renderDashboard = (user: UserSession, env: Env, billingConfig: any = {}) => {
     return "<!DOCTYPE html>" + render(
         <html lang="en">
             <head>
@@ -39,7 +39,7 @@ export const renderDashboard = (user: UserSession, env: Env) => {
                             <StatisticsPane user={user} env={env} />
                             <ProfilePane user={user} env={env} />
                             <ReferralsPane user={user} env={env} />
-                            <BillingPane user={user} env={env} />
+                            <BillingPane user={user} env={env} billingConfig={billingConfig} />
                         </div>
                     </main>
                 </div>

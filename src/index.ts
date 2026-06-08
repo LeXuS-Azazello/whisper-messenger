@@ -306,6 +306,21 @@ export default {
         }
       }
 
+      // ─── Legal pages ────────────────────────────────────────────────────────
+      if (pathname === "/terms") {
+        const { renderTerms } = await import("./components/home/Terms");
+        return new Response(renderTerms(), {
+          headers: { "Content-Type": "text/html; charset=utf-8" }
+        });
+      }
+
+      if (pathname === "/privacy") {
+        const { renderPrivacy } = await import("./components/home/Privacy");
+        return new Response(renderPrivacy(), {
+          headers: { "Content-Type": "text/html; charset=utf-8" }
+        });
+      }
+
       // ─── Home page (/) ──────────────────────────────────────────────────────
       if (pathname === "/") {
         const sessionCookie = req.headers.get("Cookie")?.match(/(?:^|;)\s*session=([^;]+)/)?.[1];

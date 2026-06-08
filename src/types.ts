@@ -180,6 +180,10 @@ export interface UserSession {
   lastStartedAt?: number;
   lastStoppedAt?: number;
   transcriptionCount: number;
+  wordsCount?: number;
+  clonedMessagesCount?: number;
+  balance?: number;
+  currentPlan?: string;
   tgTranscriptionCount?: number;
   waTranscriptionCount?: number;
   fbTranscriptionCount?: number;

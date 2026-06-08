@@ -201,8 +201,26 @@ export async function handleAdmin(env: Env, req: Request): Promise<Response> {
             return await renderDashboardPage(env, url.origin);
         }
 
+        if (method === "GET" && pathname.startsWith("/admin/users/")) {
+            const userId = pathname.split("/").pop();
+            if (userId) {
+                const { renderUserProfilePage } = await import("../controllers/adminController");
+                return await renderUserProfilePage(env, userId);
+            }
+        }
+
         if (method === "POST" && pathname === "/admin/asr-switch") {
             return await switchAsrModel(env, req);
+        }
+
+        if (method === "POST" && pathname === "/admin/billing-config") {
+            const { updateBillingConfig } = await import("../controllers/adminController");
+            return await updateBillingConfig(env, req);
+        }
+
+        if (method === "POST" && pathname === "/admin/user-balance") {
+            const { updateUserBalance } = await import("../controllers/adminController");
+            return await updateUserBalance(env, req);
         }
 
         return new Response("Not found", { status: 404 });

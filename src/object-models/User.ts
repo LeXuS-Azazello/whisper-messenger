@@ -16,6 +16,10 @@ export interface IUser extends Document {
   fbTranscriptionCount?: number;
   lineTranscriptionCount?: number;
   instaTranscriptionCount?: number;
+  wordsCount?: number;
+  clonedMessagesCount?: number;
+  balance?: number;
+  currentPlan?: string;
   lastActiveAt?: Date;
   threadsToken?: string;
   threadsUserId?: string;
@@ -46,6 +50,10 @@ const UserSchema: Schema = new Schema({
   fbTranscriptionCount: { type: Number, default: 0 },
   lineTranscriptionCount: { type: Number, default: 0 },
   instaTranscriptionCount: { type: Number, default: 0 },
+  wordsCount: { type: Number, default: 0 },
+  clonedMessagesCount: { type: Number, default: 0 },
+  balance: { type: Number, default: 0 },
+  currentPlan: { type: String, default: "Pay-As-You-Go" },
   lastActiveAt: { type: Date },
   threadsToken: { type: String },
   threadsUserId: { type: String },

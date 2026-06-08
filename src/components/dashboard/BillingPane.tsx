@@ -1,34 +1,33 @@
 /** @jsxImportSource preact */
 import type { PaneProps } from './Dashboard.types';
 
-export function BillingPane({ user }: PaneProps) {
+export function BillingPane({ user, env, billingConfig = {} }: PaneProps) {
+    const priceTranscription = billingConfig.priceTranscription || 0.01;
+    const priceWord = billingConfig.priceWord || 0.001;
+    const priceClone = billingConfig.priceClone || 0.05;
+
     return (
         <div class="tab-pane" id="pane-billing">
             <div class="grid billing-overview-grid">
                 <div class="card billing-plan-card">
                     <div class="card-header">
-                        <h3 class="card-title">💳 Current Plan</h3>
+                        <h3 class="card-title">💳 Current Balance</h3>
                         <span class="status-tag active">Active</span>
                     </div>
                     <div class="card-content">
                         <div class="billing-details-summary">
-                            <div class="plan-hero">
-                                <span class="plan-hero-subtitle">MEMBERSHIP</span>
-                                <span class="plan-hero-title">Pay-As-You-Go (Beta)</span>
-                                <span class="plan-hero-desc">Billed per second of processed audio or character of transcribed text.</span>
-                            </div>
-                            <div class="plan-meta-stats">
-                                <div class="plan-meta-item">
-                                    <span>Balance</span>
-                                    <strong>$0.00 USD</strong>
+                            <div class="plan-meta-stats" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div class="plan-meta-item" style={{ fontSize: '1.2rem' }}>
+                                    <span>Available Balance:</span>
+                                    <strong style={{ fontSize: '1.5rem', color: '#10b981' }}>${(user.balance || 0).toFixed(2)} USD</strong>
                                 </div>
                                 <div class="plan-meta-item">
-                                    <span>Estimated Cost</span>
-                                    <strong>$0.00 / mo</strong>
+                                    <span>Current Plan:</span>
+                                    <strong>{user.currentPlan || 'Pay-As-You-Go'}</strong>
                                 </div>
                                 <div class="plan-meta-item">
-                                    <span>Payment Method</span>
-                                    <strong>Not Linked</strong>
+                                    <span>Supported Platforms:</span>
+                                    <strong>Telegram, WhatsApp</strong>
                                 </div>
                             </div>
                         </div>
@@ -37,16 +36,14 @@ export function BillingPane({ user }: PaneProps) {
 
                 <div class="card billing-limits-card">
                     <div class="card-header">
-                        <h3 class="card-title">💎 Billing Model</h3>
+                        <h3 class="card-title">💎 Pay-As-You-Go Rates</h3>
                     </div>
                     <div class="card-content">
                         <ul class="billing-features-list">
-                            <li>✓ Billing based on total processed audio duration (per second)</li>
-                            <li>✓ Alternative billing by transcribed text length (per character)</li>
-                            <li>✓ No monthly fixed fees (Pure usage based)</li>
-                            <li>✓ Access to all high-fidelity Whisper models</li>
-                            <li>✓ Real-time credit balance subtraction</li>
-                            <li>✓ Automatic top-ups available via Stripe/Crypto</li>
+                            <li>✓ <strong>Transcription:</strong> ${priceTranscription} per message</li>
+                            <li>✓ <strong>Words:</strong> ${priceWord} per transcribed word</li>
+                            <li>✓ <strong>Voice Cloning (XTTS):</strong> ${priceClone} per generated message</li>
+                            <li>✓ Real-time balance deduction</li>
                         </ul>
                     </div>
                 </div>
@@ -54,72 +51,89 @@ export function BillingPane({ user }: PaneProps) {
 
             <div class="card billing-pricing-card" style={{ marginTop: '1.5rem' }}>
                 <div class="card-header">
-                    <h3 class="card-title">⚡ Top-Up Credits</h3>
+                    <h3 class="card-title">📦 Subscription Packages</h3>
                 </div>
                 <div class="card-content">
                     <div class="grid pricing-tiers-grid">
                         <div class="pricing-card">
                             <div class="price-header">
-                                <span class="tier-name">Starter Pack</span>
-                                <div class="tier-price">$5 <span>/ credit</span></div>
+                                <span class="tier-name">Weekly Unlimited</span>
+                                <div class="tier-price">$9.99 <span>/ week</span></div>
                             </div>
                             <ul class="tier-features">
-                                <li>~60 mins of audio</li>
-                                <li>Standard processing speed</li>
-                                <li>Email support</li>
+                                <li>Unlimited Transcriptions</li>
+                                <li>Unlimited Words</li>
+                                <li>Unlimited Voice Cloning</li>
+                                <li>Telegram & WhatsApp</li>
                             </ul>
-                            <button class="btn btn-secondary btn-full" onClick={() => alert('Opening payment options...')}>Buy Credits</button>
+                            <button class="btn btn-secondary btn-full" onClick={() => window.open(`https://t.me/kilo_alexey_bot?start=sub_weekly_${user.userId}`, '_blank')}>Subscribe</button>
                         </div>
 
                         <div class="pricing-card active">
                             <div class="price-header">
-                                <span class="tier-name">Power User</span>
-                                <div class="tier-price">$20 <span>/ credit</span></div>
+                                <span class="tier-name">Monthly Unlimited</span>
+                                <div class="tier-price">$29.99 <span>/ month</span></div>
                                 <span class="pricing-badge-popular">POPULAR</span>
                             </div>
                             <ul class="tier-features">
-                                <li>~240 mins of audio</li>
-                                <li>Priority processing</li>
-                                <li>Priority support</li>
+                                <li>All Weekly features</li>
+                                <li>Priority Queue</li>
+                                <li>Premium Support</li>
                             </ul>
-                            <button class="btn btn-primary btn-full" onClick={() => alert('Opening payment options...')}>Buy Credits</button>
+                            <button class="btn btn-primary btn-full" onClick={() => window.open(`https://t.me/kilo_alexey_bot?start=sub_monthly_${user.userId}`, '_blank')}>Subscribe</button>
                         </div>
 
                         <div class="pricing-card">
                             <div class="price-header">
-                                <span class="tier-name">Enterprise pack</span>
-                                <div class="tier-price">$50 <span>/ credit</span></div>
+                                <span class="tier-name">Flexible (Daytime Only)</span>
+                                <div class="tier-price">$14.99 <span>/ month</span></div>
                             </div>
                             <ul class="tier-features">
-                                <li>~600 mins of audio</li>
-                                <li>Ultra-priority queue</li>
-                                <li>Dedicated manager</li>
+                                <li>Unlimited 08:00 - 20:00</li>
+                                <li>Pay-As-You-Go at night</li>
+                                <li>Perfect for work hours</li>
                             </ul>
-                            <button class="btn btn-secondary btn-full" onClick={() => alert('Please contact sales: sales@voicemsg.net')}>Buy Credits</button>
+                            <button class="btn btn-secondary btn-full" onClick={() => window.open(`https://t.me/kilo_alexey_bot?start=sub_flexible_${user.userId}`, '_blank')}>Subscribe</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Payment Method Selection Placeholder */}
             <div class="card payment-methods-card" style={{ marginTop: '1.5rem' }}>
                 <div class="card-header">
-                    <h3 class="card-title">🛡️ Select Payment Method</h3>
+                    <h3 class="card-title">🛡️ Top-Up Balance</h3>
                 </div>
                 <div class="card-content">
                     <div class="grid payment-options-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        <div class="payment-option-card" style={{ border: '1px solid #333', padding: '1.5rem', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s', textAlign: 'center', background: 'rgba(255,255,255,0.03)' }} onClick={() => alert('Visa/Mastercard gateway coming soon!')}>
-                            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💳</div>
-                            <h4 style={{ margin: '0 0 0.5rem 0' }}>Bank Card</h4>
-                            <p style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '1rem' }}>Visa, Mastercard, Maestro</p>
-                            <span class="status-tag inactive">Coming Soon</span>
+                        <div class="payment-option-card" style={{ border: '1px solid #333', padding: '1.5rem', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s', textAlign: 'center', background: 'rgba(255,255,255,0.03)' }} onClick={() => window.open(`https://t.me/kilo_alexey_bot?start=${user.userId}`, '_blank')}>
+                            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✈️</div>
+                            <h4 style={{ margin: '0 0 0.5rem 0' }}>Telegram</h4>
+                            <p style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '1rem' }}>Fast top-up via official bot</p>
+                            <span class="status-tag active" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981' }}>Available</span>
                         </div>
-                        <div class="payment-option-card" style={{ border: '1px solid #333', padding: '1.5rem', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s', textAlign: 'center', background: 'rgba(255,255,255,0.03)' }} onClick={() => alert('Crypto gateway coming soon!')}>
+                        <div class="payment-option-card" style={{ border: '1px solid #333', padding: '1.5rem', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s', textAlign: 'center', background: 'rgba(255,255,255,0.03)' }} onClick={() => { document.getElementById('crypto-form')!.style.display = 'block'; }}>
                             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>₿</div>
                             <h4 style={{ margin: '0 0 0.5rem 0' }}>Cryptocurrency</h4>
                             <p style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '1rem' }}>USDT, BTC, ETH</p>
-                            <span class="status-tag inactive">Coming Soon</span>
+                            <span class="status-tag active" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981' }}>Available</span>
                         </div>
+                    </div>
+
+                    <div id="crypto-form" style={{ display: 'none', marginTop: '1.5rem', padding: '1.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid #333' }}>
+                        <h4 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>Pay with Cryptocurrency</h4>
+                        <p style={{ marginBottom: '1rem', opacity: 0.8, fontSize: '0.95rem' }}>Leave your Telegram username or email, and our manager will contact you with payment details to top up your balance.</p>
+                        <input type="text" placeholder="@username or email" class="styled-input" style={{ width: '100%', maxWidth: '400px', marginBottom: '1rem', padding: '12px', borderRadius: '8px', border: '1px solid #444', background: '#111', color: '#fff' }} id="crypto-contact" />
+                        <br />
+                        <button class="btn btn-primary" onClick={() => { 
+                            const input = document.getElementById('crypto-contact') as HTMLInputElement;
+                            if (input.value.trim() === '') {
+                                alert('Please enter your contact details.');
+                                return;
+                            }
+                            alert('Request sent! We will contact you soon.'); 
+                            document.getElementById('crypto-form')!.style.display = 'none'; 
+                            input.value = ''; 
+                        }}>Send Request</button>
                     </div>
                 </div>
             </div>
@@ -142,18 +156,7 @@ export function BillingPane({ user }: PaneProps) {
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>TX-2026-003</td>
-                                    <td>May 1, 2026</td>
-                                    <td>Credit Top-up</td>
-                                    <td>+$5.00</td>
-                                    <td><span class="status-tag active">SUCCESS</span></td>
-                                </tr>
-                                <tr>
-                                    <td>TX-2026-002</td>
-                                    <td>April 1, 2026</td>
-                                    <td>Usage Fee</td>
-                                    <td>-$1.20</td>
-                                    <td><span class="status-tag active">SUCCESS</span></td>
+                                    <td colSpan={5} style={{ textAlign: 'center', padding: '1rem', opacity: 0.5 }}>No transactions yet</td>
                                 </tr>
                             </tbody>
                         </table>
