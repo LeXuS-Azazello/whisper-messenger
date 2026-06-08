@@ -31,6 +31,7 @@ app.use(express.urlencoded({ limit: '100mb', extended: true }));
 // Initialize Kubernetes Client if Manager
 initK8s();
 
+
 // Initialize MongoDB
 if (MODE === 'MANAGER') {
     mongoose.connect(MONGODB_URI)
