@@ -92,6 +92,24 @@ async function processIncomingQueue() {
     isProcessingQueue = false;
 }
 
+const samesameQueue = [];
+let isProcessingSamesameQueue = false;
+
+async function processSamesameQueue() {
+    if (isProcessingSamesameQueue) return;
+    isProcessingSamesameQueue = true;
+    while (samesameQueue.length > 0) {
+        const message = samesameQueue.shift();
+        try {
+            await handleSamesameReplyIfNeeded(message);
+        } catch (queueErr) {
+            console.error(`[tg-client] Error processing SAMESAME message ${message.id} from queue:`, queueErr.message);
+        }
+        if (samesameQueue.length > 0) await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    isProcessingSamesameQueue = false;
+}
+
 export async function handleNewMessage(message) {
     if (!message || !message.content) return;
 
@@ -122,13 +140,11 @@ export async function handleNewMessage(message) {
     }
 
     if (type === 'messageText') {
-        handleSamesameReplyIfNeeded(message)
-            .catch(err => {
-                console.error(
-                    '[samesame]',
-                    err.message
-                );
-            });
+        samesameQueue.push(message);
+
+        if (!isProcessingSamesameQueue) {
+            processSamesameQueue().catch(console.error);
+        }
     }
 }
 

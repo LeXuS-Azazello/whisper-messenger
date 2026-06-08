@@ -31,6 +31,4 @@ export const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379', {
 redis.on('error', err => {
     console.error('[tg-client redis] Error:', err.message);
 });
-redis.on('error', err => {
-    console.error('[tg-client redis] Error:', err.message);
-});
+

@@ -20,6 +20,7 @@ resources:
   - facebook-fca-manager.yaml
   - instagram-fca-manager.yaml
   - funasr.yaml
+  - temp-media-cleanup-cronjob.yaml
 
 
 

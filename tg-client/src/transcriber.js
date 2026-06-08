@@ -112,7 +112,7 @@ async function _transcribeOnce(url, file_path, mime_type, language, target_langu
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(3600000) // 1 hour
+    signal: AbortSignal.timeout(120000) // 2 minutes
   });
 
   const submitMs = Date.now() - tSubmit;

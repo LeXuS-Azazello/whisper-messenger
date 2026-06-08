@@ -127,12 +127,12 @@ export async function cloneVoiceWithSamesame({
   console.log(`[samesame] Starting voice clone request (text length: ${text.length}, language: ${language || 'default'})`);
   console.time(`[samesame] Voice Clone (${text.length} chars)`);
 
-  // Use native http/https with explicit socket timeout (15 min) to avoid undici headersTimeout issue
+  // Use native http/https with explicit socket timeout to avoid undici headersTimeout issue
   const parsedUrl = new URL(url);
   const isHttps = parsedUrl.protocol === 'https:';
   const bodyStr = JSON.stringify(payload);
 
-  const response = await new Promise(async (resolve, reject) => {
+  async function _doSamesameRequest() {
     const lib = isHttps ? (await import('https')).default : (await import('http')).default;
     const options = {
       hostname: parsedUrl.hostname,
@@ -145,32 +145,46 @@ export async function cloneVoiceWithSamesame({
         'Content-Length': Buffer.byteLength(bodyStr)
       }
     };
-    const req = lib.request(options, (res) => {
-      const chunks = [];
-      res.on('data', chunk => chunks.push(chunk));
-      res.on('end', () => {
-        const buf = Buffer.concat(chunks);
-        resolve({
-          ok: res.statusCode >= 200 && res.statusCode < 300,
-          status: res.statusCode,
-          statusText: res.statusMessage,
-          json: () => Promise.resolve(JSON.parse(buf.toString())),
-          text: () => Promise.resolve(buf.toString())
+
+    const response = await new Promise((resolve, reject) => {
+      const req = lib.request(options, (res) => {
+        const chunks = [];
+        res.on('data', chunk => chunks.push(chunk));
+        res.on('end', () => {
+          const buf = Buffer.concat(chunks);
+          resolve({
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode,
+            statusText: res.statusMessage,
+            json: () => Promise.resolve(JSON.parse(buf.toString())),
+            text: () => Promise.resolve(buf.toString())
+          });
         });
       });
+      req.setTimeout(300000, () => { req.destroy(new Error('Samesame request timeout after 5 minutes')); });
+      req.on('error', reject);
+      req.write(bodyStr);
+      req.end();
     });
-    req.setTimeout(900000, () => { req.destroy(new Error('Samesame request timeout after 15 minutes')); });
-    req.on('error', reject);
-    req.write(bodyStr);
-    req.end();
-  });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`SAMESAME clone failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response;
+  }
+
+  let response;
+  try {
+    response = await _doSamesameRequest();
+  } catch (err1) {
+    console.warn(`[samesame] First attempt failed: ${err1.message} — retrying in 3s...`);
+    await new Promise(r => setTimeout(r, 3000));
+    response = await _doSamesameRequest();
+  }
 
   console.timeEnd(`[samesame] Voice Clone (${text.length} chars)`);
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`SAMESAME clone failed: ${response.status} ${response.statusText} - ${errorText}`);
-  }
 
   const data = await response.json();
   const audioBuffer = data.audio_base64 ? Buffer.from(data.audio_base64, 'base64') : null;

@@ -276,8 +276,11 @@ async def transcribe(req: TranscribeRequest):
             if raw_lang:
                 detected_lang = raw_lang[:2].lower()
 
+        # Chinese is not supported — when the model detects zh/zn it's almost
+        # always a misdetection (Russian mistaken for Chinese).  Drop the
+        # unreliable tag so the client can fall back to its own heuristics.
         if detected_lang in ["zh", "zn"]:
-            detected_lang = "ru"
+            detected_lang = None
 
         return {
             "text": text,

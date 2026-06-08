@@ -250,21 +250,35 @@ def clone_voice(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid audio data: {e}")
 
-    # Trim silence first to evaluate true speech length
+    # Trim silence — use a low threshold to keep quiet consonants and breaths
     audio_np = prompt_speech_16k.squeeze(0).cpu().numpy()
-    mask = np.abs(audio_np) > 0.05
+    mask = np.abs(audio_np) > 0.015
     if np.any(mask):
         indices = np.where(mask)[0]
-        start = indices[0]
-        end = indices[-1] + 1
-        prompt_speech_16k = torch.from_numpy(audio_np[start:end]).unsqueeze(0).float()
+        # Keep 0.1s padding around the voiced region for natural context
+        pad_samples = 1600  # 0.1s at 16kHz
+        start = max(0, indices[0] - pad_samples)
+        end = min(len(audio_np), indices[-1] + 1 + pad_samples)
+        audio_np = audio_np[start:end]
+
+        # Smooth fade-in (10ms) and fade-out (30ms) to avoid abrupt boundaries
+        fade_in_len = min(160, len(audio_np))   # 10ms
+        fade_out_len = min(480, len(audio_np))   # 30ms
+        audio_np[:fade_in_len] *= np.linspace(0, 1, fade_in_len)
+        audio_np[-fade_out_len:] *= np.linspace(1, 0, fade_out_len)
+
+        prompt_speech_16k = torch.from_numpy(audio_np).unsqueeze(0).float()
 
     true_audio_samples = prompt_speech_16k.shape[-1]
 
-    # Finally limit to 14 seconds for inference stability
+    # Limit to 14 seconds — apply cosine fade-out if truncating mid-speech
     MAX_PROMPT_SAMPLES = 16000 * 14
     if prompt_speech_16k.shape[-1] > MAX_PROMPT_SAMPLES:
         prompt_speech_16k = prompt_speech_16k[:, :MAX_PROMPT_SAMPLES]
+        # Fade-out the last 30ms to prevent harsh cutoff
+        fade_len = 480  # 30ms at 16kHz
+        fade = torch.linspace(1, 0, fade_len)
+        prompt_speech_16k[0, -fade_len:] *= fade
 
     LANG_MAP = {
         "uk": "uk", "ukr": "uk", "ukrainian": "uk", "uk-ua": "uk",
@@ -400,7 +414,27 @@ def clone_voice(
         if not all_audio_chunks:
             raise ValueError("empty audio")
 
-        audio = np.concatenate(all_audio_chunks) if len(all_audio_chunks) > 1 else all_audio_chunks[0]
+        # Fade edges of each chunk to avoid clicks, then crossfade-overlap
+        fade_samples = int(SAMPLE_RATE * 0.015)  # 15ms
+        for i, chunk in enumerate(all_audio_chunks):
+            if len(chunk) > fade_samples * 2:
+                chunk[:fade_samples] *= np.linspace(0, 1, fade_samples)
+                chunk[-fade_samples:] *= np.linspace(1, 0, fade_samples)
+                all_audio_chunks[i] = chunk
+
+        if len(all_audio_chunks) == 1:
+            audio = all_audio_chunks[0]
+        else:
+            # Crossfade overlap between chunks (20ms)
+            xfade = int(SAMPLE_RATE * 0.020)  # 20ms
+            audio = all_audio_chunks[0]
+            for chunk in all_audio_chunks[1:]:
+                overlap = min(xfade, len(audio), len(chunk))
+                if overlap > 0:
+                    audio[-overlap:] += chunk[:overlap]
+                    audio = np.concatenate([audio, chunk[overlap:]])
+                else:
+                    audio = np.concatenate([audio, chunk])
 
     except Exception as e:
         import traceback
@@ -428,7 +462,7 @@ def clone_voice(
         ogg_path = f"{TEMP_DIR}/samesame_out_{uuid.uuid4().hex}.ogg"
         try:
             subprocess.run(
-                ["ffmpeg", "-y", "-i", output_path, "-c:a", "libopus", "-b:a", "32k", ogg_path],
+                ["ffmpeg", "-y", "-i", output_path, "-c:a", "libopus", "-b:a", "64k", ogg_path],
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
