@@ -10,6 +10,11 @@ import uuid
 import gc
 import threading
 from typing import Optional
+import warnings
+import logging
+
+# Suppress harmless torchaudio warnings
+warnings.filterwarnings("ignore", message="At least one mel filterbank has all zero values")
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field, validator, root_validator
@@ -65,6 +70,8 @@ except Exception as e:
 SAMPLE_RATE = cosyvoice.sample_rate
 SAMESAME_SECRET = os.environ.get("SAMESAME_SECRET")
 import logging
+
+logging.getLogger("redis").setLevel(logging.WARNING)
 
 class EndpointFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
