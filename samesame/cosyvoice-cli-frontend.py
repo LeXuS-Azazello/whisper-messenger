@@ -68,15 +68,14 @@ class CosyVoiceFrontEnd:
             logging.info('use ttsfrd frontend')
         except:
             try:
-                from wetext import Normalizer as ZhNormalizer
-                from wetext import Normalizer as EnNormalizer
-                self.zh_tn_model = ZhNormalizer(remove_erhua=False)
-                self.en_tn_model = EnNormalizer()
-                self.text_frontend = 'wetext'
-                logging.info('use wetext frontend')
-            except Exception:
+                from runorm import RUNorm
+                self.ru_tn_model = RUNorm()
+                self.ru_tn_model.load(model_size="small", device="cpu", workdir="/models/hub")
+                self.text_frontend = 'runorm'
+                logging.info('use runorm frontend')
+            except Exception as e:
                 self.text_frontend = ''
-                logging.info('no frontend is avaliable')
+                logging.info(f'no frontend is avaliable: {e}')
 
     def _extract_text_token(self, text):
         if isinstance(text, Generator):
@@ -263,8 +262,6 @@ class CosyVoiceFrontEnd:
             text = ''.join(texts)
         else:
             if contains_chinese(text):
-                if self.text_frontend == 'wetext':
-                    text = self.zh_tn_model.normalize(text)
                 text = text.replace("\n", "")
                 text = replace_blank(text)
                 text = replace_corner_mark(text)
@@ -275,9 +272,10 @@ class CosyVoiceFrontEnd:
                 texts = list(split_paragraph(text, partial(self.tokenizer.encode, allowed_special=self.allowed_special), "zh", token_max_n=80,
                                              token_min_n=60, merge_len=20, comma_split=False))
             else:
-                if self.text_frontend == 'wetext':
-                    text = self.en_tn_model.normalize(text)
-                text = spell_out_number(text, self.inflect_parser)
+                if self.text_frontend == 'runorm' and sum(1 for c in text if '\u0400' <= c <= '\u04ff') > 0:
+                    text = self.ru_tn_model.norm(text)
+                else:
+                    text = spell_out_number(text, self.inflect_parser)
                 texts = list(split_paragraph(text, partial(self.tokenizer.encode, allowed_special=self.allowed_special), "en", token_max_n=80,
                                              token_min_n=60, merge_len=20, comma_split=False))
         texts = [i for i in texts if not is_only_punctuation(i)]

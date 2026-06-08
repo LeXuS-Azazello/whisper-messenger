@@ -44,7 +44,8 @@ RUN pip install --no-cache-dir \
     uvicorn \
     pydantic \
     redis \
-    tiktoken
+    tiktoken \
+    runorm
 
 # Clone repo + submodules
 RUN git clone --recursive --depth 1 \

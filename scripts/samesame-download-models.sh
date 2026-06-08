@@ -42,4 +42,14 @@ for model_name in MODELS_TO_DOWNLOAD:
     except Exception as e:
         print(f'[samesame-downloader] Error: {e}')
         sys.exit(1)
+
+print('[samesame-downloader] Checking RUNorm models...')
+try:
+    from runorm import RUNorm
+    normalizer = RUNorm()
+    normalizer.load(model_size='small', device='cpu', workdir=HUB_DIR)
+    print('[samesame-downloader] RUNorm models ready.')
+except Exception as e:
+    print(f'[samesame-downloader] RUNorm Error: {e}')
+    sys.exit(1)
 "
