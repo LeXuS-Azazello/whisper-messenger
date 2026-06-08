@@ -178,6 +178,7 @@ class CloneRequest(BaseModel):
     source_audio_base64: Optional[str] = Field(default=None)
     source_audio_path: Optional[str] = Field(default=None)
     text: str
+    prompt_text: Optional[str] = Field(default=None)
     prompt_language: Optional[str] = Field(default=None)
     language: Optional[str] = Field(default=None)
     output_format: Optional[str] = Field(default="ogg")
@@ -364,15 +365,25 @@ def clone_voice(
                 chunk_with_lang = f"<|endofprompt|>{lang_token}{chunk_text}"
             
             with torch.inference_mode(), _inference_lock:
-                # TODO: re-enable when needed.
-                # prompt_text_str = getattr(req, "prompt_text", "").strip()
-                # if prompt_text_str:
-                #     ... inference_zero_shot ...
-                output = cosyvoice.inference_cross_lingual(
-                    tts_text=chunk_with_lang,
-                    prompt_wav=cache_file,
-                    text_frontend=use_frontend
-                )
+                prompt_text_str = getattr(req, "prompt_text", None)
+                
+                if prompt_text_str and prompt_text_str.strip():
+                    prompt_lang_token = LANG_TOKEN_MAP.get(req.prompt_language or lang, lang_token)
+                    prompt_with_lang = f"{prompt_lang_token}{prompt_text_str.strip()}"
+                    
+                    print(f"[cosy] using inference_zero_shot with prompt_text")
+                    output = cosyvoice.inference_zero_shot(
+                        tts_text=chunk_with_lang,
+                        prompt_text=prompt_with_lang,
+                        prompt_wav=cache_file,
+                        text_frontend=use_frontend
+                    )
+                else:
+                    output = cosyvoice.inference_cross_lingual(
+                        tts_text=chunk_with_lang,
+                        prompt_wav=cache_file,
+                        text_frontend=use_frontend
+                    )
                 
                 for item in output:
                     if "tts_speech" in item:
