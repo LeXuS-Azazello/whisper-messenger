@@ -28,7 +28,7 @@ import {
     parseSamesameRequest,
     cloneVoiceWithSamesame,
     translateSamesameText
-} from '../shared/samesame.js';
+} from '../../shared/samesame.js';
 
 import fs from 'fs';
 import crypto from 'crypto';
