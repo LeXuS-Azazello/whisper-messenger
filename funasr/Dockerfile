@@ -6,5 +6,5 @@ RUN pip install --no-cache-dir torch==2.2.0 torchaudio==2.2.0 --index-url https:
 RUN pip install --no-cache-dir -r requirements.txt
 COPY server.py ./
 EXPOSE 50001
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "50001", "--workers", "2"]
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port 50001 --workers ${FUNASR_WORKERS:-1}"]
 LABEL org.opencontainers.image.source=https://forge.dev.takatan.cloud/lexus/voicemsg-net
