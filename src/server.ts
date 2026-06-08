@@ -58,6 +58,9 @@ app.use("/assets/*", serveStatic({
   rewriteRequestPath: (path) => path.replace(/^\/assets/, "/src/ui")
 }));
 
+// Shared Redis KV instance — reused across all requests
+const sharedRedisKV = new RedisKV(process.env.REDIS_URL);
+
 // Mock ExecutionContext for Hono
 const createCtx = () => ({
   waitUntil: (promise: Promise<any>) => {
@@ -70,7 +73,7 @@ app.all("*", async (c) => {
   const env: Env = {
     ...((typeof process !== 'undefined' ? process.env : {}) as any),
     AI: undefined, // Cloudflare AI not available in Node.js, will use local fallback
-    STATS: new RedisKV(process.env.REDIS_URL),
+    STATS: sharedRedisKV,
   } as any;
 
   // Convert Hono request to Web Standard Request
@@ -93,7 +96,7 @@ serve({
   // Sync settings from MongoDB to Redis on startup
   const globalEnv: Env = {
     ...((typeof process !== 'undefined' ? process.env : {}) as any),
-    STATS: new RedisKV(process.env.REDIS_URL),
+    STATS: sharedRedisKV,
   } as any;
   await syncSettingsToRedis(globalEnv);
 });
