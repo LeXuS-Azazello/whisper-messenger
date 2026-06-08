@@ -29,13 +29,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Build Docker image
-        run: |
-          docker build -f samesame/Dockerfile -t ${{ env.IMG }}:samesame-latest -t ${{ env.IMG }}:samesame-${{ forgejo.run_number }} samesame
-
-      - name: Log in to Registry and push
+      - name: Log in to Registry
         run: |
           echo "${{ secrets.HAJIME_PASSWD }}" | docker login ${{ env.REPO_URL }} -u lexus --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker pull ${{ env.IMG }}:samesame-latest || true
+          docker build --cache-from ${{ env.IMG }}:samesame-latest -f samesame/Dockerfile -t ${{ env.IMG }}:samesame-latest -t ${{ env.IMG }}:samesame-${{ forgejo.run_number }} samesame
+
+      - name: Push Docker image
+        run: |
           docker push ${{ env.IMG }}:samesame-${{ forgejo.run_number }} && docker push ${{ env.IMG }}:samesame-latest
 
       - name: Trigger Kubernetes Rollout
