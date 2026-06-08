@@ -8,6 +8,7 @@ on:
       - '.forgejo/workflows/frontend.yaml'
       - 'kubernetes/base/frontend.yaml'
       - 'src/**'
+      - 'Dockerfile'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
