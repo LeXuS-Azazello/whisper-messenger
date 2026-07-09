@@ -4,7 +4,6 @@ import type { PaneProps } from './Dashboard.types';
 export function BillingPane({ user, env, billingConfig = {} }: PaneProps) {
     const priceTranscription = billingConfig.priceTranscription || 0.01;
     const priceWord = billingConfig.priceWord || 0.001;
-    const priceClone = billingConfig.priceClone || 0.05;
 
     return (
         <div class="tab-pane" id="pane-billing">
@@ -42,7 +41,6 @@ export function BillingPane({ user, env, billingConfig = {} }: PaneProps) {
                         <ul class="billing-features-list">
                             <li>✓ <strong>Transcription:</strong> ${priceTranscription} per message</li>
                             <li>✓ <strong>Words:</strong> ${priceWord} per transcribed word</li>
-                            <li>✓ <strong>Voice Cloning (XTTS):</strong> ${priceClone} per generated message</li>
                             <li>✓ Real-time balance deduction</li>
                         </ul>
                     </div>
@@ -58,12 +56,12 @@ export function BillingPane({ user, env, billingConfig = {} }: PaneProps) {
                         <div class="pricing-card">
                             <div class="price-header">
                                 <span class="tier-name">Weekly Unlimited</span>
-                                <div class="tier-price">$9.99 <span>/ week</span></div>
+                                <div class="tier-price">$1 <span>/ week</span></div>
                             </div>
                             <ul class="tier-features">
                                 <li>Unlimited Transcriptions</li>
+                                <li>Unlimited Translations</li>
                                 <li>Unlimited Words</li>
-                                <li>Unlimited Voice Cloning</li>
                                 <li>Telegram & WhatsApp</li>
                             </ul>
                             <button class="btn btn-secondary btn-full" onClick={() => window.open(`https://t.me/kilo_alexey_bot?start=sub_weekly_${user.userId}`, '_blank')}>Subscribe</button>
@@ -72,7 +70,7 @@ export function BillingPane({ user, env, billingConfig = {} }: PaneProps) {
                         <div class="pricing-card active">
                             <div class="price-header">
                                 <span class="tier-name">Monthly Unlimited</span>
-                                <div class="tier-price">$29.99 <span>/ month</span></div>
+                                <div class="tier-price">$2 <span>/ month</span></div>
                                 <span class="pricing-badge-popular">POPULAR</span>
                             </div>
                             <ul class="tier-features">

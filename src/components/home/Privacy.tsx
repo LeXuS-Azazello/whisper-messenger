@@ -69,7 +69,7 @@ export const renderPrivacy = () => {
                     <p>We use the information we collect to operate, maintain, and improve our services. Specifically, voice data is processed to generate text transcriptions or synthesize audio replies based on your usage.</p>
 
                     <h2>3. Data Storage and Security</h2>
-                    <p>We prioritize the security of your data. Voice messages are processed through our temporary media storage and are not permanently kept unless required for the direct functioning of the app. We implement appropriate technical measures to protect your personal information.</p>
+                    <p>We do not store your voice messages or any processed media data permanently. All voice data is processed as a stream — audio is transmitted to our processing pipeline in base64-encoded format, transcribed or translated in real time, and then discarded immediately after the result is delivered to you. No voice recordings, raw audio files, or transcribed text are retained on our servers beyond the duration of the active processing request. We implement appropriate technical measures to protect your personal information during transit and processing.</p>
 
                     <h2>4. Third-Party Services</h2>
                     <p>Our service integrates with third-party platforms such as Telegram, WhatsApp, and Meta. Your interactions with these platforms through our service are also subject to their respective privacy policies.</p>

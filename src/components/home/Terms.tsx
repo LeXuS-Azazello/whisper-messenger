@@ -66,7 +66,7 @@ export const renderTerms = () => {
                     <p>By accessing or using Echo Messenger, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our services.</p>
 
                     <h2>2. Description of Service</h2>
-                    <p>Echo Messenger provides tools to transcribe, translate, and synthesize voice messages across various platforms, including Telegram, WhatsApp, and Meta messaging services.</p>
+                    <p>Echo Messenger provides tools to transcribe and translate voice messages across various platforms, including Telegram, WhatsApp, and Meta messaging services. Voice data is processed in real time via streaming — audio is transmitted in base64-encoded format, processed, and immediately discarded. We do not permanently store any voice recordings or processed media on our servers.</p>
 
                     <h2>3. User Accounts</h2>
                     <p>You must provide accurate information when creating an account. You are responsible for safeguarding the password that you use to access the service and for any activities or actions under your password.</p>

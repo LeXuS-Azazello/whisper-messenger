@@ -32,14 +32,14 @@ if (BOT_TOKEN !== 'PLACEHOLDER_BOT_TOKEN') {
 
         if (payload.startsWith('sub_weekly_')) {
             title = 'Weekly Unlimited Plan';
-            amount = 9.99;
+            amount = 1;
             action = payload;
-            text = `🌟 *Upgrade to Weekly Unlimited*\n\nPrice: *$9.99*\n\nUnlock unlimited transcriptions, words, and voice cloning for 7 days. Select a payment method below:`;
+            text = `🌟 *Upgrade to Weekly Unlimited*\n\nPrice: *$1*\n\nUnlock unlimited transcriptions, translations, and words for 7 days. Select a payment method below:`;
         } else if (payload.startsWith('sub_monthly_')) {
             title = 'Monthly Unlimited Plan';
-            amount = 29.99;
+            amount = 2;
             action = payload;
-            text = `💎 *Upgrade to Monthly Unlimited*\n\nPrice: *$29.99*\n\nGet priority queue and premium support along with all unlimited features. Select a payment method below:`;
+            text = `💎 *Upgrade to Monthly Unlimited*\n\nPrice: *$2*\n\nGet priority queue and premium support along with all unlimited features. Select a payment method below:`;
         } else if (payload.startsWith('sub_flexible_')) {
             title = 'Flexible Daytime Plan';
             amount = 14.99;
@@ -97,8 +97,8 @@ if (BOT_TOKEN !== 'PLACEHOLDER_BOT_TOKEN') {
             let title = 'Balance Top-Up';
             let description = 'Top up your account balance.';
             
-            if (action.startsWith('sub_weekly_')) { title = 'Weekly Unlimited Plan'; description = '7 days of unlimited access.'; }
-            if (action.startsWith('sub_monthly_')) { title = 'Monthly Unlimited Plan'; description = '30 days of unlimited access + premium support.'; }
+            if (action.startsWith('sub_weekly_')) { title = 'Weekly Unlimited Plan'; description = '7 days of unlimited transcription and translation.'; }
+            if (action.startsWith('sub_monthly_')) { title = 'Monthly Unlimited Plan'; description = '30 days of unlimited transcription, translation + premium support.'; }
             if (action.startsWith('sub_flexible_')) { title = 'Flexible Plan'; description = 'Unlimited access during daytime (08:00 - 20:00).'; }
 
             if (isCrypto) {
