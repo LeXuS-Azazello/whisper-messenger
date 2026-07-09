@@ -4,7 +4,7 @@ metadata:
   name: funasr
   namespace: debugging-testcrash-pub
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       app: funasr
