@@ -303,13 +303,17 @@ async function processSingleMessage(message) {
                             targetLang = me?.language_code || 'en';
                         }
 
-                        // Only translate if the detected language is not the target language
-                        // and detectedLang is not 'auto'
-                        const isSameLanguage = detectedLang && targetLang
-                            && (detectedLang.toLowerCase().startsWith(targetLang.toLowerCase())
-                                || targetLang.toLowerCase().startsWith(detectedLang.toLowerCase()));
+                        // Only translate when the detected language is KNOWN and DIFFERS from
+                        // the target. If detection is missing/auto we must NOT translate — there
+                        // is nothing meaningful to translate from, and it would otherwise emit a
+                        // bogus "🌐 → xx" duplicate (see issue with source flag showing 🌐).
+                        const normDetected = (detectedLang || '').toLowerCase();
+                        const langUnknown = !normDetected || normDetected === 'auto' || normDetected === 'unknown';
+                        const isSameLanguage = !langUnknown && targetLang
+                            && (normDetected.startsWith(targetLang.toLowerCase())
+                                || targetLang.toLowerCase().startsWith(normDetected));
 
-                        if (!isSameLanguage) {
+                        if (!langUnknown && !isSameLanguage) {
                             console.time(`[tg-client] Translate msg ${message_id} to ${targetLang}`);
                             const translationTarget = targetLang.toLowerCase() === 'ua' ? 'uk' : targetLang;
                             const transResult = await translate(originalText, { to: translationTarget });
