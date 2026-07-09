@@ -1,0 +1,15 @@
+name: Fix OVN IPs
+on:
+  push:
+    branches:
+      - main
+jobs:
+  fix-ips:
+    runs-on: kube
+    steps:
+      - name: Clear IPs
+        run: |
+          echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > $GITHUB_WORKSPACE/kubeconfig.yaml
+          export KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig.yaml
+          kubectl delete ips.kubeovn.io --all -n debugging-testcrash-pub || true
+          kubectl delete pods --all -n debugging-testcrash-pub || true
