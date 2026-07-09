@@ -19,7 +19,7 @@ metadata:
   name: pod-creator
 rules:
 - apiGroups: [""]
-  resources: ["pods", "pods/log", "services", "persistentvolumeclaims", "configmaps", "endpoints", "secrets", "events", "nodes"]
+  resources: ["pods", "pods/log", "services", "persistentvolumeclaims", "configmaps", "endpoints", "secrets", "events"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["apps"]
   resources: ["deployments", "statefulsets", "daemonsets"]

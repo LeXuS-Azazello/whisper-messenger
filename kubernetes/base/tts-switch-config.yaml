@@ -4,6 +4,6 @@ metadata:
   name: tts-switch-config
   namespace: debugging-testcrash-pub
 data:
-  CURRENT_PROVIDER: "xtts"
-  SAMESAME_MODEL: "iic/CosyVoice2-0.5B"
+  CURRENT_PROVIDER: "samesame"
+  SAMESAME_MODEL: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
 ---

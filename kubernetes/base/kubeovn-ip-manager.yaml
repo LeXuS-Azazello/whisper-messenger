@@ -1,0 +1,24 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubeovn-ip-manager
+  namespace: debugging-testcrash-pub
+rules:
+  - apiGroups: ["kubeovn.io"]
+    resources: ["ips"]
+    verbs: ["get", "list", "watch", "delete", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubeovn-ip-manager-binding
+  namespace: debugging-testcrash-pub
+subjects:
+  - kind: ServiceAccount
+    name: tg-client-manager-sa
+  - kind: ServiceAccount
+    name: voicemsg-client-manager
+roleRef:
+  kind: Role
+  name: kubeovn-ip-manager
+  apiGroup: rbac.authorization.k8s.io

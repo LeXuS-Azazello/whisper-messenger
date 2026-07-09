@@ -41,7 +41,7 @@ spec:
             - name: DOWNLOAD_TIMEOUT
               value: "1800"
             - name: SAMESAME_MODEL_NAME
-              value: "FunAudioLLM/CosyVoice2-0.5B"
+              value: "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
             - name: MODELSCOPE_CACHE
               value: "/models"
             - name: HF_HOME

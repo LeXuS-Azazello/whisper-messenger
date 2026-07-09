@@ -47,8 +47,8 @@ spec:
               mountPath: /models
       resources:
         requests:
-          cpu: "0.2"
-          memory: "256Mi"
+          cpu: "500m"
+          memory: "512Mi"
         limits:
           cpu: "0.5"
           memory: "512Mi"

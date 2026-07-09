@@ -20,7 +20,12 @@ resources:
   - facebook-fca-manager.yaml
   - instagram-fca-manager.yaml
   - funasr.yaml
+  - samesame.yaml
   - temp-media-cleanup-cronjob.yaml
+  - network-policy.yaml
+  - frontend-network-policy.yaml
+  - tts-switch-config.yaml
+  - kubeovn-ip-manager.yaml
 
 
 
@@ -33,5 +38,8 @@ configMapGenerator:
   - name: funasr-download-scripts
     files:
       - funasr-download-models.sh=./scripts/funasr-download-models.sh
+  - name: samesame-download-scripts
+    files:
+      - download-models.sh=./scripts/samesame-download-models.sh
 generatorOptions:
   disableNameSuffixHash: true
