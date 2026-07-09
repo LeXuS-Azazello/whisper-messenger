@@ -64,7 +64,7 @@ kind: Deployment
 metadata:
   name: whatsapp-baileys-manager
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: whatsapp-baileys-manager

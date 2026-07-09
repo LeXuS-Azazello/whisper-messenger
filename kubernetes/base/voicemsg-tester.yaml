@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: voicemsg-tester
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: voicemsg-tester
