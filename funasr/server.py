@@ -67,7 +67,7 @@ def decode_audio(file_bytes=None, file_path=None):
         raise RuntimeError("empty audio")
     return audio
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 
 import logging
@@ -295,4 +295,72 @@ async def transcribe(req: TranscribeRequest):
         raise
     except Exception as e:
         print(f"[funasr] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/audio/transcriptions")
+async def transcribe_openai(
+    file: UploadFile = File(...),
+    model: str = Form(default=""),
+    language: Optional[str] = Form(default=None),
+    response_format: Optional[str] = Form(default="json"),
+):
+    """
+    OpenAI-compatible audio transcription endpoint.
+
+    The worker (whisper.ts, isFunASR branch) calls this route with a multipart
+    upload. It must return the detected language so the client can render the
+    correct source-language flag and skip translation when source == target.
+    """
+    try:
+        content = await file.read()
+        audio_np = decode_audio(file_bytes=content)
+
+        gen_lang = language if language else "auto"
+        generate_kwargs = {
+            "input": audio_np,
+            "language": gen_lang,
+            "use_itn": True,
+            "batch_size_s": 15,
+            "merge_vad": True,
+        }
+
+        with model_lock:
+            result_list = funasr.generate(**generate_kwargs)
+
+        text = ""
+        detected_lang = None
+        if isinstance(result_list, list) and len(result_list) > 0:
+            first = result_list[0]
+            if isinstance(first, dict):
+                text = first.get("text", "")
+                raw_lang = first.get("language") or first.get("lang") or ""
+                if raw_lang:
+                    detected_lang = raw_lang[:2].lower()
+            elif isinstance(first, str):
+                text = first
+        elif isinstance(result_list, dict):
+            text = result_list.get("text", "")
+            raw_lang = result_list.get("language") or result_list.get("lang") or ""
+            if raw_lang:
+                detected_lang = raw_lang[:2].lower()
+
+        # Chinese is not supported — when the model detects zh/zn it's almost
+        # always a misdetection (Russian mistaken for Chinese). Drop the
+        # unreliable tag so the client can fall back to its own heuristics.
+        if detected_lang in ["zh", "zn"]:
+            detected_lang = None
+
+        if response_format == "verbose_json":
+            return {
+                "text": text,
+                "language": detected_lang,
+                "model": MODEL_NAME,
+            }
+        return {"text": text, "language": detected_lang}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[funasr] transcription error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

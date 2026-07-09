@@ -132,9 +132,19 @@ async def transcribe(
         if not result:
             text = ""
             sentence_info = []
+            detected_lang = None
         else:
-            text = clean_text(result[0]["text"])
-            sentence_info = result[0].get("sentence_info", [])
+            first = result[0]
+            text = clean_text(first.get("text", ""))
+            sentence_info = first.get("sentence_info", [])
+            raw_lang = first.get("language") or first.get("lang") or ""
+            detected_lang = raw_lang[:2].lower() if raw_lang else None
+
+        # Chinese detection is unreliable for this model family (Russian is
+        # frequently misdetected as zh). Drop the tag so the client falls back
+        # to its own heuristics instead of showing a wrong flag.
+        if detected_lang in ("zh", "zn"):
+            detected_lang = None
 
         if response_format == "verbose_json":
             segments = []
@@ -149,12 +159,12 @@ async def transcribe(
             return JSONResponse({
                 "text": text,
                 "segments": segments,
-                "language": language or "auto",
+                "language": detected_lang or language or "auto",
                 "duration": round(elapsed, 3),
                 "model": model,
             })
         else:
-            return JSONResponse({"text": text})
+            return JSONResponse({"text": text, "language": detected_lang})
 
     except Exception as e:
         logger.error(f"Transcription error: {e}")

@@ -107,11 +107,17 @@ export async function transcribeAudio(
     const detectedLanguage = result.language || result.detected_language || "unknown";
     let translatedText = result.translated || null;
 
+    // Normalize detected language. If it's missing/unreliable we must NOT
+    // attempt translation — there is nothing meaningful to translate from.
+    const normDetected = detectedLanguage.toLowerCase();
+    const langUnknown = !normDetected || normDetected === "unknown" || normDetected === "auto";
+
     if (targetLanguage && targetLanguage !== "off" && targetLanguage !== "translate_off" && !translatedText) {
-      const isSameLanguage = detectedLanguage && targetLanguage
-        && (detectedLanguage.toLowerCase().startsWith(targetLanguage.toLowerCase())
-          || targetLanguage.toLowerCase().startsWith(detectedLanguage.toLowerCase()));
-      if (!isSameLanguage) {
+      const normTarget = targetLanguage.toLowerCase();
+      const isSameLanguage = !langUnknown &&
+        (normDetected.startsWith(normTarget) || normTarget.startsWith(normDetected));
+      // Only translate when the source language is known AND differs from target.
+      if (!langUnknown && !isSameLanguage) {
         try {
           const { default: translate } = await import("google-translate-api-x");
           const transResult = (await translate(text, { to: targetLanguage })) as any;
