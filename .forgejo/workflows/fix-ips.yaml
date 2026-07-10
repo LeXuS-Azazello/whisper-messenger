@@ -13,3 +13,16 @@ jobs:
           export KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig.yaml
           kubectl delete ips.kubeovn.io --all -n debugging-testcrash-pub || true
           kubectl delete pods --all -n debugging-testcrash-pub || true
+      - name: Restart kube-ovn control plane (best-effort)
+        run: |
+          echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > $GITHUB_WORKSPACE/kubeconfig.yaml
+          export KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig.yaml
+          # Restart kube-ovn controller components if we have cluster perms.
+          # This re-syncs subnet allocation state that can wedge IP assignment.
+          for ns in kube-ovn kube-system ovn-system; do
+            kubectl delete pod -l app=kube-ovn-controller -n $ns --ignore-not-found --grace-period=0 --force 2>/dev/null || true
+            kubectl delete pod -l app=ovn-central -n $ns --ignore-not-found --grace-period=0 --force 2>/dev/null || true
+            kubectl delete pod -l app=kube-ovn-monitor -n $ns --ignore-not-found --grace-period=0 --force 2>/dev/null || true
+          done
+          sleep 20
+          echo "kube-ovn controller restart attempt done"
