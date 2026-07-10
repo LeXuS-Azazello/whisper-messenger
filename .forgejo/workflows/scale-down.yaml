@@ -1,0 +1,20 @@
+name: Scale down unused deployments
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'kubernetes/overlays/testcrash-pub/kustomization.yaml'
+jobs:
+  scale-down:
+    runs-on: kube
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Scale down unused deployments
+        run: |
+          echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > $GITHUB_WORKSPACE/kubeconfig.yaml
+          export KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig.yaml
+          for deploy in samesame facebook-fca-manager instagram-fca-manager funasr payment-bot voicemsg-tester mongo-express; do
+            kubectl scale deployment "$deploy" --replicas=0 -n debugging-testcrash-pub || true
+          done
