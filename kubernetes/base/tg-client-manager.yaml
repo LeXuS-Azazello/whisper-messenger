@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: tg-client-manager
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: tg-client-manager
