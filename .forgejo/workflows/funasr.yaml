@@ -8,6 +8,12 @@ on:
       - '.forgejo/workflows/funasr.yaml'
       - 'kubernetes/base/funasr.yaml'
       - 'funasr/**'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual rebuild'
+        required: false
+        default: 'manual'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
