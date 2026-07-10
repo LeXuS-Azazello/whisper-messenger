@@ -14,6 +14,7 @@ COPY shared/ ./shared/
 
 # Real reference audio used for ASR + voice clone roundtrip test
 COPY test_whisper.ogg ./test_whisper.ogg
+COPY test_audio.ogg ./test_audio.ogg
 
 EXPOSE 3000
 
