@@ -158,7 +158,6 @@ else:
     raise RuntimeError(f"model missing at {MODEL_PATH}")
 
 from funasr import AutoModel
-from funasr.tokenizer import AutoTokenizer
 
 automodel_kwargs = dict(
     model=MODEL_NAME,
