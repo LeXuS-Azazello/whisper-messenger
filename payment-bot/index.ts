@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // --- Configuration ---
 const BOT_TOKEN = process.env.PAYMENT_BOT_TOKEN || 'PLACEHOLDER_BOT_TOKEN';
-const PROVIDER_TOKEN = process.env.PAYMENT_PROVIDER_TOKEN || 'PLACEHOLDER_PROVIDER_TOKEN'; 
+const PROVIDER_TOKEN = process.env.PAYMENT_PROVIDER_TOKEN || 'PLACEHOLDER_PROVIDER_TOKEN';
 const CRYPTO_PAY_TOKEN = process.env.CRYPTO_PAY_TOKEN || 'PLACEHOLDER_CRYPTO_PAY_TOKEN';
 
 let bot: TelegramBot | null = null;
@@ -14,7 +14,7 @@ if (BOT_TOKEN !== 'PLACEHOLDER_BOT_TOKEN') {
 
     bot.onText(/\/start(.*)/, async (msg, match) => {
         const chatId = msg.chat.id;
-        
+
         let payload = '';
         if (match && match[1]) {
             payload = match[1].trim(); // e.g. "12345" or "sub_weekly_12345"
@@ -42,7 +42,7 @@ if (BOT_TOKEN !== 'PLACEHOLDER_BOT_TOKEN') {
             text = `💎 *Upgrade to Monthly Unlimited*\n\nPrice: *$2*\n\nGet priority queue and premium support along with all unlimited features. Select a payment method below:`;
         } else if (payload.startsWith('sub_flexible_')) {
             title = 'Flexible Daytime Plan';
-            amount = 14.99;
+            amount = 0.1;
             action = payload;
             text = `☀️ *Upgrade to Flexible Plan*\n\nPrice: *$14.99*\n\nUnlimited access from 08:00 to 20:00. Select a payment method below:`;
         } else {
@@ -83,27 +83,27 @@ if (BOT_TOKEN !== 'PLACEHOLDER_BOT_TOKEN') {
         if (data.startsWith('pay_card_') || data.startsWith('pay_crypto_')) {
             const isCrypto = data.startsWith('pay_crypto_');
             const parts = data.split('_');
-            
+
             // Extract amount (last part)
             const amountStr = parts.pop() || '10';
             const amount = parseFloat(amountStr);
 
             // Reconstruct action string
             // parts for card: ["pay", "card", "sub", "weekly", "12345"]
-            const prefixLen = isCrypto ? 2 : 2; 
+            const prefixLen = isCrypto ? 2 : 2;
             const actionParts = parts.slice(prefixLen);
             const action = actionParts.join('_'); // e.g., "topup_12345" or "sub_weekly_12345"
-            
+
             let title = 'Balance Top-Up';
             let description = 'Top up your account balance.';
-            
+
             if (action.startsWith('sub_weekly_')) { title = 'Weekly Unlimited Plan'; description = '7 days of unlimited transcription and translation.'; }
             if (action.startsWith('sub_monthly_')) { title = 'Monthly Unlimited Plan'; description = '30 days of unlimited transcription, translation + premium support.'; }
             if (action.startsWith('sub_flexible_')) { title = 'Flexible Plan'; description = 'Unlimited access during daytime (08:00 - 20:00).'; }
 
             if (isCrypto) {
                 bot?.sendMessage(chatId, '⏳ *Generating Crypto invoice...*', { parse_mode: 'Markdown' });
-                
+
                 try {
                     const res = await axios.post(
                         'https://pay.crypt.bot/api/createInvoice',
@@ -135,7 +135,7 @@ if (BOT_TOKEN !== 'PLACEHOLDER_BOT_TOKEN') {
             } else {
                 // Card Payment via Telegram
                 const providerToken = PROVIDER_TOKEN;
-                const currency = 'USD'; 
+                const currency = 'USD';
                 const prices = [{ label: title, amount: Math.round(amount * 100) }]; // amount in cents
 
                 try {
@@ -189,7 +189,7 @@ if (BOT_TOKEN !== 'PLACEHOLDER_BOT_TOKEN') {
                 // Use dynamic import to avoid potential circular dependencies early in boot
                 const { default: User } = await import('../src/object-models/User');
                 const dbUser = await User.findOne({ userId });
-                
+
                 if (dbUser) {
                     if (planAdded) {
                         dbUser.currentPlan = planAdded;
@@ -199,7 +199,7 @@ if (BOT_TOKEN !== 'PLACEHOLDER_BOT_TOKEN') {
                         console.log(`[PaymentBot] Added $${amountAdded} to user ${userId} balance`);
                     }
                     await dbUser.save();
-                    
+
                     // Note: Redis KV will be naturally eventually consistent on next request, 
                     // or we could update Redis here if we passed env, but standard DB save is safe.
                 }
@@ -208,7 +208,7 @@ if (BOT_TOKEN !== 'PLACEHOLDER_BOT_TOKEN') {
             }
         }
 
-        const successText = planAdded 
+        const successText = planAdded
             ? `🎉 *Payment Successful!*\n\nYou have been successfully upgraded to the *${planAdded}* plan.\nEnjoy your premium features!`
             : `🎉 *Payment Successful!*\n\n*$${amountAdded}* has been successfully added to your balance.\nThank you for using Echo Messenger!`;
 

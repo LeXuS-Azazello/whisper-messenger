@@ -84,7 +84,7 @@ export function BillingPane({ user, env, billingConfig = {} }: PaneProps) {
                         <div class="pricing-card">
                             <div class="price-header">
                                 <span class="tier-name">Flexible (Daytime Only)</span>
-                                <div class="tier-price">$14.99 <span>/ month</span></div>
+                                <div class="tier-price">$0.1 <span>/ month</span></div>
                             </div>
                             <ul class="tier-features">
                                 <li>Unlimited 08:00 - 20:00</li>
@@ -122,15 +122,15 @@ export function BillingPane({ user, env, billingConfig = {} }: PaneProps) {
                         <p style={{ marginBottom: '1rem', opacity: 0.8, fontSize: '0.95rem' }}>Leave your Telegram username or email, and our manager will contact you with payment details to top up your balance.</p>
                         <input type="text" placeholder="@username or email" class="styled-input" style={{ width: '100%', maxWidth: '400px', marginBottom: '1rem', padding: '12px', borderRadius: '8px', border: '1px solid #444', background: '#111', color: '#fff' }} id="crypto-contact" />
                         <br />
-                        <button class="btn btn-primary" onClick={() => { 
+                        <button class="btn btn-primary" onClick={() => {
                             const input = document.getElementById('crypto-contact') as HTMLInputElement;
                             if (input.value.trim() === '') {
                                 alert('Please enter your contact details.');
                                 return;
                             }
-                            alert('Request sent! We will contact you soon.'); 
-                            document.getElementById('crypto-form')!.style.display = 'none'; 
-                            input.value = ''; 
+                            alert('Request sent! We will contact you soon.');
+                            document.getElementById('crypto-form')!.style.display = 'none';
+                            input.value = '';
                         }}>Send Request</button>
                     </div>
                 </div>

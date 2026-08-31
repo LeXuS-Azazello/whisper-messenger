@@ -6,6 +6,7 @@ import User from './object-models/User.js';
 import MessengerSession from './object-models/MessengerSession.js';
 
 let k8sApi = null;
+let k8sBatchApi = null;
 
 export function resolveNamespace() {
     if (process.env.POD_NAMESPACE) return process.env.POD_NAMESPACE;
@@ -30,6 +31,7 @@ export function initK8s() {
             cluster.insecureSkipTlsVerify = true;
         }
         k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+        k8sBatchApi = kc.makeApiClient(k8s.BatchV1Api);
     } catch (err) {
         console.error(`[manager] Failed to initialize K8s client:`, err);
     }
@@ -62,6 +64,14 @@ export async function spawnPod(userId, igSession, username = '', igId = '', igLo
     const ns = getNamespace();
 
     try {
+        if (k8sBatchApi) {
+            const existingJobs = await withTimeout(k8sBatchApi.listNamespacedJob({ namespace: ns }), 10000).catch(() => null);
+            const allJobs = existingJobs?.body?.items || existingJobs?.items || [];
+            const userJobs = allJobs.filter(j => j.metadata.labels?.userId === safeUserId && j.metadata.labels?.app === 'instagram-fca-client');
+            for (const j of userJobs) {
+                await k8sBatchApi.deleteNamespacedJob({ name: j.metadata.name, namespace: ns, propagationPolicy: 'Foreground' }).catch(() => { });
+            }
+        }
         const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 10000).catch(() => null);
         const allPods = existing?.body?.items || existing?.items || [];
         const items = allPods.filter(p => p.metadata.labels?.userId === safeUserId && p.metadata.labels?.app === 'instagram-fca-client');
@@ -120,7 +130,36 @@ export async function spawnPod(userId, igSession, username = '', igId = '', igLo
 
     if (process.env.FCA_CLIENT_IMAGE) container.image = process.env.FCA_CLIENT_IMAGE;
 
-    await withTimeout(k8sApi.createNamespacedPod({ namespace: ns, body: podManifest }), 30000);
+    const jobManifest = {
+        apiVersion: 'batch/v1',
+        kind: 'Job',
+        metadata: {
+            name: podName,
+            namespace: ns,
+            labels: {
+                app: 'instagram-fca-client',
+                userId: safeUserId
+            }
+        },
+        spec: {
+            ttlSecondsAfterFinished: 86400,
+            backoffLimit: 0,
+            template: {
+                metadata: {
+                    labels: {
+                        app: 'instagram-fca-client',
+                        userId: safeUserId
+                    }
+                },
+                spec: {
+                    ...podManifest.spec,
+                    restartPolicy: 'Never'
+                }
+            }
+        }
+    };
+
+    await withTimeout(k8sBatchApi.createNamespacedJob({ namespace: ns, body: jobManifest }), 30000);
     return podName;
 }
 
@@ -128,6 +167,16 @@ export async function deletePods(userId) {
     if (!k8sApi) throw new Error('K8s API not initialized');
     const safeUserId = String(userId);
     const ns = getNamespace();
+    if (k8sBatchApi) {
+        try {
+            const existingJobs = await withTimeout(k8sBatchApi.listNamespacedJob({ namespace: ns }), 5000).catch(() => null);
+            const allJobs = existingJobs?.body?.items || existingJobs?.items || [];
+            const userJobs = allJobs.filter(j => j.metadata.labels?.userId === safeUserId && j.metadata.labels?.app === 'instagram-fca-client');
+            for (const j of userJobs) {
+                await k8sBatchApi.deleteNamespacedJob({ name: j.metadata.name, namespace: ns, propagationPolicy: 'Foreground' }).catch(() => { });
+            }
+        } catch (e) { }
+    }
     const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 5000).catch(() => null);
     const items = (existing?.body?.items || existing?.items || []).filter(p => p.metadata.labels?.userId === safeUserId && p.metadata.labels?.app === 'instagram-fca-client');
     for (const p of items) {

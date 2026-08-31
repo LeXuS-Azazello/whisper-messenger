@@ -8,6 +8,7 @@ import MessengerSession from './object-models/MessengerSession.js';
 
 
 let k8sApi = null;
+let k8sBatchApi = null;
 
 /**
  * Resolve the namespace in which the manager pod runs.
@@ -43,6 +44,7 @@ export function initK8s() {
         }
 
         k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+        k8sBatchApi = kc.makeApiClient(k8s.BatchV1Api);
         console.log(`[manager] K8s initialized. Namespace: ${resolveNamespace()}`);
     } catch (err) {
         console.error(`[manager] Failed to initialize K8s client:`, err);
@@ -122,6 +124,16 @@ export async function spawnPod(userId, session, username = '', tgId = '', tgLogi
     // PVCs removed — tdlib-storage uses emptyDir from template
 
     try {
+        if (k8sBatchApi) {
+            const existingJobs = await withTimeout(k8sBatchApi.listNamespacedJob({ namespace: ns }), 10000).catch(() => null);
+            const allJobs = existingJobs?.body?.items || existingJobs?.items || [];
+            const userJobs = allJobs.filter(j => j.metadata.labels?.userId === safeUserId);
+            for (const j of userJobs) {
+                if (!j?.metadata?.name) continue;
+                console.log(`[/spawn] Deleting stale job ${j.metadata.name}...`);
+                await k8sBatchApi.deleteNamespacedJob({ name: j.metadata.name, namespace: ns, propagationPolicy: 'Foreground' }).catch(() => { });
+            }
+        }
         const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 10000).catch(() => null);
         const allPods = existing?.body?.items || existing?.items || [];
         const items = allPods.filter(p => p.metadata.labels?.userId === safeUserId);
@@ -260,12 +272,41 @@ export async function spawnPod(userId, session, username = '', tgId = '', tgLogi
         container.image = process.env.TG_CLIENT_IMAGE;
     }
 
-    console.log(`[/spawn] Step 10: Final Pod Manifest payload verified. Sending CREATE pod request to K8s API...`);
+    const jobManifest = {
+        apiVersion: 'batch/v1',
+        kind: 'Job',
+        metadata: {
+            name: podName,
+            namespace: ns,
+            labels: {
+                app: 'tg-client-user',
+                userId: safeUserId
+            }
+        },
+        spec: {
+            ttlSecondsAfterFinished: 86400,
+            backoffLimit: 0,
+            template: {
+                metadata: {
+                    labels: {
+                        app: 'tg-client-user',
+                        userId: safeUserId
+                    }
+                },
+                spec: {
+                    ...podManifest.spec,
+                    restartPolicy: 'Never'
+                }
+            }
+        }
+    };
+
+    console.log(`[/spawn] Step 10: Final Job Manifest payload verified. Sending CREATE job request to K8s API...`);
     try {
-        await withTimeout(k8sApi.createNamespacedPod({ namespace: ns, body: podManifest }), 30000);
-        console.log(`[/spawn] Step 11: Successfully created pod "${podName}" in Kubernetes namespace "${ns}"`);
+        await withTimeout(k8sBatchApi.createNamespacedJob({ namespace: ns, body: jobManifest }), 30000);
+        console.log(`[/spawn] Step 11: Successfully created job "${podName}" in Kubernetes namespace "${ns}"`);
     } catch (createErr) {
-        console.error(`[/spawn] Step 11 (FAILED): Kubernetes pod creation request rejected:`, createErr.stack || createErr.message || createErr);
+        console.error(`[/spawn] Step 11 (FAILED): Kubernetes job creation request rejected:`, createErr.stack || createErr.message || createErr);
         throw createErr;
     }
 
@@ -279,6 +320,20 @@ export async function deletePods(userId) {
 
     console.log(`[/delete] Deleting tg-client pods for user ${safeUserId}`);
     const ns = getNamespace();
+
+    if (k8sBatchApi) {
+        try {
+            const existingJobs = await withTimeout(k8sBatchApi.listNamespacedJob({ namespace: ns }), 5000).catch(() => null);
+            const allJobs = existingJobs?.body?.items || existingJobs?.items || [];
+            const userJobs = allJobs.filter(j => j.metadata.labels?.userId === safeUserId);
+            for (const j of userJobs) {
+                if (!j?.metadata?.name) continue;
+                console.log(`[/delete] Deleting job ${j.metadata.name}...`);
+                await withTimeout(k8sBatchApi.deleteNamespacedJob({ name: j.metadata.name, namespace: ns, propagationPolicy: 'Foreground' }), 5000).catch(() => { });
+            }
+        } catch (e) { }
+    }
+
     const existing = await withTimeout(k8sApi.listNamespacedPod({ namespace: ns }), 5000).catch(() => null);
     const allItems = existing?.body?.items || existing?.items || [];
     const items = allItems.filter(p => p.metadata.labels?.userId === safeUserId);
