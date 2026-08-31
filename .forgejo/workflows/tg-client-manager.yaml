@@ -1,12 +1,9 @@
 name: "[main-tg-client-manager] Build and push"
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
-    paths:
-      - '.forgejo/workflows/tg-client-manager.yaml'
-      - 'kubernetes/base/tg-client-manager.yaml'
-      - 'tg-client-manager/**'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
