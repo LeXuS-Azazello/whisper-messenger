@@ -1,7 +1,7 @@
 /**
  * TDLib Bridge — Manager-only (orchestrates tg-client PODs)
  * 
- * tg-client runs as a separate POD/process per user.
+ * tg-client runs as a separate Job/process per user.
  * This process only handles auth, pod orchestration, and admin routes.
  */
 

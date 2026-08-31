@@ -29,7 +29,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f tg-client-manager/Dockerfile -t ${{ env.IMG }}:tg-client-manager-latest -t ${{ env.IMG }}:tg-client-manager-${{ forgejo.run_number }} tg-client-manager
+          docker build --no-cache -f tg-client-manager/Dockerfile -t ${{ env.IMG }}:tg-client-manager-latest -t ${{ env.IMG }}:tg-client-manager-${{ forgejo.run_number }} tg-client-manager
 
       - name: Log in to Registry and push!
         run: |
