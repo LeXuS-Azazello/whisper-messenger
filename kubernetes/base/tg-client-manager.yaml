@@ -18,7 +18,7 @@ spec:
       containers:
       - name: manager
         image: forge.dev.takatan.cloud/lexus/voicemsg-net:tg-client-manager-latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         command: ["node", "index.js"]
         ports:
         - containerPort: 3000
