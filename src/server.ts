@@ -93,7 +93,15 @@ serve({
   port,
   hostname: "0.0.0.0"
 }, async () => {
-  // Temporary fix for transcription provider
+  // 1. Connect to MongoDB first (ensure connection is ready)
+  try {
+    await connectDB();
+    console.log('[Fix] MongoDB connection verified for startup fix');
+  } catch (e) {
+    console.error('[Fix] MongoDB connection failed during startup fix:', e);
+  }
+
+  // 2. Force update settings in MongoDB BEFORE syncing to Redis
   try {
     const db = mongoose.connection.db;
     if (db) {
@@ -106,7 +114,7 @@ serve({
     console.error('[Fix] Failed to update whisper provider:', e);
   }
 
-  // Sync settings from MongoDB to Redis on startup
+  // 3. Sync settings from MongoDB to Redis on startup
   const globalEnv: Env = {
     ...((typeof process !== 'undefined' ? process.env : {}) as any),
     STATS: sharedRedisKV,
