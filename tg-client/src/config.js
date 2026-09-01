@@ -22,10 +22,10 @@ export const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
 
 
 export const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379', {
-    maxRetriesPerRequest: 1,
+    maxRetriesPerRequest: null,
     enableOfflineQueue: true,
     retryStrategy(times) {
-        return Math.min(times * 50, 2000);
+        return Math.min(times * 100, 5000);
     }
 });
 redis.on('error', err => {
