@@ -93,6 +93,19 @@ serve({
   port,
   hostname: "0.0.0.0"
 }, async () => {
+  // Temporary fix for transcription provider
+  try {
+    const db = mongoose.connection.db;
+    if (db) {
+      const funasrUrl = "http://funasr.debugging-testcrash-pub.svc.cluster.local:50001";
+      await db.collection('settings').updateMany({ key: 'config_whisper_provider' }, { $set: { value: funasrUrl } });
+      await db.collection('settings').updateMany({ key: 'config_local_whisper_url' }, { $set: { value: funasrUrl } });
+      console.log('[Fix] Successfully updated whisper provider to funasr in MongoDB');
+    }
+  } catch (e) {
+    console.error('[Fix] Failed to update whisper provider:', e);
+  }
+
   // Sync settings from MongoDB to Redis on startup
   const globalEnv: Env = {
     ...((typeof process !== 'undefined' ? process.env : {}) as any),
