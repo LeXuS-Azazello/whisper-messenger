@@ -37,7 +37,7 @@ export function createClient(userId, options = {}) {
             use_message_database: false,
             use_chat_info_database: false,
             use_file_database: true,
-            use_secret_chats: true,
+            use_secret_chats: false,
             device_model: "voicemsg-net client-server",
             system_language_code: "en",
             system_version: "Linux",
